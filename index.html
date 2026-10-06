@@ -751,6 +751,7 @@ nav .menu{display:flex;align-items:center;gap:22px}
    ========================================================= */
 </script>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 /* ============ UTILS ============ */
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
@@ -784,7 +785,7 @@ const DB={
    if(!this.data){this.data=Seed.build();this.save()}
    /* 기본 비밀번호 해시 (데모 계정만, 운영 전환 시 서버(Auth)가 담당) */
    for(const u of this.data.users){if(u.pwDefault&&!u.pwHash){sha256(u.empNo+'::Pass123!').then(h=>{u.pwHash=h;this.save()})}}},
- save(){try{localStorage.setItem(DBKEY,JSON.stringify(this.data))}catch(e){console.warn('저장 공간 부족',e)}},
+ save(){try{localStorage.setItem(DBKEY,JSON.stringify(this.data))}catch(e){console.warn('저장 공간 부족',e)} if(window.SupaSync)SupaSync.queuePush();},
  /* 실제 운영 전환 지점: 이 메서드만 Supabase(POSTGRES)/REST 로 교체하면 전 화면이 그대로 동작합니다. */
  replace(remote){this.data=remote;this.save()},
  reset(){localStorage.removeItem(DBKEY);location.reload()},
@@ -990,6 +991,7 @@ const Auth={
   const id=$('#li-id').value.trim(),pw=$('#li-pw').value,auto=$('#li-auto').checked;
   const u=DB.data.users.find(x=>x.empNo.toLowerCase()===id.toLowerCase()||x.email.toLowerCase()===id.toLowerCase()||(x.aliases||[]).some(a=>String(a).toLowerCase()===id.toLowerCase()));
   const fail=m=>this.err('li-err',m);
+  if(window.SupaSync&&SupaSync.on()){const sm=await SupaSync.authLogin(id,pw);if(sm)return fail(sm);}
   if(!u)return fail('등록되지 않은 사번·이메일입니다.');
   if(u.status==='pending')return fail('관리자 승인 대기 중인 계정입니다. 승인 후 로그인해 주세요.');
   if(u.status==='rejected')return fail('가입 신청이 반려된 계정입니다. 시스템관리팀에 문의해 주세요.');
@@ -1004,6 +1006,7 @@ const Auth={
   u.fails=0;u.lockedUntil=null;u.lastLogin=new Date().toISOString();DB.save();
   const sess={uid:u.id,at:Date.now(),exp:auto?Date.now()+30*24*3600*1000:null};
   (auto?localStorage:sessionStorage).setItem(this.sessKey,JSON.stringify(sess));
+  if(window.SupaSync&&SupaSync.on())SupaSync.afterLogin(u,pw);
   this.log(u,'LOGIN','로그인 성공');
   U.toast(u.name+'님, 환영합니다.','ok');App.openPortal();return false},
  async signup(ev){ev.preventDefault();this.clearErr();
@@ -1016,6 +1019,7 @@ const Auth={
   if(!/^[A-Za-z0-9]{8,}$/.test(pw))return this.err('su-err','비밀번호는 8자 이상 영문+숫자로 입력해 주세요.');
   if(pw!==pw2)return this.err('su-err','비밀번호가 일치하지 않습니다.');
   if(DB.data.users.some(u=>u.empNo.toLowerCase()===emp.toLowerCase()||u.email.toLowerCase()===email.toLowerCase()))return this.err('su-err','이미 등록된 사번 또는 이메일입니다.');
+  if(window.SupaSync&&SupaSync.on()){const se=await SupaSync.authSignup(email,pw);if(se)return this.err('su-err',se);}
   DB.data.users.push({id:uid(),empNo:emp.toLowerCase(),name,dept,title,email,phone:v('su-phone'),role:'user',team:team,status:'pending',pwDefault:false,pwHash:await sha256(emp+'::'+pw),fails:0,joined:today()});
   DB.save();this.log(null,'SIGNUP',`회원가입 신청: ${name} (${emp})`);
   $('#su-ok').classList.add('on');$('#f-signup').reset();return false},
@@ -1027,10 +1031,63 @@ const Auth={
   u.pwHash=await sha256(u.empNo+'::'+tmp);u.pwDefault=false;u.fails=0;u.lockedUntil=null;DB.save();
   this.log(u,'PW_RESET','임시 비밀번호 발급');
   const ok=$('#rs-ok');ok.innerHTML=`임시 비밀번호: <b>${esc(tmp)}</b> — 로그인 후 반드시 변경하세요. (운영 전환 시 이메일 발송으로 대체)`;ok.classList.add('on');return false},
- logout(silent){sessionStorage.removeItem(this.sessKey);localStorage.removeItem(this.sessKey);
+ logout(silent){sessionStorage.removeItem(this.sessKey);localStorage.removeItem(this.sessKey);if(window.SupaSync&&SupaSync.on()){try{SupaSync.c().auth.signOut()}catch(e){}}
   if(!silent){U.toast('로그아웃되었습니다.');App.goLanding()}else App.show('landing')},
  log(u,act,d){DB.data.logs.unshift({at:new Date().toISOString(),u:u?u.name:'비로그인',act,ip:'10.20.x.x',d});DB.data.logs=DB.data.logs.slice(0,300);DB.save()},
 }
+
+/* ============ SUPABASE SYNC (공유 백엔드 어댑터) ============ */
+window.SUPA_URL='https://vogcnzfxntaorxnkpznl.supabase.co';   /* ← Supabase 프로젝트 URL (Settings > API > Project URL) */
+window.SUPA_ANON='sb_publishable_9GJBXcv4PgXUxwYY17gttw_PE15ILpK';  /* ← anon public 키 (Settings > API > anon public) */
+const SupaSync={
+ cli:null,pushT:null,pollT:null,lastSeen:0,
+ on(){return !!(window.SUPA_URL&&window.SUPA_ANON&&window.supabase)},
+ c(){if(!this.cli)this.cli=window.supabase.createClient(window.SUPA_URL,window.SUPA_ANON);return this.cli},
+ async pull(){try{const r=await this.c().from('app_state').select('data,updated_at').eq('id',1).maybeSingle();if(r.error){console.warn('[SupaSync pull]',r.error.message);return null}return r.data}catch(e){console.warn('[SupaSync pull]',e);return null}},
+ async push(data){try{await this.c().from('app_state').upsert({id:1,data:data,updated_at:new Date().toISOString()});this.lastSeen=Date.now()}catch(e){console.warn('[SupaSync push]',e)}},
+ queuePush(){if(!this.on())return;clearTimeout(this.pushT);this.pushT=setTimeout(()=>{this.push(DB.data)},800)},
+ async boot(){
+  const remote=await this.pull();
+  let local=null;try{local=JSON.parse(localStorage.getItem(DBKEY)||'null')}catch(e){}
+  if(remote&&remote.data){DB.replace(remote.data);this.lastSeen=Date.now()}
+  else if(local){await this.push(local)}
+  try{const gs=await this.c().auth.getSession();const ses=gs&&gs.data&&gs.data.session;
+   if(ses&&!Auth.user()){const email=(ses.user.email||'').toLowerCase();
+    const me=(DB.data.users||[]).find(u=>(u.email||'').toLowerCase()===email&&u.status==='active');
+    if(me){sessionStorage.setItem(Auth.sessKey,JSON.stringify({uid:me.id,at:Date.now(),exp:Date.now()+12*3600*1000}))}}}catch(e){}
+  if(Auth.user()){App.openPortal()}else{App.goAuth('login')}
+  if(location.hash&&location.hash.indexOf('#/')===0&&!Auth.user()){App.goAuth('login');try{location.hash=''}catch(e){}}
+  this.startPoll();
+ },
+ startPoll(){clearInterval(this.pollT);this.pollT=setInterval(async()=>{if(!this.on())return;try{
+   const r=await this.pull();if(!(r&&r.data))return;
+   const t=r.updated_at?Date.parse(r.updated_at):0;if(t&&t<=this.lastSeen)return;
+   this.lastSeen=t;DB.data=r.data;try{localStorage.setItem(DBKEY,JSON.stringify(r.data))}catch(e){}
+   const app=document.getElementById('page-app');
+   if(app&&app.classList.contains('on')){try{App.render();App.refreshChrome()}catch(e){}}
+  }catch(e){}},6000)},
+ async resolveEmail(id){if(!id)return null;if(id.indexOf('@')>=0)return id;
+  try{const r=await this.c().from('user_index').select('email').eq('emp_no',id.toLowerCase()).maybeSingle();return r&&r.data?r.data.email:null}catch(e){return null}},
+ async authLogin(id,pw){if(!this.on())return null;
+  const email=await this.resolveEmail(id);if(!email)return null;
+  try{const r=await this.c().auth.signInWithPassword({email:email,password:pw});
+   if(!r.error)return null;
+   const su=await this.c().auth.signUp({email:email,password:pw});
+   if(su.error&&(su.error.message||'').toLowerCase().indexOf('already')>=0)return '비밀번호가 일치하지 않습니다.';
+   return null}catch(e){return null}},
+ async authSignup(email,pw){if(!this.on())return null;
+  try{const r=await this.c().auth.signUp({email:email,password:pw});
+   if(r.error){const m=(r.error.message||'').toLowerCase();
+    if(m.indexOf('already')>=0)return '이미 등록된 이메일입니다. 로그인 화면에서 로그인해 주세요.';
+    if(m.indexOf('rate')>=0)return '요청이 많습니다. 잠시 후 다시 시도해 주세요.';
+    return '가입 처리 중 오류: '+(r.error.message||'')}
+   return null}catch(e){return '가입 처리 중 오류가 발생했습니다.'}},
+ async afterLogin(u,pw){if(!this.on())return;
+  const email=u.email||'';if(!email)return;
+  try{let r=await this.c().auth.signInWithPassword({email:email,password:pw});
+   if(r.error)await this.c().auth.signUp({email:email,password:pw})}catch(e){}
+  try{if(u.empNo)await this.c().from('user_index').upsert({emp_no:u.empNo.toLowerCase(),email:email.toLowerCase()})}catch(e){}},
+};
 
 /* ============ APP SHELL / ROUTER ============ */
 const App={
@@ -1757,6 +1814,7 @@ document.addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&e.key
 window.addEventListener('hashchange',function(){App.render();});
 window.addEventListener('DOMContentLoaded',function(){
  DB.load();
+ if(window.SupaSync&&SupaSync.on()){SupaSync.boot();return}
  if(Auth.user()){App.openPortal();}else{App.goAuth('login');}
  if(location.hash&&location.hash.indexOf('#/')===0&&!Auth.user()){App.goAuth('login');location.hash='';}
 });
