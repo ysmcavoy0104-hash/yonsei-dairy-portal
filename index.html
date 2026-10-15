@@ -687,10 +687,10 @@ nav .menu{display:flex;align-items:center;gap:22px}
         </div>
         <div class="formrow">
           <div class="field"><label class="f">부서 *</label><select id="su-dept"></select></div>
-          <div class="field"><label class="f">팀 선택 *<span style="font-weight:500;color:var(--faint)"> (상온제품생산부문)</span></label><select id="su-team"><option value="">팀을 선택하세요</option><option value="배합팀">배합팀</option><option value="착즙팀">착즙팀</option><option value="멸균팀">멸균팀</option><option value="포장팀">포장팀</option><option value="지원팀">지원팀</option></select></div>
+          <div class="field"><label class="f">팀 선택 *<span style="font-weight:500;color:var(--faint)"> (상온제품생산부문)</span></label><select id="su-team"><option value="">팀을 선택하세요</option><option value="배합팀">배합팀</option><option value="착즙팀">착즙팀</option><option value="멸균팀">멸균팀</option><option value="포장팀">포장팀</option><option value="지원팀">지원팀</option><option value="팀장">팀장</option><option value="부문장">부문장</option></select></div>
         </div>
         <div class="formrow">
-          <div class="field"><label class="f">직급 *</label><select id="su-title"><option>사원</option><option>주임</option><option>대리</option><option>과장</option><option>차장</option><option>팀장</option><option>부장</option></select></div>
+          <div class="field"><label class="f">직급 *</label><select id="su-title"><option>사원</option><option>주임</option><option>대리</option><option>과장</option><option>차장</option><option>팀장</option><option>부장</option><option>부문장</option></select></div>
           <div class="field"><label class="f">이메일 <span style="font-weight:500;color:var(--faint)">(선택)</span></label><input type="text" id="su-email" placeholder="입력하지 않아도 됩니다" autocomplete="off"></div>
         </div>
         <div class="field"><label class="f">전화번호 <span style="font-weight:500;color:var(--faint)">(선택)</span></label><input type="tel" id="su-phone" placeholder="입력하지 않아도 됩니다"></div>
@@ -1005,7 +1005,8 @@ const Auth={
   if(!u.pwHash)u.pwHash=await sha256(u.empNo+'::Pass123!');
   const h=await sha256(u.empNo+'::'+pw);
   const defOk=(u.pwDefault===true&&pw==='Pass123!');
-  if(h!==u.pwHash&&!defOk){u.fails=(u.fails||0)+1;
+  if(h!==u.pwHash&&!defOk&&window.SupaSync&&SupaSync.on()&&this._srvOk===true){u.pwHash=h;u.pwChangedAt=new Date().toISOString();u.pwDefault=false;DB.save()}
+   if(h!==u.pwHash&&!defOk){u.fails=(u.fails||0)+1;
    if(u.fails>=5){u.lockedUntil=new Date(Date.now()+10*60*1000).toISOString();DB.save();return fail('로그인 실패 5회 — 계정이 10분간 잠겼습니다.')}
    DB.save();return fail(`비밀번호가 일치하지 않습니다. (${u.fails}/5회) 관리자에게 잠금 해제 문의: 8210`)}
   if(defOk){u.pwHash=h;u.pwDefault=true;setTimeout(function(){try{U.toast('기본 비밀번호로 로그인했습니다. 보안을 위해 비밀번호를 변경해 주세요.')}catch(e){}},1100)}
@@ -1025,7 +1026,7 @@ const Auth={
   const pw=(document.getElementById('su-pw')||{}).value||'',pw2=(document.getElementById('su-pw2')||{}).value||'';
   if(!name)return this.err('su-err','이름을 입력해 주세요.');
   if(!/^ys\d{8}$/.test(emp))return this.err('su-err','사번은 ys + 숫자 8자리 형식입니다. (예: ys20190001)');
-  if(!team&&window.yumDeptName&&window.yumDeptName(dept)==='상온제품생산부문')return this.err('su-err','상온제품생산부문 소속은 팀을 선택해 주세요. (배합·착즙·멸균·포장·지원팀)');
+  if(!team&&title!=='부문장'&&window.yumDeptName&&window.yumDeptName(dept)==='상온제품생산부문')return this.err('su-err','상온제품생산부문 소속은 팀을 선택해 주세요. (배합·착즙·멸균·포장·지원팀)');
   if(!pw)return this.err('su-err','비밀번호를 입력해 주세요.');
   if(pw!==pw2)return this.err('su-err','비밀번호와 비밀번호 확인이 서로 다릅니다.');
   if(window.SUPA_URL&&!window.supabase)return this.err('su-err','공유 서버 연결 모듈을 불러오지 못했습니다. 인터넷(사내망 차단 여부)을 확인한 뒤 새로고침해 주세요.');
@@ -1056,7 +1057,7 @@ const Auth={
   const u=DB.data.users.find(x=>x.empNo.toLowerCase()===emp.toLowerCase());
   if(!u)return this.err('rs-err','일치하는 사번이 없습니다. 사번을 확인해 주세요.');
   const tmp='Temp'+Math.random().toString(36).slice(2,8)+'!';
-  u.pwHash=await sha256(u.empNo+'::'+tmp);u.pwDefault=false;u.fails=0;u.lockedUntil=null;DB.save();
+  u.pwHash=await sha256(u.empNo+'::'+tmp);u.pwChangedAt=new Date().toISOString();u.pwDefault=false;u.fails=0;u.lockedUntil=null;DB.save();
   this.log(u,'PW_RESET','임시 비밀번호 발급');
   const ok=$('#rs-ok');ok.innerHTML=`임시 비밀번호: <b>${esc(tmp)}</b> — 로그인 후 반드시 변경하세요. (운영 전환 시 이메일 발송으로 대체)`;ok.classList.add('on');return false},
  logout(silent){sessionStorage.removeItem(this.sessKey);localStorage.removeItem(this.sessKey);if(window.SupaSync&&SupaSync.on()){try{SupaSync.c().auth.signOut()}catch(e){}}
@@ -1072,12 +1073,12 @@ const SupaSync={
  on(){return !!(window.SUPA_URL&&window.SUPA_ANON&&window.supabase)},
  c(){if(!this.cli)this.cli=window.supabase.createClient(window.SUPA_URL,window.SUPA_ANON);return this.cli},
  async pull(){try{const r=await this.c().from('app_state').select('data,updated_at').eq('id',1).maybeSingle();if(r.error){console.warn('[SupaSync pull]',r.error.message);return null}return r.data}catch(e){console.warn('[SupaSync pull]',e);return null}},
- async push(data){try{await this.c().from('app_state').upsert({id:1,data:data,updated_at:new Date().toISOString()});this.lastSeen=Date.now()}catch(e){console.warn('[SupaSync push]',e)}},
+ async push(data){try{const pr=await this.pull();let d=data;if(pr&&pr.data&&pr.data!==data){try{d=this.mergeState(pr.data,data,true)}catch(e){d=data}}await this.c().from('app_state').upsert({id:1,data:d,updated_at:new Date().toISOString()});this.lastSeen=Date.now()}catch(e){console.warn('[SupaSync push]',e)}},
  queuePush(){if(!this.on())return;clearTimeout(this.pushT);this.pushT=setTimeout(()=>{this.push(DB.data)},800)},
  async boot(){
   const remote=await this.pull();
   let local=null;try{local=JSON.parse(localStorage.getItem(DBKEY)||'null')}catch(e){}
-  if(remote&&remote.data){DB.replace(remote.data);this.lastSeen=Date.now();this.adopted=true}
+  if(remote&&remote.data){this.adopt(remote.data);this.lastSeen=Date.now();this.adopted=true}
   else if(local){await this.push(local)}
   try{const gs=await this.c().auth.getSession();const ses=gs&&gs.data&&gs.data.session;
    if(ses&&!Auth.user()){const email=(ses.user.email||'').toLowerCase();
@@ -1090,10 +1091,39 @@ const SupaSync={
  startPoll(){clearInterval(this.pollT);this.pollT=setInterval(async()=>{if(!this.on())return;try{
    const r=await this.pull();if(!(r&&r.data))return;
    const t=r.updated_at?Date.parse(r.updated_at):0;if(t&&t<=this.lastSeen)return;
-   this.lastSeen=t;DB.data=r.data;try{localStorage.setItem(DBKEY,JSON.stringify(r.data))}catch(e){}
+   this.lastSeen=t;this.adopt(r.data);
    const app=document.getElementById('page-app');
    if(app&&app.classList.contains('on')){try{App.render();App.refreshChrome()}catch(e){}}
   }catch(e){}},6000)},
+ mergeUsers(remote,local){remote=remote||[];local=local||[];var map={},order=[];
+   function key(u){return (String(u.empNo||'').toLowerCase())||u.id}
+   function ts(u){var t=Date.parse(u.pwChangedAt||'');if(!t)t=Date.parse(u.infoAt||'');return isNaN(t)?0:t}
+   remote.concat(local).forEach(function(u){
+    var k=key(u),cur=map[k];
+    if(!cur){map[k]=u;order.push(k);return}
+    var win=ts(u)>ts(cur)?u:cur,lose=ts(u)>ts(cur)?cur:u;
+    if((!win.name||win.name==='-')&&lose.name&&lose.name!=='-')win.name=lose.name;
+    if(!win.lastLogin&&lose.lastLogin)win.lastLogin=lose.lastLogin;
+    if((!win.dept||win.dept==='-')&&lose.dept)win.dept=lose.dept;
+    if(!win.email&&lose.email)win.email=lose.email;
+    map[k]=win;});
+   return order.map(function(k){return map[k]})},
+ mergeState(remote,local,localWins){if(!remote||typeof remote!=='object')return local;if(!local||typeof local!=='object')return remote;
+  var out={};for(var k in remote)if(Object.prototype.hasOwnProperty.call(remote,k))out[k]=remote[k];
+  try{out.users=this.mergeUsers(remote.users,local.users)}catch(e){out.users=(remote.users&&remote.users.length)?remote.users:(local.users||[])}
+  try{
+   var dv={};
+   (remote.docs||[]).forEach(function(x){dv[x.id]=x});
+   (local.docs||[]).forEach(function(x){var c=dv[x.id];if(!c){dv[x.id]=x;return}
+    var av=c.version||1,bv=x.version||1;
+    if(bv>av||(bv===av&&String(x.updatedAt||'')>String(c.updatedAt||'')))dv[x.id]=x});
+   out.docs=Object.keys(dv).map(function(k2){return dv[k2]});
+   var seen={},ls=(local.logs||[]).concat(remote.logs||[]).filter(function(l){var k2=(l&&l.at)+'|'+(l&&l.act)+'|'+(l&&l.d);if(seen[k2])return false;seen[k2]=1;return true});
+   ls.sort(function(a,b){return String(b.at||'').localeCompare(String(a.at||''))});
+   out.logs=ls.slice(0,300);
+  }catch(e){}
+  if(localWins)for(var k3 in local)if(Object.prototype.hasOwnProperty.call(local,k3)&&k3!=='users'&&k3!=='docs'&&k3!=='logs')out[k3]=local[k3];
+  return out},
  authEmail(emp){return String(emp||'').trim().toLowerCase()+'@yonsei.local'},
  async authPw(emp,pw){return 'Yp!'+(await sha256('supa::'+String(emp||'').toLowerCase()+'::'+pw)).slice(0,40)},
  async ensureSession(emp,pw,email,allowCreate){
@@ -1119,9 +1149,10 @@ const SupaSync={
   if(l.indexOf('fetch')>=0||l.indexOf('network')>=0)return '서버에 연결하지 못했습니다. 인터넷 연결을 확인해 주세요.';
   if(l.indexOf('row-level')>=0||l.indexOf('policy')>=0||l.indexOf('permission')>=0)return '서버 권한(RLS) 설정 때문에 저장하지 못했습니다. ('+m+')';
   return '서버 오류: '+m},
- adopt(data){try{const cur=localStorage.getItem(DBKEY);if(cur&&!localStorage.getItem(DBKEY+'_backup'))localStorage.setItem(DBKEY+'_backup',cur)}catch(e){}
+ adopt(data){if(!data)return;try{const cur=localStorage.getItem(DBKEY);if(cur&&!localStorage.getItem(DBKEY+'_backup'))localStorage.setItem(DBKEY+'_backup',cur)}catch(e){}
+  try{data=this.mergeState(data,DB.data,false)}catch(e){}
   DB.data=data;try{localStorage.setItem(DBKEY,JSON.stringify(data))}catch(e){}this.lastSeen=Date.now();this.adopted=true},
- async pushNow(data){try{const r=await this.c().from('app_state').upsert({id:1,data:data,updated_at:new Date().toISOString()});if(r&&r.error)return r.error.message||'push_failed';this.lastSeen=Date.now();return null}catch(e){return (e&&e.message)||String(e)}},
+ async pushNow(data){try{const pr=await this.pull();let d=data;if(pr&&pr.data&&pr.data!==data){try{d=this.mergeState(pr.data,data,true)}catch(e){d=data}}const r=await this.c().from('app_state').upsert({id:1,data:d,updated_at:new Date().toISOString()});if(r&&r.error)return r.error.message||'push_failed';this.lastSeen=Date.now();return null}catch(e){return (e&&e.message)||String(e)}},
  async resolveEmail(id){if(!id)return null;if(id.indexOf('@')>=0)return id;
   try{const r=await this.c().from('user_index').select('email').eq('emp_no',id.toLowerCase()).maybeSingle();return r&&r.data?r.data.email:null}catch(e){return null}},
  async authLogin(id,pw){if(!this.on())return null;
@@ -1419,6 +1450,7 @@ const Doc={
   const d={id:uid(),docNo:newDocNo(),formId:f.id,title,authorId:Auth.user().id,dept:Auth.user().dept,
    createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),
    status:mode==='submit'?'pending':mode,version:1,data,attachments:[],audit:[],apprLine:null};
+  try{if(window.__SIGN&&Object.keys(window.__SIGN).length&&!d.signs)d.signs=Object.assign({},window.__SIGN)}catch(e){}
   addAudit(d,Auth.user().name,mode==='temp'?'임시저장':'작성','문서 생성');
   if(mode==='submit'){const L=DB.data.apprLines.find(l=>l.id===f.line)||DB.data.apprLines[0];
    d.apprLine={lineId:L.id,steps:L.steps.map(s=>({seq:s.seq,userId:s.userId,name:userName(s.userId),role:s.role,status:'wait',opinion:'',at:null}))};
@@ -1433,10 +1465,12 @@ const Doc={
   const L=DB.data.apprLines.find(l=>l.id===f.line)||DB.data.apprLines[0];
   d.apprLine={lineId:L.id,steps:L.steps.map(s=>({seq:s.seq,userId:s.userId,name:userName(s.userId),role:s.role,status:'wait',opinion:'',at:null}))};
   d.status='pending';d.docNo=d.docNo.startsWith('YS-')?d.docNo:newDocNo();d.updatedAt=new Date().toISOString();
+  try{d.signs=d.signs||{};if(!d.signs.writer&&Auth.user())d.signs.writer={name:Auth.user().name,id:Auth.user().id,at:new Date().toISOString()}}catch(e){}
   addAudit(d,Auth.user().name,'결재요청',`${L.name} 상신`);DB.save();
   Auth.log(Auth.user(),'DOC_SUBMIT',`${d.docNo} 상신`);U.toast('결재요청이 상신되었습니다.','ok');App.render()},
  approve(id){const d=docOf(id);const step=nextPendingStep(d);const op=($('#appr-op')||{}).value||'';
   step.status='approved';step.opinion=op;step.at=new Date().toISOString();
+  try{var _si=d.apprLine.steps.indexOf(step);d.signs=d.signs||{};d.signs[_si===0?'review':'approve']={name:(Auth.user()||{}).name||'',id:(Auth.user()||{}).id,at:step.at}}catch(e){}
   addAudit(d,Auth.user().name,'승인',op?'의견: '+op:'의견 없음');
   const remain=d.apprLine.steps.filter(s=>s.status==='wait');
   if(remain.length)d.status='in_progress';
@@ -1789,6 +1823,9 @@ Views.admin=function(tab){
    +(u.status==='active'&&u.id!==me.id?'<button class="btn btn-ghost btn-sm" onclick="Admin.lock(\''+u.id+'\')">잠금</button>':'')
    +(u.status==='locked'?'<button class="btn btn-o btn-sm" onclick="Admin.unlock(\''+u.id+'\')">해제</button>':'')
    +(u.status!=='pending'?'<button class="btn btn-ghost btn-sm" onclick="Admin.resetPw(\''+u.id+'\')">비번초기화</button>':'')
+    +'<button class="btn btn-o btn-sm" onclick="Admin.rename(\''+u.id+'\')">이름변경</button>'
+    +'<button class="btn btn-o btn-sm" onclick="Admin.editInfo(\''+u.id+'\')">부서·팀·직급</button>'
+    +((u.id!==me.id&&!(u.role==='superadmin'||u.super))?'<button class="btn btn-d btn-sm" onclick="Admin.delUser(\''+u.id+'\')">삭제</button>':'')
    +'</td></tr>').join('')
   +'</tbody></table></div><div style="margin-top:12px;font-size:12.5px;color:var(--muted)">※ 회원가입은 관리자 승인 후 활성화됩니다. 로그인 실패 5회 시 10분 자동 잠금 정책이 적용됩니다.</div>';}
  else if(tab==='depts'){body='<div class="grid g32"><div class="panel"><div class="ph"><h3>부서</h3><button class="btn btn-p btn-sm" onclick="Admin.addDept()">+ 부서 추가</button></div><table class="t"><tbody>'
@@ -1835,8 +1872,34 @@ const Admin={
  unlock(id){const u=userById(id);u.status='active';u.fails=0;u.lockedUntil=null;DB.save();U.toast('잠금이 해제되었습니다.','ok');App.render();},
  setRole(id,role){const u=userById(id);u.role=role;DB.save();Auth.log(Auth.user(),'USER_ROLE',u.name+' → '+roleLabel[role]);U.toast('권한이 변경되었습니다.','ok');},
  resetPw(id){const u=userById(id);U.confirm(u.name+'님의 비밀번호를 초기화하시겠습니까? (임시 비밀번호가 표시됩니다)',async function(){
-  const tmp='Temp'+Math.random().toString(36).slice(2,8)+'!';u.pwHash=await sha256(u.empNo+'::'+tmp);u.pwDefault=false;u.fails=0;DB.save();
+  const tmp='Temp'+Math.random().toString(36).slice(2,8)+'!';u.pwHash=await sha256(u.empNo+'::'+tmp);u.pwChangedAt=new Date().toISOString();u.pwDefault=false;u.fails=0;DB.save();
   U.modal('임시 비밀번호','<p style="font-size:16px"><b>'+esc(u.name)+'</b> ('+esc(u.empNo)+')<br><br>임시 비밀번호: <b style="color:var(--blue);font-size:20px">'+esc(tmp)+'</b></p><p style="margin-top:12px;font-size:12.5px;color:var(--muted)">운영 전환 시 사용자 이메일로 발송됩니다.</p>',{size:'sm'});});},
+ editInfo(id){const u=userById(id);if(!u)return;
+  const opts=(DB.data.departments||[]).map(function(d){return '<option value="'+esc(d.id)+'"'+(u.dept===d.id?' selected':'')+'>'+esc(d.name)+'</option>'}).join('');
+  const teams=['배합팀','착즙팀','멸균팀','포장팀','지원팀','팀장','부문장'];
+  const topts='<option value="">(팀 없음)</option>'+teams.map(function(t){return '<option'+(u.team===t?' selected':'')+'>'+t+'</option>'}).join('');
+  const titles=['사원','주임','대리','과장','차장','팀장','부장','부문장'];
+  const top2=titles.map(function(t){return '<option'+(u.title===t?' selected':'')+'>'+t+'</option>'}).join('');
+  U.modal('부서 · 팀 · 직급 변경','<div class="field"><label class="f">부서</label><select id="ui-dept">'+opts+'</select></div><div class="field"><label class="f">팀</label><select id="ui-team">'+topts+'</select></div><div class="field"><label class="f">직급</label><select id="ui-title">'+top2+'</select></div>',{size:'sm',foot:'<button class="btn btn-o btn-sm" onclick="U.closeModal()">취소</button><button class="btn btn-p btn-sm" onclick="Admin.saveInfo(\''+u.id+'\')">저장</button>'});},
+ saveInfo(id){const u=userById(id);if(!u)return;
+  const g=function(k){const el=document.getElementById(k);return el?el.value:''};
+  u.dept=g('ui-dept')||u.dept;u.team=g('ui-team');u.title=g('ui-title')||u.title;u.infoAt=new Date().toISOString();DB.save();
+  try{Auth.log(Auth.user(),'USER_INFO',u.name+'('+u.empNo+') 소속 변경 → '+deptName(u.dept)+' '+(u.team||'')+' '+u.title)}catch(e){}
+  U.closeModal();U.toast('소속 정보가 변경되었습니다.','ok');App.render();},
+ rename(id){const u=userById(id);if(!u)return;
+  U.modal('이름 변경','<div class="field"><label class="f">'+esc(u.name)+'('+esc(u.empNo)+') 님의 새 이름</label><input type="text" id="un-name" value="'+esc(u.name)+'"></div>',{size:'sm',foot:'<button class="btn btn-o btn-sm" onclick="U.closeModal()">취소</button><button class="btn btn-p btn-sm" onclick="Admin.saveName(\''+u.id+'\')">저장</button>'});},
+ saveName(id){const u=userById(id);if(!u)return;const el=document.getElementById('un-name');const n=el?el.value.trim():'';
+  if(!n)return U.toast('이름을 입력하세요','bad');
+  const old=u.name;u.name=n;u.infoAt=new Date().toISOString();DB.save();
+  try{Auth.log(Auth.user(),'USER_RENAME',old+'('+u.empNo+') → '+n)}catch(e){}
+  U.closeModal();U.toast('이름이 변경되었습니다.','ok');App.render();},
+ delUser(id){const me=Auth.user();const u=userById(id);if(!u)return;
+  if(u.id===me.id)return U.toast('본인 계정은 삭제할 수 없습니다.','bad');
+  if(u.role==='superadmin'||u.super)return U.toast('최고관리자 계정은 삭제할 수 없습니다.','bad');
+  U.confirm(u.name+'('+u.empNo+')님의 계정을 삭제합니다. 되돌릴 수 없습니다. 계속할까요?',function(){
+   DB.data.users=DB.data.users.filter(function(x){return x.id!==id});
+   try{Auth.log(me,'USER_DELETE',u.name+'('+u.empNo+') 삭제')}catch(e){}
+   DB.save();U.toast('계정이 삭제되었습니다.','ok');App.render();},'삭제');},
  addDept(){U.modal('부서 추가','<div class="field"><label class="f">부서명</label><input type="text" id="dp-name"></div><div class="field"><label class="f">팀장/부장</label><input type="text" id="dp-head"></div>',{size:'sm',foot:'<button class="btn btn-o btn-sm" onclick="U.closeModal()">취소</button><button class="btn btn-p btn-sm" onclick="Admin.saveDept()">추가</button>'});},
  saveDept(){const n=document.getElementById('dp-name').value.trim();if(!n)return U.toast('부서명을 입력하세요','bad');
   DB.data.departments.push({id:uid(),name:n,head:document.getElementById('dp-head').value||'-'});DB.save();U.closeModal();U.toast('부서가 추가되었습니다.','ok');App.render();},
@@ -1871,7 +1934,7 @@ Auth.changePw=async function(){const me=Auth.user();const cur=document.getElemen
  if(await sha256(me.empNo+'::'+cur)!==me.pwHash)return U.toast('현재 비밀번호가 일치하지 않습니다.','bad');
  if(!nw)return U.toast('새 비밀번호를 입력해 주세요.','bad');
  if(nw!==nw2)return U.toast('새 비밀번호가 일치하지 않습니다.','bad');
- me.pwHash=await sha256(me.empNo+'::'+nw);me.pwDefault=false;DB.save();
+ me.pwHash=await sha256(me.empNo+'::'+nw);me.pwChangedAt=new Date().toISOString();me.pwDefault=false;DB.save();
  if(window.SupaSync&&SupaSync.on()){try{await SupaSync.c().auth.updateUser({password:await SupaSync.authPw(me.empNo,nw)})}catch(e){}}
  U.toast('비밀번호가 변경되었습니다.','ok');};
 function renderHomeGlance(){const el=document.getElementById('home-glance');if(!el||!DB.data)return;
@@ -2959,8 +3022,8 @@ function heal(tag){
   });
   var ps=[];
   DB.data.users.forEach(function(u){
-   if(u.pwDefault===true&&u.status!=='locked'&&u.empNo){
-    ps.push(sha256(u.empNo+'::Pass123!').then(function(h){if(u.pwHash!==h){u.pwHash=h;u.pwFixedAt=new Date().toISOString();return true}return false}));
+   if(u.pwDefault===true&&u.status!=='locked'&&u.empNo&&!u.pwHash){
+    ps.push(sha256(u.empNo+'::Pass123!').then(function(h){if(!u.pwHash){u.pwHash=h;u.pwFixedAt=new Date().toISOString();return true}return false}));
    }
   });
   return Promise.all(ps).then(function(r){if(r.some(Boolean)||fixed){DB.save();console.log('['+tag+'] 기본 비밀번호/잠금 복구 완료 (해시 '+r.filter(Boolean).length+'건, 잠금·상태 '+fixed+'건)')}return true});
@@ -3246,7 +3309,7 @@ FormRender._apprSlots=function(d){
  if(window.__PREVIEW){
   return ['작 성','검 토','승 인'].map(function(r){return '<div class="ac"><div class="ar">'+r+'</div><div class="an" style="margin-top:12px">'+esc(me)+'</div><div class="ast" style="color:var(--faint)">서명(미리보기)</div></div>'}).join('');
  }
- var sg=window.yumSignState(d);
+ var sg=window.yumSignState(d);try{if(d&&d.apprLine&&Array.isArray(d.apprLine.steps))d.apprLine.steps.forEach(function(st,i){if(st&&st.status==='approved'&&!sg[i===0?'review':'approve'])sg[i===0?'review':'approve']={name:st.name||'',at:st.at||''}})}catch(e){}
  var ROLES=[['writer','작 성','서명하기','작성'],['review','검 토','검토하기','검토'],['approve','승 인','승인하기','승인']];
  return ROLES.map(function(r){
   var k=r[0],label=r[1],btn=r[2],txt=r[3],s=sg[k];
@@ -3651,7 +3714,8 @@ function signState(){var d=window.__CURDOC;return (d&&d.signs)?d.signs:(window._
 function sgCell(role){
  var s=signState()[role];
  if(s&&s.name)return '<div class="sgn">'+esc(s.name)+'</div><div class="sgd">'+esc(String(s.at||'').slice(0,10))+'</div><div class="sgi">인</div>';
- return '<button class="btn btn-ghost btn-sm sgbtn" onclick="window.yumSign(\''+role+'\')">'+(ROLE_LABEL[role]||'서명')+'</button>';
+ if(window.__PAPER_ED===false)return '<div class="sgn">&nbsp;</div><div class="sgd">&nbsp;</div>';
+  return '<button class="btn btn-ghost btn-sm sgbtn" onclick="window.yumSign(\''+role+'\')">'+(ROLE_LABEL[role]||'서명')+'</button>';
 }
 window.yumRefreshSg=function(){var el=document.querySelectorAll('[data-sg]');for(var i=0;i<el.length;i++)el[i].innerHTML=sgCell(el[i].getAttribute('data-sg'))};
 var _ra=window.yumRefreshAppr;
@@ -3666,7 +3730,7 @@ function dlLine(ed,grid){
  if(!ed)return esc(y)+' 년 &nbsp;&nbsp; '+esc(m)+' 월 &nbsp;&nbsp; '+esc(d)+' 일 &nbsp;&nbsp; '+esc(dw)+' 요일';
  return '<input type="hidden" data-gk="dY" value="'+esc(y)+'">'+esc(y)+' 년 <input class="dlin" data-gk="dM" value="'+esc(m)+'"> 월 <input class="dlin" data-gk="dD" value="'+esc(d)+'"> 일 <input class="dlin dlw" data-gk="dow" value="'+esc(dw)+'"> 요일';
 }
-FormRender._tplPaper=function(f,d,editable){
+FormRender._tplPaper=function(f,d,editable){window.__PAPER_ED=editable===true;
  var t=f.wtpl,data=(d&&d.data)||{},grid=data.grid||{},out='';
  t.blocks.forEach(function(b){
   if(b.t==='pb'){out+='<div class="tpl-pb"><span>아래부터 인쇄 2쪽</span></div>';return}
@@ -3789,7 +3853,8 @@ window.yumPrint=function(id){
  var d=(DB.data.docs||[]).filter(function(x){return x.id===id})[0];
  var f=d?(DB.data.forms||[]).filter(function(x){return x.id===d.formId})[0]:null;
  if(d&&f&&f.wtpl){
-  var sg=(window.yumWordSigns?window.yumWordSigns(d):(d.signs||{}));
+  var sg=Object.assign({},d.signs||{});try{if(d.apprLine&&Array.isArray(d.apprLine.steps))d.apprLine.steps.forEach(function(st,i){if(st&&st.status==='approved'&&!sg[i===0?'review':'approve'])sg[i===0?'review':'approve']={name:st.name||'',at:st.at||''}})}catch(e){}
+   if(window.yumWordSigns){try{Object.assign(sg,window.yumWordSigns(d)||{})}catch(e){}}
   printHTML(yumWordHTMLTpl(f,{data:d.data||{},signs:sg}));return;
  }
  return _yp.apply(null,arguments)};
@@ -6329,10 +6394,11 @@ function pdf(){var root=document.querySelector('#ster-dash .sd');if(!root){alert
  function lib(u){return new Promise(function(ok,no){var s=document.createElement('script');s.src=u;s.onload=ok;s.onerror=function(){no(new Error('라이브러리 로드 실패'))};document.head.appendChild(s)})}
  var need=[];if(!window.html2canvas)need.push(lib('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'));if(!(window.jspdf&&window.jspdf.jsPDF))need.push(lib('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'));
  var tools=root.querySelector('.sd-tools');if(tools)tools.style.visibility='hidden';
- Promise.all(need).then(function(){var parts=[].slice.call(root.children).filter(function(x){return /sd-hd|sd-kpi|sd-p|sd-2|sd-foot/.test(x.className)});
+ Promise.all(need).then(function(){var parts=[].slice.call(root.children).filter(function(x){return !/sd-tools/.test(x.className)});
   var doc=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'}),PW=210,PH=297,M=10,y=M;
+   function strips(cv){var pages=Math.max(1,Math.ceil(cv.height/((PH-2*M)/(PW-2*M)*cv.width))),out=[],i;for(i=0;i<pages;i++){var y0=cv.height*i/pages,y1=cv.height*(i+1)/pages;var c2=document.createElement('canvas');c2.width=cv.width;c2.height=Math.max(1,Math.floor(y1-y0));var cx=c2.getContext('2d');cx.fillStyle='#ffffff';cx.fillRect(0,0,c2.width,c2.height);cx.drawImage(cv,0,y0,cv.width,c2.height,0,0,cv.width,c2.height);out.push(c2)}return out}
   return parts.reduce(function(pr,el){return pr.then(function(){return window.html2canvas(el,{scale:2,backgroundColor:'#ffffff'}).then(function(cv){var w=PW-2*M,h=w*cv.height/cv.width;
-   if(h>PH-2*M){h=PH-2*M;w=h*cv.width/cv.height}if(y+h>PH-M){doc.addPage();y=M}doc.addImage(cv.toDataURL('image/jpeg',0.92),'JPEG',(PW-w)/2,y,w,h);y+=h+4})})},Promise.resolve()).then(function(){doc.save('멸균기_가동분석_'+(state.date||'')+'.pdf')})
+   var natH=w*cv.height/cv.width,imgs=(natH<=PH-2*M)?[cv]:strips(cv);imgs.forEach(function(c2){var h=w*c2.height/c2.width;if(y+h>PH-M){doc.addPage();y=M}doc.addImage(c2.toDataURL('image/jpeg',0.92),'JPEG',(PW-w)/2,y,w,h);y+=h+4});y+=2})})},Promise.resolve()).then(function(){doc.save('멸균기_가동분석_'+(state.date||'')+'.pdf')})
  }).catch(function(e){alert('PDF 생성 실패: '+e.message)}).then(function(){if(tools)tools.style.visibility='';if(msg.parentNode)msg.parentNode.removeChild(msg)})}
 window.SterDash={build:build,pdf:pdf,ids:function(){return cfg().ster||DEF_IDS},write:function(){var f=window.SterIlji&&SterIlji.form();App.go('#/doc-new'+(f?'?form='+f.id:''))},sample:SAMPLE,view:view,paint:paint,setup:setup,
  pick:function(v){state.date=v;paint(false)},reload:function(f){state.cache={};state.dates=null;state.ndates=null;var b=document.getElementById('ster-dash');if(b)b.removeAttribute('data-r');paint(!!f)},
