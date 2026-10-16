@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
+<meta http-equiv="Pragma" content="no-cache"/>
+<meta http-equiv="Expires" content="0"/>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>연세우유 상온제품생산부문 통합 업무포털</title>
@@ -1264,8 +1267,9 @@ const userById=id=>DB.data.users.find(u=>u.id===id);
 const userName=id=>(userById(id)||{}).name||'-';
 function myTodoApprovals(){const me=Auth.user();if(!me)return[];
  return DB.data.docs.filter(d=>['pending','in_progress'].includes(d.status)&&d.apprLine&&d.apprLine.steps.some(s=>s.userId===me.id&&s.status==='wait'))}
-function canApprove(doc){const me=Auth.user();if(!doc.apprLine)return false;
- return ['pending','in_progress'].includes(doc.status)&&doc.apprLine.steps.some(s=>s.userId===me.id&&s.status==='wait')}
+function canApprove(doc){const me=Auth.user();if(!doc||!doc.apprLine)return false;
+ if(!['pending','in_progress'].includes(doc.status))return false;
+ var s=nextPendingStep(doc);return !!s&&!!s.userId&&s.userId===me.id}
 function nextPendingStep(doc){return doc.apprLine?doc.apprLine.steps.find(s=>s.status==='wait'):null}
 function docOf(id){return DB.data.docs.find(d=>d.id===id)}
 function addAudit(doc,actor,action,detail){doc.audit.push({at:new Date().toISOString(),actor,action,detail})}
@@ -1362,14 +1366,14 @@ docView(id){
     <button class="btn btn-b btn-sm" onclick="Doc.submit('${d.id}')">결재요청</button>`:''}
    ${d.authorId===me.id&&['draft','temp'].includes(d.status)?`<button class="btn btn-d btn-sm" onclick="Doc.archive('${d.id}','비활성화')">비활성화</button>`:''}
    ${(me.role==='admin'||me.role==='superadmin')?`<button class="btn btn-d btn-sm" onclick="Doc.archive('${d.id}','관리자 보관')">보관(관리자)</button>`:''}
-   <button class="btn btn-o btn-sm" onclick="window.print()">인쇄</button>
+   <button class="btn btn-o btn-sm" onclick="try{window.yumPrint('${d.id}')}catch(e){window.print()}">인쇄</button>
    <button class="btn btn-ghost btn-sm" onclick="App.go('#/docs')">← 목록</button></div></div>
  <div class="grid" style="grid-template-columns:2fr 1fr;align-items:start" id="doc-detail-grid">
   <div class="docpaper" id="docpaper">${FormRender.readonly(d)}</div>
   <div>
    ${canA?`<div class="panel" style="border-color:var(--blue);margin-bottom:18px"><div class="ph"><h3>✓ 결재 대기</h3></div>
     <div class="field"><label class="f">결재 의견</label><textarea id="appr-op" rows="3" placeholder="의견을 입력하세요 (선택)"></textarea></div>
-    <div style="display:flex;gap:8px"><button class="btn btn-b btn-sm" style="flex:1" onclick="Doc.approve('${d.id}')">승인</button>
+    <div style="display:flex;gap:8px"><button class="btn btn-b btn-sm" style="flex:1" onclick="Doc.approve('${d.id}')">결재하기</button>
     <button class="btn btn-d btn-sm" style="flex:1" onclick="Doc.reject('${d.id}')">반려</button></div></div>`:''}
    <div class="panel" style="margin-bottom:18px"><div class="ph"><h3>결재선</h3><span class="chip">${d.apprLine?esc((DB.data.apprLines.find(l=>l.id===d.apprLine.lineId)||{}).name||''):'미지정'}</span></div><div class="tl">${hist}</div></div>
    <div class="panel"><div class="ph"><h3>변경·결재 이력 (Audit Log)</h3></div><div class="tl">${audit}</div>
@@ -1413,7 +1417,7 @@ const FormRender={
   ${f.checks.length?`<table class="f" style="border-top:none"><tbody><tr>${f.checks.map(c=>`<td class="lb" style="width:auto"><label style="display:flex;gap:7px;align-items:center;white-space:nowrap"><input type="checkbox" data-fck="${c.k}" ${ck(c.k)?'checked':''} style="width:15px;height:15px;accent-color:var(--blue)"> ${esc(c.l)}</label></td>`).join('')}</tr></tbody></table>`:''}
   ${f.textareas.map(t=>`<table class="f" style="border-top:none"><tbody><tr><td class="lb">${esc(t.l)}</td><td>${editable?`<textarea class="cell" data-ta="${t.k}" rows="2">${esc(ta(t.k))}</textarea>`:esc(ta(t.k)).replaceAll('\n','<br>')}</td></tr></tbody></table>`).join('')}
   <div class="appr">${appr}</div>`},
- readonly(d){const f=DB.data.forms.find(x=>x.id===d.formId)||{};return this.paper(f,d,false)},
+ readonly(d){const f=DB.data.forms.find(x=>x.id===d.formId)||{};try{if(d.apprLine&&Array.isArray(d.apprLine.steps)){d.signs=d.signs||{};d.apprLine.steps.forEach(function(st,i){if(st&&st.status==='approved'&&!d.signs[i===0?'review':'approve'])d.signs[i===0?'review':'approve']={name:st.name||'',at:st.at||''}})}}catch(e){}return this.paper(f,d,false)},
  collect(){const box=$('#docpaper');const data={rows:[],checks:{},textareas:{}};
   box.querySelectorAll('[data-k]').forEach(el=>data[el.dataset.k]=el.value);
   const rowsN=Math.max(1,box.querySelectorAll('[data-td]').length&&Math.max(...[...box.querySelectorAll('[data-td]')].map(el=>+el.dataset.td))+1);
@@ -1434,7 +1438,8 @@ const Doc={
   return `${i?'<span class="step-s '+(done?'done':'')+'"></span>':''}<span class="step ${done?'done':rej?'rej':now?'now':''}"><span class="b">${done?'✓':rej?'✕':i+1}</span><span class="sl">${esc(s.name)}<br>${s.status==='approved'?'승인':s.status==='rejected'?'반려':'대기'}</span></span>`}).join('')||'<span class="chip">결재요청 전</span>'})()}</div>
   <a class="btn btn-p btn-sm" href="#/doc/${id}" onclick="U.closeModal()">상세 화면에서 보기 (결재 · 이력)</a>`,{size:'sm'})},
  pick(){const fSel=$('#nf-form');const f=DB.data.forms.find(x=>x.id===fSel.value);if(!f)return;
-  if(!window.__EDITING){window.__SIGN={};window.__CURDOC=null}
+  if(!window.__EDITING&&window.__PICKFORM!==f.id){window.__SIGN={};window.__CURDOC=null;window.__PICKFORM=f.id}
+   var keep={};try{document.querySelectorAll('#docpaper [data-gk]').forEach(function(el){keep[el.dataset.gk]=el.value})}catch(e){}
   $('#nf-fields').innerHTML=`<div class="docpaper" id="docpaper">${FormRender.paper(f,null,true)}</div>
   <div class="formactions">
    <button class="btn btn-o" onclick="Doc.saveDraft('temp')">임시저장</button><button class="btn btn-o" onclick="Attach.pick()">첨부하기</button>
@@ -1442,7 +1447,9 @@ const Doc={
    <button class="btn btn-b" onclick="Doc.saveDraft('submit')">결재요청</button>
    
    <button class="btn btn-ghost" onclick="window.yumPrintDraft()">인쇄하기</button>
-  </div><div style="text-align:center;font-size:12px;color:var(--faint)">결재요청 시 <b>${esc((DB.data.apprLines.find(l=>l.id===f.line)||{}).name||'표준 결재선')}</b>이 자동 지정됩니다. · <b>인쇄하기</b>를 누르면 작성한 내용이 그대로 적용된 원본 양식으로 인쇄됩니다.</div>`},
+  </div><div style="text-align:center;font-size:12px;color:var(--faint)">결재요청 시 <b>${esc((DB.data.apprLines.find(l=>l.id===f.line)||{}).name||'표준 결재선')}</b>이 자동 지정됩니다. · <b>인쇄하기</b>를 누르면 작성한 내용이 그대로 적용된 원본 양식으로 인쇄됩니다.</div>`;
+  try{document.querySelectorAll('#docpaper [data-gk]').forEach(function(el){if(keep[el.dataset.gk]!==undefined&&el.value==='')el.value=keep[el.dataset.gk]})}catch(e){}
+  try{window.yumRefreshAppr&&window.yumRefreshAppr()}catch(e){}},
  saveDraft(mode){
   const f=DB.data.forms.find(x=>x.id===$('#nf-form').value);if(!f)return;
   const data=FormRender.collect();
@@ -1469,14 +1476,15 @@ const Doc={
   addAudit(d,Auth.user().name,'결재요청',`${L.name} 상신`);DB.save();
   Auth.log(Auth.user(),'DOC_SUBMIT',`${d.docNo} 상신`);U.toast('결재요청이 상신되었습니다.','ok');App.render()},
  approve(id){const d=docOf(id);const step=nextPendingStep(d);const op=($('#appr-op')||{}).value||'';
-  step.status='approved';step.opinion=op;step.at=new Date().toISOString();
+   if(!step){U.toast('이미 결재가 완료된 문서입니다.','bad');return}
+  step.status='approved';step.opinion=op;step.at=new Date().toISOString();try{step.name=(Auth.user()||{}).name||step.name}catch(e){}
   try{var _si=d.apprLine.steps.indexOf(step);d.signs=d.signs||{};d.signs[_si===0?'review':'approve']={name:(Auth.user()||{}).name||'',id:(Auth.user()||{}).id,at:step.at}}catch(e){}
   addAudit(d,Auth.user().name,'승인',op?'의견: '+op:'의견 없음');
-  const remain=d.apprLine.steps.filter(s=>s.status==='wait');
-  if(remain.length)d.status='in_progress';
-  else{d.status='completed';d.updatedAt=new Date().toISOString();
-   addAudit(d,'시스템','자동보관','결재완료 → 문서보관함 자동 이동');
-   U.toast('최종 승인 — 문서가 보관함에 자동 저장되었습니다.','ok')}
+  d.apprLine.steps.forEach(function(s){if(s.status==='wait'){s.status='approved';s.at=new Date().toISOString();if(s===step&&op)s.opinion=op;try{s.name=(Auth.user()||{}).name||s.name}catch(e){}}});
+  try{d.signs=d.signs||{};var _n=(Auth.user()||{}).name||'',_id=(Auth.user()||{}).id||'';if(!d.signs.review)d.signs.review={name:_n,id:_id,at:new Date().toISOString()};if(!d.signs.approve)d.signs.approve={name:_n,id:_id,at:new Date().toISOString()};}catch(e){}
+  d.status='completed';d.updatedAt=new Date().toISOString();
+  addAudit(d,'시스템','자동보관','결재완료 → 문서보관함 자동 이동');
+  U.toast('결재가 완료되어 보관함으로 이동했습니다.','ok');
   DB.save();Auth.log(Auth.user(),'APPROVE',`${d.docNo} 승인`);App.render()},
  reject(id){const d=docOf(id);const op=($('#appr-op')||{}).value||'';
   if(!op)return U.toast('반려 시 의견은 필수입니다.','bad');
@@ -1495,6 +1503,7 @@ Views.docNew=function(q){
   window.__EDITING=1;window.__CURDOC=d;window.__SIGN=Object.assign({},d.signs||{});
   setTimeout(()=>{const sel=$('#nf-form');sel.value=f.id;Doc.pick();/* 편집: 값 채우기 */
    const box=$('#docpaper');box.querySelectorAll('[data-k]').forEach(el=>{if(d.data[el.dataset.k]!==undefined&&el.type!=='select')el.value=d.data[el.dataset.k];else if(el.tagName==='SELECT'&&d.data[el.dataset.k])el.value=d.data[el.dataset.k]});
+    try{var _g=(d.data&&d.data.grid)||{};box.querySelectorAll('[data-gk]').forEach(function(el){var k=el.getAttribute('data-gk');var v=_g[k];if(v===undefined||v===null)return;if(el.tagName==='SELECT'&&el.value!==v&&v){var o=document.createElement('option');o.value=v;o.textContent=v;el.appendChild(o)}el.value=v})}catch(e){}
    box.querySelectorAll('[data-td]').forEach(el=>{const r=d.data.rows[+el.dataset.td];if(r&&r[el.dataset.col]!==undefined)el.value=r[el.dataset.col]});
    box.querySelectorAll('[data-ck]').forEach(el=>{const r=d.data.rows[+el.dataset.ck];if(r)el.checked=!!r.ok});
    box.querySelectorAll('[data-fck]').forEach(el=>el.checked=!!(d.data.checks||{})[el.dataset.fck]);
@@ -1834,8 +1843,8 @@ Views.admin=function(tab){
  else if(tab==='forms'){body='<div class="hrow" style="margin-bottom:14px"><span style="font-size:13px;color:var(--muted)">기존 Word/Excel 수기문서를 분석(표구조·입력항목·체크박스·서명·결재·날짜/작성자 영역)하여 웹 양식으로 등록합니다.</span><button class="btn btn-p btn-sm" onclick="Admin.newForm()">+ 새 양식 등록</button></div><div class="panel" style="padding:0"><table class="t"><thead><tr><th>코드</th><th>양식명</th><th>원본</th><th>결재선</th><th class="c">입력항목</th><th class="c">사용</th><th class="c"></th></tr></thead><tbody>'
   +DB.data.forms.map(f=>'<tr><td>'+f.code+'</td><td><b>'+esc(f.name)+'</b><div style="font-size:12px;color:var(--muted)">'+esc(f.desc||'')+'</div></td><td><span class="chip">'+f.origin.toUpperCase()+'</span></td><td>'+esc((DB.data.apprLines.find(l=>l.id===f.line)||{}).name||'-')+'</td><td class="c">'+f.fields.length+'필드 · '+f.table.cols.length+'열</td><td class="c"><span class="badge '+(f.active?'bg-ok':'bg-gray')+'">'+(f.active?'사용중':'중지')+'</span></td><td class="c"><button class="btn btn-ghost btn-sm" onclick="App.go(\'#/doc-new?form='+f.id+'\')">미리보기</button><button class="btn btn-ghost btn-sm" onclick="Admin.toggleForm(\''+f.id+'\')">'+(f.active?'중지':'사용')+'</button></td></tr>').join('')
   +'</tbody></table></div>';}
- else if(tab==='lines'){body='<div class="panel" style="padding:0"><table class="t"><thead><tr><th>결재선</th><th>1차 결재</th><th>2차(최종) 결재</th><th>적용 양식</th></tr></thead><tbody>'
-  +DB.data.apprLines.map(l=>'<tr><td><b>'+esc(l.name)+'</b><div style="font-size:11.5px;color:var(--faint)">'+l.id+'</div></td><td>'+esc(l.steps[0].role)+' — <b>'+esc(userName(l.steps[0].userId))+'</b></td><td>'+(l.steps[1]?esc(l.steps[1].role)+' — <b>'+esc(userName(l.steps[1].userId))+'</b>':'—')+'</td><td>'+(DB.data.forms.filter(f=>f.line===l.id).map(f=>f.name).join(', ')||'—')+'</td></tr>').join('')
+ else if(tab==='lines'){body='<div class="panel" style="padding:0"><table class="t"><thead><tr><th>결재선</th><th>1차 결재</th><th>2차(최종) 결재</th><th>적용 양식</th><th>결재자 지정</th></tr></thead><tbody>'
+  +DB.data.apprLines.map(l=>'<tr><td><b>'+esc(l.name)+'</b><div style="font-size:11.5px;color:var(--faint)">'+l.id+'</div></td><td>'+esc(l.steps[0].role)+' — <b>'+esc(userName(l.steps[0].userId))+'</b></td><td>'+(l.steps[1]?esc(l.steps[1].role)+' — <b>'+esc(userName(l.steps[1].userId))+'</b>':'—')+'</td><td>'+(DB.data.forms.filter(f=>f.line===l.id).map(f=>f.name).join(', ')||'—')+'</td><td>'+function(){var us=(DB.data.users||[]).filter(function(u){return u.status==='active'});var mk=function(si){return '<select onchange="Admin.setLineApprover(\''+l.id+'\',\''+si+'\',this.value)" style="padding:4px 6px;font-size:12px;max-width:130px">'+us.map(function(u){return '<option value="'+u.id+'"'+(u.id===l.steps[si].userId?' selected':'')+'>'+esc(u.name||u.empNo)+'</option>'}).join('')+'</select>'};return mk(0)+(l.steps[1]?'<br>'+mk(1):'')}()+'</td></tr>').join('')
   +'</tbody></table></div><div style="margin-top:12px;font-size:12.5px;color:var(--muted)">※ 결재선은 문서 상신 시점에 복사·기록되어 이후 변경에 영향을 받지 않습니다 (감사 추적 보장).</div>';}
  else if(tab==='notice'){body='<div class="hrow" style="margin-bottom:14px"><span style="font-size:13px;color:var(--muted)">포털 공지를 관리합니다. Notion 공지는 연동으로 표시됩니다.</span><button class="btn btn-p btn-sm" onclick="NotionAdmin.newNotice()">+ 공지 작성</button></div><div class="panel" style="padding:0"><table class="t"><tbody>'
   +DB.data.notices.map(n=>'<tr><td><span class="badge '+(n.urgent?'bg-bad':'bg-navy')+'">'+(n.urgent?'긴급':'공지')+'</span></td><td><b>'+esc(n.title)+'</b></td><td>'+esc(n.author)+'</td><td>'+fmtD(n.at)+'</td><td class="c"><button class="btn btn-ghost btn-sm" onclick="Admin.delNotice(\''+n.id+'\')">삭제</button></td></tr>').join('')
@@ -1886,6 +1895,12 @@ const Admin={
   u.dept=g('ui-dept')||u.dept;u.team=g('ui-team');u.title=g('ui-title')||u.title;u.infoAt=new Date().toISOString();DB.save();
   try{Auth.log(Auth.user(),'USER_INFO',u.name+'('+u.empNo+') 소속 변경 → '+deptName(u.dept)+' '+(u.team||'')+' '+u.title)}catch(e){}
   U.closeModal();U.toast('소속 정보가 변경되었습니다.','ok');App.render();},
+ setLineApprover(lineId,stepIdx,userId){const me=Auth.user();if(!me||!(me.role==='admin'||me.role==='superadmin'))return U.toast('관리자만 지정할 수 있습니다.','bad');
+  const l=(DB.data.apprLines||[]).find(function(x){return x.id===lineId});if(!l||!l.steps||!l.steps[stepIdx])return;
+  const u=(DB.data.users||[]).find(function(x){return x.id===userId});if(!u)return;
+  l.steps[stepIdx].userId=u.id;DB.save();
+  try{Auth.log(me,'LINE_SET',l.name+' '+(stepIdx===0?'1차':'2차')+' 결재자 → '+u.name+'('+u.empNo+')')}catch(e){}
+  U.toast(l.name+'의 '+(stepIdx===0?'1차(검토)':'2차(최종 승인)')+' 결재자가 '+u.name+'님으로 지정되었습니다.','ok');App.render();},
  rename(id){const u=userById(id);if(!u)return;
   U.modal('이름 변경','<div class="field"><label class="f">'+esc(u.name)+'('+esc(u.empNo)+') 님의 새 이름</label><input type="text" id="un-name" value="'+esc(u.name)+'"></div>',{size:'sm',foot:'<button class="btn btn-o btn-sm" onclick="U.closeModal()">취소</button><button class="btn btn-p btn-sm" onclick="Admin.saveName(\''+u.id+'\')">저장</button>'});},
  saveName(id){const u=userById(id);if(!u)return;const el=document.getElementById('un-name');const n=el?el.value.trim():'';
@@ -3679,7 +3694,9 @@ function fixTpl(code,t){try{
   var B8=t.blocks,ti8=-1;
   for(var a8=0;a8<B8.length;a8++){if(B8[a8]&&B8[a8].t==='p'&&/설탕\s*용해\s*기록\s*일보/.test(String(B8[a8].x||''))){ti8=a8;break;}}
   t.blocks=B8.filter(function(b){if(b&&b.dl)return false;if(b&&b.t==='tbl'&&b.rows&&b.rows.length===1){var j=JSON.stringify(b.rows);if(/"dM"|"dD"|"dow"/.test(j)&&j.indexOf('sg')<0)return false;}return true;});
-  ti8=-1;for(a8=0;a8<t.blocks.length;a8++){if(t.blocks[a8]&&t.blocks[a8].t==='p'&&/설탕\s*용해\s*기록\s*일보/.test(String(t.blocks[a8].x||''))){ti8=a8;break;}}
+  ti8=-1;for(a8=0;a8<t.blocks.length;a8++){if(t.blocks[a8]&&t.blocks[a8].t==='p'&&/일보|일지|기록/.test(String(t.blocks[a8].x||''))){ti8=a8;break;}}
+  if(ti8<0){for(a8=0;a8<t.blocks.length;a8++){if(t.blocks[a8]&&t.blocks[a8].t==='p'){ti8=a8;break;}}}
+    (t.blocks||[]).forEach(function(b){if(b&&b.t==='tbl'&&(b.rows||[]).length){(b.rows||[]).forEach(function(row){(row||[]).forEach(function(c){if(c&&c.x&&!c.i&&!c.sg&&!c.sel&&!c.tm&&String(c.x).length<=60&&/년/.test(c.x)&&/월/.test(c.x)&&/요일/.test(c.x))c.x='';})});}});
   t.blocks.splice(ti8+1,0,{t:'p',dl:1,x:'2026 년  {{dM}} 월  {{dD}} 일  {{dow}} 요일'});
  }
  return t;
@@ -3732,6 +3749,10 @@ function dlLine(ed,grid){
 }
 FormRender._tplPaper=function(f,d,editable){window.__PAPER_ED=editable===true;
  var t=f.wtpl,data=(d&&d.data)||{},grid=data.grid||{},out='';
+  try{if(t&&t.blocks&&!t.blocks.some(function(b){return b&&b.t==='p'&&b.dl})){
+   t.blocks.forEach(function(b){if(b&&b.t==='tbl'&&b.rows)b.rows.forEach(function(row){(row||[]).forEach(function(c){if(c&&c.x&&!c.i&&!c.sg&&!c.sel&&!c.tm&&String(c.x).length<=60&&/년/.test(c.x)&&/월/.test(c.x)&&/요일/.test(c.x))c.x='';})});});
+   var _pi=0,_i2=0;for(_i2=0;_i2<t.blocks.length;_i2++){if(t.blocks[_i2]&&t.blocks[_i2].t==='p'){_pi=_i2;break}}
+   t.blocks.splice(_pi+1,0,{t:'p',dl:1,x:''});}}catch(e){}
  t.blocks.forEach(function(b){
   if(b.t==='pb'){out+='<div class="tpl-pb"><span>아래부터 인쇄 2쪽</span></div>';return}
   if(b.t==='p'){
@@ -3779,7 +3800,8 @@ FormRender._tplPaper=function(f,d,editable){window.__PAPER_ED=editable===true;
 var _p13=FormRender.paper;
 FormRender.paper=function(f,d,ed,ed2){
  if(f&&window.__WTPL&&/^(FRM-006|FRM-007|FRM-008)$/.test(f.code||'')&&window.__WTPL[f.code])f=Object.assign({},f,{wtpl:fixTpl(f.code,JSON.parse(JSON.stringify(window.__WTPL[f.code]))),tpl:1});
- if(f&&f.wtpl){window.__CURFORM=f;window.__CURDOC=d||null;return FormRender._tplPaper(f,d,ed===true)}
+ if(f&&f.wtpl&&!(f.wtpl.blocks||[]).some(function(b){return b&&b.t==='p'&&b.dl}))f=Object.assign({},f,{wtpl:fixTpl(f.code||'',JSON.parse(JSON.stringify(f.wtpl)))});
+  if(f&&f.wtpl){window.__CURFORM=f;window.__CURDOC=d||null;return FormRender._tplPaper(f,d,ed===true)}
  return _p13.call(FormRender,f,d,ed,ed2)};
 var _c13=FormRender.collect;
 FormRender.collect=function(){
@@ -3787,6 +3809,7 @@ FormRender.collect=function(){
  if(box&&box.querySelector('[data-gk]')){
   var grid={};
   [].forEach.call(box.querySelectorAll('[data-gk]'),function(el){grid[el.getAttribute('data-gk')]=el.value});
+  [].forEach.call(box.querySelectorAll('[data-k]'),function(el){var k2=el.getAttribute('data-k');if(k2&&el.value)grid[k2]=el.value});
   var y=grid.dY||today().slice(0,4),m=grid.dM||today().slice(5,7),dd=grid.dD||today().slice(8,10);
   return {grid:grid,pdate:y+'-'+('0'+m).slice(-2)+'-'+('0'+dd).slice(-2),writer:(Auth.user()||{}).name||''};
  }
@@ -3796,6 +3819,10 @@ FormRender.collect=function(){
 function docName(f,ext){return String(f.name+'_'+today()).replace(/[\\/:*?"<>|]/g,'').trim()+'.'+ext}
 window.yumWordHTMLTpl=function(f,opt){
  opt=opt||{};var t=f.wtpl,data=opt.data||{},grid=data.grid||{},sg=opt.signs||{};var E=esc;
+  try{if(t&&t.blocks&&!t.blocks.some(function(b){return b&&b.t==='p'&&b.dl})){
+   t.blocks.forEach(function(b){if(b&&b.t==='tbl'&&b.rows)b.rows.forEach(function(row){(row||[]).forEach(function(c){if(c&&c.x&&!c.i&&!c.sg&&!c.sel&&!c.tm&&String(c.x).length<=60&&/년/.test(c.x)&&/월/.test(c.x)&&/요일/.test(c.x))c.x='';})});});
+   var _pi2=0,_i3=0;for(_i3=0;_i3<t.blocks.length;_i3++){if(t.blocks[_i3]&&t.blocks[_i3].t==='p'){_pi2=_i3;break}}
+   t.blocks.splice(_pi2+1,0,{t:'p',dl:1,x:''});}}catch(e){}
  var css='@page{size:'+((t&&t.land===0)?'210mm 297mm':'297mm 210mm')+';margin:12.7mm}';if(t&&t.style&&t.style.fs)css+='table td{font-size:'+t.style.fs+'pt}';
  css+='body{font-family:"Malgun Gothic","맑은 고딕",sans-serif;font-size:9pt;color:#000;margin:0}';
  css+='table{border-collapse:collapse;margin:0 0 2pt}';
@@ -3828,6 +3855,7 @@ window.yumWordHTMLTpl=function(f,opt){
     else if(c.sel){inner=E(grid[c.k]||'#1')}
     else if(c.ta){inner=E(grid[c.k]||'').replace(/\n/g,'<br>')||'&nbsp;';}
     else if(c.top&&c.i){inner=E(c.top).split('/').join('<br>')+'<br>('+(E(grid[c.k]||'')||'&nbsp;&nbsp;')+')';}
+    else if(c.tm){inner=E(grid[c.k]||'')||'&nbsp;';}
     else if(c.i){var v=E(grid[c.k]||'');inner=c.pre?(E(c.pre)+' '+v):(c.u?(v?v+' '+E(c.u):E(c.u)):v)||'&nbsp;';}
     else inner=c.x?E(c.x).split('/').join('<br>'):'&nbsp;';
     return '<td'+at+' style="text-align:'+(c.a==='l'?'left':(c.a==='r'?'right':'center'))+';'+(c.b?'font-weight:bold;':'')+(c.nb?'border:none;':'')+'">'+inner+'</td>';
@@ -5160,7 +5188,7 @@ function bars(){ // 호기별 시작~종료 막대
 function bind(){var bs=document.querySelectorAll('#docpaper .sgbtn');
   for(var i=0;i<bs.length;i++){if(bs[i].getAttribute('data-bound'))continue;bs[i].setAttribute('data-bound','1');
     bs[i].addEventListener('click',function(e){e.preventDefault();e.stopPropagation();sign(this);},true);}}
-function all(){appr();chk();bars();bind();}
+function all(){if(window.__PAPER_ED===false)return;appr();chk();bars();bind();}
 var _p=window.FormRender&&FormRender.paper;
 if(typeof _p==='function'){FormRender.paper=function(){var r=_p.apply(this,arguments);setTimeout(all,80);return r;};}
 var _m=window.FormRender&&FormRender.paperMulti;
@@ -5187,7 +5215,10 @@ window.yumSignName=function(b,role){
   var r=role||(b&&b.getAttribute&&b.getAttribute('data-sg'))||'writer';
   var ko={writer:'작성',review:'검토',approve:'승인'}[r]||'결재';
   var nm=who(); if(!nm)nm=(prompt(ko+'란에 넣을 이름을 입력하세요','')||'').trim(); if(!nm)return false;
-  b.textContent=nm;b.classList.add('signed');b.setAttribute('data-sg',r);
+  var _anm=((window.Auth&&Auth.user&&Auth.user())||{}).name||nm;b.textContent=_anm;b.classList.add('signed');b.setAttribute('data-sg',r);
+  try{var _d=window.__CURDOC||null,_sg=(_d&&_d.signs)?_d.signs:(window.__SIGN||(window.__SIGN={}));_sg[r]={name:_anm,id:((window.Auth&&Auth.user&&Auth.user())||{}).id||'',at:new Date().toISOString()};window.__SIGN=_sg;if(_d)_d.signs=_sg;}catch(e){}
+  try{window.yumRefreshAppr&&window.yumRefreshAppr();}catch(e){}
+  try{U&&U.toast&&U.toast(({writer:'작성',review:'검토',approve:'승인'}[r]||'')+' 서명이 기록되었습니다. — '+nm,'ok');}catch(e){}
   try{if(typeof DB!=='undefined'&&DB.save)DB.save();}catch(e){}
   return false;
 };
@@ -5245,7 +5276,7 @@ function titleIn(c){
     return true;}
   return false;
 }
-function run(){
+function run(){if(window.__PAPER_ED===false)return;
   var cs=document.querySelectorAll('#docpaper,.docpaper,.wpaper,#nf-fields,[data-paper]');
   for(var i=0;i<cs.length;i++){var c=cs[i],ts=c.querySelectorAll('table'),made=0,apprTbl=null;
     for(var q=0;q<ts.length;q++){try{var g=fix(ts[q]);if(g){made+=g;} else if(isAppr(ts[q]))apprTbl=ts[q];}catch(e){}}
@@ -5256,7 +5287,7 @@ function run(){
 var tm=null;function sched(){if(tm)clearTimeout(tm);tm=setTimeout(run,250);}
 try{new MutationObserver(sched).observe(document.body,{childList:true,subtree:true});}catch(e){}
 document.addEventListener('click',function(e){var el=e.target,b=null;while(el&&el!==document.body){if(el.classList&&el.classList.contains('sgbtn')){b=el;break;}el=el.parentNode;}
-  if(b&&!b.classList.contains('signed')){e.preventDefault();e.stopPropagation();window.yumSignName(b,b.getAttribute('data-sg'));}},true);
+  if(b&&!b.classList.contains('signed')&&!/yumSign\(/.test(b.getAttribute('onclick')||'')){e.preventDefault();e.stopPropagation();window.yumSignName(b,b.getAttribute('data-sg'));}},true);
 var F=window.FormRender;
 if(F){['paper','paperMulti','readonly'].forEach(function(k){var o=F[k];if(typeof o==='function'){F[k]=function(){var z=o.apply(this,arguments);setTimeout(run,80);return z;};}});}
 setTimeout(run,500);setTimeout(run,1500);setInterval(run,2000);
@@ -5271,7 +5302,10 @@ function imp(el,k,v){try{el.style.setProperty(k,v,'important');}catch(e){el.styl
 window.yumSignName=function(b,role){var r=role||(b&&b.getAttribute&&b.getAttribute('data-sg'))||'writer';
  var ko={writer:'작성',review:'검토',approve:'승인'}[r]||'결재',nm=who();
  if(!nm)nm=(prompt(ko+'란에 넣을 이름을 입력하세요','')||'').trim(); if(!nm)return false;
- b.textContent=nm;b.classList.add('signed');b.setAttribute('data-sg',r);
+ var _anm=((window.Auth&&Auth.user&&Auth.user())||{}).name||nm;b.textContent=_anm;b.classList.add('signed');b.setAttribute('data-sg',r);
+  try{var _d=window.__CURDOC||null,_sg=(_d&&_d.signs)?_d.signs:(window.__SIGN||(window.__SIGN={}));_sg[r]={name:_anm,id:((window.Auth&&Auth.user&&Auth.user())||{}).id||'',at:new Date().toISOString()};window.__SIGN=_sg;if(_d)_d.signs=_sg;}catch(e){}
+  try{window.yumRefreshAppr&&window.yumRefreshAppr();}catch(e){}
+  try{U&&U.toast&&U.toast(({writer:'작성',review:'검토',approve:'승인'}[r]||'')+' 서명이 기록되었습니다. — '+nm,'ok');}catch(e){}
  try{if(typeof DB!=='undefined'&&DB.save)DB.save();}catch(e){} return false;};
 function mkbtn(role,lab){var b=document.createElement('button');b.type='button';b.className='sgbtn';b.setAttribute('data-sg',role);
  b.textContent=lab;b.onclick=function(){return window.yumSignName(this,role)};
@@ -5312,7 +5346,7 @@ function mkDate(v){var w=document.createElement('div');w.className='dl dlrow';
   +'<input class="cell" data-k="dM" type="number" min="1" max="12" style="width:3.4em;text-align:center;display:inline-block"> 월 '
   +'<input class="cell" data-k="dD" type="number" min="1" max="31" style="width:3.4em;text-align:center;display:inline-block"> 일 <span class="dow"></span>';
  imp(w,'display','block');imp(w,'width','100%');imp(w,'text-align','center');imp(w,'font-weight','700');imp(w,'margin','4px 0 6px');return w;}
-function one(c){
+function one(c){if(window.__PAPER_ED===false)return 0;
  var ts=c.querySelectorAll('table'),made=0,q,apprTbl=null,i;
  for(q=0;q<ts.length;q++){try{var g=fixTbl(ts[q]); if(g)made+=g; else if(isAppr(ts[q]))apprTbl=ts[q];}catch(e){}}
  if(made===0&&!c.querySelector('.sgbtn')&&ts.length){try{
@@ -5357,7 +5391,7 @@ function one(c){
  if(de){
    imp(de,'display','block');imp(de,'text-align',(de.getAttribute&&de.getAttribute('data-al'))||'center');
    var has3=de.querySelector('[data-k="dY"]')&&de.querySelector('[data-k="dM"]')&&de.querySelector('[data-k="dD"]');
-   if(!has3){
+   if(!has3&&!de.querySelector('[data-gk="dM"]')&&!c.querySelector('[data-gk="dM"]')){
      var yv=(de.querySelector('[data-k="dY"]')||{}).value||'2026';
      de.innerHTML='<input class="cell" data-k="dY" type="number" min="2000" max="2099" value="'+yv+'" style="width:5.5em;text-align:center;display:inline-block"> 년 '
       +'<input class="cell" data-k="dM" type="number" min="1" max="12" placeholder="" style="width:3.6em;text-align:center;display:inline-block"> 월 '
@@ -5380,7 +5414,7 @@ function one(c){
    if(!de.getAttribute('data-dyb')){
      de.setAttribute('data-dyb','1');
      de.addEventListener('input',function(){try{
-       var y=this.querySelector('[data-k="dY"]'),m=this.querySelector('[data-k="dM"]'),d=this.querySelector('[data-k="dD"]'),w=this.querySelector('.dow');
+       var y=this.querySelector('[data-k="dY"]'),m=this.querySelector('[data-k="dM"]'),d=this.querySelector('[data-k="dD"]'),w=this.querySelector('.dow,[data-gk="dow"]');
        if(!w)return; var Y=parseInt(y&&y.value,10),M=parseInt(m&&m.value,10),D=parseInt(d&&d.value,10);
        if(Y&&M&&D){var dt=new Date(Y,M-1,D);var dn=['일','월','화','수','목','금','토'][dt.getDay()];
          if(w.tagName==='INPUT'||w.tagName==='SELECT'){if(!w.value||w.getAttribute('data-auto')==='1'){w.value=dn;w.setAttribute('data-auto','1');}}
@@ -5613,7 +5647,7 @@ window.__apd=function(){var a=cs(),r={컨테이너:a.length,제목:document.quer
 var tm=null;function sched(){if(tm)clearTimeout(tm);tm=setTimeout(run,180);}
 try{new MutationObserver(sched).observe(document.body,{childList:true,subtree:true});}catch(e){}
 document.addEventListener('click',function(e){var el=e.target,b=null;while(el&&el!==document.body){if(el.classList&&el.classList.contains('sgbtn')){b=el;break;}el=el.parentNode;}
- if(b&&!b.classList.contains('signed')){e.preventDefault();e.stopPropagation();window.yumSignName(b,b.getAttribute('data-sg'));}},true);
+ if(b&&!b.classList.contains('signed')&&!/yumSign\(/.test(b.getAttribute('onclick')||'')){e.preventDefault();e.stopPropagation();window.yumSignName(b,b.getAttribute('data-sg'));}},true);
 var F=window.FormRender;
 if(F){['paper','paperMulti','readonly'].forEach(function(k){var o=F[k];if(typeof o==='function'){F[k]=function(){var z=o.apply(this,arguments);setTimeout(run,120);return z;};}});}
 setTimeout(run,500);setTimeout(run,1200);setInterval(run,1500);
