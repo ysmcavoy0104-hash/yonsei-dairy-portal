@@ -9235,7 +9235,7 @@ var _dash=Views.dashboard;
 Views.dashboard=function(){
  withOps();
  var h=_dash.apply(this,arguments);
- if(!isN())return h;
+ if(!isN())return pureDash(h);
  try{
   var box=document.createElement('div');box.innerHTML=h;
   var kids=[].slice.call(box.children),cut=-1;
@@ -9248,6 +9248,39 @@ Views.dashboard=function(){
   return box.innerHTML+formsHTML();
  }catch(e){console.warn('[노션 화면]',e);return h+formsHTML()}
 };
+/* 대시보드(#/dash)에서는 노션 요약을 빼고 대시보드만 — 노션 요약은 노션 화면(#/ndash)에서 */
+function pureDash(h){
+ try{
+  var box=document.createElement('div');box.innerHTML=h;
+  [].forEach.call(box.querySelectorAll(':scope > .dsh-kpis, :scope > .dsh-2, :scope > .dsh-2b'),function(el){el.remove()});
+  var hr=box.querySelector(':scope > .hrow');
+  if(hr){var tg=hr.querySelector('.tag-mock');if(tg)tg.remove();
+   var s=hr.querySelector('.pgt-sub');if(s)s.textContent='팀별 일지 · 생산 · 설비 · 결재 · 안전 현황을 한눈에 봅니다.';
+   hr.insertAdjacentHTML('beforeend','<a class="btn btn-o btn-sm" href="#/ndash">◈ 노션 기록 · 작성 →</a>')}
+  return box.innerHTML;
+ }catch(e){return h}
+}
+/* 노션 실시간 연결 안내는 노션 화면에만 */
+function busy(){var a=document.activeElement;if(a&&a.id&&/^nd-/.test(a.id))return true;return [].some.call(document.querySelectorAll('#nd-write input:not([type=date]):not([type=checkbox]),#nd-write textarea'),function(el){return el.value&&el.id!=='nd-m-person'})}
+setInterval(function(){
+ try{
+  var note=$i('yum-live-note');
+  if(!isN()){
+   /* 기존 모듈이 대시보드에 안내를 다시 넣지 않도록 숨긴 자리표시를 둔다 */
+   if(/^#\/dash/.test(location.hash)){var m=$i('main');if(note){if(!note.getAttribute('data-hide')){note.setAttribute('data-hide','1');note.style.display='none'}}else if(m){var ph=document.createElement('div');ph.id='yum-live-note';ph.setAttribute('data-hide','1');ph.style.display='none';m.appendChild(ph)}}
+   return}
+  if(note&&note.getAttribute('data-hide')){note.remove();note=null}
+  if(window.__yumNotionLive){if(note)note.remove();return}
+  if(note)return;var sub=document.querySelector('#main .pgt-sub');if(!sub)return;
+  var n=document.createElement('div');n.id='yum-live-note';
+  n.style.cssText='margin:10px 0 0;padding:10px 14px;border-radius:10px;background:#FFF4D6;color:#7A5200;font-size:12.5px;line-height:1.6;display:flex;gap:10px;align-items:center;flex-wrap:wrap';
+  n.innerHTML='<b>⚠ 노션 실시간 연결 전입니다</b><span>지금은 9월 21일에 수집한 기록과 포털에서 작성한 기록을 보여줍니다. 노션 연결 서버를 설정하면 노션에 쓰는 즉시 반영됩니다.</span><button class="btn btn-o btn-sm" onclick="window.yumSync&&yumSync()">연결 방법 보기</button>';
+  sub.parentNode.appendChild(n);
+ }catch(e){}
+},1500);
+/* 노션 화면에서도 노션 실시간 기록 갱신(작성 중이면 화면을 다시 그리지 않음) */
+function ntick(force){if(!isN()||!window.yumLoadNotionRecords)return;window.yumLoadNotionRecords(force===true).then(function(ch){if(ch&&isN()&&!busy())App.render()}).catch(function(){})}
+setInterval(ntick,60000);window.addEventListener('hashchange',function(){setTimeout(ntick,500)});
 /* 기존 작성 창으로 저장해도 대시보드에 합쳐지도록 */
 try{var _os=OpLog.save;OpLog.save=function(){var r=_os.apply(this,arguments);withOps();try{if(isN())App.render()}catch(e){}return r}}catch(e){}
 
