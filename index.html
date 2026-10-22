@@ -8534,6 +8534,7 @@ function enhance(){try{
   if(sel!=='all'&&rows.length){var p=tb.querySelector('p');if(p)p.insertAdjacentHTML('afterend','<div class="jfnote">📁 「'+esc(sel==='none'?'미분류':sel==='common'?'공통 양식':(fs.filter(function(x){return x.id===sel})[0]||{}).name||'')+'」 폴더의 일지만 표시 중 · '+vis2+'건 <a class="link" href="javascript:void 0" onclick="yumJF.pick(\'all\')">전체 보기</a></div>')}}
 }catch(e){console.warn('[일지 폴더]',e)}}
 window.yumJFEnhance=enhance;
+window.yumJFTeamOf=teamOfForm;window.yumJFTeamFolders=teamFolders;window.yumJFTeams=teamList;window.yumJFFolderOf=folderOf;
 
 /* 렌더 후마다 보강 */
 var _r=App.render;
@@ -8558,6 +8559,116 @@ try{var st=document.createElement('style');st.textContent=
  '@media (max-width:640px){.jfhint{display:none}.jfchip{padding:5px 11px;font-size:12.5px}}';
  document.head.appendChild(st)}catch(e){}
 console.log('[확장 모듈 31] 일지 폴더 정리 로드 완료');
+})();
+</script>
+<script>
+/* ============ 확장 모듈 32 — 새 일지 작성: 팀 → 일지 2단계 선택 ============
+   · 전자결재·문서관리의 [새 일지 작성] 화면에서 긴 양식 목록 대신
+     ① 팀(배합·착즙·멸균·포장·지원·공통)을 고르고 ② 그 팀의 일지를 폴더별로 골라 작성
+   · 팀·폴더 분류는 일지 작성 화면(팀 일지함)에서 정리한 것과 동일하게 따라감
+   · 기존 양식 선택 상자(#nf-form)는 숨긴 채 유지 → 저장·인쇄·복구 등 기존 기능은 그대로 동작          */
+(function(){
+if(window.__YUM_NFPICK__)return;window.__YUM_NFPICK__=1;
+var ICON={'배합팀':'⚗','착즙팀':'❖','멸균팀':'♨','포장팀':'▣','지원팀':'✦','공통':'▤'};
+function teams(){return (window.yumJFTeams?yumJFTeams():['배합팀','착즙팀','멸균팀','포장팀','지원팀']).concat(['공통'])}
+function teamOf(f){return window.yumJFTeamOf?yumJFTeamOf(f):((f&&f.team)||'공통')}
+function tFolders(t){return window.yumJFTeamFolders?yumJFTeamFolders(t):[]}
+function folderOf(f){return window.yumJFFolderOf?yumJFFolderOf(f):null}
+function forms(){return (DB.data.forms||[]).filter(function(f){return f.active!==false})}
+function formsOf(t){return forms().filter(function(f){return teamOf(f)===t})}
+function me(){try{return Auth.user()}catch(e){return null}}
+function getT(){try{return sessionStorage.getItem('yum_nfteam')||''}catch(e){return ''}}
+function setT(t){try{sessionStorage.setItem('yum_nfteam',t)}catch(e){}}
+function editing(){return /[?&]edit=/.test(location.hash||'')}
+
+function listHTML(t,curId){
+ var fs=formsOf(t);
+ if(!fs.length)return '<div class="nfp-empty">'+esc(t)+'에 등록된 일지가 없습니다.</div>';
+ var groups=tFolders(t).map(function(fo){return {name:fo.name,items:fs.filter(function(f){var x=folderOf(f);return x&&x.id===fo.id})}}).filter(function(g){return g.items.length});
+ var used={};groups.forEach(function(g){g.items.forEach(function(f){used[f.id]=1})});
+ var rest=fs.filter(function(f){return !used[f.id]});
+ if(rest.length)groups.push({name:groups.length?'기타 (폴더 없음)':'',items:rest});
+ return groups.map(function(g){
+  return (g.name?'<div class="nfp-gh">'+(g.name.indexOf('기타')===0?'🗂':'📁')+' '+esc(g.name)+' <span>'+g.items.length+'</span></div>':'')+
+   '<div class="nfp-items">'+g.items.map(function(f){
+    return '<button type="button" class="nfp-it'+(f.id===curId?' on':'')+'" onclick="yumNFP.choose(\''+f.id+'\')"><span class="c">'+esc(f.code)+'</span><span class="nm">'+esc(f.name)+'</span>'+(f.desc?'<span class="ds">'+esc(f.desc)+'</span>':'')+'</button>'}).join('')+'</div>'}).join('');
+}
+function teamsHTML(sel){
+ return teams().map(function(t){var n=formsOf(t).length;
+  return '<button type="button" class="nfp-tm'+(t===sel?' on':'')+(n?'':' zero')+'" onclick="yumNFP.team(\''+t+'\')"><span class="ic">'+(ICON[t]||'📁')+'</span><span class="tn">'+esc(t==='공통'?'공통 자료':t)+'</span><span class="tc">'+n+'종</span></button>'}).join('');
+}
+function pathOf(f){var fo=folderOf(f);return teamOf(f)+(fo?' › '+fo.name:'')}
+function panelHTML(f){
+ var u=me(),t=f?teamOf(f):getT();
+ if(!t||!formsOf(t).length){var mt=u&&u.team;t=(mt&&formsOf(mt).length)?mt:(teams().filter(function(x){return formsOf(x).length})[0]||'공통')}
+ var ed=editing();
+ var sum=f?'<div class="nfp-sum"><div><div class="nfp-lb">선택한 일지</div><div class="nfp-cur"><span class="c">'+esc(f.code)+'</span> <b>'+esc(f.name)+'</b> <span class="pth">'+esc(pathOf(f))+'</span></div></div>'+(ed?'<span class="nfp-lock">수정 중인 문서는 양식을 바꿀 수 없습니다</span>':'<button type="button" class="btn btn-o btn-sm" id="nfp-tg" onclick="yumNFP.toggle()">다른 일지 선택 ▾</button>')+'</div>':'';
+ return '<div class="nfp'+(f?' closed':'')+'" id="nfp" data-team="'+esc(t)+'">'+sum+
+  (ed?'':'<div class="nfp-body"><div class="nfp-step"><span class="no">1</span> 팀 선택</div><div class="nfp-teams" id="nfp-teams">'+teamsHTML(t)+'</div>'+
+  '<div class="nfp-step"><span class="no">2</span> 일지 선택 <span class="sub" id="nfp-sub">'+esc(t==='공통'?'공통 자료':t)+' · '+formsOf(t).length+'종</span></div><div class="nfp-list" id="nfp-list">'+listHTML(t,f&&f.id)+'</div></div>')+'</div>';
+}
+window.yumNFP={
+ team:function(t){setT(t);var p=document.getElementById('nfp');if(!p)return;p.setAttribute('data-team',t);
+  var sel=document.getElementById('nf-form'),cur=sel&&sel.getAttribute('data-picked');
+  document.getElementById('nfp-teams').innerHTML=teamsHTML(t);
+  document.getElementById('nfp-list').innerHTML=listHTML(t,cur);
+  document.getElementById('nfp-sub').textContent=(t==='공통'?'공통 자료':t)+' · '+formsOf(t).length+'종'},
+ toggle:function(){var p=document.getElementById('nfp');if(!p)return;p.classList.toggle('closed');var b=document.getElementById('nfp-tg');if(b)b.textContent=p.classList.contains('closed')?'다른 일지 선택 ▾':'접기 ▴'},
+ choose:function(id){var f=(DB.data.forms||[]).filter(function(x){return x.id===id})[0];if(!f)return;setT(teamOf(f));
+  var sel=document.getElementById('nf-form');
+  if(sel&&sel.getAttribute('data-picked')===id){var p=document.getElementById('nfp');if(p&&!p.classList.contains('closed'))yumNFP.toggle();return}
+  App.go('#/doc-new?form='+encodeURIComponent(id))}
+};
+
+var _shell=Views._docNewShell;
+Views._docNewShell=function(f){
+ var html=_shell.apply(this,arguments);
+ try{
+  var box=document.createElement('div');box.innerHTML=html;
+  var sel=box.querySelector('#nf-form');if(!sel)return html;
+  var fld=sel.closest('.field')||sel.parentNode;
+  /* 숨긴 선택 상자도 팀 › 폴더 순으로 정리 */
+  var cur=f?f.id:'';
+  sel.innerHTML=teams().map(function(t){var fs=formsOf(t);if(!fs.length)return '';
+   return '<optgroup label="'+esc(t)+'">'+fs.map(function(x){var fo=folderOf(x);return '<option value="'+esc(x.id)+'"'+(x.id===cur?' selected':'')+'>'+esc((fo?fo.name+' › ':'')+x.name+' ('+x.code+')')+'</option>'}).join('')+'</optgroup>'}).join('');
+  if(cur)sel.setAttribute('data-picked',cur);
+  fld.style.display='none';
+  fld.insertAdjacentHTML('beforebegin',panelHTML(f||null));
+  var emp=box.querySelector('#nf-fields .empty');if(emp&&!f)emp.innerHTML='<b>위에서 팀을 고른 뒤 작성할 일지를 선택하세요</b>선택하면 기존 양식과 동일한 입력 화면이 나타납니다';
+  return box.innerHTML;
+ }catch(e){console.warn('[새 일지 선택]',e);return html}
+};
+
+try{var st=document.createElement('style');st.textContent=
+ '.nfp{background:#fff;border:1px solid var(--line,#dfe3ea);border-radius:14px;padding:16px 18px;margin:4px 0 18px}'+
+ '.nfp.closed .nfp-body{display:none}'+
+ '.nfp-sum{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}'+
+ '.nfp:not(.closed) .nfp-sum{padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid var(--line,#dfe3ea)}'+
+ '.nfp-lb{font-size:11.5px;font-weight:700;color:var(--muted,#6b7a90);margin-bottom:3px}'+
+ '.nfp-cur{font-size:15px;color:var(--ink,#13233f)}.nfp-cur .pth{font-size:12px;color:var(--muted,#6b7a90);margin-left:6px}'+
+ '.nfp .c{display:inline-block;font-size:11px;font-weight:800;color:var(--navy,#0f2340);background:var(--blue-tint,#eaf0ff);border-radius:6px;padding:2px 7px;font-family:ui-monospace,Consolas,monospace}'+
+ '.nfp-lock{font-size:12px;color:var(--muted,#6b7a90)}'+
+ '.nfp-step{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:800;color:var(--ink,#13233f);margin:2px 0 10px}'+
+ '.nfp-step .no{width:21px;height:21px;border-radius:50%;background:var(--navy,#0f2340);color:#fff;font-size:11.5px;display:inline-flex;align-items:center;justify-content:center}'+
+ '.nfp-step .sub{font-size:12.5px;font-weight:600;color:var(--muted,#6b7a90)}'+
+ '.nfp-teams{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:18px}'+
+ '.nfp-tm{display:flex;align-items:center;gap:8px;border:1px solid var(--line,#dfe3ea);background:#fff;border-radius:10px;padding:10px 12px;cursor:pointer;text-align:left;color:var(--ink,#13233f);transition:border-color .12s,background .12s}'+
+ '.nfp-tm:hover{border-color:var(--blue,#2c5bd8)}'+
+ '.nfp-tm.on{background:var(--navy,#0f2340);border-color:var(--navy,#0f2340);color:#fff}'+
+ '.nfp-tm .ic{font-size:16px}.nfp-tm .tn{font-weight:800;font-size:13.5px;flex:1;white-space:nowrap}.nfp-tm .tc{font-size:11.5px;opacity:.7;font-weight:700}'+
+ '.nfp-tm.zero{opacity:.5}'+
+ '.nfp-list{max-height:430px;overflow:auto;padding-right:2px}'+
+ '.nfp-gh{font-size:12.5px;font-weight:800;color:var(--ink,#13233f);margin:12px 0 7px}.nfp-gh:first-child{margin-top:0}.nfp-gh span{font-size:11px;color:var(--muted,#6b7a90);font-weight:700;margin-left:3px}'+
+ '.nfp-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px}'+
+ '.nfp-it{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;border:1px solid var(--line,#dfe3ea);background:var(--line-soft,#f7f8fb);border-radius:10px;padding:10px 12px;cursor:pointer;color:var(--ink,#13233f)}'+
+ '.nfp-it:hover{border-color:var(--blue,#2c5bd8);background:#fff}'+
+ '.nfp-it.on{border-color:var(--navy,#0f2340);background:var(--blue-tint,#eaf0ff);box-shadow:inset 0 0 0 1px var(--navy,#0f2340)}'+
+ '.nfp-it .nm{font-weight:800;font-size:13.5px;line-height:1.35}'+
+ '.nfp-it .ds{font-size:11.5px;color:var(--muted,#6b7a90);line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}'+
+ '.nfp-empty{font-size:13px;color:var(--muted,#6b7a90);padding:14px 2px}'+
+ '@media (max-width:640px){.nfp{padding:13px}.nfp-teams{grid-template-columns:repeat(2,1fr)}.nfp-items{grid-template-columns:1fr}}';
+ document.head.appendChild(st)}catch(e){}
+console.log('[확장 모듈 32] 새 일지 작성 팀별 선택 로드 완료');
 })();
 </script>
 </body>
