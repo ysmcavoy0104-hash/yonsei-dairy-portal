@@ -10226,6 +10226,217 @@ console.log('[확장 모듈 37] 일일 보고서 · 폰 알림 · 보고서 자�
 </script>
 
 <script>
+/* ============ 확장 모듈 40 — 포털 개선 톡 (카카오톡 스타일 대화방) ============
+   · 부서원 누구나 포털 수정 · 추가 · 오류 · 의견을 대화로 남김 (사진 첨부 · 답장 · 공감)
+   · 관리자는 요청마다 상태(접수 · 검토 중 · 진행 중 · 완료 · 보류)를 바꾸고, 바뀌면 대화방에 안내가 남음
+   · 서버 동기화 시 여러 사람이 동시에 써도 메시지가 사라지지 않도록 합쳐서 저장                       */
+(function(){
+if(window.__YUM_TALK__)return;window.__YUM_TALK__=1;
+function $i(id){return document.getElementById(id)}
+function me(){try{return Auth.user()}catch(e){return null}}
+function isAdm(u){return !!(u&&(u.role==='admin'||u.role==='superadmin'))}
+function L(){return DB.data.talk||(DB.data.talk=[])}
+function save(){try{DB.save()}catch(e){}}
+function nid(){return 'tk-'+Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
+function now(){return new Date().toISOString()}
+var CATS=[['fix','수정 요청','#E8833A'],['add','추가 요청','#3062D8'],['bug','오류 신고','#D64545'],['idea','의견','#0F8F7C']];
+var ST=[['new','접수','#8A94A6'],['review','검토 중','#B07A1E'],['doing','진행 중','#3062D8'],['done','완료','#17845A'],['hold','보류','#7A5AC8']];
+function cat(k){return CATS.filter(function(c){return c[0]===k})[0]}
+function st(k){return ST.filter(function(c){return c[0]===k})[0]||ST[0]}
+var S={cat:'',reply:null,img:null,filter:'all',q:'',draft:''};
+
+/* ---------- 동기화 병합 ---------- */
+try{var _ms=SupaSync.mergeState.bind(SupaSync);
+ SupaSync.mergeState=function(remote,local,lw){var out=_ms(remote,local,lw);
+  try{if(remote&&local&&(remote.talk||local.talk)){var m={};
+   (remote.talk||[]).concat(local.talk||[]).forEach(function(x){if(!x||!x.id)return;var c=m[x.id];
+    if(!c){m[x.id]=x;return}
+    var a=String(x.updatedAt||x.at||''),b=String(c.updatedAt||c.at||'');var w=a>b?x:c;
+    var likes={};(c.likes||[]).concat(x.likes||[]).forEach(function(u){likes[u]=1});
+    m[x.id]=Object.assign({},w,{deleted:!!(x.deleted||c.deleted),likes:w.likesReset?(w.likes||[]):Object.keys(likes).filter(function(u){return (w.unliked||[]).indexOf(u)<0})})});
+   out.talk=Object.keys(m).map(function(k){return m[k]}).sort(function(a,b){return String(a.at).localeCompare(String(b.at))});
+  }}catch(e){console.warn('[톡 병합]',e)}
+  return out}}catch(e){}
+
+/* ---------- 읽음 표시 ---------- */
+function seenKey(){var u=me();return 'yum_talk_seen:'+(u?u.id:'')}
+function seen(){try{return localStorage.getItem(seenKey())||''}catch(e){return ''}}
+function markSeen(){var l=L().filter(function(x){return !x.deleted}),last=l.length?l[l.length-1].at:'';try{if(last)localStorage.setItem(seenKey(),last)}catch(e){}}
+function unread(){var u=me(),s=seen();if(!u)return 0;return L().filter(function(x){return !x.deleted&&x.uid!==u.id&&String(x.at)>s}).length}
+
+/* ---------- 메뉴 ---------- */
+var _nav=App.navItems;
+App.navItems=function(){var a=_nav.apply(this,arguments);
+ try{if(!a.some(function(n){return n&&n.k==='#/talk'})){var i=-1;a.forEach(function(n,k){if(n&&n.k==='#/notice')i=k});
+  if(i>=0)a.splice(i+1,0,{k:'#/talk',t:'포털 개선 톡',i:'💬',c:(location.hash.indexOf('#/talk')===0?0:unread())||undefined})}}catch(e){}
+ return a};
+
+/* ---------- 화면 ---------- */
+function hm(iso){var d=new Date(iso),h=d.getHours(),m=String(d.getMinutes()).padStart(2,'0');return (h<12?'오전 ':'오후 ')+((h%12)||12)+':'+m}
+function dayLabel(iso){var d=new Date(iso),W='일월화수목금토';return d.getFullYear()+'년 '+(d.getMonth()+1)+'월 '+d.getDate()+'일 '+W[d.getDay()]+'요일'}
+function ukey(iso){var d=new Date(iso);return d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate()}
+function userOf(id){return (DB.data.users||[]).filter(function(x){return x.id===id})[0]}
+function av(uid,name){var u=userOf(uid);return u&&u.photo?'<span class="tk-av" style="background-image:url('+u.photo+')"></span>':'<span class="tk-av">'+esc((name||'?')[0])+'</span>'}
+function linkify(t){return esc(t).replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>').replace(/\n/g,'<br>')}
+function visible(){
+ var l=L().filter(function(x){return !x.deleted}),f=S.filter,q=S.q.trim().toLowerCase();
+ if(f==='all'&&!q)return l;
+ return l.filter(function(x){if(x.type==='sys')return false;
+  if(f==='open'&&!(x.cat&&['done','hold'].indexOf(x.status||'new')<0))return false;
+  if(f==='done'&&x.status!=='done')return false;
+  if(['fix','add','bug','idea'].indexOf(f)>=0&&x.cat!==f)return false;
+  if(q&&(String(x.t||'')+' '+x.name).toLowerCase().indexOf(q)<0)return false;return true});
+}
+function bubble(x,prev,u){
+ if(x.type==='sys')return '<div class="tk-sys"><span>'+esc(x.t)+'</span></div>';
+ var mine=x.uid===u.id,grp=prev&&prev.type!=='sys'&&prev.uid===x.uid&&(new Date(x.at)-new Date(prev.at))<3*60000&&ukey(prev.at)===ukey(x.at);
+ var c=cat(x.cat),s=x.cat?st(x.status):null,rp=x.reply?L().filter(function(r){return r.id===x.reply})[0]:null;
+ var likes=(x.likes||[]).length,liked=(x.likes||[]).indexOf(u.id)>=0;
+ var body=(c?'<div class="tk-cat" style="--cc:'+c[2]+'">'+c[1]+'</div>':'')+
+  (rp?'<div class="tk-q" onclick="yumTalk.jump(\''+rp.id+'\')"><b>'+esc(rp.name)+'에게 답장</b><span>'+esc(rp.deleted?'삭제된 메시지':(rp.t||'사진').slice(0,60))+'</span></div>':'')+
+  (x.img?'<img class="tk-img" src="'+x.img+'" onclick="yumTalk.view(\''+x.id+'\')" alt="첨부 사진">':'')+
+  (x.t?'<div class="tk-tx">'+linkify(x.t)+'</div>':'');
+ var meta='<div class="tk-meta">'+(likes?'<span class="tk-like'+(liked?' on':'')+'">👍 '+likes+'</span>':'')+'<span class="tk-tm">'+hm(x.at)+'</span></div>';
+ var acts='<div class="tk-acts"><button onclick="yumTalk.reply(\''+x.id+'\')" title="답장">↩</button><button onclick="yumTalk.like(\''+x.id+'\')" title="공감">👍</button>'+
+  (x.cat&&isAdm(u)?'<button onclick="yumTalk.status(\''+x.id+'\')" title="처리 상태">⚑</button>':'')+
+  (mine||isAdm(u)?'<button onclick="yumTalk.del(\''+x.id+'\')" title="삭제">🗑</button>':'')+'</div>';
+ var stb=s?'<div class="tk-st" style="--sc:'+s[2]+'">'+(s[0]==='done'?'✓ ':'')+s[1]+(x.statusBy?' · '+esc(x.statusBy):'')+'</div>':'';
+ return '<div class="tk-row'+(mine?' me':'')+(grp?' grp':'')+'" id="'+x.id+'">'+
+  (mine?'':(grp?'<span class="tk-avsp"></span>':av(x.uid,x.name)))+
+  '<div class="tk-col">'+(mine||grp?'':'<div class="tk-nm">'+esc(x.name)+(x.team?' <small>'+esc(x.team)+'</small>':'')+'</div>')+
+  '<div class="tk-line">'+(mine?meta:'')+'<div class="tk-b">'+body+acts+'</div>'+(mine?'':meta)+'</div>'+stb+'</div></div>';
+}
+function listHTML(u){
+ var l=visible(),h='',lastDay='',prev=null;
+ if(!l.length)return '<div class="tk-empty">'+(S.filter==='all'&&!S.q?'<b>첫 메시지를 남겨 주세요</b><span>포털에서 고쳤으면 하는 점, 새로 생겼으면 하는 기능,<br>오류나 불편한 점을 편하게 이야기해 주세요.</span>':'<b>조건에 맞는 메시지가 없습니다</b>')+'</div>';
+ l.forEach(function(x){var dk=ukey(x.at);if(dk!==lastDay){h+='<div class="tk-day"><span>'+dayLabel(x.at)+'</span></div>';lastDay=dk;prev=null}h+=bubble(x,prev,u);prev=x});
+ return h;
+}
+function counts(){var l=L().filter(function(x){return !x.deleted&&x.cat});return {open:l.filter(function(x){return ['done','hold'].indexOf(x.status||'new')<0}).length,done:l.filter(function(x){return x.status==='done'}).length}}
+function view(){
+ var u=me(),cn=counts(),people={};L().forEach(function(x){if(!x.deleted&&x.uid)people[x.uid]=1});
+ var chips=[['all','전체'],['open','처리 중 '+cn.open],['done','완료 '+cn.done]].concat(CATS.map(function(c){return [c[0],c[1]]}));
+ var h='<div class="hrow"><div><h1 class="pgt">포털 개선 톡</h1><div class="pgt-sub">포털에서 고쳤으면 하는 점, 추가했으면 하는 기능을 대화로 자유롭게 남겨 주세요. 관리자가 확인하고 처리 상태를 알려 드립니다.</div></div></div>';
+ h+='<div class="tk-wrap"><div class="tk-head"><div class="tk-room"><span class="tk-rav">💬</span><div><b>포털 개선 톡</b><small>참여 '+Object.keys(people).length+'명 · 메시지 '+L().filter(function(x){return !x.deleted&&x.type!=='sys'}).length+'개</small></div></div>'+
+  '<div class="tk-flt">'+chips.map(function(c){return '<button class="'+(S.filter===c[0]?'on':'')+'" onclick="yumTalk.filter(\''+c[0]+'\')">'+c[1]+'</button>'}).join('')+'</div>'+
+  '<input class="tk-search" id="tk-q" placeholder="🔍 대화 검색" value="'+esc(S.q)+'" oninput="yumTalk.search(this.value)"></div>';
+ h+='<div class="tk-body" id="tk-body">'+listHTML(u)+'</div>';
+ var rp=S.reply?L().filter(function(x){return x.id===S.reply})[0]:null;
+ h+='<div class="tk-foot">'+
+  (rp?'<div class="tk-rpbar"><div><b>'+esc(rp.name)+'에게 답장</b><span>'+esc((rp.t||'사진').slice(0,80))+'</span></div><button onclick="yumTalk.reply(null)">✕</button></div>':'')+
+  (S.img?'<div class="tk-rpbar"><div style="display:flex;align-items:center;gap:10px"><img src="'+S.img+'" style="width:44px;height:44px;object-fit:cover;border-radius:8px"><b>사진 1장 첨부</b></div><button onclick="yumTalk.noImg()">✕</button></div>':'')+
+  '<div class="tk-cats"><span>말머리</span>'+CATS.map(function(c){return '<button class="'+(S.cat===c[0]?'on':'')+'" style="--cc:'+c[2]+'" onclick="yumTalk.cat(\''+c[0]+'\')">'+c[1]+'</button>'}).join('')+'<em>말머리를 고르면 관리자가 처리 상태를 관리합니다</em></div>'+
+  '<div class="tk-in"><label class="tk-clip" title="사진 첨부">＋<input type="file" accept="image/*" hidden onchange="yumTalk.pick(this)"></label>'+
+  '<textarea id="tk-ta" rows="1" placeholder="메시지를 입력하세요 (Enter 전송 · Shift+Enter 줄바꿈)" oninput="yumTalk.typing(this)" onkeydown="yumTalk.key(event)">'+esc(S.draft)+'</textarea>'+
+  '<button class="tk-send" id="tk-send" onclick="yumTalk.send()">전송</button></div></div></div>';
+ return h;
+}
+function toBottom(){var b=$i('tk-body');if(b)b.scrollTop=b.scrollHeight}
+function grow(t){t.style.height='auto';t.style.height=Math.min(t.scrollHeight,140)+'px'}
+function rerender(keepScroll){var b=$i('tk-body'),atEnd=!b||b.scrollHeight-b.scrollTop-b.clientHeight<80,y=b?b.scrollTop:0;
+ var M=$i('main'),rib=M.querySelector('.sec-rib');M.innerHTML=view();if(rib)M.insertBefore(rib,M.firstChild);
+ var t=$i('tk-ta');if(t){grow(t)}
+ var nb=$i('tk-body');if(nb){if(keepScroll&&!atEnd)nb.scrollTop=y;else toBottom()}
+ markSeen();
+}
+function resize(file,max){return new Promise(function(ok,no){var r=new FileReader();r.onload=function(){var im=new Image();im.onload=function(){var k=Math.min(1,max/Math.max(im.width,im.height)),cv=document.createElement('canvas');cv.width=Math.round(im.width*k);cv.height=Math.round(im.height*k);cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);ok(cv.toDataURL('image/jpeg',.72))};im.onerror=function(){no(new Error('이미지를 읽을 수 없습니다'))};im.src=r.result};r.onerror=no;r.readAsDataURL(file)})}
+
+window.yumTalk={
+ send:function(){var u=me(),t=$i('tk-ta'),tx=(t&&t.value||'').trim();if(!tx&&!S.img)return;
+  var x={id:nid(),uid:u.id,name:u.name,team:u.team||'',t:tx,at:now(),updatedAt:now()};
+  if(S.cat){x.cat=S.cat;x.status='new'}if(S.reply)x.reply=S.reply;if(S.img)x.img=S.img;
+  L().push(x);S.draft='';S.reply=null;S.img=null;S.cat='';if(S.filter!=='all'||S.q){S.filter='all';S.q=''}save();rerender(false);
+  setTimeout(function(){var nt=$i('tk-ta');if(nt)nt.focus()},30)},
+ key:function(e){if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();yumTalk.send()}},
+ typing:function(t){S.draft=t.value;grow(t)},
+ cat:function(k){S.cat=S.cat===k?'':k;rerender(true)},
+ filter:function(k){S.filter=k;rerender(false)},
+ search:function(v){S.q=v;var b=$i('tk-body');if(b){b.innerHTML=listHTML(me());toBottom()}},
+ reply:function(id){S.reply=id;rerender(true);var t=$i('tk-ta');if(t)t.focus()},
+ jump:function(id){var el=$i(id);if(el){el.scrollIntoView({block:'center',behavior:'smooth'});el.classList.add('flash');setTimeout(function(){el.classList.remove('flash')},1400)}},
+ like:function(id){var u=me(),x=L().filter(function(m){return m.id===id})[0];if(!x)return;x.likes=x.likes||[];x.unliked=x.unliked||[];
+  var i=x.likes.indexOf(u.id);if(i>=0){x.likes.splice(i,1);if(x.unliked.indexOf(u.id)<0)x.unliked.push(u.id)}else{x.likes.push(u.id);x.unliked=x.unliked.filter(function(v){return v!==u.id})}
+  x.updatedAt=now();save();rerender(true)},
+ del:function(id){var u=me(),x=L().filter(function(m){return m.id===id})[0];if(!x||(x.uid!==u.id&&!isAdm(u)))return;
+  U.confirm('이 메시지를 삭제할까요?',function(){x.deleted=true;x.updatedAt=now();save();rerender(true)},'삭제')},
+ status:function(id){var u=me(),x=L().filter(function(m){return m.id===id})[0];if(!x||!isAdm(u))return;
+  U.modal('처리 상태 변경','<div class="tk-stsel">'+ST.map(function(s){return '<button class="'+((x.status||'new')===s[0]?'on':'')+'" style="--sc:'+s[2]+'" data-s="'+s[0]+'">'+s[1]+'</button>'}).join('')+'</div><div class="field" style="margin-top:14px"><label class="f">한마디 (선택 · 대화방에 함께 남김)</label><input id="tk-stmsg" placeholder="예: 다음 업데이트에 반영하겠습니다"></div>',
+   {size:'sm',onopen:function(){[].forEach.call(document.querySelectorAll('.tk-stsel button'),function(b){b.onclick=function(){
+    var k=b.getAttribute('data-s'),msg=($i('tk-stmsg').value||'').trim(),s=st(k);x.status=k;x.statusBy=u.name;x.updatedAt=now();
+    var sn=(x.t||'사진').replace(/\s+/g,' ').slice(0,24);
+    L().push({id:nid(),type:'sys',uid:u.id,name:u.name,t:u.name+'님이 「'+sn+(x.t&&x.t.length>24?'…':'')+'」 요청을 '+s[1]+'(으)로 변경했습니다',at:now(),updatedAt:now()});
+    if(msg)L().push({id:nid(),uid:u.id,name:u.name,team:u.team||'',t:msg,reply:x.id,at:now(),updatedAt:now()});
+    save();U.closeModal();rerender(false)}})}})},
+ pick:function(inp){var f=inp.files&&inp.files[0];if(!f)return;if(!/^image\//.test(f.type))return U.toast('사진 파일만 첨부할 수 있습니다.','bad');
+  resize(f,900).then(function(d){S.img=d;rerender(true)}).catch(function(e){U.toast(e.message,'bad')})},
+ noImg:function(){S.img=null;rerender(true)},
+ view:function(id){var x=L().filter(function(m){return m.id===id})[0];if(!x||!x.img)return;U.modal('사진','<img src="'+x.img+'" style="max-width:100%;border-radius:10px;display:block;margin:0 auto">',{})}
+};
+
+/* ---------- 라우팅 ---------- */
+var _r=App.render;
+App.render=function(){
+ var p=(location.hash||'').split('?')[0];
+ if(p==='#/talk'){
+  if(!me())return _r.apply(this,arguments);
+  /* 입력 중에 다른 사람 메시지가 동기화되어도 입력 내용 · 스크롤 유지 */
+  var t=$i('tk-ta'),foc=!!(t&&document.activeElement===t);if(t)S.draft=t.value;
+  var b=$i('tk-body'),already=!!b;
+  this.baseRoute='#/talk';var M=$i('main');
+  M.innerHTML=view();
+  try{this.buildSidebar();this.refreshChrome()}catch(e){}
+  var nt=$i('tk-ta');if(nt){grow(nt);if(foc){nt.focus();var n=nt.value.length;try{nt.setSelectionRange(n,n)}catch(e){}}}
+  toBottom();markSeen();
+  return;
+ }
+ return _r.apply(this,arguments);
+};
+
+/* ---------- 스타일 ---------- */
+var css=
+'.tk-wrap{display:flex;flex-direction:column;height:calc(100vh - 330px);min-height:520px;border-radius:22px;overflow:hidden;border:1px solid #D5DEE8;box-shadow:0 24px 48px -32px rgba(15,30,61,.45);background:#B2C7DA}'+
+'.tk-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 16px;background:rgba(169,189,210,.92);backdrop-filter:blur(8px);border-bottom:1px solid rgba(0,0,0,.06)}'+
+'.tk-room{display:flex;align-items:center;gap:10px}.tk-rav{width:40px;height:40px;border-radius:15px;background:#FEE500;display:flex;align-items:center;justify-content:center;font-size:19px;box-shadow:0 4px 10px -4px rgba(0,0,0,.3)}'+
+'.tk-room b{display:block;font-size:15px;color:#191919}.tk-room small{font-size:11.5px;color:#4B5866}'+
+'.tk-flt{display:flex;gap:5px;flex-wrap:wrap;margin-left:auto}.tk-flt button{border:0;background:rgba(255,255,255,.55);color:#33404F;font-size:12px;font-weight:700;padding:6px 11px;border-radius:999px;cursor:pointer;font-family:inherit}.tk-flt button.on{background:#191919;color:#FEE500}'+
+'#page-app .tk-search{width:170px!important;border:0!important;border-radius:999px!important;padding:7px 13px!important;font-size:12.5px;background:rgba(255,255,255,.75)!important}'+
+'.tk-body{flex:1;overflow-y:auto;padding:14px 18px 20px;scroll-behavior:auto}'+
+'.tk-day{text-align:center;margin:14px 0 10px}.tk-day span{display:inline-block;background:rgba(0,0,0,.14);color:#fff;font-size:11.5px;padding:4px 14px;border-radius:999px}'+
+'.tk-sys{text-align:center;margin:10px 0}.tk-sys span{display:inline-block;background:rgba(255,255,255,.55);color:#3B4654;font-size:11.5px;padding:5px 14px;border-radius:999px;max-width:80%}'+
+'.tk-row{display:flex;gap:8px;margin-top:12px;align-items:flex-start}.tk-row.grp{margin-top:4px}.tk-row.me{justify-content:flex-end}'+
+'.tk-av,.tk-avsp{width:40px;height:40px;border-radius:15px;flex:0 0 auto}.tk-av{display:flex;align-items:center;justify-content:center;background:#8FA5BC;color:#fff;font-weight:800;font-size:15px;background-size:cover;background-position:center}'+
+'.tk-col{display:flex;flex-direction:column;max-width:min(66%,560px)}.tk-row.me .tk-col{align-items:flex-end}'+
+'.tk-nm{font-size:12.5px;color:#36414E;margin:0 0 4px 2px}.tk-nm small{font-size:11px;color:#5D6B7A}'+
+'.tk-line{display:flex;align-items:flex-end;gap:6px}'+
+'.tk-b{position:relative;background:#fff;color:#191919;border-radius:4px 16px 16px 16px;padding:9px 12px;font-size:14px;line-height:1.55;box-shadow:0 1px 1px rgba(0,0,0,.05);word-break:break-word;min-width:40px}'+
+'.tk-row.grp .tk-b{border-radius:16px}.tk-row.me .tk-b{background:#FEE500;border-radius:16px 4px 16px 16px}.tk-row.me.grp .tk-b{border-radius:16px}'+
+'.tk-b a{color:#1D56C4;text-decoration:underline}'+
+'.tk-meta{display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex:0 0 auto}.tk-row:not(.me) .tk-meta{align-items:flex-start}'+
+'.tk-tm{font-size:10.5px;color:#4B5866;white-space:nowrap}.tk-like{font-size:10.5px;background:rgba(255,255,255,.7);border-radius:999px;padding:1px 6px;color:#3B4654}.tk-like.on{background:#191919;color:#FEE500}'+
+'.tk-cat{display:inline-block;font-size:11px;font-weight:800;color:#fff;background:var(--cc);border-radius:6px;padding:2px 7px;margin-bottom:5px}'+
+'.tk-q{border-left:3px solid rgba(0,0,0,.22);padding:2px 0 2px 8px;margin-bottom:6px;cursor:pointer}.tk-q b{display:block;font-size:11.5px;color:#191919}.tk-q span{display:block;font-size:12px;color:#5D6B7A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px}'+
+'.tk-img{display:block;max-width:260px;max-height:260px;border-radius:10px;margin:2px 0 4px;cursor:zoom-in}'+
+'.tk-st{margin-top:5px;font-size:11px;font-weight:800;color:var(--sc);background:#fff;border:1px solid var(--sc);border-radius:999px;padding:2px 9px;align-self:flex-start}.tk-row.me .tk-st{align-self:flex-end}'+
+'.tk-acts{position:absolute;top:-14px;display:none;gap:2px;background:#fff;border-radius:999px;padding:2px 4px;box-shadow:0 4px 12px -4px rgba(0,0,0,.35);z-index:2}'+
+'.tk-row:not(.me) .tk-acts{left:8px}.tk-row.me .tk-acts{right:8px}.tk-b:hover .tk-acts{display:flex}'+
+'.tk-acts button{border:0;background:none;cursor:pointer;font-size:12.5px;padding:3px 6px;border-radius:999px}.tk-acts button:hover{background:#F0F2F5}'+
+'.tk-row.flash .tk-b{box-shadow:0 0 0 3px #3062D8}'+
+'.tk-empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:#36414E;text-align:center}.tk-empty b{font-size:16px}.tk-empty span{font-size:13px;line-height:1.7;color:#4B5866}'+
+'.tk-foot{background:#fff;border-top:1px solid #E1E6EC;padding:8px 12px 12px}'+
+'.tk-rpbar{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#F4F6F8;border-radius:12px;padding:8px 12px;margin-bottom:8px}.tk-rpbar b{display:block;font-size:12px}.tk-rpbar span{font-size:12px;color:#6B7684}.tk-rpbar button{border:0;background:none;cursor:pointer;font-size:14px;color:#6B7684}'+
+'.tk-cats{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:2px 0 8px}.tk-cats>span{font-size:11.5px;color:#8A94A6;font-weight:700;margin-right:2px}.tk-cats em{font-style:normal;font-size:11px;color:#A0A8B5;margin-left:4px}'+
+'.tk-cats button{border:1px solid #E1E6EC;background:#fff;color:#4B5866;font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;cursor:pointer;font-family:inherit}.tk-cats button.on{background:var(--cc);border-color:var(--cc);color:#fff}'+
+'.tk-in{display:flex;align-items:flex-end;gap:8px}.tk-clip{width:38px;height:38px;border-radius:50%;background:#F1F3F5;display:flex;align-items:center;justify-content:center;font-size:20px;color:#6B7684;cursor:pointer;flex:0 0 auto}'+
+'#page-app .tk-in textarea{flex:1;resize:none;border:0!important;box-shadow:none!important;background:#F6F7F9!important;border-radius:18px!important;padding:10px 14px!important;font-size:14px;line-height:1.5;max-height:140px;font-family:inherit}'+
+'.tk-send{height:38px;padding:0 18px;border:0;border-radius:19px;background:#FEE500;color:#191919;font-weight:800;font-size:13.5px;cursor:pointer;flex:0 0 auto;font-family:inherit}.tk-send:hover{filter:brightness(.97)}'+
+'.tk-stsel{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}.tk-stsel button{border:1px solid var(--sc);color:var(--sc);background:#fff;border-radius:10px;padding:10px 0;font-weight:800;font-size:12.5px;cursor:pointer;font-family:inherit}.tk-stsel button.on,.tk-stsel button:hover{background:var(--sc);color:#fff}'+
+'@media(max-width:900px){.tk-col{max-width:80%}.tk-flt{margin-left:0}#page-app .tk-search{width:100%!important}}';
+try{var st2=document.createElement('style');st2.textContent=css;document.head.appendChild(st2)}catch(e){}
+console.log('[확장 모듈 40] 포털 개선 톡 로드 완료');
+})();
+</script>
+
+<script>
 /* ============ 확장 모듈 38 — 화면 구성 개편 · 내정보 ============
    · 왼쪽 메뉴: 영역(대시보드 · 생산계획 · 근무 · 일지·결재 · 자료·안전 · 시스템)을 위에서 아래로 한 줄씩 — 누르면 아래로 펼침
    · 상단 메뉴 줄: 홈페이지 상단 메뉴와 같은 항목을 포털 안에서도 바로 이동
