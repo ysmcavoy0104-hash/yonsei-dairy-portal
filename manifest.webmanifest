@@ -1,0 +1,14 @@
+{
+  "name": "연세우유 상온제품생산부문 업무포털",
+  "short_name": "업무포털",
+  "start_url": "./#/reports",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0F1E3D",
+  "theme_color": "#0F1E3D",
+  "lang": "ko",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

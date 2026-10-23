@@ -1,0 +1,10 @@
+{
+  "name": "yum-daily-report",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.1.0",
+    "nodemailer": "^6.9.14",
+    "web-push": "^3.6.7"
+  }
+}
