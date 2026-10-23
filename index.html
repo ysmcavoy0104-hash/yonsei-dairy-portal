@@ -597,11 +597,11 @@ h1.pgt{font-size:24px;font-weight:800;letter-spacing:-.02em;color:var(--navy)}
  <div class="h2-wrap">
   <div class="rv2"><div class="h2-eb">Six Workspaces</div><h2 class="h2-t">여섯 개의 업무 영역, 하나의 포털</h2><p class="h2-l">포털 안에서 영역마다 고유한 색으로 구분됩니다. 원하는 영역을 눌러 바로 들어가세요.</p></div>
   <div class="ha-g">
-   <a class="ha-c rv2" href="#dash" onclick="lnavGo('#/dash');return false" style="--c:#3062D8;--cd:#12245A;--cr:48,98,216"><span class="ha-n">01 · Dashboard</span><span class="ha-ic">▦</span><h3>대시보드</h3><p>오늘 해야 할 일과 팀별 일지 현황, 부서별 지연·정비 지표를 한 화면에서 확인합니다.</p><ul><li>팀별 일지 현황</li><li>지연·정비 대시보드</li><li>일일 보고서함</li></ul><span class="ha-go">대시보드 열기</span></a>
+   <a class="ha-c rv2" href="#dash" onclick="lnavGo('#/dash');return false" style="--c:#3062D8;--cd:#12245A;--cr:48,98,216"><span class="ha-n">01 · Dashboard</span><span class="ha-ic">▦</span><h3>대시보드</h3><p>오늘 해야 할 일과 팀별 일지 현황, 부서별 지연·정비 지표를 한 화면에서 확인합니다.</p><ul><li>지연·정비 기록 · 작성</li><li>지연·정비 기록표</li><li>일일 보고서함</li></ul><span class="ha-go">대시보드 열기</span></a>
    <a class="ha-c rv2" href="#planconv" onclick="lnavGo('#/planconv');return false" style="--c:#0F8F7C;--cd:#0A3F3A;--cr:15,143,124"><span class="ha-n">02 · Production</span><span class="ha-ic">⚙</span><h3>생산계획</h3><p>생산계획 PDF를 올리면 품목별 공정 규격과 원유 수유 · 사일로(S1~S5) 배정이 자동으로 만들어집니다.</p><ul><li>계획표 자동 변환</li><li>사일로 자동 배정</li><li>배합 · 착즙 · 멸균 · 포장</li></ul><span class="ha-go">생산계획 열기</span></a>
    <a class="ha-c rv2" href="#worksched" onclick="lnavGo('#/worksched');return false" style="--c:#6D50D9;--cd:#2B1F66;--cr:109,80,217"><span class="ha-n">03 · Workforce</span><span class="ha-ic">◷</span><h3>근무</h3><p>근무편성과 주간 근무계획표를 함께 관리하고, 휴무 인원까지 한눈에 확인합니다.</p><ul><li>근무스케쥴</li><li>주간근무계획표</li><li>인쇄 · PDF</li></ul><span class="ha-go">근무 열기</span></a>
    <a class="ha-c rv2" href="#journals" onclick="lnavGo('#/journals');return false" style="--c:#C27A2C;--cd:#53300F;--cr:194,122,44"><span class="ha-n">04 · Documents</span><span class="ha-ic">✎</span><h3>일지 · 결재</h3><p>원본 양식을 그대로 옮긴 <span data-forms>20여</span>종의 전자 일지를 팀별 폴더로 정리하고, 결재선으로 검증합니다.</p><ul><li>팀별 일지 폴더</li><li>전자결재</li><li>원본 양식 그대로 인쇄</li></ul><span class="ha-go">일지 · 결재 열기</span></a>
-   <a class="ha-c rv2" href="#safety" onclick="lnavGo('#/safety');return false" style="--c:#C2425D;--cd:#561526;--cr:194,66,93"><span class="ha-n">05 · Resources</span><span class="ha-ic">▣</span><h3>자료 · 안전</h3><p>안전 점검과 작업허가, 지연·정비 기록표, 노션 업무자료와 설비 매뉴얼 AI를 모았습니다.</p><ul><li>안전관리</li><li>지연·정비 기록표</li><li>NotebookLM</li></ul><span class="ha-go">자료 · 안전 열기</span></a>
+   <a class="ha-c rv2" href="#safety" onclick="lnavGo('#/safety');return false" style="--c:#C2425D;--cd:#561526;--cr:194,66,93"><span class="ha-n">05 · Resources</span><span class="ha-ic">▣</span><h3>자료 · 안전</h3><p>안전 점검과 작업허가, 노션 업무자료, 설비 매뉴얼 AI와 파일을 한곳에 모았습니다.</p><ul><li>안전관리</li><li>노션 업무자료</li><li>NotebookLM</li></ul><span class="ha-go">자료 · 안전 열기</span></a>
    <a class="ha-c rv2" href="#ai" onclick="lnavGo('#/ai');return false" style="--c:#B08A3E;--cd:#3A2D10;--cr:176,138,62"><span class="ha-n">06 · Intelligence</span><span class="ha-ic">✦</span><h3>AI 업무도우미</h3><p>각자의 AI 계정을 연결해 포털 데이터를 근거로 질문 · 요약 · 보고서 초안 작성을 합니다.</p><ul><li>개인 AI 계정 연결</li><li>지연 원인 분석</li><li>보고서 초안</li></ul><span class="ha-go">AI 업무도우미 열기</span></a>
   </div>
  </div>
@@ -10247,7 +10247,7 @@ var SEC={
  admin:  {en:'SYSTEM',               ic:'⚑', a:'#56657F', d:'#1E2638', s:'#EEF0F4', rgb:'86,101,127'},
  me:     {en:'MY PROFILE',           ic:'◉', a:'#B08A3E', d:'#3A2D10', s:'#F8F1E2', rgb:'176,138,62'}
 };
-var EXTRA={'#/ndash':'dash','#/reports':'dash','#/report-admin':'dash','#/doc':'journal','#/doc-new':'journal','#/profile':'me','#/oplogs':'ref'};
+var EXTRA={'#/ndash':'dash','#/reports':'dash','#/report-admin':'dash','#/doc':'journal','#/doc-new':'journal','#/profile':'me','#/oplogs':'dash'};
 
 /* 모든 영역의 메뉴(다른 확장 모듈이 추가한 메뉴 포함)를 모은다 */
 function collect(){
@@ -10258,7 +10258,11 @@ function collect(){
   var gi=-1;a.forEach(function(n,i){if(n&&n.g)gi=i});
   return {id:s.id,t:s.t,i:s.i,items:a.slice(gi+1).filter(function(n){return n&&n.k})};
  });
- A.baseRoute=keep;return out;
+ A.baseRoute=keep;
+ /* 지연·정비 기록표는 대시보드의 「지연·정비 기록 · 작성」 바로 아래로 */
+ var mv=null;out.forEach(function(sc){sc.items=sc.items.filter(function(n){if(n.k==='#/oplogs'){mv=mv||n;return false}return true})});
+ if(mv){var ds=out.filter(function(sc){return sc.id==='dash'})[0];if(ds){var i=-1;ds.items.forEach(function(n,k){if(n.k==='#/ndash')i=k});ds.items.splice(i>=0?i+1:ds.items.length,0,mv)}}
+ return out;
 }
 function secOf(route,secs){
  for(var i=0;i<secs.length;i++)if(secs[i].items.some(function(n){return n.k===route}))return secs[i].id;
