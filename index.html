@@ -727,7 +727,9 @@ window.addEventListener('scroll',navBg,{passive:true});setInterval(navBg,500);
 function talkBadge(){var a=$i('lnav-talk');if(!a)return;var n=0;try{n=me()&&window.yumTalk?yumTalk.unread():0}catch(e){}var b=a.querySelector('.lt-n');if(n){if(!b){b=document.createElement('span');b.className='lt-n';a.appendChild(b)}b.textContent=n>99?'99+':n}else if(b)b.remove()}
 setInterval(talkBadge,3000);
 function all(){try{talkBadge();nums();today();hero()}catch(e){console.warn('[홈]',e)}}
-var _s=window.syncLnavAuth;window.syncLnavAuth=function(){var r=_s?_s.apply(this,arguments):undefined;all();return r};
+/* 홈 마크업이 앱 스크립트보다 먼저 읽히므로, 문서가 다 읽힌 뒤에 감싼다 */
+function wrapSync(){if(window.__yumHomeWrapped||typeof window.syncLnavAuth!=='function')return;window.__yumHomeWrapped=1;var _s=window.syncLnavAuth;window.syncLnavAuth=function(){var r=_s.apply(this,arguments);all();return r}}
+window.addEventListener('DOMContentLoaded',wrapSync);
 window.addEventListener('DOMContentLoaded',function(){setTimeout(function(){reveal();all()},300)});
 window.addEventListener('hashchange',function(){setTimeout(reveal,200)});
 setTimeout(function(){reveal();all()},1200);
@@ -1096,7 +1098,7 @@ const Auth={
   if(defOk){u.pwHash=h;u.pwDefault=true;setTimeout(function(){try{U.toast('기본 비밀번호로 로그인했습니다. 보안을 위해 비밀번호를 변경해 주세요.')}catch(e){}},1100)}
   u.fails=0;u.lockedUntil=null;u.lastLogin=new Date().toISOString();DB.save();
   const sess={uid:u.id,at:Date.now(),exp:auto?Date.now()+30*24*3600*1000:null};
-  (auto?localStorage:sessionStorage).setItem(this.sessKey,JSON.stringify(sess));
+  (auto?localStorage:sessionStorage).setItem(this.sessKey,JSON.stringify(sess));try{auto?localStorage.setItem('yum_auto','1'):localStorage.removeItem('yum_auto')}catch(e){}
   if(window.SupaSync&&SupaSync.on())SupaSync.afterLogin(u,pw);
   this.log(u,'LOGIN','로그인 성공');
   U.toast(u.name+'님, 환영합니다.','ok');App.openPortal();return false},
@@ -1144,7 +1146,7 @@ const Auth={
   u.pwHash=await sha256(u.empNo+'::'+tmp);u.pwChangedAt=new Date().toISOString();u.pwDefault=false;u.fails=0;u.lockedUntil=null;DB.save();
   this.log(u,'PW_RESET','임시 비밀번호 발급');
   const ok=$('#rs-ok');ok.innerHTML=`임시 비밀번호: <b>${esc(tmp)}</b> — 로그인 후 반드시 변경하세요. (운영 전환 시 이메일 발송으로 대체)`;ok.classList.add('on');return false},
- logout(silent){sessionStorage.removeItem(this.sessKey);localStorage.removeItem(this.sessKey);if(window.SupaSync&&SupaSync.on()){try{SupaSync.c().auth.signOut()}catch(e){}}
+ logout(silent){sessionStorage.removeItem(this.sessKey);localStorage.removeItem(this.sessKey);try{localStorage.removeItem('yum_auto')}catch(e){}if(window.SupaSync&&SupaSync.on()){try{SupaSync.c().auth.signOut()}catch(e){}}
   if(!silent){U.toast('로그아웃되었습니다.');App.goLanding()}else App.show('landing')},
  log(u,act,d){DB.data.logs.unshift({at:new Date().toISOString(),u:u?u.name:'비로그인',act,ip:'10.20.x.x',d});DB.data.logs=DB.data.logs.slice(0,300);DB.save()},
 }
@@ -1165,7 +1167,7 @@ const SupaSync={
   if(remote&&remote.data){this.adopt(remote.data);this.lastSeen=Date.now();this.adopted=true}
   else if(local){await this.push(local)}
   try{const gs=await this.c().auth.getSession();const ses=gs&&gs.data&&gs.data.session;
-   if(ses&&!Auth.user()){const email=(ses.user.email||'').toLowerCase();
+   if(ses&&!Auth.user()&&!(localStorage.getItem('yum_auto')==='1'||localStorage.getItem(Auth.sessKey))){try{await this.c().auth.signOut()}catch(e){}}else if(ses&&!Auth.user()){const email=(ses.user.email||'').toLowerCase();
     const me=(DB.data.users||[]).find(u=>(u.email||'').toLowerCase()===email&&u.status==='active');
     if(me){sessionStorage.setItem(Auth.sessKey,JSON.stringify({uid:me.id,at:Date.now(),exp:Date.now()+12*3600*1000}))}}}catch(e){}
   if(Auth.user()){App.openPortal()}else{App.goAuth('login')}
