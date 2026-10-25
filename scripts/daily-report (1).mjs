@@ -39,7 +39,7 @@ async function saveReport(rep, sentInfo) {
   data.dailyReports = data.dailyReports || {};
   data.dailyReports[rep.date] = { date: rep.date, title: rep.title, summary: rep.summary, html: rep.html, ai: rep.ai || '', stats: rep.stats, generatedAt: new Date().toISOString(), sent: sentInfo };
   const keys = Object.keys(data.dailyReports).sort();
-  while (keys.length > 90) delete data.dailyReports[keys.shift()];
+  while (keys.length > 31) delete data.dailyReports[keys.shift()];
   const r = await fetch(`${SB}/rest/v1/app_state?id=eq.1`, { method: 'PATCH', headers: { ...sbHeaders, Prefer: 'return=minimal' }, body: JSON.stringify({ data, updated_at: new Date().toISOString() }) });
   if (!r.ok) throw new Error(`Supabase 저장 실패 ${r.status}: ${await r.text()}`);
 }
