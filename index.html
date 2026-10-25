@@ -10814,5 +10814,149 @@ console.log('[확장 모듈 42] 기업 홈페이지 회원 전용 로드 완료'
 })();
 </script>
 
+<script>
+/* ============ 확장 모듈 43 — 개인 휴대폰 알림 (결재 · 부서톡 · 공지) ============
+   포털에서 일이 생기면 받을 사람의 휴대폰으로 바로 알림을 보냅니다. 발송은 Supabase Edge Function 「notify」가 맡습니다.
+   · 결재: 결재 요청 → 결재자 / 승인 완료 · 반려 · 결재란 서명 → 작성자
+   · 부서톡: 내 글에 답장 → 나 / 새 요청 → 관리자 / 요청 처리 상태 변경 → 요청한 사람
+   · 공지: 새 공지 → 전 직원
+   각자 내정보에서 종류별로 끌 수 있습니다.                                                          */
+(function(){
+if(window.__YUM_NOTIFY__)return;window.__YUM_NOTIFY__=1;
+function $i(id){return document.getElementById(id)}
+function me(){try{return Auth.user()}catch(e){return null}}
+function users(){return (DB.data&&DB.data.users)||[]}
+function uName(id){var u=users().filter(function(x){return x.id===id})[0];return u?u.name:''}
+function pref(u,k){return !(u&&u.notify&&u.notify[k]===false)}
+function hasSubs(id){var vk=(DB.data.reportCfg||{}).vapidPublic;return ((DB.data.pushSubs||{})[id]||[]).some(function(s){return s&&s.endpoint&&(!s.vk||s.vk===vk)})}
+function endpoint(){var s=DB.data.settings||{};return s.notifyUrl||(window.SUPA_URL?window.SUPA_URL+'/functions/v1/notify':'')}
+function base(){return location.origin+location.pathname}
+function cut(t,n){t=String(t||'').replace(/\s+/g,' ').trim();return t.length>n?t.slice(0,n-1)+'…':t}
+async function token(){try{if(window.SupaSync&&SupaSync.on()){var s=await SupaSync.c().auth.getSession();return (s&&s.data&&s.data.session&&s.data.session.access_token)||''}}catch(e){}return ''}
+
+/* ---------- 보내기 ---------- */
+var LAST={};
+window.yumNotify=async function(to,msg,kind,opts){
+ opts=opts||{};var u=me();
+ var list=[].concat(to||[]).filter(function(id,i,a){return id&&a.indexOf(id)===i&&(opts.self||!u||id!==u.id)});
+ list=list.filter(function(id){var x=users().filter(function(v){return v.id===id})[0];return x&&x.status==='active'&&pref(x,kind)&&hasSubs(id)});
+ if(!list.length)return {sent:0,skipped:true};
+ var ep=endpoint(),tok=await token();
+ if(!ep||!tok){LAST={error:'서버 연결 없음'};return {sent:0,error:'서버에 연결되어 있지 않습니다'}}
+ try{
+  var r=await fetch(ep,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+tok,apikey:window.SUPA_ANON||''},
+   body:JSON.stringify({to:list,title:cut(msg.title,60),body:cut(msg.body,180),url:msg.url?base()+msg.url:base(),tag:msg.tag||kind})});
+  var j={};try{j=await r.json()}catch(e){}
+  if(!r.ok){LAST={error:(j&&j.error)||('HTTP '+r.status)};return {sent:0,error:LAST.error,status:r.status}}
+  if(j.gone&&j.gone.length){j.gone.forEach(function(g){var a=(DB.data.pushSubs||{})[g.uid];if(a)DB.data.pushSubs[g.uid]=a.filter(function(s){return s.endpoint!==g.endpoint})});try{DB.save()}catch(e){}}
+  LAST=j;return j;
+ }catch(e){LAST={error:e.message};return {sent:0,error:e.message}}
+};
+
+/* ---------- 변경 감지 (내가 한 일만) ---------- */
+var BASE=null,ADOPT=false;
+function snap(){
+ var s={docs:{},talk:{},notices:{}};
+ (DB.data.docs||[]).forEach(function(d){if(!d||!d.id)return;s.docs[d.id]={st:d.status,sg:Object.keys(d.signs||{}).filter(function(k){return d.signs[k]&&d.signs[k].name})}});
+ (DB.data.talk||[]).forEach(function(x){if(x&&x.id)s.talk[x.id]={st:x.status||''}});
+ (DB.data.notices||[]).forEach(function(n){if(n&&n.id)s.notices[n.id]=1});
+ return s;
+}
+var WAIT=['pending','in_progress'];
+function events(p,c){
+ var u=me();if(!u)return;
+ (DB.data.docs||[]).forEach(function(d){
+  var a=p.docs[d.id],b=c.docs[d.id];if(!b)return;var t=cut(d.title,70),url='#/doc/'+d.id,tag='doc-'+d.id;
+  var was=a?a.st:null;
+  if(WAIT.indexOf(b.st)>=0&&WAIT.indexOf(was)<0&&d.apprLine&&Array.isArray(d.apprLine.steps)){
+   var to=d.apprLine.steps.filter(function(s){return s&&s.status==='wait'}).map(function(s){return s.userId});
+   yumNotify(to,{title:'📝 결재 요청',body:t+' · 작성 '+(uName(d.authorId)||''),url:url,tag:tag},'approval');return;
+  }
+  if(!a||d.authorId===u.id)return;
+  if(b.st==='completed'&&was!=='completed'){yumNotify([d.authorId],{title:'✅ 결재 완료',body:t+' · '+u.name+' 승인',url:url,tag:tag},'approval');return}
+  if(b.st==='rejected'&&was!=='rejected'){var op='';try{var rs=d.apprLine.steps.filter(function(s){return s.status==='rejected'})[0];op=rs&&rs.opinion?' · 의견: '+rs.opinion:''}catch(e){}
+   yumNotify([d.authorId],{title:'↩ 반려',body:t+' · '+u.name+op,url:url,tag:tag},'approval');return}
+  var added=b.sg.filter(function(k){return (k==='review'||k==='approve')&&a.sg.indexOf(k)<0});
+  if(added.length)yumNotify([d.authorId],{title:'✍ '+(added.indexOf('approve')>=0?'승인':'검토')+' 서명',body:t+' · '+u.name,url:url,tag:tag},'approval');
+ });
+ var ST={new:'접수',review:'검토 중',doing:'진행 중',done:'완료',hold:'보류'},CT={fix:'수정 요청',add:'추가 요청',bug:'오류 신고',idea:'의견'};
+ (DB.data.talk||[]).forEach(function(x){
+  if(!x||!x.id||x.deleted||x.type==='sys')return;var a=p.talk[x.id];
+  if(!a&&x.uid===u.id){
+   if(x.reply){var q=(DB.data.talk||[]).filter(function(m){return m.id===x.reply})[0];if(q&&q.uid&&q.uid!==u.id)yumNotify([q.uid],{title:'💬 부서톡 · '+u.name+'님의 답장',body:x.t||'사진',url:'#/talk',tag:'talk-'+x.id},'talk')}
+   if(x.cat){var adm=users().filter(function(v){return v.status==='active'&&(v.role==='admin'||v.role==='superadmin')}).map(function(v){return v.id});
+    yumNotify(adm,{title:'💬 부서톡 · 새 '+(CT[x.cat]||'요청'),body:u.name+': '+(x.t||'사진'),url:'#/talk',tag:'talk-'+x.id},'talk')}
+  }
+  if(a&&x.cat&&x.status&&a.st!==x.status&&x.uid!==u.id){
+   yumNotify([x.uid],{title:'📌 요청 처리: '+(ST[x.status]||x.status),body:'「'+cut(x.t||'사진',40)+'」 · '+u.name,url:'#/talk',tag:'talk-'+x.id},'talk');
+  }
+ });
+ (DB.data.notices||[]).forEach(function(n){
+  if(!n||!n.id||p.notices[n.id])return;
+  yumNotify(users().filter(function(v){return v.status==='active'}).map(function(v){return v.id}),{title:(n.urgent?'🚨 긴급 공지':'📢 새 공지'),body:n.title||'',url:'#/notice',tag:'notice-'+n.id},'notice');
+ });
+}
+var _save=DB.save.bind(DB);
+DB.save=function(){
+ var r=_save.apply(this,arguments);
+ try{if(!ADOPT){var c=snap();if(BASE&&me())events(BASE,c);BASE=c}}catch(e){console.warn('[알림]',e)}
+ return r;
+};
+try{var _ad=SupaSync.adopt.bind(SupaSync);SupaSync.adopt=function(){ADOPT=true;try{return _ad.apply(this,arguments)}finally{ADOPT=false;try{BASE=snap()}catch(e){}}}}catch(e){}
+try{BASE=snap()}catch(e){}
+
+/* ---------- 내정보: 알림 설정 ---------- */
+var KINDS=[['approval','결재','결재 요청 · 승인 · 반려 · 결재란 서명'],['talk','부서톡','내 글에 온 답장 · 요청 처리 상태 (관리자: 새 요청)'],['notice','공지','새 공지 · 긴급 공지'],['daily','일일 보고','매일 아침 일일 보고서']];
+function devState(){
+ var https=location.protocol==='https:'||location.hostname==='localhost',ios=/iPad|iPhone|iPod/.test(navigator.userAgent),sa=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
+ if(!https)return '포털을 https 주소로 열어야 알림을 켤 수 있습니다';
+ if(ios&&!sa)return '아이폰은 사파리 공유 → 「홈 화면에 추가」 후 그 아이콘으로 열어서 켤 수 있습니다';
+ if(!('PushManager' in window))return '이 브라우저는 알림을 지원하지 않습니다 (안드로이드: 크롬)';
+ if(!(DB.data.reportCfg||{}).vapidPublic)return '관리자가 알림 키를 아직 만들지 않았습니다';
+ if(window.Notification&&Notification.permission==='denied')return '이 기기에서 알림이 차단되어 있습니다 — 휴대폰 설정에서 허용해 주세요';
+ return '';
+}
+function panel(){
+ var u=me();if(!u)return '';var n=u.notify||{},subs=((DB.data.pushSubs||{})[u.id]||[]).filter(function(s){return !s.vk||s.vk===(DB.data.reportCfg||{}).vapidPublic});
+ var why=devState();
+ return '<div class="panel nt-p" style="margin-top:18px"><div class="ph"><h3>휴대폰 알림</h3></div>'+
+  '<div class="nt-dev"><div><b>'+(subs.length?'알림 받는 기기 '+subs.length+'대':'아직 알림을 켠 기기가 없습니다')+'</b><small>'+(subs.length?esc(subs.map(function(s){return s.dev||'기기'}).join(' · ')):'알림을 받을 휴대폰에서 포털을 열고 아래 버튼을 눌러 주세요')+'</small>'+(why?'<em>'+esc(why)+'</em>':'')+'</div>'+
+  '<div class="nt-btns">'+(why?'':'<button class="btn btn-p btn-sm" onclick="yumPush.on()">🔔 이 기기에서 알림 켜기</button>')+(subs.length?'<button class="btn btn-o btn-sm" onclick="yumNotifyTest()">나에게 시험 알림</button>':'')+'</div></div>'+
+  '<div class="nt-ks">'+KINDS.map(function(k){return '<label class="nt-k"><input type="checkbox" id="nt-'+k[0]+'"'+(n[k[0]]===false?'':' checked')+' onchange="yumNotifyPref(\''+k[0]+'\',this.checked)"><span><b>'+k[1]+'</b><small>'+k[2]+'</small></span></label>'}).join('')+'</div>'+
+  '<div class="nt-msg" id="nt-msg"></div></div>';
+}
+window.yumNotifyPref=function(k,on){var u=me();if(!u)return;u.notify=Object.assign({},u.notify||{});u.notify[k]=!!on;u.infoAt=new Date().toISOString();DB.save();U.toast((on?'켰습니다: ':'껐습니다: ')+KINDS.filter(function(x){return x[0]===k})[0][1]+' 알림','ok')};
+window.yumNotifyTest=async function(){var u=me(),m=$i('nt-msg');if(m)m.textContent='보내는 중…';
+ var r=await yumNotify([u.id],{title:'🔔 알림 시험',body:u.name+'님, 이 알림이 보이면 정상입니다.',url:'#/profile',tag:'test'},'test',{self:true});
+ if(m){if(r.sent>0){m.textContent='보냈습니다. 휴대폰을 확인해 주세요.';m.className='nt-msg ok'}else{m.textContent='보내지 못했습니다: '+(r.error||(r.skipped?'알림을 켠 기기가 없습니다':'기기가 응답하지 않았습니다'))+(r.status===404?' — 관리자가 Supabase에 notify 기능을 아직 설치하지 않았습니다':'');m.className='nt-msg bad'}}};
+var _pv=Views.profile;
+Views.profile=function(){var h=_pv.apply(this,arguments);try{return h+panel()}catch(e){return h}};
+
+/* ---------- 대시보드: 알림 켜기 안내 (켠 기기가 없을 때만) ---------- */
+var _r=App.render;
+App.render=function(){
+ var r=_r.apply(this,arguments);
+ try{var u=me(),p=(location.hash||'').split('?')[0];
+  if(u&&(p===''||p==='#/dash')&&!hasSubs(u.id)&&(DB.data.reportCfg||{}).vapidPublic){
+   var hid=false;try{hid=localStorage.getItem('yum_nt_hide:'+u.id)==='1'}catch(e){}
+   var M=$i('main');if(!hid&&M&&!M.querySelector('.nt-ban')){var rib=M.querySelector('.sec-rib');var div=document.createElement('div');div.className='nt-ban';
+    div.innerHTML='<span class="nt-bi">📱</span><div><b>휴대폰 알림을 켜 두세요</b><small>결재 요청 · 반려 · 부서톡 답장 · 공지를 휴대폰으로 바로 받을 수 있습니다.</small></div><a class="btn btn-p btn-sm" href="#/profile">알림 설정</a><button class="nt-x" title="닫기" onclick="try{localStorage.setItem(\'yum_nt_hide:'+u.id+'\',\'1\')}catch(e){}this.parentNode.remove()">✕</button>';
+    if(rib)rib.insertAdjacentElement('afterend',div);else M.insertBefore(div,M.firstChild)}}
+ }catch(e){}
+ return r;
+};
+
+try{var st=document.createElement('style');st.textContent=
+ '.nt-dev{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:4px 0 14px;border-bottom:1px solid var(--line-soft)}.nt-dev>div:first-child{flex:1;min-width:220px;display:flex;flex-direction:column;gap:3px}.nt-dev small{font-size:12.5px;color:var(--muted)}.nt-dev em{font-style:normal;font-size:12.5px;color:#9A6B12;background:#FFF6E3;border-radius:8px;padding:6px 10px;margin-top:4px}'+
+ '.nt-btns{display:flex;gap:8px;flex-wrap:wrap}.nt-ks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}'+
+ '.nt-k{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border:1px solid var(--line);border-radius:12px;cursor:pointer}.nt-k input{width:auto;margin-top:3px}.nt-k span{display:flex;flex-direction:column;gap:2px}.nt-k small{font-size:12px;color:var(--muted)}'+
+ '.nt-msg{font-size:13px;margin-top:10px}.nt-msg.ok{color:var(--ok)}.nt-msg.bad{color:var(--bad)}'+
+ '.nt-ban{display:flex;align-items:center;gap:14px;padding:14px 18px;margin:-6px 0 18px;border-radius:14px;background:linear-gradient(120deg,#FFFBF1,#F7EEDB);border:1px solid #EAD9B3}.nt-ban>div{flex:1;display:flex;flex-direction:column;gap:2px}.nt-ban small{font-size:12.5px;color:#6E6250}.nt-bi{font-size:24px}.nt-x{border:0;background:none;cursor:pointer;color:#8A7F6C;font-size:14px}'+
+ '@media(max-width:900px){.nt-ks{grid-template-columns:1fr}}';
+ document.head.appendChild(st)}catch(e){}
+console.log('[확장 모듈 43] 개인 휴대폰 알림 로드 완료');
+})();
+</script>
+
 </body>
 </html>
