@@ -10345,7 +10345,7 @@ function rerender(keepScroll){var b=$i('tk-body'),atEnd=!b||b.scrollHeight-b.scr
  var nb=$i('tk-body');if(nb){if(keepScroll&&!atEnd)nb.scrollTop=y;else toBottom()}
  markSeen();
 }
-function resize(file,max){return new Promise(function(ok,no){var r=new FileReader();r.onload=function(){var im=new Image();im.onload=function(){var k=Math.min(1,max/Math.max(im.width,im.height)),cv=document.createElement('canvas');cv.width=Math.round(im.width*k);cv.height=Math.round(im.height*k);cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);ok(cv.toDataURL('image/jpeg',.72))};im.onerror=function(){no(new Error('이미지를 읽을 수 없습니다'))};im.src=r.result};r.onerror=no;r.readAsDataURL(file)})}
+function resize(file,max){return new Promise(function(ok,no){var r=new FileReader();r.onload=function(){var im=new Image();im.onload=function(){var k=Math.min(1,max/Math.max(im.width,im.height)),cv=document.createElement('canvas');cv.width=Math.round(im.width*k);cv.height=Math.round(im.height*k);cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);ok(cv.toDataURL('image/jpeg',.62))};im.onerror=function(){no(new Error('이미지를 읽을 수 없습니다'))};im.src=r.result};r.onerror=no;r.readAsDataURL(file)})}
 
 window.yumTalk={
  send:function(){var u=me(),t=$i('tk-ta'),tx=(t&&t.value||'').trim();if(!tx&&!S.img)return;
@@ -10374,7 +10374,7 @@ window.yumTalk={
     if(msg)L().push({id:nid(),uid:u.id,name:u.name,team:u.team||'',t:msg,reply:x.id,at:now(),updatedAt:now()});
     save();U.closeModal();rerender(false)}})}})},
  pick:function(inp){var f=inp.files&&inp.files[0];if(!f)return;if(!/^image\//.test(f.type))return U.toast('사진 파일만 첨부할 수 있습니다.','bad');
-  resize(f,900).then(function(d){S.img=d;rerender(true)}).catch(function(e){U.toast(e.message,'bad')})},
+  resize(f,720).then(function(d){S.img=d;rerender(true)}).catch(function(e){U.toast(e.message,'bad')})},
  noImg:function(){S.img=null;rerender(true)},
  unread:function(){return unread()},
  view:function(id){var x=L().filter(function(m){return m.id===id})[0];if(!x||!x.img)return;U.modal('사진','<img src="'+x.img+'" style="max-width:100%;border-radius:10px;display:block;margin:0 auto">',{})}
@@ -10955,6 +10955,75 @@ try{var st=document.createElement('style');st.textContent=
  '@media(max-width:900px){.nt-ks{grid-template-columns:1fr}}';
  document.head.appendChild(st)}catch(e){}
 console.log('[확장 모듈 43] 개인 휴대폰 알림 로드 완료');
+})();
+</script>
+
+<script>
+/* ============ 확장 모듈 44 — 서버 사용량 줄이기 · 로그인 지연 해결 ============
+   · 새 변경 확인: 6초마다 전체 데이터를 받던 것을 → 「마지막 변경 시각」만 확인하고, 바뀐 경우에만 전체를 받음
+   · 화면이 안 보일 때(다른 탭 · 화면 꺼짐)는 확인을 멈추고, 다시 보이면 바로 확인
+   · 저장: 그사이 다른 사람이 바꾼 게 없으면 전체를 다시 받지 않고 바로 저장
+   · 로그인: 서버가 느려도 일정 시간 뒤에는 기기에 있는 정보로 진행 (멈춘 것처럼 보이지 않게)          */
+(function(){
+if(window.__YUM_PERF__)return;window.__YUM_PERF__=1;
+var S=window.SupaSync;if(!S)return;
+var LAST='';           /* 서버의 마지막 변경 시각 (내가 본 값 또는 내가 쓴 값) */
+var POLL_MS=8000;
+function to(p,ms){return Promise.race([p,new Promise(function(r){setTimeout(function(){r('__timeout__')},ms)})])}
+async function meta(){try{var r=await S.c().from('app_state').select('updated_at').eq('id',1).maybeSingle();if(r.error)return null;return r.data}catch(e){return null}}
+
+/* 전체 받기: 받은 시각 기억 */
+var _pull=S.pull.bind(S);
+S.pull=async function(){
+ var r=window.__yumLogin?await to(_pull(),12000):await _pull();
+ if(r==='__timeout__'){console.warn('[동기화] 서버 응답이 늦어 기기 데이터로 진행합니다');return null}
+ if(r&&r.updated_at)LAST=r.updated_at;
+ return r;
+};
+
+/* 저장: 다른 사람이 바꾸지 않았으면 바로 올림 */
+var PENDING=false;
+var _qp=S.queuePush.bind(S);S.queuePush=function(){if(this.on())PENDING=true;return _qp.apply(this,arguments)};
+S.push=async function(data){
+ try{
+  var d=data,m=await meta();
+  if(!(m&&LAST&&m.updated_at===LAST)){var pr=await _pull();if(pr&&pr.updated_at)LAST=pr.updated_at;if(pr&&pr.data&&pr.data!==data){try{d=this.mergeState(pr.data,data,true)}catch(e){d=data}}}
+  var ts=new Date().toISOString();
+  var w=await this.c().from('app_state').upsert({id:1,data:d,updated_at:ts});
+  if(!w||!w.error){LAST=ts;this.lastSeen=Date.now()}else console.warn('[SupaSync push]',w.error.message);
+ }catch(e){console.warn('[SupaSync push]',e)}
+ finally{PENDING=false}
+};
+
+/* 새 변경 확인 */
+var busy=false;
+async function check(){
+ if(busy||PENDING||!S.on()||document.hidden)return;busy=true;
+ try{
+  var m=await meta();if(!m||!m.updated_at||m.updated_at===LAST)return;
+  var r=await _pull();if(!(r&&r.data))return;LAST=r.updated_at||m.updated_at;
+  S.lastSeen=Date.now();S.adopt(r.data);
+  var app=document.getElementById('page-app');
+  if(app&&app.classList.contains('on')){try{if(window.yumFormBusy&&window.yumFormBusy()){App.refreshChrome()}else{App.render();App.refreshChrome()}}catch(e){}}
+ }catch(e){}finally{busy=false}
+}
+S.startPoll=function(){clearInterval(this.pollT);this.pollT=setInterval(check,POLL_MS)};
+if(S.pollT)S.startPoll();
+document.addEventListener('visibilitychange',function(){if(!document.hidden)setTimeout(check,300)});
+
+/* 로그인: 서버 확인에 시간 제한 + 버튼에 진행 표시 */
+var _es=S.ensureSession.bind(S);
+S.ensureSession=async function(){var r=await to(_es.apply(this,arguments),7000);if(r==='__timeout__'){console.warn('[로그인] 서버 응답 지연');return {ok:false,msg:'timeout'}}return r};
+if(S.resolveEmail){var _re=S.resolveEmail.bind(S);S.resolveEmail=async function(){var r=await to(_re.apply(this,arguments),6000);return r==='__timeout__'?null:r}}
+var _login=Auth.login.bind(Auth);
+Auth.login=async function(ev){
+ var b=document.querySelector('#f-login button.btn-p'),t=b?b.textContent:'';
+ if(b){b.disabled=true;b.textContent='로그인 중…'}
+ window.__yumLogin=true;
+ var slow=setTimeout(function(){try{if(b)b.textContent='서버 응답을 기다리는 중…'}catch(e){}},4000);
+ try{return await _login(ev)}finally{window.__yumLogin=false;clearTimeout(slow);if(b){b.disabled=false;b.textContent=t||'로그인'}}
+};
+console.log('[확장 모듈 44] 서버 사용량 줄이기 · 로그인 지연 해결 로드 완료');
 })();
 </script>
 
