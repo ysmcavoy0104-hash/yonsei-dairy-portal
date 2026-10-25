@@ -10733,5 +10733,86 @@ console.log('[확장 모듈 38] 화면 구성 개편 · 내정보 로드 완료'
 })();
 </script>
 
+<script>
+/* ============ 확장 모듈 41 — 결재란 서명 이름 정리 ============
+   결재란에는 「이름 · 날짜 · 인」만 들어가도록.
+   예전 서명 코드가 로그인 정보를 찾지 못해 상단의 「이름 · 직급 / 권한」 글자를 통째로 가져오던 문제를 바로잡고,
+   이미 그렇게 저장된 서명도 이름만 남도록 정리합니다.                                                    */
+(function(){
+if(window.__YUM_SIGNFIX__)return;window.__YUM_SIGNFIX__=1;
+var ROLE=/(일반 사용자|시스템 관리자|최고관리자|결재권자)\s*$/;
+function clean(n){
+ if(n==null)return n;var s=String(n).replace(/\s+/g,' ').trim();
+ if(s.indexOf(' · ')>=0)s=s.split(' · ')[0];
+ s=s.replace(ROLE,'').trim();
+ return s;
+}
+window.yumCleanSignName=clean;
+/* 서명할 때: 로그인한 사람의 이름을 정확히 쓰도록 */
+function wrap(){
+ var o=window.yumSignName;if(!o||o.__fixed)return;
+ var w=function(b,role){
+  var had=Object.prototype.hasOwnProperty.call(window,'Auth');if(!had)window.Auth=Auth;
+  try{var r=o.apply(this,arguments);
+   fixAll(true);return r}
+  finally{if(!had){try{delete window.Auth}catch(e){window.Auth=undefined}}}
+ };
+ w.__fixed=1;window.yumSignName=w;
+}
+/* 이미 저장된 서명 정리 */
+function fixSigns(sg){var ch=false;if(!sg)return false;Object.keys(sg).forEach(function(k){var s=sg[k];if(s&&s.name){var c=clean(s.name);if(c!==s.name){s.name=c;ch=true}}});return ch}
+function fixAll(render){
+ var ch=false;
+ try{(DB.data.docs||[]).forEach(function(d){if(fixSigns(d.signs))ch=true;
+  if(d.apprLine&&Array.isArray(d.apprLine.steps))d.apprLine.steps.forEach(function(st){if(st&&st.name){var c=clean(st.name);if(c!==st.name){st.name=c;ch=true}}})})}catch(e){}
+ try{if(fixSigns(window.__SIGN))ch=true}catch(e){}
+ /* 화면에 이미 그려진 결재란 글자 */
+ try{[].forEach.call(document.querySelectorAll('.sgn,.sgbtn.signed,[data-appr] .an'),function(el){var t=el.textContent,c=clean(t);if(c!==t)el.textContent=c})}catch(e){}
+ if(ch){try{DB.save()}catch(e){}}
+ return ch;
+}
+wrap();setTimeout(wrap,500);window.addEventListener('load',function(){wrap();fixAll()});
+setInterval(function(){wrap();fixAll()},4000);
+console.log('[확장 모듈 41] 결재란 서명 이름 정리 로드 완료');
+})();
+</script>
+
+<script>
+/* ============ 확장 모듈 42 — 기업 홈페이지 회원 전용 ============
+   로그인하지 않은 사람이 홈페이지(첫 화면)로 가려 하면 로그인 화면에 머물고 「회원 전용」 안내를 띄움.
+   로그아웃했을 때는 안내 없이 로그인 화면으로.                                                        */
+(function(){
+if(window.__YUM_GATE__)return;window.__YUM_GATE__=1;
+function me(){try{return Auth.user()}catch(e){return null}}
+var quiet=false;
+function warn(){
+ try{U.modal('회원 전용 페이지입니다',
+  '<div class="gt-w"><div class="gt-ic">🔒</div><p><b>기업 홈페이지와 업무포털은 연세우유 상온제품생산부문 구성원만 볼 수 있습니다.</b></p>'+
+  '<p>로그인한 뒤 이용해 주세요. 처음 오신 분은 <b>회원가입</b>으로 신청하면 관리자 승인 후 이용할 수 있습니다.</p></div>',
+  {size:'sm',foot:'<button class="btn btn-o btn-sm" onclick="U.closeModal();App.goAuth(\'signup\')">회원가입 신청</button><button class="btn btn-p btn-sm" onclick="U.closeModal();var i=document.getElementById(\'li-id\');if(i)i.focus()">로그인하기</button>'})}catch(e){}
+}
+var _show=App.show.bind(App);
+App.show=function(p){
+ if(p==='landing'&&!me()){
+  _show('auth');try{Auth.tab('login')}catch(e){}
+  if(!quiet)warn();
+  return;
+ }
+ return _show.apply(this,arguments);
+};
+var _lo=Auth.logout.bind(Auth);
+Auth.logout=function(){quiet=true;try{return _lo.apply(this,arguments)}finally{setTimeout(function(){quiet=false},50)}};
+/* 로그인 화면의 「기업 홈페이지로 돌아가기」 링크에 자물쇠 표시 */
+function mark(){try{var a=document.querySelector('#page-auth a[onclick*="goLanding"]');if(a&&!a.dataset.gt){a.dataset.gt=1;a.textContent='🔒 기업 홈페이지 (회원 전용)';a.title='로그인 후 볼 수 있습니다'}}catch(e){}}
+mark();window.addEventListener('DOMContentLoaded',mark);
+/* 처음 접속 시 홈 화면이 잠깐 보이지 않도록 */
+window.addEventListener('load',function(){setTimeout(function(){var l=document.getElementById('page-landing');if(l&&l.classList.contains('on')&&!me()){quiet=true;App.show('landing');quiet=false}},300)});
+try{var st=document.createElement('style');st.textContent=
+ '.gt-w{text-align:center;padding:6px 4px 2px}.gt-ic{font-size:40px;line-height:1;margin-bottom:12px}.gt-w p{font-size:14px;line-height:1.75;color:var(--muted);margin:8px 0 0;word-break:keep-all}.gt-w p b{color:var(--ink)}';
+ document.head.appendChild(st)}catch(e){}
+console.log('[확장 모듈 42] 기업 홈페이지 회원 전용 로드 완료');
+})();
+</script>
+
 </body>
 </html>
