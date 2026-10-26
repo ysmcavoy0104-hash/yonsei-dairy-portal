@@ -11863,5 +11863,248 @@ console.log('[확장 모듈 47] 자동 인사이트 로드 완료');
 })();
 </script>
 
+<script>
+/* ============ 확장 모듈 48 — 지연 · 정비 기록 작성: 자동 목록 · 같은 건 바로 채우기 ============
+   · 포장팀 호기: A호기 ~ F호기 (가공1 · 2팀은 1 ~ 5호기)
+   · 호기 · 제품명 · 지연 사유 · 설비(호기) · 상세 내용 · 담당 칸을 누르면 바로 목록이 펼쳐짐
+     (그 부서에서 자주 쓴 순 → 다른 부서 기록 순, 글자 일부만 쳐도 찾음) — 저장한 값은 다음부터 목록에 자동으로 들어감
+   · 「⚡ 최근 같은 건」: 그동안 같은 호기 · 같은 제품으로 쓴 조합을 누르면 한 번에 채워짐                       */
+(function(){
+if(window.__YUM_OPLIST__)return;window.__YUM_OPLIST__=1;
+var HOGI={'포장팀':['A호기','B호기','C호기','D호기','E호기','F호기'],'가공1팀':['1호기','2호기','3호기','4호기','5호기'],'가공2팀':['1호기','2호기','3호기','4호기','5호기']};
+function C(){return window.YumReportCore}
+function recs(){try{return C().records(DB.data,window.__YUM_NOTION_FINAL__||{delay:[],maint:[]})}catch(e){return []}}
+function norm(s){return String(s||'').replace(/\s+/g,'').toLowerCase()}
+function curDiv(){var h=document.querySelector('#nd-delay h3');var m=h&&h.textContent.match(/·\s*(\S+)\s*$/);return m?m[1]:''}
+/* 칸 → (기록 종류, 항목) */
+var FIELDS={'nd-d-hogi':['delay','hogi'],'nd-d-product':['delay','product'],'nd-d-reason':['delay','reason'],'nd-m-asset':['maint','asset'],'nd-m-content':['maint','content'],'nd-m-person':['maint','person']};
+function counts(kind,key,div){
+ var own={},oth={},last={};
+ recs().forEach(function(r){if(r.kind!==kind)return;var v=String(r[key]||'').trim();if(!v)return;
+  if(r.div===div)own[v]=(own[v]||0)+1;else oth[v]=(oth[v]||0)+1;if(!last[v]||r.d>last[v])last[v]=r.d});
+ return {own:own,oth:oth,last:last};
+}
+function listFor(id,div){
+ var f=FIELDS[id],c=counts(f[0],f[1],div),out=[],seen={};
+ function push(v,n,mine){var k=norm(v);if(!k||seen[k])return;seen[k]=1;out.push({v:v,n:n,mine:mine,last:c.last[v]||''})}
+ if(id==='nd-d-hogi'||id==='nd-m-asset')(HOGI[div]||[]).forEach(function(h){push(h,c.own[h]||0,true)});
+ Object.keys(c.own).sort(function(a,b){return c.own[b]-c.own[a]}).forEach(function(v){push(v,c.own[v],true)});
+ Object.keys(c.oth).sort(function(a,b){return c.oth[b]-c.oth[a]}).forEach(function(v){push(v,c.oth[v],false)});
+ if(id==='nd-d-hogi'||id==='nd-m-asset'){/* 호기는 정해진 순서(A~F / 1~5)를 맨 앞에 */}
+ return out;
+}
+
+/* ---------- 펼침 목록 ---------- */
+var BOX=null,CUR=null,ITEMS=[],HI=-1;
+function close(){if(BOX){BOX.remove();BOX=null}CUR=null;HI=-1}
+function open(inp){
+ var div=curDiv();var all=listFor(inp.id,div),q=norm(inp.value);
+ ITEMS=q?all.filter(function(x){return norm(x.v).indexOf(q)>=0}).sort(function(a,b){return (norm(a.v).indexOf(q)===0?0:1)-(norm(b.v).indexOf(q)===0?0:1)}):all;
+ ITEMS=ITEMS.slice(0,60);
+ if(!BOX){BOX=document.createElement('div');BOX.className='ol-dd';document.body.appendChild(BOX)}
+ CUR=inp;HI=-1;
+ var r=inp.getBoundingClientRect();
+ BOX.style.left=(r.left+window.scrollX)+'px';BOX.style.top=(r.bottom+window.scrollY+4)+'px';BOX.style.width=Math.max(r.width,240)+'px';
+ var exact=all.some(function(x){return norm(x.v)===q});
+ var h='';
+ if(q&&!exact)h+='<div class="ol-new">＋ 「'+esc(inp.value.trim())+'」 새 항목 — 저장하면 다음부터 목록에 나옵니다</div>';
+ if(!ITEMS.length&&!q)h+='<div class="ol-new">아직 기록이 없습니다. 입력하면 다음부터 목록에 나옵니다.</div>';
+ var mineShown=false,othShown=false;
+ ITEMS.forEach(function(x,i){
+  if(x.mine&&!mineShown){h+='<div class="ol-gh">'+esc(div)+' 자주 쓴 항목</div>';mineShown=true}
+  if(!x.mine&&!othShown){h+='<div class="ol-gh">다른 부서 기록</div>';othShown=true}
+  h+='<div class="ol-it" data-i="'+i+'"><span>'+hl(x.v,inp.value)+'</span><small>'+(x.n?x.n+'회':'')+(x.last?' · '+x.last.slice(5).replace('-','/'):'')+'</small></div>';
+ });
+ BOX.innerHTML=h;BOX.style.display=h?'block':'none';
+ [].forEach.call(BOX.querySelectorAll('.ol-it'),function(el){el.addEventListener('mousedown',function(e){e.preventDefault();pick(+el.getAttribute('data-i'))})});
+}
+function hl(v,q){q=String(q||'').trim();if(!q)return esc(v);var i=v.toLowerCase().indexOf(q.toLowerCase());if(i<0)return esc(v);return esc(v.slice(0,i))+'<b>'+esc(v.slice(i,i+q.length))+'</b>'+esc(v.slice(i+q.length))}
+function pick(i){var x=ITEMS[i];if(!x||!CUR)return;CUR.value=x.v;CUR.dispatchEvent(new Event('input',{bubbles:true}));var nx=CUR;close();quick();focusNext(nx)}
+function focusNext(inp){var order=['nd-d-hogi','nd-d-product','nd-d-reason','nd-d-start','nd-m-asset','nd-m-content','nd-m-mtype'];var i=order.indexOf(inp.id);if(i>=0&&order[i+1]){var n=document.getElementById(order[i+1]);if(n&&!n.value&&n.closest('.nd-card')===inp.closest('.nd-card'))setTimeout(function(){n.focus()},30)}}
+function move(d){if(!BOX||!ITEMS.length)return;HI=(HI+d+ITEMS.length)%ITEMS.length;[].forEach.call(BOX.querySelectorAll('.ol-it'),function(el){el.classList.toggle('on',+el.getAttribute('data-i')===HI)});var on=BOX.querySelector('.ol-it.on');if(on)on.scrollIntoView({block:'nearest'})}
+
+/* ---------- ⚡ 최근 같은 건 ---------- */
+function combos(kind,div){
+ var g={};recs().forEach(function(r){if(r.kind!==kind||r.div!==div)return;
+  var k=kind==='delay'?[r.hogi,r.product,r.reason]:[r.asset,r.content,r.mtype];
+  if(!k[0]&&!k[1])return;var key=k.map(norm).join('|');var o=g[key]=g[key]||{k:k,n:0,last:'',team:r.team,person:r.person};o.n++;if(r.d>o.last){o.last=r.d;o.team=r.team||o.team;o.person=r.person||o.person}});
+ return Object.keys(g).map(function(k){return g[k]});
+}
+function val(id){var e=document.getElementById(id);return e?norm(e.value):''}
+function quick(){
+ var div=curDiv();if(!div)return;
+ [['delay','nd-d-hogi','nd-d-product','nd-d-reason'],['maint','nd-m-asset','nd-m-content','nd-m-mtype']].forEach(function(s){
+  var card=document.getElementById(s[0]==='delay'?'nd-delay':'nd-maint');if(!card)return;
+  var host=card.querySelector('.ol-q');if(!host){host=document.createElement('div');host.className='ol-q';var g=card.querySelector('.nd-grid');g.parentNode.insertBefore(host,g)}
+  var a=val(s[1]),b=val(s[2]);
+  var L=combos(s[0],div).filter(function(o){return (!a||norm(o.k[0]).indexOf(a)>=0)&&(!b||norm(o.k[1]).indexOf(b)>=0)});
+  L.sort(function(x,y){return (y.last>x.last?1:y.last<x.last?-1:0)||y.n-x.n});
+  /* 최근 순 + 자주 쓴 순 섞어서 6개 */
+  var top=L.slice(0,4).concat(L.slice().sort(function(x,y){return y.n-x.n}).slice(0,6)).filter(function(o,i,arr){return arr.indexOf(o)===i}).slice(0,6);
+  if(!top.length){host.innerHTML='';return}
+  host.innerHTML='<div class="ol-qh">⚡ '+(a||b?'같은 '+(s[0]==='delay'?'호기·제품':'설비')+'의 최근 기록':'최근 같은 건')+' <small>누르면 한 번에 채워집니다</small></div><div class="ol-qs">'+top.map(function(o,i){return '<button type="button" class="ol-qb" data-q="'+i+'"><b>'+esc(o.k.filter(Boolean).slice(0,2).join(' · '))+'</b>'+(o.k[2]?'<span>'+esc(o.k[2])+'</span>':'')+'<small>'+o.n+'회 · '+o.last.slice(5).replace('-','/')+'</small></button>'}).join('')+'</div>';
+  [].forEach.call(host.querySelectorAll('.ol-qb'),function(bt){bt.onclick=function(){var o=top[+bt.getAttribute('data-q')];
+   var ids=s.slice(1);o.k.forEach(function(v,i){var el=document.getElementById(ids[i]);if(!el||!v)return;if(el.tagName==='SELECT'){if(![].some.call(el.options,function(op){return op.value===v})){var op=document.createElement('option');op.value=v;op.textContent=v;el.appendChild(op)}}el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}))});
+   if(s[0]==='delay'&&o.team){var t=document.getElementById('nd-d-team');if(t&&!t.value&&[].some.call(t.options,function(op){return op.value===o.team}))t.value=o.team}
+   bt.classList.add('on');setTimeout(function(){var n=document.getElementById(s[0]==='delay'?'nd-d-start':'nd-m-etc');if(n)n.focus()},30);
+   U.toast('최근 기록 내용으로 채웠습니다. 시간 · 기타만 확인해 주세요.','ok')}});
+ });
+}
+
+/* ---------- 화면에 붙이기 ---------- */
+function enhance(){
+ var w=document.getElementById('nd-write');if(!w||w.__ol)return;w.__ol=1;
+ Object.keys(FIELDS).forEach(function(id){
+  var inp=document.getElementById(id);if(!inp)return;
+  inp.removeAttribute('list');inp.setAttribute('autocomplete','off');
+  inp.addEventListener('focus',function(){open(inp)});
+  inp.addEventListener('click',function(){open(inp)});
+  inp.addEventListener('input',function(){if(document.activeElement===inp)open(inp);if(/hogi|product|asset|content/.test(id))quick()});
+  inp.addEventListener('keydown',function(e){if(!BOX||CUR!==inp)return;if(e.key==='ArrowDown'){e.preventDefault();move(1)}else if(e.key==='ArrowUp'){e.preventDefault();move(-1)}else if(e.key==='Enter'&&HI>=0){e.preventDefault();pick(HI)}else if(e.key==='Escape')close()});
+  inp.addEventListener('blur',function(){setTimeout(function(){if(CUR===inp)close()},150)});
+ });
+ /* 포장팀 호기 안내 */
+ var div=curDiv(),h=document.getElementById('nd-d-hogi');if(h&&HOGI[div])h.placeholder='예: '+HOGI[div][Math.min(1,HOGI[div].length-1)];
+ var a=document.getElementById('nd-m-asset');if(a&&div==='포장팀')a.placeholder='예: B호기 실러 / C호기 컨베이어';
+ quick();
+}
+window.addEventListener('scroll',function(){if(BOX&&CUR){var r=CUR.getBoundingClientRect();BOX.style.top=(r.bottom+window.scrollY+4)+'px';BOX.style.left=(r.left+window.scrollX)+'px'}},true);
+window.addEventListener('resize',close);
+var _r=App.render;App.render=function(){close();var x=_r.apply(this,arguments);setTimeout(enhance,0);return x};
+new MutationObserver(function(){if(document.getElementById('nd-write')&&!document.getElementById('nd-write').__ol)enhance()}).observe(document.documentElement,{childList:true,subtree:true});
+try{var st=document.createElement('style');st.textContent=
+ '.ol-dd{position:absolute;z-index:9999;background:#fff;border:1px solid var(--line,#E3E7EF);border-radius:12px;box-shadow:0 14px 40px rgba(16,24,40,.18);max-height:320px;overflow:auto;padding:6px;font-size:13.5px}'+
+ '.ol-gh{font-size:11px;font-weight:800;color:var(--muted,#6B7690);padding:6px 8px 3px;letter-spacing:.02em}'+
+ '.ol-it{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:8px 10px;border-radius:8px;cursor:pointer}.ol-it:hover,.ol-it.on{background:#EEF3FF}.ol-it b{color:#2F5BD3}.ol-it small{color:var(--muted,#6B7690);white-space:nowrap;font-size:11.5px}'+
+ '.ol-new{padding:8px 10px;color:#A9853F;font-size:12.5px;background:#FFF8EA;border-radius:8px;margin-bottom:4px}'+
+ '.ol-q{margin:2px 0 12px;background:linear-gradient(135deg,#F4F7FF,#FFF9EC);border:1px solid #E3E8F5;border-radius:12px;padding:10px 12px}.ol-qh{font-size:12.5px;font-weight:800;color:var(--navy,#13254B);margin-bottom:8px}.ol-qh small{font-weight:600;color:var(--muted)}'+
+ '.ol-qs{display:flex;gap:6px;flex-wrap:wrap}.ol-qb{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;background:#fff;border:1px solid var(--line,#E3E7EF);border-radius:10px;padding:7px 10px;cursor:pointer;max-width:100%;font:inherit}.ol-qb:hover{border-color:#2F5BD3;box-shadow:0 2px 8px rgba(47,91,211,.12)}.ol-qb.on{background:#EEF3FF;border-color:#2F5BD3}.ol-qb b{font-size:12.5px}.ol-qb span{font-size:12px;color:#3A4560}.ol-qb small{font-size:11px;color:var(--muted)}';
+ document.head.appendChild(st)}catch(e){}
+console.log('[확장 모듈 48] 지연 · 정비 기록 자동 목록 로드 완료');
+})();
+</script>
+
+<script>
+/* ============ 확장 모듈 49 — 자료·안전 「업계 안전 뉴스」 ============
+   · 유업 · 음료 · 식품 제조업 사건사고 기사를 정리해 보여 주는 페이지 (#/safenews)
+   · 기사마다: 날짜 · 출처 · 분류(끼임 · 밀폐공간 · 화재 · 가스 누출 · 식품안전 · 법/제도) · 요약 · 「우리 현장 체크포인트」 · 원문 링크
+   · 새 기사는 GitHub Actions가 매일 아침 뉴스 검색(RSS)으로 모아 서버에 저장 (scripts/daily-report.mjs) — 아래 SEED는 처음 채워 둔 확인된 기사
+   · 관리자: 기사 직접 추가 · 숨김 · 📌 중요 표시 / 누구나: 안전교육 자료로 인쇄                                         */
+(function(){
+if(window.__YUM_SAFENEWS__)return;window.__YUM_SAFENEWS__=1;
+function $i(id){return document.getElementById(id)}
+function me(){try{return Auth.user()}catch(e){return null}}
+function isAdm(){var u=me();return !!(u&&(u.role==='admin'||u.role==='superadmin'))}
+function qs(){var o={},q=(location.hash||'').split('?')[1]||'';q.split('&').forEach(function(kv){if(!kv)return;var p=kv.split('=');o[p[0]]=decodeURIComponent(p[1]||'')});return o}
+var CAT={
+ '끼임·협착':{ic:'⚙️',c:'#D64545',chk:['청소 · 점검 · 이물 제거 전 전원 차단 + 잠금 · 표지(LOTO) 확인','배합기 · 컨베이어 · 팔레타이저 방호덮개 · 인터록 작동 점검','재가동 전 작업구역 안에 사람이 없는지 직접 확인 (2인 확인)']},
+ '밀폐공간·질식':{ic:'🫧',c:'#7B5CD6',chk:['탱크 · 사일로 내부 진입 전 산소 · 유해가스(CO₂ · H₂S) 측정','강제 환기 · 감시인 배치 · 2인 1조, 구조 장비(공기호흡기) 비치','CIP 약품(가성소다 · 산) 잔류 · 증기 확인 후 진입']},
+ '화재·폭발':{ic:'🔥',c:'#E0902F',chk:['튀김 · 가열 설비 주변 기름때 청소, 덕트 정기 청소','스프링클러 · 소화기 · 비상구 · 대피로 점검','보일러 · 스팀 · 전기 판넬 열화상 점검']},
+ '가스 누출':{ic:'☣️',c:'#12A3A0',chk:['냉동기 암모니아 누출 감지기 · 경보 작동 점검','누출 시 대피 경로 · 집결지 교육','밸브 · 배관 연결부 정기 누출 점검, 외주 정비 시 작업허가']},
+ '식품안전·회수':{ic:'🧪',c:'#2F6FD6',chk:['CIP 후 세척수 · 약품 잔류(최종 헹굼수 pH · 전도도) 확인','이물 · 이미 · 이취 발생 시 즉시 출하 보류 · 보고','알레르기 유발물질(우유 · 대두) 표시 확인']},
+ '법·제도':{ic:'⚖️',c:'#5B6B8C',chk:['중대재해처벌법: 위험성평가 · 안전보건 예산 · 점검 기록 보관','도급 · 외주 작업 안전관리 책임 확인','작업중지 · 재발방지 대책 공유']},
+ '기타':{ic:'📰',c:'#8A94A8',chk:['비슷한 위험이 우리 현장에 있는지 확인']}
+};
+/* 처음 채워 둔 기사 (2026-10-26 확인) */
+var SEED=[
+ {id:'s-maeil-pt-0809',d:'2026-08-09',cat:'밀폐공간·질식',hot:1,src:'뉴스1',title:'평택 매일유업 공장 탱크 청소 중 작업자 2명 사상',url:'https://www.news1.kr/local/gyeonggi/6253543',
+  sum:'경기 평택 매일유업 평택공장의 연유 저장탱크 안에서 청소하던 근로자 2명이 쓰러져 50대 1명이 숨지고 1명이 다쳤습니다. 회사는 가동을 멈추고 원인 조사 중이며, 다음 날 대표이사가 사과문을 냈습니다.',
+  more:[['뉴시스 · 대표 사과','https://www.newsis.com/view/NISX20260810_0003742635']],tags:['유업계','탱크 청소','밀폐공간']},
+ {id:'s-yongin-0428',d:'2026-04-28',cat:'끼임·협착',hot:1,src:'네이트 뉴스',title:'용인 유산균음료 공장서 30대 근로자, 배합기 청소 중 끼여 숨져',url:'https://m.news.nate.com/view/20260428n32944',
+  sum:'경기 용인시 처인구 유산균음료 제조공장에서 배합기 내부를 청소하던 30대 근로자가 기계에 끼여 숨졌습니다. 노동부는 작업중지 명령을 내리고 중대재해처벌법 위반 여부를 수사 중이며, 경찰은 전원 차단 여부와 작업 절차 준수 여부를 확인하고 있습니다.',
+  more:[['노동부 중처법 수사','https://m.news.nate.com/view/20260429n24993']],tags:['음료','배합기','청소 중 끼임']},
+ {id:'s-ottogi-sf-0921',d:'2026-09-25',cat:'끼임·협착',hot:1,src:'파이낸셜뉴스',title:'오뚜기 자회사(오뚜기SF) 고성공장 로봇 팔레타이저 끼임 — 40대 근로자 숨져',url:'https://www.fnnews.com/news/202609281643402460',
+  sum:'9월 21일 오뚜기SF 고성공장 적재 작업장에서 로봇 팔레타이저 점검 후 설비가 다시 움직이며 작업구역에 남아 있던 도급업체 40대 근로자가 끼였고, 치료 중 25일 숨졌습니다. 노동부는 작업중지 명령을 내렸고 회사는 해당 설비 사용을 중단했습니다.',
+  more:[['아이뉴스24 · 재가동 경위','https://inews24.com/view/2009619']],tags:['식품','팔레타이저','재가동','도급']},
+ {id:'s-lotte-nh3-0821',d:'2026-08-21',cat:'가스 누출',src:'헤럴드경제',title:'서울 영등포 롯데웰푸드 공장 암모니아 누출 — 직원 약 40명 대피',url:'https://mbiz.heraldcorp.com/article/10848150',
+  sum:'새벽 롯데웰푸드 영등포 공장에서 암모니아 가스가 누출돼 소방이 출동했고, 직원 약 40명이 스스로 대피했습니다. 인명피해는 보고되지 않았으며 회사는 원인 조사에 협조하겠다고 밝혔습니다.',tags:['식품','냉동설비','암모니아']},
+ {id:'s-eumseong-0723',d:'2026-07-23',cat:'가스 누출',src:'타파인',title:'음성 식품공장서 냉동설비 수리하던 외주업체 직원 쓰러져 숨져',url:'https://tapain.com/news/article.html?no=16602',
+  sum:'충북 음성의 식품공장에서 냉동설비를 수리하던 외주업체 직원이 쓰러져 숨졌습니다. 경찰이 부검을 의뢰해 정확한 원인을 조사하고 있습니다.',tags:['식품','냉동설비','외주 정비']},
+ {id:'s-jincheon-0725',d:'2026-07-25',cat:'화재·폭발',src:'뉴스1',title:'진천 식품가공공장 화재 — 건물 1개 동 소실',url:'https://www.news1.kr/local/sejong-chungbuk/6238923',
+  sum:'충북 진천군 덕산읍 식품가공공장에서 불이 나 약 880㎡ 건물 1개 동이 탔습니다. 작업자가 없어 인명피해는 없었고 소방이 원인을 조사 중입니다.',tags:['식품','화재']},
+ {id:'s-spc-sihwa-0203',d:'2026-02-03',cat:'화재·폭발',hot:1,src:'머니투데이',title:'SPC삼립 시화공장 화재 — 3명 연기 흡입, 공장 가동 전면 중단',url:'https://www.mt.co.kr/society/2026/02/03/2026020317063437178',
+  sum:'경기 시흥 SPC삼립 시화공장 3층 식빵 생산라인에서 불이 나 근로자 3명이 연기를 마셨고 1명은 옥상에서 구조됐습니다. 완전 진화까지 약 8시간이 걸렸고, 건물에 자체 스프링클러가 없었다는 지적이 나왔습니다.',
+  more:[['이투데이 · 8시간 만에 진화','https://www.etoday.co.kr/news/view/2552749']],tags:['식품','생산라인 화재','스프링클러']},
+ {id:'s-spl-appeal-0626',d:'2026-06-26',cat:'법·제도',src:'네이트 뉴스',title:'\'끼임 사망사고\' SPL, 2심서 벌금 20억 — 1심의 20배로 늘어',url:'https://m.news.nate.com/view/20260626n26127',
+  sum:'2022년 평택 SPL 제빵공장 소스 배합기 끼임 사망사고와 관련해 항소심에서 회사 벌금이 20억 원으로 크게 늘었다는 보도입니다. 배합기 끼임 사고에 대한 법적 책임이 무거워지고 있음을 보여 줍니다.',tags:['식품','배합기','중대재해처벌법']},
+ {id:'s-recall-allergy-0805',d:'2026-08-05',cat:'식품안전·회수',src:'네이트 뉴스',title:'식약처, 알레르기 유발물질(우유 등) 표시 안 한 죽 제품 회수',url:'https://m.news.nate.com/view/20260805n26096',
+  sum:'식약처가 알레르기 유발물질 표시를 빠뜨린 죽 제품을 회수 조치했습니다. 올해 회수 사례 가운데 우유 · 대두 같은 원재료 표시 누락이 많습니다.',tags:['식품','알레르기 표시','회수']},
+ {id:'s-maeil-recall-2412',d:'2024-12-13',cat:'식품안전·회수',src:'SBS Biz',title:'(참고 사례) \'이미·이취\' 매일우유 판매 중단 · 회수 — 세척수 혼입',url:'https://biz.sbs.co.kr/article/20000207086',
+  sum:'광주공장에서 만든 멸균 우유에 설비 세척수가 섞여 이미 · 이취가 난 사례로, 식약처가 판매 중단과 회수를 명령했습니다. CIP 후 헹굼 · 전환 밸브 관리의 중요성을 보여 주는 대표 사례입니다.',tags:['유업계','멸균우유','CIP 세척수']}
+];
+function data(){return DB.data.safetyNews||{items:[]}}
+function all(){
+ var m={},hid=(data().hidden||{}),pin=(data().pinned||{});
+ SEED.concat(data().items||[]).forEach(function(x){if(x&&x.id&&!m[x.id])m[x.id]=Object.assign({},x)});
+ return Object.keys(m).map(function(k){var x=m[k];x.hidden=!!hid[k];x.pin=pin[k]!=null?!!pin[k]:!!x.hot;return x}).sort(function(a,b){return String(b.d).localeCompare(String(a.d))});
+}
+function md(d){return d?d.slice(2).replace(/-/g,'.'):''}
+function card(x){
+ var c=CAT[x.cat]||CAT['기타'];
+ return '<article class="sn-card'+(x.hidden?' hid':'')+'" style="--c:'+c.c+'"><div class="sn-top"><span class="sn-cat">'+c.ic+' '+esc(x.cat)+'</span>'+(x.pin?'<span class="sn-hot">📌 중요</span>':'')+(x.auto?'<span class="sn-auto">자동 수집</span>':'')+'<span class="sn-d">'+md(x.d)+' · '+esc(x.src||'')+'</span></div>'+
+  '<a class="sn-t" href="'+esc(x.url)+'" target="_blank" rel="noopener">'+esc(x.title)+'</a>'+
+  (x.sum?'<p class="sn-s">'+esc(x.sum)+'</p>':'')+
+  (x.tags&&x.tags.length?'<div class="sn-tags">'+x.tags.map(function(t){return '<span>#'+esc(t)+'</span>'}).join('')+'</div>':'')+
+  '<div class="sn-chk"><b>✅ 우리 현장 체크포인트</b><ul>'+c.chk.map(function(t){return '<li>'+esc(t)+'</li>'}).join('')+'</ul></div>'+
+  '<div class="sn-ft"><a href="'+esc(x.url)+'" target="_blank" rel="noopener">원문 기사 ↗</a>'+(x.more||[]).map(function(m){return '<a href="'+esc(m[1])+'" target="_blank" rel="noopener">'+esc(m[0])+' ↗</a>'}).join('')+
+  (isAdm()?'<span style="flex:1"></span><button class="btn btn-ghost btn-sm" onclick="yumSN.pin(\''+esc(x.id)+'\','+(!x.pin)+')">'+(x.pin?'중요 해제':'📌 중요')+'</button><button class="btn btn-ghost btn-sm" onclick="yumSN.hide(\''+esc(x.id)+'\','+(!x.hidden)+')">'+(x.hidden?'다시 보이기':'숨김')+'</button>':'')+'</div></article>';
+}
+function view(){
+ var q=qs(),cat=q.c||'',per=q.p||'365',kw=(q.q||'').trim();
+ var cut=new Date(Date.now()-(+per)*86400000).toISOString().slice(0,10);
+ var A=all(),shown=A.filter(function(x){return (isAdm()||!x.hidden)&&(per==='all'||x.d>=cut)&&(!cat||x.cat===cat)&&(!kw||(x.title+' '+(x.sum||'')+' '+(x.tags||[]).join(' ')).indexOf(kw)>=0)});
+ var cnt={};A.filter(function(x){return !x.hidden}).forEach(function(x){cnt[x.cat]=(cnt[x.cat]||0)+1});
+ var link=function(o){var p=Object.assign({c:cat,p:per,q:kw},o);return '#/safenews?'+Object.keys(p).filter(function(k){return p[k]}).map(function(k){return k+'='+encodeURIComponent(p[k])}).join('&')};
+ var hot=A.filter(function(x){return x.pin&&!x.hidden}).slice(0,3);
+ var h='<div class="hrow"><div><h1 class="pgt">업계 안전 뉴스</h1><div class="pgt-sub">유업 · 음료 · 식품 제조업 사건사고를 모아 「우리 현장에서 확인할 점」과 함께 정리합니다 · 새 기사는 매일 아침 자동으로 모입니다'+(data().updatedAt?' (최근 수집 '+esc(String(data().updatedAt).slice(0,16).replace('T',' '))+')':'')+'</div></div>'+
+  '<div class="od-tools"><a class="btn btn-o btn-sm" href="#/safety">← 안전관리</a><button class="btn btn-o btn-sm" onclick="yumSN.print()">🖨 안전교육 자료로 인쇄</button>'+(isAdm()?'<button class="btn btn-p btn-sm" onclick="yumSN.add()">+ 기사 추가</button>':'')+'</div></div>';
+ h+='<div class="sn-hero"><div class="sn-h1">이번에 꼭 볼 사고</div><div class="sn-hot3">'+hot.map(function(x){var c=CAT[x.cat]||CAT['기타'];return '<a href="'+esc(x.url)+'" target="_blank" rel="noopener" style="--c:'+c.c+'"><span>'+c.ic+' '+esc(x.cat)+' · '+md(x.d)+'</span><b>'+esc(x.title)+'</b><small>'+esc(c.chk[0])+'</small></a>'}).join('')+'</div></div>';
+ h+='<div class="sn-filter"><a class="'+(!cat?'on':'')+'" href="'+link({c:''})+'">전체 <small>'+A.filter(function(x){return !x.hidden}).length+'</small></a>'+Object.keys(CAT).filter(function(k){return cnt[k]}).map(function(k){return '<a class="'+(cat===k?'on':'')+'" href="'+link({c:k})+'" style="--c:'+CAT[k].c+'">'+CAT[k].ic+' '+k+' <small>'+cnt[k]+'</small></a>'}).join('')+
+  '<span style="flex:1"></span><select onchange="location.hash=this.value" style="width:auto">'+[['30','최근 30일'],['90','최근 90일'],['365','최근 1년'],['all','전체 기간']].map(function(o){return '<option value="'+link({p:o[0]})+'"'+(per===o[0]?' selected':'')+'>'+o[1]+'</option>'}).join('')+'</select>'+
+  '<input id="sn-q" placeholder="검색 (예: 탱크, 배합기)" value="'+esc(kw)+'" onkeydown="if(event.key===\'Enter\')location.hash=\''+link({q:''}).replace(/'/g,'')+'&q=\'+encodeURIComponent(this.value)" style="width:200px"></div>';
+ h+=shown.length?'<div class="sn-list" id="sn-list">'+shown.map(card).join('')+'</div>':'<div class="panel" style="text-align:center;padding:30px;color:var(--muted)">조건에 맞는 기사가 없습니다.</div>';
+ h+='<div class="sn-note">기사 요약은 원문을 바탕으로 정리한 것입니다. 수사 · 조사 중인 사건은 결과에 따라 내용이 달라질 수 있으니 원문을 함께 확인해 주세요.</div>';
+ return h;
+}
+window.yumSN={
+ pin:function(id,v){if(!isAdm())return;var d=DB.data.safetyNews=DB.data.safetyNews||{items:[]};d.pinned=Object.assign({},d.pinned||{});d.pinned[id]=v;d.editedAt=new Date().toISOString();DB.save();App.render()},
+ hide:function(id,v){if(!isAdm())return;var d=DB.data.safetyNews=DB.data.safetyNews||{items:[]};d.hidden=Object.assign({},d.hidden||{});if(v)d.hidden[id]=1;else delete d.hidden[id];d.editedAt=new Date().toISOString();DB.save();App.render()},
+ add:function(){if(!isAdm())return;
+  U.modal('기사 추가','<div class="field"><label class="f">제목</label><input id="sn-a-t"></div><div class="field"><label class="f">기사 주소(URL)</label><input id="sn-a-u" placeholder="https://"></div><div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px"><div class="field"><label class="f">날짜</label><input type="date" id="sn-a-d" value="'+today()+'"></div><div class="field"><label class="f">출처</label><input id="sn-a-s" placeholder="예: 연합뉴스"></div><div class="field"><label class="f">분류</label><select id="sn-a-c">'+Object.keys(CAT).map(function(k){return '<option>'+k+'</option>'}).join('')+'</select></div></div><div class="field"><label class="f">요약</label><textarea id="sn-a-m" rows="4"></textarea></div><div class="field"><label class="f">태그 (쉼표로 구분)</label><input id="sn-a-g" placeholder="예: 음료, 배합기"></div>',
+   {size:'sm',foot:'<button class="btn btn-o btn-sm" onclick="U.closeModal()">취소</button><button class="btn btn-p btn-sm" id="sn-a-ok">추가</button>',onopen:function(){$i('sn-a-ok').onclick=function(){
+    var t=$i('sn-a-t').value.trim(),u=$i('sn-a-u').value.trim();if(!t||!/^https?:\/\//.test(u)){U.toast('제목과 기사 주소(https://…)를 넣어 주세요.','bad');return}
+    var d=DB.data.safetyNews=DB.data.safetyNews||{items:[]};d.items=(d.items||[]).concat([{id:'m-'+Date.now().toString(36),d:$i('sn-a-d').value,src:$i('sn-a-s').value.trim(),cat:$i('sn-a-c').value,title:t,url:u,sum:$i('sn-a-m').value.trim(),tags:$i('sn-a-g').value.split(',').map(function(x){return x.trim()}).filter(Boolean),by:me().name,addedAt:new Date().toISOString()}]);
+    d.editedAt=new Date().toISOString();DB.save();U.closeModal();U.toast('기사를 추가했습니다.','ok');App.render()}}});
+ },
+ print:function(){var el=$i('sn-list');if(!el)return;var w=window.open('','_blank');if(!w){U.toast('팝업이 막혀 있습니다.','bad');return}
+  var css=[].map.call(document.querySelectorAll('style'),function(s){return s.textContent.indexOf('.sn-card')>=0?s.textContent:''}).join('');
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>업계 안전 뉴스 — 안전교육 자료</title><style>body{font-family:"Malgun Gothic",sans-serif;margin:16px;color:#111A2E;-webkit-print-color-adjust:exact;print-color-adjust:exact}'+css+'.sn-ft button{display:none}.sn-list{grid-template-columns:1fr 1fr}.sn-card{break-inside:avoid}@page{size:A4;margin:10mm}</style></head><body><h2 style="margin:0 0 4px">업계 안전 뉴스 — 안전교육 자료</h2><div style="color:#5A6680;font-size:12px;margin-bottom:12px">연세우유 상온제품생산부문 · '+today()+' 출력</div>'+el.outerHTML+'</body></html>');w.document.close();setTimeout(function(){w.focus();w.print()},400)}
+};
+/* 서버 동기화 병합 */
+try{var _ms=SupaSync.mergeState.bind(SupaSync);SupaSync.mergeState=function(r,l,lw){var o=_ms(r,l,lw);try{if(r&&l&&(r.safetyNews||l.safetyNews)){var a=r.safetyNews||{},b=l.safetyNews||{},m={};(a.items||[]).concat(b.items||[]).forEach(function(x){if(x&&x.id)m[x.id]=x});
+ var newer=String(b.editedAt||'')>String(a.editedAt||'')?b:a;o.safetyNews={items:Object.keys(m).map(function(k){return m[k]}),updatedAt:[a.updatedAt||'',b.updatedAt||''].sort().pop(),editedAt:newer.editedAt,hidden:newer.hidden||{},pinned:newer.pinned||{}}}}catch(e){}return o}}catch(e){}
+/* 라우팅 · 메뉴 */
+var _r=App.render;
+App.render=function(){var p=(location.hash||'').split('?')[0];if(p==='#/safenews'){if(!me())return _r.apply(this,arguments);this.baseRoute='#/safety';var M=$i('main');try{M.innerHTML=view()}catch(e){M.innerHTML='<div class="panel">화면 오류: '+esc(e.message)+'</div>'}try{this.buildSidebar();this.refreshChrome()}catch(e){}return}return _r.apply(this,arguments)};
+var _nav=App.navItems;
+App.navItems=function(){var a=_nav.apply(this,arguments);try{if(!a.some(function(n){return n&&n.k==='#/safenews'})){var i=-1;a.forEach(function(n,k){if(n&&n.k==='#/safety')i=k});if(i>=0)a.splice(i+1,0,{k:'#/safenews',t:'업계 안전 뉴스',i:'📰'})}}catch(e){}return a};
+try{var st=document.createElement('style');st.textContent=
+ '.sn-hero{background:linear-gradient(120deg,#2A0F18,#5A1A2C 55%,#8C2F44);border-radius:18px;padding:18px 20px;color:#fff;margin:6px 0 14px}.sn-h1{font-size:13px;font-weight:800;letter-spacing:.08em;color:#FFC9D3;margin-bottom:10px}'+
+ '.sn-hot3{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}.sn-hot3 a{display:flex;flex-direction:column;gap:4px;background:rgba(255,255,255,.09);border-radius:12px;padding:12px 14px;color:#fff;text-decoration:none;border-left:4px solid var(--c)}.sn-hot3 a:hover{background:rgba(255,255,255,.15)}.sn-hot3 span{font-size:11.5px;color:#FFD7DE}.sn-hot3 b{font-size:14.5px;line-height:1.4}.sn-hot3 small{font-size:12px;color:#F5DCE1}'+
+ '.sn-filter{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:12px}.sn-filter a{padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);text-decoration:none;font-size:13px;font-weight:700}.sn-filter a.on{background:#13254B;color:#fff;border-color:#13254B}.sn-filter small{opacity:.65}'+
+ '.sn-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:12px}'+
+ '.sn-card{background:#fff;border:1px solid var(--line,#E3E7EF);border-top:4px solid var(--c);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:8px}.sn-card.hid{opacity:.5}'+
+ '.sn-top{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px}.sn-cat{color:var(--c);font-weight:800}.sn-hot{background:#FFF1E0;color:#B8701A;border-radius:999px;padding:1px 8px;font-weight:700}.sn-auto{background:#EEF1F7;color:var(--muted);border-radius:999px;padding:1px 8px}.sn-d{margin-left:auto;color:var(--muted)}'+
+ '.sn-t{font-size:16px;font-weight:800;color:var(--ink,#111A2E);text-decoration:none;line-height:1.4}.sn-t:hover{color:#2F5BD3}.sn-s{margin:0;font-size:13.5px;line-height:1.7;color:#3A4560}'+
+ '.sn-tags{display:flex;gap:5px;flex-wrap:wrap}.sn-tags span{font-size:11.5px;background:#F1F3F8;color:#4A5672;border-radius:6px;padding:2px 7px}'+
+ '.sn-chk{background:#F3FAF6;border:1px solid #D6EFE1;border-radius:10px;padding:9px 12px}.sn-chk b{font-size:12.5px;color:#1F7A50}.sn-chk ul{margin:5px 0 0;padding-left:18px;font-size:12.5px;line-height:1.7;color:#2B3A33}'+
+ '.sn-ft{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12.5px;border-top:1px solid var(--line-soft,#EEF1F5);padding-top:8px}.sn-ft a{color:#2F5BD3;font-weight:700;text-decoration:none}'+
+ '.sn-note{margin-top:14px;font-size:12px;color:var(--muted);text-align:center}'+
+ '@media (max-width:700px){.sn-list{grid-template-columns:1fr}}';
+ document.head.appendChild(st)}catch(e){}
+console.log('[확장 모듈 49] 업계 안전 뉴스 로드 완료');
+})();
+</script>
+
 </body>
 </html>
