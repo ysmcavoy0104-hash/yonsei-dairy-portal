@@ -14,7 +14,7 @@ on:
       kind:
         description: '지금 바로 보낼 보고 (force를 켰을 때)'
         type: choice
-        options: ['daily', 'weekly', 'monthly', 'daily,weekly,monthly']
+        options: ['daily', 'weekly', 'monthly', 'insight', 'daily,weekly,monthly,insight']
         default: 'daily'
       dry_run:
         description: '실제로 보내지 않고 시험만 (로그 확인용)'
