@@ -175,7 +175,7 @@
   }
 
   /* ───────── 일지 → 팀 ───────── */
-  var TEAM0 = { f6: '배합팀', f8: '배합팀', f9: '착즙팀', f10: '착즙팀', f11: '멸균팀', f14: '배합팀', f28: '착즙팀' };
+  var TEAM0 = { f6: '착즙팀', f7: '착즙팀', f8: '배합팀', f9: '착즙팀', f10: '착즙팀', f11: '멸균팀', f12: '배합팀', f14: '배합팀', f15: '착즙팀', f28: '착즙팀' };
   function teamOf(f) {
     if (!f) return '공통';
     if (f.jteam) return f.jteam; if (TEAM0[f.id]) return TEAM0[f.id]; if (f.team && TEAMS.indexOf(f.team) >= 0) return f.team;
@@ -191,7 +191,7 @@
   var NOTE_RE = /특이|개선\s*조치|정지\s*사유|사유|비\s*고|이탈|조치\s*사항|메모/;
   function analyzeDocs(data, from, to, templates) {
     var forms = {}; ((data && data.forms) || []).forEach(function (f) { forms[f.id] = f; });
-    var docs = ((data && data.docs) || []).filter(function (d) { return d && !d.deleted && d.status !== 'draft' && d.status !== 'temp'; });
+    var docs = ((data && data.docs) || []).filter(function (d) { return d && !d.deleted; });   /* 임시저장 일지도 포함 (작성 중인 그날 일지) */
     var inP = docs.filter(function (d) { var x = docDate(d); return x >= from && x <= to; });
     var R = { docs: inP, byForm: {}, byTeam: {}, byDay: {}, devs: [], notes: [], ot: { total: 0, byTeam: {}, people: 0 }, heads: [], ster: {}, sterDay: {}, stops: [], ccpChecks: 0, pending: 0, completed: 0, rejected: 0, leadH: [] };
     inP.forEach(function (d) {
@@ -262,6 +262,40 @@
   }
 
   /* ───────── 기간 지표 ───────── */
+
+  /* ───────── 배합 · 착즙 공정 요약 (포털 「생산계획 › 배합 · 착즙」 대시보드와 같은 계산) ───────── */
+  function proc(data, from, to, templates) {
+    var forms = {}; ((data && data.forms) || []).forEach(function (f) { if (f.code) forms[f.code] = f; });
+    function latest(code) { var f = forms[code], m = {}; if (!f) return m;
+      ((data && data.docs) || []).forEach(function (d) { if (!d || d.deleted || d.formId !== f.id || !d.data) return; var k = docDate(d); if (k < from || k > to) return; if (!m[k] || String(d.updatedAt || '') > String(m[k].updatedAt || '')) m[k] = d; });
+      return m; }
+    function F(code) { var f = forms[code]; if (!f) return []; var wt = (templates && templates[code]) || f.wtpl; return wt ? introspect(code, wt) : []; }
+    function g(d, k) { var x = ((d && d.data && d.data.grid) || {})[k]; return x == null ? '' : String(x).trim(); }
+    function n(d, k) { var m = g(d, k).replace(/,/g, '').match(/-?\d+(\.\d+)?/); return m ? parseFloat(m[0]) : null; }
+    function tot(a) { var s = 0, c = 0; a.forEach(function (x) { if (x != null && !isNaN(x)) { s += x; c++; } }); return c ? s : null; }
+    function mean(a) { var b = a.filter(function (x) { return x != null && !isNaN(x); }); return b.length ? b.reduce(function (p, c) { return p + c; }, 0) / b.length : null; }
+    var sp = function (x) { return String(x || '').replace(/\s+/g, ''); };
+    var oxF = F('FRM-012').filter(function (x) { return x.kind === 'ox'; }), sF = F('FRM-008');
+    var M12 = latest('FRM-012'), M8 = latest('FRM-008'), M9 = latest('FRM-009'), M10 = latest('FRM-010');
+    var mix = {}, juice = {};
+    Object.keys(M12).forEach(function (D) { var d = M12[D], nb = 0, b1 = [], q = [], x = 0;
+      for (var r = 10; r <= 24; r++) { var row = [1, 2, 3, 6, 8, 9, 10, 11, 13, 15].map(function (c) { return g(d, 'g2_' + r + '_' + c); }); if (row.some(Boolean)) { nb++; b1.push(n(d, 'g2_' + r + '_8')); } }
+      for (var h = 1; h <= 5; h++) for (var rr = 3; rr <= 6; rr++) q.push(n(d, 'g2_' + rr + '_' + (2 * h + 1)));
+      oxF.forEach(function (f) { if (/^[xX×]$/.test(g(d, f.k))) x++; });
+      mix[D] = { nb: nb, q: tot(q), b1: mean(b1), x: x }; });
+    Object.keys(M8).forEach(function (D) { var s = M8[D]; (mix[D] = mix[D] || {}).sug = tot(sF.filter(function (f) { return /설탕투입/.test(sp(f.col)); }).map(function (f) { return n(s, f.k); })); });
+    Object.keys(M9).forEach(function (D) { var d = M9[D], use = n(d, 'g4_7_3'); if (use == null) use = tot([n(d, 'g4_5_3'), n(d, 'g4_6_3')]);
+      var by = tot(['g4_5_8', 'g4_5_9', 'g4_5_10', 'g4_5_11', 'g4_5_12'].map(function (k) { return n(d, k); })), ph = 0, stop = 0;
+      for (var l = 1; l <= 4; l++) for (var h = 0; h <= 24; h++) { var c = g(d, 'ax' + l + '_' + h).toLowerCase(); if (c === 'b') ph++; else if (/^[chj]$/.test(c)) stop++; }
+      juice[D] = { use: use, by: by, rate: use && by != null ? by / use * 100 : null, prodH: ph, stopH: stop }; });
+    Object.keys(M10).forEach(function (D) { var o = M10[D], raw = n(o, 'g3_12_15'); if (raw == null) raw = tot([n(o, 'g3_12_12'), n(o, 'g3_12_13'), n(o, 'g3_12_14')]);
+      var ts = []; for (var r = 10; r <= 22; r++) ts.push(n(o, 'g3_' + r + '_6'));
+      var j = juice[D] = juice[D] || {}; j.raw = raw; j.ts = mean(ts); });
+    function S(o, k, f) { var a = Object.keys(o).map(function (D) { return o[D][k]; }); return f === 'avg' ? mean(a) : tot(a); }
+    return { mix: mix, juice: juice,
+      mixSum: { days: Object.keys(mix).length, nb: S(mix, 'nb'), q: S(mix, 'q'), b1: S(mix, 'b1', 'avg'), sug: S(mix, 'sug'), x: S(mix, 'x') },
+      juiceSum: { days: Object.keys(juice).length, use: S(juice, 'use'), by: S(juice, 'by'), prodH: S(juice, 'prodH'), stopH: S(juice, 'stopH'), raw: S(juice, 'raw'), ts: S(juice, 'ts', 'avg') } };
+  }
   function analyze(data, NF, P, opts) {
     var all = records(data, NF);
     var cur = all.filter(function (r) { return r.d >= P.from && r.d <= P.to; });
@@ -288,6 +322,7 @@
     /* 일지 */
     M.J = analyzeDocs(data, P.from, P.to, opts.templates);
     M.pJ = analyzeDocs(data, P.pFrom, P.pTo, opts.templates);
+    M.PR = proc(data, P.from, P.to, opts.templates);
     /* 생산계획 (다음 기간) */
     var nxtFrom = addDays(P.to, 1), nxtTo = P.kind === 'daily' ? nxtFrom : (P.kind === 'weekly' ? addDays(nxtFrom, 6) : monthEnd(nxtFrom.slice(0, 7)));
     var plan = [];
@@ -483,6 +518,22 @@
       var qmax = Math.max.apply(null, sk.map(function (k) { return J.ster[k].qty; })) || 1;
       h += card('🏭 멸균 호기별 가동', table(['호기', '가동 시간', '적산량', '배치', '품목'], sk.map(function (k) { var s = J.ster[k]; return ['<b>' + esc(k) + '</b>', (Math.round(s.run * 10) / 10) + '시간', '<table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td width="' + Math.max(3, Math.round(s.qty / qmax * 100)) + '%" style="background:' + C.gold + ';height:10px;border-radius:5px;font-size:0">&nbsp;</td><td style="padding-left:6px;white-space:nowrap;font-size:12px">' + fmtQty(s.qty) + '</td></tr></table>', s.batch || '-', esc(clip(Object.keys(s.items).join(', '), 30))]; })) +
         (J.stops.length ? '<div style="font-weight:800;font-size:13px;margin:14px 0 6px;color:' + C.navy + '">정지 기록 ' + J.stops.length + '건</div>' + table(['날짜', '호기', '정지 → 재가동', '사유'], J.stops.slice(0, 10).map(function (s) { return [md(s.d), esc(s.hogi), esc(s.start) + ' → ' + esc(s.end) + (s.min ? ' <b>(' + hrs(s.min) + ')</b>' : ''), esc(clip(s.why, 40))]; })) : ''));
+    }
+    /* 배합 · 착즙 공정 */
+    var PM = M.PR && M.PR.mixSum, PJ = M.PR && M.PR.juiceSum;
+    if (PM && (PM.days || PJ.days)) {
+      var f1 = function (x, dg) { return x == null ? '-' : (Math.round(x * Math.pow(10, dg || 0)) / Math.pow(10, dg || 0)).toLocaleString('ko-KR'); };
+      var many = kind !== 'daily', per = function (x, dg) { return many && x != null ? ' <span style="color:' + C.mute + '">(일 평균 ' + f1(x, dg) + ')</span>' : ''; };
+      var mixT = table(['배합', kind === 'daily' ? '값' : '합계 · 평균'], [
+        ['배치', '<b>' + f1(PM.nb) + '</b>배치' + per(PM.days ? PM.nb / PM.days : null, 1)], ['호기별 생산량', f1(PM.q, 1) + ' Batch'], ['평균 최종 Brix', f1(PM.b1, 2)],
+        ['설탕 투입', f1(PM.sug) + ' kg' + per(PM.days ? PM.sug / PM.days : null)], ['점검 X', PM.x ? '<b style="color:' + C.red + '">' + PM.x + '건</b>' : '0건']]);
+      var juiceT = table(['착즙', kind === 'daily' ? '값' : '합계 · 평균'], [
+        ['대두 사용량', '<b>' + f1(PJ.use) + '</b> kg' + per(PJ.days ? PJ.use / PJ.days : null)], ['부산물', f1(PJ.by) + ' kg' + (PJ.use && PJ.by != null ? ' (' + f1(PJ.by / PJ.use * 100, 1) + '%)' : '')],
+        ['분리액 생산 · 중단', f1(PJ.prodH) + '시간 · ' + f1(PJ.stopH) + '시간'], ['원액 생산', f1(PJ.raw) + ' kg'], ['원액 T.S 평균', f1(PJ.ts, 2) + ' <span style="color:' + C.mute + '">(10±0.2)</span>']]);
+      var pser = '';
+      if (many) { var dd = M.daily.map(function (o) { var w = dowN(o.d), mx = M.PR.mix[o.d] || {}, jx = M.PR.juice[o.d] || {}; return { lab: kind === 'weekly' ? md(o.d) + ' ' + dowOf(o.d) : String(+o.d.slice(8)), we: w === 0 || w === 6, nb: mx.nb || 0, use: jx.use ? Math.round(jx.use / 1000 * 10) / 10 : 0 }; });
+        pser = two(card('⚗ 날짜별 배합 배치', vbars(dd, ['nb'], ['#7B5CD6'], { h: 80, top: function (t) { return t || ''; } })), card('❖ 날짜별 대두 사용량(톤)', vbars(dd, ['use'], [C.amber], { h: 80, top: function (t) { return t || ''; } }))); }
+      h += card('⚗ 배합 · ❖ 착즙 공정', two(mixT, juiceT), '제품생산작업일보 · 설탕 용해 · 착즙공정일보 · 원액생산작업일보 기준') + pser;
     }
     /* 인원 · OT */
     if (J.heads.length || J.ot.total) {

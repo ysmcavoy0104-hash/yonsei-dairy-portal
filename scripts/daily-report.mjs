@@ -135,6 +135,9 @@ function due(data, cfg, now) {
   const today = Core.kstDate(0, now);
   const dow = new Date(today + 'T00:00:00Z').getUTCDay();
   const hour = cfg.hour == null ? 7 : +cfg.hour;
+  /* GitHub 예약 실행은 늦거나 건너뛸 때가 있어, 정한 시각부터 6시간 안에는 아직 안 보낸 보고를 이어서 보냄 */
+  const inWin = (h) => kstHour >= h && kstHour < h + 6;
+  const done = (s) => !!(s && (s.at || (s.tries || 0) >= 3));   /* 보냈거나, 메일 실패가 3번 쌓였으면 그날은 그만 */
   const out = [];
   const KIND = (env.KIND || '').toLowerCase();
   if (FORCE) {   /* 수동 실행: 고른 종류만 (기본 일일) */
@@ -144,19 +147,20 @@ function due(data, cfg, now) {
   if (cfg.enabled) {
     const days = cfg.days || [1, 2, 3, 4, 5, 6];
     const target = Core.kstDate(-1, now);
-    if (kstHour === hour && days.indexOf(dow) >= 0 && !data.dailyReports?.[target]?.sent?.at) out.push('daily');
-    else log(`일일: 보낼 때가 아님 (지금 ${kstHour}시 · ${'일월화수목금토'[dow]}요일, 설정 ${hour}시)`);
+    if (inWin(hour) && days.indexOf(dow) >= 0 && !done(data.dailyReports?.[target]?.sent)) out.push('daily');
+    else if (done(data.dailyReports?.[target]?.sent)) log(`일일: ${target} 보고는 이미 처리됨`, JSON.stringify(data.dailyReports[target].sent));
+    else log(`일일: 보낼 때가 아님 (지금 ${kstHour}시 · ${'일월화수목금토'[dow]}요일, 설정 ${hour}시~${hour + 5}시)`);
   } else log('일일 보고 자동 발송이 꺼져 있습니다');
   const W = cfg.weekly || {}, Mo = cfg.monthly || {};
   if (W.enabled !== false && (cfg.enabled || W.enabled)) {
     const wh = W.hour == null ? hour : +W.hour;
     const key = Core.period('weekly', today).key;
-    if (dow === 1 && kstHour === wh && !data.weeklyReports?.[key]?.sent?.at) out.push('weekly');
+    if (dow === 1 && inWin(wh) && !done(data.weeklyReports?.[key]?.sent)) out.push('weekly');
   }
   if (Mo.enabled !== false && (cfg.enabled || Mo.enabled)) {
     const mh = Mo.hour == null ? hour : +Mo.hour;
     const key = Core.period('monthly', today).key;
-    if (today.slice(8) === '01' && kstHour === mh && !data.monthlyReports?.[key]?.sent?.at) out.push('monthly');
+    if (today.slice(8) === '01' && inWin(mh) && !done(data.monthlyReports?.[key]?.sent)) out.push('monthly');
   }
   return out;
 }
@@ -175,8 +179,10 @@ async function sendOne(kind, data, cfg, NF, TPL, now) {
       (e.responseCode === 535 || /auth|login/i.test(e.message)) ? `메일 로그인 실패 — SMTP_USER/SMTP_PASS(앱 비밀번호)와 메일의 SMTP 사용 설정을 확인하세요 (${e.message})` : e.message;
     log('메일 발송 실패:', mailErr);
   }
-  const p = await sendPush(data, rep);
-  const sent = { at: mailErr ? '' : new Date().toISOString(), mail: m.mail, push: p.push, by: 'github-actions', error: mailErr || undefined };
+  /* 메일이 실패해 다음 시각에 다시 보낼 때, 폰 알림은 처음 한 번만 */
+  const prev = ((data[STORE[kind][0]] || {})[rep.key] || {}).sent || {};
+  const p = prev.push ? { push: prev.push, gone: [] } : await sendPush(data, rep);
+  const sent = { at: mailErr ? '' : new Date().toISOString(), mail: m.mail, push: p.push, by: 'github-actions', error: mailErr || undefined, tries: (prev.tries || 0) + 1 };
   if (DRY) { log('[dry-run] 저장 생략', sent); fs.writeFileSync(`report-preview-${kind}.html`, rep.html); return { ok: !mailErr }; }
   await saveReport(rep, sent);
   if (p.gone.length) {
