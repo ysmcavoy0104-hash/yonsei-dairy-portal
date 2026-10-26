@@ -1,3 +1,6 @@
+# 업무 보고서 자동 발송 — 매시간 5분에 실행되고, 포털 「보고서 자동화」에서 정한 시각에만 실제로 발송합니다.
+#   일일: 정한 요일 · 시각에 전날 보고 / 주간: 매주 월요일 지난주(월~일) / 월간: 매월 1일 지난달
+# 비밀 값(API 키, 메일 비밀번호 등)은 저장소 Settings > Secrets and variables > Actions 에만 등록합니다.
 name: daily-report
 on:
   schedule:
@@ -8,6 +11,11 @@ on:
         description: '시각·요일과 관계없이 지금 바로 보내기'
         type: boolean
         default: false
+      kind:
+        description: '지금 바로 보낼 보고 (force를 켰을 때)'
+        type: choice
+        options: ['daily', 'weekly', 'monthly', 'daily,weekly,monthly']
+        default: 'daily'
       dry_run:
         description: '실제로 보내지 않고 시험만 (로그 확인용)'
         type: boolean
@@ -31,6 +39,7 @@ jobs:
       - run: node scripts/daily-report.mjs
         env:
           FORCE: ${{ inputs.force }}
+          KIND: ${{ inputs.kind }}
           DRY_RUN: ${{ inputs.dry_run }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
