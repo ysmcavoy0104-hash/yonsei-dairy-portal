@@ -9683,30 +9683,86 @@ console.log('[확장 모듈 34] 지연·정비 기록 (노션 이전 '+notionRec
 @media print{#page-app{background:#fff}#page-app .pgt{-webkit-text-fill-color:var(--navy);background:none}}
 </style>
 <script>
-/* ============ 확장 모듈 37a — 일일 보고서 생성기 (GitHub Actions의 scripts/report-core.cjs와 같은 코드) ============ */
-/* 일일 보고서 생성 공통 로직 — 포털(브라우저)과 GitHub Actions(Node)에서 똑같이 사용
-   입력: 포털 데이터(app_state.data) + 노션 이전 데이터(window.__YUM_NOTION_FINAL__)
-   출력: { date, title, summary(알림용 한 줄), stats, html(메일·포털 표시용), text } */
+/* ============ 확장 모듈 37a — 업무 보고서(일일 · 주간 · 월간) 생성기 (GitHub Actions의 scripts/report-core.cjs와 같은 코드) ============ */
+/* 업무 보고서(일일 · 주간 · 월간) 생성 공통 로직 — 포털(브라우저)과 GitHub Actions(Node)에서 똑같이 사용
+   입력: 포털 데이터(app_state.data) + 노션 이전 지연·정비 기록(window.__YUM_NOTION_FINAL__) + 일지 양식(templates)
+   출력: { kind, key, title, summary(알림용 한 줄), stats, html(메일·포털 표시용 — 메일에서도 깨지지 않는 표 기반 그래프), text(AI 요약용) }
+   일지 내용 읽기: 양식의 칸 제목(열 머리 · 줄 이름)을 읽어 값의 뜻을 알아냄
+     · 기준 범위(예: 135 ~ 150 ℃, 125℃이상, 200 ± 20, (70-80℃))가 적힌 줄 · 열의 값 → 기준 벗어남 자동 감지
+     · 판정 O/X · 적합/부적합 → 부적합 감지
+     · 특이사항 · 개선조치 · 정지 사유 · 비고 → 현장 메모
+     · 근무일보 OT · 인원, 멸균 업무일지 가동시간 · 적산량 · 배치 · 정지 기록                                       */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
   else root.YumReportCore = factory();
 })(typeof self !== 'undefined' ? self : this, function () {
   var DIVS = ['가공2팀', '가공1팀', '포장팀'];
+  var DIVSUB = { '가공2팀': '배합 · 착즙', '가공1팀': '멸균', '포장팀': '포장' };
+  var TEAMS = ['배합팀', '착즙팀', '멸균팀', '포장팀', '공통'];
   var DOW = '일월화수목금토';
+  var C = { navy: '#13254B', navy2: '#24448C', gold: '#C8A15A', gold2: '#E3C68B', ink: '#111A2E', mute: '#5A6680', line: '#E6E9F1', soft: '#F5F7FB',
+    red: '#D64545', redBg: '#FDECEC', amber: '#E0902F', amberBg: '#FFF4E3', green: '#2E9E6A', greenBg: '#E7F6EE', blue: '#2F6FD6', teal: '#12A3A0' };
+  var DC = { '가공2팀': '#2F6FD6', '가공1팀': '#12A3A0', '포장팀': '#E0902F' };
+  var TC = { '배합팀': '#7B5CD6', '착즙팀': '#2F6FD6', '멸균팀': '#12A3A0', '포장팀': '#E0902F', '공통': '#8A94A8' };
+  var FONT = "'Malgun Gothic','Apple SD Gothic Neo','Noto Sans KR',sans-serif";
 
+  /* ───────── 날짜 ───────── */
   function kstDate(offsetDays, now) {
     var t = (now ? new Date(now) : new Date()).getTime() + 9 * 3600 * 1000 + (offsetDays || 0) * 86400000;
     return new Date(t).toISOString().slice(0, 10);
   }
   function addDays(d, n) { var t = new Date(d + 'T00:00:00Z').getTime() + n * 86400000; return new Date(t).toISOString().slice(0, 10); }
-  function dowOf(d) { return DOW[new Date(d + 'T00:00:00Z').getUTCDay()]; }
-  function mdLite(t) { return esc(String(t || '').trim()).replace(/^#{1,4}\s*(.+)$/gm, '<b>$1<\/b>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1<\/b>').replace(/^\s*[-*•]\s+/gm, '• ').replace(/\n/g, '<br>'); }
+  function dowN(d) { return new Date(d + 'T00:00:00Z').getUTCDay(); }
+  function dowOf(d) { return DOW[dowN(d)]; }
+  function md(d) { return (+d.slice(5, 7)) + '/' + (+d.slice(8, 10)); }
+  function range(a, b) { var o = []; for (var d = a; d <= b; d = addDays(d, 1)) o.push(d); return o; }
+  function monthEnd(ym) { var y = +ym.slice(0, 4), m = +ym.slice(5, 7); return new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10); }
+  function prevMonth(ym) { var y = +ym.slice(0, 4), m = +ym.slice(5, 7) - 1; if (m < 1) { m = 12; y--; } return y + '-' + (m < 10 ? '0' : '') + m; }
+  function weekStart(d) { var w = dowN(d); return addDays(d, w === 0 ? -6 : 1 - w); }   // 월요일
+  function isoWeek(d) {
+    var t = new Date(d + 'T00:00:00Z'), day = (t.getUTCDay() + 6) % 7; t.setUTCDate(t.getUTCDate() - day + 3);
+    var y = t.getUTCFullYear(), f = new Date(Date.UTC(y, 0, 4)), fd = (f.getUTCDay() + 6) % 7; f.setUTCDate(f.getUTCDate() - fd + 3);
+    return y + '-W' + ('0' + (1 + Math.round((t - f) / 604800000))).slice(-2);
+  }
+  /* kind: daily | weekly | monthly, ref: 기준일(보통 보내는 날) → 보고 기간 */
+  function period(kind, ref, now) {
+    ref = ref || kstDate(0, now);
+    if (kind === 'weekly') {
+      var a = addDays(weekStart(ref), -7), b = addDays(a, 6);
+      return { kind: kind, key: isoWeek(a), from: a, to: b, pFrom: addDays(a, -7), pTo: addDays(a, -1), label: md(a) + ' ~ ' + md(b) + ' (' + isoWeek(a).replace('-W', '년 ') + '주차)' };
+    }
+    if (kind === 'monthly') {
+      var ym = prevMonth(ref.slice(0, 7)), f = ym + '-01', t = monthEnd(ym), py = prevMonth(ym);
+      return { kind: kind, key: ym, from: f, to: t, pFrom: py + '-01', pTo: monthEnd(py), label: (+ym.slice(0, 4)) + '년 ' + (+ym.slice(5, 7)) + '월' };
+    }
+    var D = ref; // daily: ref = 보고 대상일
+    return { kind: 'daily', key: D, from: D, to: D, pFrom: addDays(D, -7), pTo: addDays(D, -1), label: D + ' (' + dowOf(D) + ')' };
+  }
+
+  /* ───────── 공통 도구 ───────── */
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
-  function hrs(m) { m = +m || 0; if (m < 60) return m + '분'; var h = Math.floor(m / 60), r = m % 60; return h + '시간' + (r ? ' ' + r + '분' : ''); }
+  function mdLite(t) { return esc(String(t || '').trim()).replace(/^#{1,4}\s*(.+)$/gm, '<b>$1</b>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/^\s*[-*•]\s+/gm, '• ').replace(/\n/g, '<br>'); }
+  function hrs(m) { m = Math.round(+m || 0); if (m < 60) return m + '분'; var h = Math.floor(m / 60), r = m % 60; return h + '시간' + (r ? ' ' + r + '분' : ''); }
+  function hshort(m) { m = +m || 0; return m >= 60 ? (Math.round(m / 6) / 10) + 'h' : Math.round(m) + 'm'; }
   function toMin(t) { if (!t) return null; var p = String(t).split(':'); if (p.length < 2) return null; return (+p[0]) * 60 + (+p[1]); }
   function rmins(s, e) { var a = toMin(s), b = toMin(e); if (a == null || b == null) return null; if (b < a) b += 1440; return b - a; }
+  function num(v) { if (v == null) return null; var s = String(v).replace(/,/g, '').trim(); var m = s.match(/^-?\d+(\.\d+)?/); return m ? +m[0] : null; }
+  function hoursOf(v) { /* 2 · 1.5 · 2:30 · 2시간 30분 → 시간 */
+    if (v == null || v === '') return 0; var s = String(v).trim(); var m = s.match(/^(\d+):(\d{1,2})$/); if (m) return +m[1] + (+m[2]) / 60;
+    m = s.match(/(\d+(?:\.\d+)?)\s*시간(?:\s*(\d+)\s*분)?/); if (m) return +m[1] + (m[2] ? +m[2] / 60 : 0);
+    m = s.match(/^(\d+)\s*분$/); if (m) return +m[1] / 60; var n = num(s); return n == null ? 0 : n;
+  }
+  function sum(a, f) { return a.reduce(function (s, x) { return s + (f ? (+f(x) || 0) : (+x || 0)); }, 0); }
+  function topBy(list, keyf, valf, n) {
+    var g = {};
+    list.forEach(function (r) { var k = keyf(r); if (!k) return; g[k] = g[k] || [0, 0]; g[k][0] += valf ? (+valf(r) || 0) : 1; g[k][1]++; });
+    return Object.keys(g).map(function (k) { return [k, g[k][0], g[k][1]]; }).sort(function (a, b) { return b[1] - a[1] || b[2] - a[2]; }).slice(0, n || 5);
+  }
+  function pct(a, b) { return b ? Math.round(a / b * 100) : 0; }
+  function delta(cur, prev) { if (!prev) return cur ? null : 0; return Math.round((cur - prev) / prev * 100); }
+  function clip(s, n) { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
 
-  /* 노션 이전 기록 + 포털 작성 기록 → 같은 형식 */
+  /* ───────── 지연 · 정비 기록 (노션 이전 + 포털 작성) ───────── */
   function records(data, NF) {
     NF = NF || { delay: [], maint: [] };
     var out = [];
@@ -9721,120 +9777,469 @@ console.log('[확장 모듈 34] 지연·정비 기록 (노션 이전 '+notionRec
     return out;
   }
 
-  function sum(list) { return list.reduce(function (a, r) { return a + (+r.min || 0); }, 0); }
-  function topBy(list, keyf, valf, n) {
-    var g = {};
-    list.forEach(function (r) { var k = keyf(r); if (!k) return; g[k] = g[k] || [0, 0]; g[k][0] += valf ? valf(r) : 1; g[k][1]++; });
-    return Object.keys(g).map(function (k) { return [k, g[k][0], g[k][1]]; }).sort(function (a, b) { return b[1] - a[1]; }).slice(0, n || 5);
+  /* ───────── 일지 양식 읽기: 입력칸마다 줄 이름 · 열 머리 · 기준 범위 ───────── */
+  var FCACHE = {};
+  function cellText(c) {
+    if (c.x != null) return String(c.x).replace(/[\/∕]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (c.tpl && !/\{(in|tm|sel):/.test(c.tpl)) return String(c.tpl).replace(/\{[^}]*\}/g, ' ').replace(/[\/∕]/g, ' ').replace(/\s+/g, ' ').trim();
+    return '';
+  }
+  function introspect(code, wt) {
+    if (!wt || !wt.blocks) return [];
+    var ck = code + ':' + (wt.ver || (wt.blocks.length + '/' + JSON.stringify(wt.blocks[0] || {}).length));
+    if (FCACHE[ck]) return FCACHE[ck];
+    var out = [];
+    var prevTs = [];
+    wt.blocks.forEach(function (b, bi) {
+      if (b.t !== 'tbl' || !b.rows) return;
+      var occ = [], cells = [];
+      b.rows.forEach(function (row, ri) {
+        occ[ri] = occ[ri] || [];
+        var c0 = 0;
+        (row || []).forEach(function (c) {
+          while (occ[ri][c0]) c0++;
+          var s = c.s || 1, rs = c.rs || 1;
+          var info = { c: c, r0: ri, c0: c0, s: s, rs: rs, text: cellText(c) };
+          for (var a = 0; a < rs; a++) { occ[ri + a] = occ[ri + a] || []; for (var q = 0; q < s; q++) occ[ri + a][c0 + q] = info; }
+          cells.push(info); c0 += s;
+        });
+      });
+      function keysOf(c) {
+        var ks = [];
+        if (c.k) ks.push({ k: c.k, kind: c.tm ? 'tm' : c.ox ? 'ox' : c.sel ? 'sel' : 'in', lab: '' });
+        if (c.tpl) { var re = /\{(in|tm|sel):([\w]+)[^}]*\}/g, m, last = 0; while ((m = re.exec(c.tpl))) { var lab = c.tpl.slice(last, m.index).replace(/\{[^}]*\}/g, ' ').replace(/[\/∕]/g, ' ').replace(/\s+/g, ' ').trim(); ks.push({ k: m[2], kind: m[1], lab: lab }); last = re.lastIndex; } }
+        return ks;
+      }
+      cells.forEach(function (info) {
+        var ks = keysOf(info.c); if (!ks.length) return;
+        var r = info.r0, left = [], up = [];
+        for (var x = info.c0 - 1; x >= 0; x--) { var L = occ[r] && occ[r][x]; if (L && L !== info && L.text && !keysOf(L.c).length && left.indexOf(L.text) < 0) left.unshift(L.text); }
+        var ncol = (b.w || []).length;
+        function scanUp(O, y0, own) {
+          for (var y = y0; y >= 0 && up.length < 3; y--) {
+            var U = O[y] && O[y][info.c0]; if (!U || U === info) continue;
+            var uk = keysOf(U.c);
+            if (uk.length) { if (uk.some(function (q) { return q.kind === 'tm'; })) return true; continue; }   /* 시간 머리줄 = 경계 */
+            if (U.s >= Math.max(info.s * 4, ncol * 0.6) && !up.length) return true;                       /* 구역 제목 = 경계 */
+            if (U.text && up.indexOf(U.text) < 0) { up.unshift(U.text); if (U.s <= info.s + 2) return true; }
+          }
+          return up.length > 0;
+        }
+        var done = scanUp(occ, r - 1);
+        /* 머리줄이 앞 표에 따로 있는 경우 (예: 근무일보) — 열 구성이 같으면 이어서 봄 */
+        if (!done && !up.length) { var pt = prevTs.filter(function (q) { return q.ncol === ncol && q.ncol > 2; }).pop(); if (pt) scanUp(pt.occ, pt.occ.length - 1); }
+        ks.forEach(function (k) {
+          var row = left.join(' '), col = up.join(' ');
+          out.push({ k: k.k, kind: k.kind, row: row, col: col, lab: k.lab || '', near: left[left.length - 1] || k.lab || '', blk: bi, r: r, spec: specOf(row) || specOf(col) || specOf(k.lab) });
+        });
+      });
+      prevTs.push({ occ: occ, ncol: (b.w || []).length });
+    });
+    FCACHE[ck] = out;
+    return out;
+  }
+  /* 기준 범위 읽기 — 숫자가 정확히 한 범위일 때만 */
+  function specOf(t) {
+    t = String(t || ''); if (!t) return null;
+    var found = [], m, re;
+    re = /(-?\d[\d,]*(?:\.\d+)?)\s*[~∼～]\s*(-?\d[\d,]*(?:\.\d+)?)\s*(℃|°C|초|bar|BAR|%)?/g;
+    while ((m = re.exec(t))) found.push({ lo: +m[1].replace(/,/g, ''), hi: +m[2].replace(/,/g, ''), u: m[3] || '' });
+    re = /\((-?\d+(?:\.\d+)?)\s*-\s*(-?\d+(?:\.\d+)?)\s*(℃|°C)\)/g;
+    while ((m = re.exec(t))) found.push({ lo: +m[1], hi: +m[2], u: m[3] });
+    re = /(\d+(?:\.\d+)?)\s*±\s*(\d+(?:\.\d+)?)/g;
+    while ((m = re.exec(t))) found.push({ lo: +m[1] - +m[2], hi: +m[1] + +m[2], u: '' });
+    re = /(\d+(?:\.\d+)?)\s*(℃|°C)?\s*이상/g;
+    while ((m = re.exec(t))) found.push({ lo: +m[1], hi: null, u: m[2] || '' });
+    re = /(\d+(?:\.\d+)?)\s*(℃|°C)?\s*이하/g;
+    while ((m = re.exec(t))) found.push({ lo: null, hi: +m[1], u: m[2] || '' });
+    if (found.length !== 1) return null;
+    var f = found[0]; if (f.lo != null && f.hi != null && f.lo > f.hi) return null;
+    f.txt = (f.lo != null && f.hi != null) ? f.lo + '~' + f.hi + f.u : (f.lo != null ? f.lo + f.u + ' 이상' : f.hi + f.u + ' 이하');
+    return f;
   }
 
-  /* opts: { date: 'YYYY-MM-DD'(보고 대상일, 기본 어제), sections: {...}, now } */
-  function build(data, NF, opts) {
-    opts = opts || {};
-    var D = opts.date || kstDate(-1, opts.now);
-    var S = Object.assign({ delay: true, maint: true, docs: true, plan: true, big: true }, opts.sections || {});
-    var all = records(data, NF);
-    var day = all.filter(function (r) { return r.d === D; });
-    var w0 = addDays(D, -7), week = all.filter(function (r) { return r.d >= w0 && r.d < D; });
-    var stats = { date: D, divs: {} };
-    DIVS.forEach(function (dv) {
-      var dl = day.filter(function (r) { return r.div === dv && r.kind === 'delay'; });
-      var ml = day.filter(function (r) { return r.div === dv && r.kind === 'maint'; });
-      var wl = week.filter(function (r) { return r.div === dv && r.kind === 'delay'; });
-      stats.divs[dv] = {
-        delayN: dl.length, delayMin: sum(dl), maintN: ml.length,
-        avgN: Math.round(wl.length / 7 * 10) / 10, avgMin: Math.round(sum(wl) / 7),
-        reasons: topBy(dl, function (r) { return r.reason; }, function (r) { return +r.min || 0; }, 3),
-        big: dl.filter(function (r) { return (+r.min || 0) >= 120; }).sort(function (a, b) { return (b.min || 0) - (a.min || 0); }).slice(0, 5),
-        delays: dl, maints: ml
-      };
-    });
-    var totalN = 0, totalMin = 0, totalM = 0;
-    DIVS.forEach(function (dv) { totalN += stats.divs[dv].delayN; totalMin += stats.divs[dv].delayMin; totalM += stats.divs[dv].maintN; });
-    stats.totalN = totalN; stats.totalMin = totalMin; stats.totalM = totalM;
+  /* ───────── 일지 → 팀 ───────── */
+  var TEAM0 = { f6: '배합팀', f8: '배합팀', f9: '착즙팀', f10: '착즙팀', f11: '멸균팀', f14: '배합팀', f28: '착즙팀' };
+  function teamOf(f) {
+    if (!f) return '공통';
+    if (f.jteam) return f.jteam; if (TEAM0[f.id]) return TEAM0[f.id]; if (f.team && TEAMS.indexOf(f.team) >= 0) return f.team;
+    var n = f.name || '';
+    if (/착즙/.test(n)) return '착즙팀'; if (/배합|설탕/.test(n)) return '배합팀';
+    if (/멸균|Aseptic|HACCP 일보/.test(n)) return '멸균팀'; if (/포장|B호기|DE생산|용량/.test(n)) return '포장팀';
+    return '공통';
+  }
+  function docDate(d) { return String((d.data && d.data.pdate) || d.savedAt || d.updatedAt || d.createdAt || '').slice(0, 10); }
+  function shortName(n) { return String(n || '').replace(/\s*\(상온제품가공[^)]*\)/, '').replace(/^\[일반제품\]\s*/, ''); }
 
-    /* 문서 · 결재 */
-    var docs = (data && data.docs) || [];
+  /* ───────── 일지 내용 분석 ───────── */
+  var NOTE_RE = /특이|개선\s*조치|정지\s*사유|사유|비\s*고|이탈|조치\s*사항|메모/;
+  function analyzeDocs(data, from, to, templates) {
     var forms = {}; ((data && data.forms) || []).forEach(function (f) { forms[f.id] = f; });
-    var savedDay = docs.filter(function (d) { return (d.status === 'saved' || d.status === 'completed') && String(d.savedAt || d.updatedAt || d.createdAt || '').slice(0, 10) === D; });
-    var pending = docs.filter(function (d) { return d.status === 'pending' || d.status === 'in_progress'; });
-    stats.docsSaved = savedDay.length; stats.pending = pending.length;
-    stats.docList = savedDay.slice(0, 12).map(function (d) { return (forms[d.formId] || {}).name || d.title || '문서'; });
+    var docs = ((data && data.docs) || []).filter(function (d) { return d && !d.deleted && d.status !== 'draft' && d.status !== 'temp'; });
+    var inP = docs.filter(function (d) { var x = docDate(d); return x >= from && x <= to; });
+    var R = { docs: inP, byForm: {}, byTeam: {}, byDay: {}, devs: [], notes: [], ot: { total: 0, byTeam: {}, people: 0 }, heads: [], ster: {}, sterDay: {}, stops: [], ccpChecks: 0, pending: 0, completed: 0, rejected: 0, leadH: [] };
+    inP.forEach(function (d) {
+      var f = forms[d.formId] || { id: d.formId, name: d.title || '문서' }, team = teamOf(f), day = docDate(d);
+      (R.byForm[f.id] = R.byForm[f.id] || { id: f.id, code: f.code, name: shortName(f.name), team: team, n: 0, days: {} }).n++;
+      R.byForm[f.id].days[day] = (R.byForm[f.id].days[day] || 0) + 1;
+      R.byTeam[team] = (R.byTeam[team] || 0) + 1;
+      R.byDay[day] = (R.byDay[day] || 0) + 1;
+      if (d.status === 'completed' || d.status === 'approved') R.completed++;
+      else if (d.status === 'rejected') R.rejected++;
+      else if (d.status === 'pending' || d.status === 'in_progress') R.pending++;
+      var sg = d.signs || {}, w = sg.writer && sg.writer.at, ap = sg.approve && sg.approve.at;
+      if (w && ap) { var h = (new Date(ap) - new Date(w)) / 3600000; if (h >= 0 && h < 24 * 30) R.leadH.push(h); }
+      var grid = (d.data && d.data.grid) || {};
+      var wt = (templates && f.code && templates[f.code]) || f.wtpl;
+      var fields = introspect(f.code || f.id, wt);
+      var isHaccp = /HACCP/.test(f.name || '');
+      fields.forEach(function (fd) {
+        var v = grid[fd.k]; if (v == null || v === '') return;
+        var vs = String(v).trim(); if (!vs) return;
+        var label = clip([fd.row, fd.col].filter(Boolean).join(' · ') || fd.lab || fd.near, 60);
+        /* 판정 · 적합 여부 */
+        if (/판정|적합|O\s*[/∕]\s*X|Leak/.test(fd.row + ' ' + fd.col + ' ' + fd.lab) || fd.kind === 'ox' || fd.kind === 'sel') {
+          if (/판정|적합/.test(fd.row + fd.col + fd.lab) && isHaccp) R.ccpChecks++;
+          if (/^(x|X|×|✕|부적합|NG)$/.test(vs)) R.devs.push({ d: day, form: shortName(f.name), team: team, what: label, val: vs, spec: '적합', kind: '부적합' });
+          return;
+        }
+        /* 기준 범위 */
+        if (fd.spec && fd.kind !== 'tm') {
+          var n = num(vs);
+          if (n != null) {
+            if (isHaccp) R.ccpChecks++;
+            var sp = fd.spec, bad = (sp.lo != null && n < sp.lo) || (sp.hi != null && n > sp.hi);
+            if (bad) R.devs.push({ d: day, form: shortName(f.name), team: team, what: label, val: vs, spec: sp.txt, kind: '기준 이탈' });
+            return;
+          }
+        }
+        /* 현장 메모 */
+        var lb = fd.row + ' ' + fd.col + ' ' + fd.lab;
+        if (NOTE_RE.test(lb) && /[가-힣A-Za-z]/.test(vs) && vs.length >= 2) R.notes.push({ d: day, form: shortName(f.name), team: team, what: clip(fd.near || fd.lab || fd.row, 24), text: clip(vs, 120) });
+        /* 근무일보: OT */
+        if (/^OT$/i.test(fd.col.split(' ').pop() || '') || /\bOT\b/.test(fd.col)) { var hh = hoursOf(vs); if (hh > 0 && hh < 24) { R.ot.total += hh; R.ot.byTeam[team] = (R.ot.byTeam[team] || 0) + hh; R.ot.people++; } }
+      });
+      /* 근무일보: 인원 */
+      if (/근무일보/.test(f.name || '')) {
+        var tot = null, work = null, off = null;
+        fields.forEach(function (fd) { var v = num(grid[fd.k]); if (v == null) return; var L = fd.near + ' ' + fd.lab; if (/총\s*인\s*원/.test(L)) tot = v; else if (/근무\s*인원/.test(L)) work = v; else if (/휴무\s*인원/.test(L)) off = v; });
+        if (tot == null) { var tk = fields.filter(function (fd) { return /total/.test(fd.k); })[0]; if (tk) tot = num(grid[tk.k]); }
+        R.heads.push({ d: day, team: team, total: tot, work: work, off: off });
+      }
+      /* 멸균 업무일지: 호기별 가동시간 · 적산량 · 배치 · 정지 */
+      if (/멸균 파트|멸균파트/.test(f.name || '') || (f.code === 'FRM-016')) {
+        var titles = [];
+        if (wt && wt.blocks) wt.blocks.forEach(function (b) { (b.rows || []).forEach(function (r) { (r || []).forEach(function (c) { var t = cellText(c); if (/^멸균\s*\d\s*호기/.test(t)) titles.push(t.replace(/\s+/g, ' ')); }); }); });
+        for (var s = 1; s <= 6; s++) {
+          var p = 's' + s + '_', nm = titles[s - 1] || ('멸균 ' + s + '호기'), run = hoursOf(grid[p + 'run']), qty = num(grid[p + 'qty']), bat = num(grid[p + 'batch']);
+          if (!run && !qty && !bat && !grid[p + 'item']) continue;
+          var S = R.ster[nm] = R.ster[nm] || { run: 0, qty: 0, batch: 0, days: 0, items: {} };
+          S.run += run || 0; S.qty += qty || 0; S.batch += bat || 0; S.days++;
+          if (grid[p + 'item']) S.items[String(grid[p + 'item']).trim()] = 1;
+          R.sterDay[day] = (R.sterDay[day] || 0) + (qty || 0);
+          for (var j = 1; j <= 5; j++) { var st = grid[p + 'st' + j], why = grid[p + 'why' + j]; if (st || why) R.stops.push({ d: day, hogi: nm, start: st || '', end: grid[p + 'rs' + j] || '', min: rmins(st, grid[p + 'rs' + j]), why: why || '' }); }
+        }
+      }
+    });
+    R.pendingAll = docs.filter(function (d) { return d.status === 'pending' || d.status === 'in_progress'; }).length;
+    return R;
+  }
 
-    /* 오늘(보고 다음날) 생산계획 */
-    var T = addDays(D, 1), tl = (+T.slice(5, 7)) + '/' + (+T.slice(8, 10));
+  /* ───────── 기간 지표 ───────── */
+  function analyze(data, NF, P, opts) {
+    var all = records(data, NF);
+    var cur = all.filter(function (r) { return r.d >= P.from && r.d <= P.to; });
+    var prv = all.filter(function (r) { return r.d >= P.pFrom && r.d <= P.pTo; });
+    var days = range(P.from, P.to), pdays = range(P.pFrom, P.pTo);
+    var dl = cur.filter(function (r) { return r.kind === 'delay'; }), ml = cur.filter(function (r) { return r.kind === 'maint'; });
+    var pdl = prv.filter(function (r) { return r.kind === 'delay'; }), pml = prv.filter(function (r) { return r.kind === 'maint'; });
+    var M = { P: P, days: days, delays: dl, maints: ml, delayN: dl.length, delayMin: sum(dl, function (r) { return r.min; }), maintN: ml.length,
+      pDelayN: pdl.length, pDelayMin: sum(pdl, function (r) { return r.min; }), pMaintN: pml.length, pDays: pdays.length };
+    if (P.kind === 'daily') { M.pDelayN = pdl.length / 7; M.pDelayMin = M.pDelayMin / 7; M.pMaintN = pml.length / 7; }
+    M.div = {}; DIVS.forEach(function (dv) {
+      var a = dl.filter(function (r) { return r.div === dv; }), b = pdl.filter(function (r) { return r.div === dv; });
+      M.div[dv] = { n: a.length, min: sum(a, function (r) { return r.min; }), pn: b.length, pmin: sum(b, function (r) { return r.min; }) * (P.kind === 'daily' ? 1 / 7 : 1), maint: ml.filter(function (r) { return r.div === dv; }).length };
+    });
+    M.daily = days.map(function (d) { var o = { d: d }; DIVS.forEach(function (dv) { o[dv] = sum(dl.filter(function (r) { return r.d === d && r.div === dv; }), function (r) { return r.min; }); }); o.total = sum(DIVS, function (dv) { return o[dv]; }); o.n = dl.filter(function (r) { return r.d === d; }).length; o.m = ml.filter(function (r) { return r.d === d; }).length; return o; });
+    M.reasons = topBy(dl, function (r) { return r.reason; }, function (r) { return r.min; }, 8);
+    M.hogi = topBy(dl, function (r) { return (r.team || '') + ' ' + (r.hogi || ''); }, function (r) { return r.min; }, 6);
+    M.products = topBy(dl, function (r) { return r.product; }, function (r) { return r.min; }, 6);
+    M.big = dl.filter(function (r) { return (+r.min || 0) >= (P.kind === 'daily' ? 120 : 180); }).sort(function (a, b) { return (b.min || 0) - (a.min || 0); }).slice(0, P.kind === 'monthly' ? 8 : 6);
+    M.mtype = topBy(ml, function (r) { return r.mtype || '기타'; }, null, 6);
+    M.massets = topBy(ml, function (r) { return r.asset; }, null, 6);
+    /* 시간대 */
+    M.hours = []; for (var h = 0; h < 24; h += 2) M.hours.push({ h: h, min: sum(dl.filter(function (r) { var t = toMin(r.start); return t != null && t >= h * 60 && t < (h + 2) * 60; }), function (r) { return r.min; }) });
+    /* 일지 */
+    M.J = analyzeDocs(data, P.from, P.to, opts.templates);
+    M.pJ = analyzeDocs(data, P.pFrom, P.pTo, opts.templates);
+    /* 생산계획 (다음 기간) */
+    var nxtFrom = addDays(P.to, 1), nxtTo = P.kind === 'daily' ? nxtFrom : (P.kind === 'weekly' ? addDays(nxtFrom, 6) : monthEnd(nxtFrom.slice(0, 7)));
     var plan = [];
     Object.keys((data && data.planWeeks) || {}).forEach(function (k) {
-      var w = data.planWeeks[k];
-      (w.cells || []).forEach(function (c) { if (c.rowLabel === tl) plan.push(c); });
+      var w = data.planWeeks[k], yr = (k.match(/^(\d{4})/) || [])[1] || nxtFrom.slice(0, 4);
+      (w.cells || []).forEach(function (c) { var m = String(c.rowLabel || '').match(/^(\d{1,2})\/(\d{1,2})/); if (!m) return; var d = yr + '-' + ('0' + m[1]).slice(-2) + '-' + ('0' + m[2]).slice(-2); if (d >= nxtFrom && d <= nxtTo) plan.push(Object.assign({ d: d }, c)); });
     });
-    var planBy = {}; plan.forEach(function (c) { (planBy[c.colLabel] = planBy[c.colLabel] || []).push(c); });
-    stats.planDate = T; stats.plan = planBy;
-
-    var title = '📋 ' + D.slice(5).replace('-', '/') + '(' + dowOf(D) + ') 일일 보고';
-    var summary = '지연 ' + totalN + '건' + (totalMin ? '(총 ' + hrs(totalMin) + ')' : '') + ' · 정비 ' + totalM + '건' +
-      (stats.pending ? ' · 결재 대기 ' + stats.pending + '건' : '');
-    var topAll = topBy(day.filter(function (r) { return r.kind === 'delay'; }), function (r) { return r.reason; }, function (r) { return +r.min || 0; }, 1)[0];
-    if (topAll) summary += ' · 최다 사유: ' + topAll[0];
-
-    /* ---------- HTML (메일 호환: 인라인 스타일) ---------- */
-    var C = { navy: '#13254B', gold: '#C8A15A', mute: '#5A6680', line: '#E6E9F1', red: '#B23A3A', bg: '#F5F6FA' };
-    var h = '';
-    h += '<div style="font-family:\'Malgun Gothic\',\'Apple SD Gothic Neo\',sans-serif;color:#111A2E;max-width:720px;margin:0 auto">';
-    h += '<div style="background:linear-gradient(110deg,#0A142B,#24448C);background-color:' + C.navy + ';color:#fff;border-radius:14px;padding:20px 22px">' +
-      '<div style="font-size:12px;letter-spacing:.12em;color:#E3C68B;font-weight:700">연세우유 상온제품생산부문 · 일일 보고<\/div>' +
-      '<div style="font-size:22px;font-weight:800;margin-top:6px">' + esc(D) + ' (' + dowOf(D) + ')<\/div>' +
-      '<div style="font-size:13.5px;margin-top:6px;opacity:.9">' + esc(summary) + '<\/div><\/div>';
-    if (opts.ai) h += '<div style="margin-top:14px;border:1px solid ' + C.line + ';border-left:4px solid ' + C.gold + ';border-radius:12px;padding:14px 16px;background:#FFFDF8"><div style="font-size:12px;font-weight:800;color:#A9853F;margin-bottom:6px">✦ AI 요약<\/div><div style="font-size:14px;line-height:1.75">' + mdLite(opts.ai) + '<\/div><\/div>';
-    function sec(t, body) { return '<div style="margin-top:14px;border:1px solid ' + C.line + ';border-radius:12px;padding:14px 16px;background:#fff"><div style="font-size:15px;font-weight:800;color:' + C.navy + ';margin-bottom:8px">' + t + '<\/div>' + body + '<\/div>'; }
-    function tbl(head, rows) {
-      if (!rows.length) return '<div style="font-size:13px;color:' + C.mute + '">기록 없음<\/div>';
-      return '<table style="width:100%;border-collapse:collapse;font-size:13px"><tr>' + head.map(function (x) { return '<th style="text-align:left;background:#F2F4F9;padding:6px 8px;border-bottom:1px solid ' + C.line + '">' + x + '<\/th>'; }).join('') + '<\/tr>' +
-        rows.map(function (r) { return '<tr>' + r.map(function (x) { return '<td style="padding:6px 8px;border-bottom:1px solid #EEF1F5;vertical-align:top">' + x + '<\/td>'; }).join('') + '<\/tr>'; }).join('') + '<\/table>';
-    }
-    if (S.delay) {
-      h += sec('⏱ 부서별 생산 지연', tbl(['부서', '지연', '총 시간', '최근 7일 평균', '주요 사유(시간)'], DIVS.map(function (dv) {
-        var s = stats.divs[dv], up = s.delayMin > s.avgMin * 1.3 && s.delayMin > 30;
-        return ['<b>' + dv + '<\/b>', s.delayN + '건', '<span style="' + (up ? 'color:' + C.red + ';font-weight:800' : '') + '">' + hrs(s.delayMin) + (up ? ' ▲' : '') + '<\/span>', s.avgN + '건 · ' + hrs(s.avgMin), s.reasons.map(function (x) { return esc(x[0]) + ' ' + hrs(x[1]); }).join('<br>') || '-'];
-      })));
-    }
-    if (S.big) {
-      var bigs = []; DIVS.forEach(function (dv) { stats.divs[dv].big.forEach(function (r) { bigs.push([dv, esc(r.hogi || '-'), esc(r.product || '-'), esc(r.reason || '-'), '<b style="color:' + C.red + '">' + hrs(r.min) + '<\/b>', esc(r.detail || '')]); }); });
-      h += sec('⚠ 2시간 이상 지연', tbl(['부서', '호기', '제품', '사유', '시간', '기타'], bigs));
-    }
-    if (S.maint) {
-      var ms = []; DIVS.forEach(function (dv) { stats.divs[dv].maints.forEach(function (r) { ms.push([dv, esc(r.asset || '-'), esc(r.content || '-'), esc(r.mtype || '-'), esc(r.person || '')]); }); });
-      h += sec('🔧 정비', tbl(['부서', '설비', '내용', '종류', '담당'], ms));
-    }
-    if (S.docs) {
-      h += sec('📝 일지 · 결재', '<div style="font-size:13.5px">저장된 일지 <b>' + stats.docsSaved + '건<\/b> · 결재 대기 <b>' + stats.pending + '건<\/b><\/div>' +
-        (stats.docList.length ? '<div style="font-size:12.5px;color:' + C.mute + ';margin-top:6px">' + stats.docList.map(esc).join(' · ') + '<\/div>' : ''));
-    }
-    if (S.plan) {
-      var lines = Object.keys(planBy).sort();
-      h += sec('🏭 ' + T.slice(5).replace('-', '/') + '(' + dowOf(T) + ') 생산계획', lines.length ? tbl(['설비', '품목'], lines.map(function (l) { return [esc(l), planBy[l].map(function (c) { return esc(c.code) + (c.batch ? ' &lt;' + esc(c.batch) + '&gt;' : '') + ' ' + esc(c.name || ''); }).join('<br>')]; })) : '<div style="font-size:13px;color:' + C.mute + '">등록된 생산계획 없음<\/div>');
-    }
-    h += '<div style="font-size:11.5px;color:' + C.mute + ';margin-top:14px;text-align:center">이 보고서는 업무포털 데이터로 자동 생성되었습니다.' + (opts.portalUrl ? ' <a href="' + esc(opts.portalUrl) + '#/reports" style="color:#2F5BD3">포털에서 보기<\/a>' : '') + '<\/div><\/div>';
-
-    /* AI에 넘길 요약 텍스트 */
-    var txt = [];
-    txt.push('보고 대상일: ' + D + ' (' + dowOf(D) + ')');
-    DIVS.forEach(function (dv) {
-      var s = stats.divs[dv];
-      txt.push('[' + dv + '] 지연 ' + s.delayN + '건, 총 ' + s.delayMin + '분 (최근 7일 하루 평균 ' + s.avgN + '건/' + s.avgMin + '분), 정비 ' + s.maintN + '건');
-      s.delays.forEach(function (r) { txt.push('  - 지연: ' + [r.hogi, r.product, r.reason, r.min != null ? r.min + '분' : '', r.detail].filter(Boolean).join(' / ')); });
-      s.maints.forEach(function (r) { txt.push('  - 정비: ' + [r.asset, r.content, r.mtype, r.etc].filter(Boolean).join(' / ')); });
-    });
-    txt.push('저장된 일지 ' + stats.docsSaved + '건, 결재 대기 ' + stats.pending + '건');
-    Object.keys(planBy).forEach(function (l) { txt.push('다음날 계획 ' + l + ': ' + planBy[l].map(function (c) { return c.code + ' ' + (c.name || ''); }).join(', ')); });
-
-    return { date: D, title: title, summary: summary, stats: { date: D, totalN: totalN, totalMin: totalMin, totalM: totalM, docsSaved: stats.docsSaved, pending: stats.pending }, html: h, text: txt.join('\n') };
+    M.plan = plan; M.planFrom = nxtFrom; M.planTo = nxtTo;
+    return M;
   }
 
-  var AI_SYSTEM = '당신은 연세우유 상온제품생산부문의 생산관리 보고 담당자입니다. 주어진 하루치 생산 지연·정비·일지 데이터만 근거로, 부서장이 아침에 1분 안에 읽을 수 있는 한국어 요약을 작성하세요. ' +
-    '형식: 3~6개의 짧은 글머리표(•). 가장 큰 문제(시간 기준)와 반복되는 원인, 평소 대비 많이 늘어난 부서, 오늘 확인할 점을 우선합니다. 데이터에 없는 내용은 추측하지 말고, 기록이 없으면 "특이사항 없음"이라고 쓰세요.';
+  /* ───────── 메일에서도 보이는 그림(표 기반) ───────── */
+  function card(title, body, sub) {
+    return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;border-collapse:separate;background:#fff;border:1px solid ' + C.line + ';border-radius:14px"><tr><td style="padding:16px 18px">' +
+      '<div style="font-size:15px;font-weight:800;color:' + C.navy + ';letter-spacing:-.2px">' + title + (sub ? ' <span style="font-size:12px;font-weight:600;color:' + C.mute + '">' + sub + '</span>' : '') + '</div>' +
+      '<div style="margin-top:10px">' + body + '</div></td></tr></table>';
+  }
+  function two(a, b) {
+    return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse"><tr><td valign="top" width="50%" style="padding-right:7px">' + a + '</td><td valign="top" width="50%" style="padding-left:7px">' + b + '</td></tr></table>';
+  }
+  function chg(cur, prev, lowerIsBetter, unit) {
+    var d = delta(cur, prev);
+    if (d == null) return '<span style="color:' + C.mute + '">신규</span>';
+    if (d === 0) return '<span style="color:' + C.mute + '">— 지난 기간과 같음</span>';
+    var up = d > 0, good = lowerIsBetter ? !up : up;
+    return '<span style="color:' + (good ? C.green : C.red) + ';font-weight:700">' + (up ? '▲ ' : '▼ ') + Math.abs(d) + '%</span><span style="color:' + C.mute + '"> ' + (unit || '지난 기간 대비') + '</span>';
+  }
+  function kpis(items) {
+    var w = Math.floor(100 / items.length);
+    return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:6px 0;margin-top:12px"><tr>' + items.map(function (k) {
+      return '<td valign="top" width="' + w + '%" style="background:#fff;border:1px solid ' + C.line + ';border-radius:14px;padding:13px 14px;border-top:4px solid ' + (k.color || C.navy) + '">' +
+        '<div style="font-size:11.5px;color:' + C.mute + ';font-weight:700;letter-spacing:.02em">' + k.icon + ' ' + esc(k.label) + '</div>' +
+        '<div style="font-size:24px;font-weight:800;color:' + C.ink + ';margin-top:4px;line-height:1.15;white-space:nowrap">' + k.value + '</div>' +
+        '<div style="font-size:11.5px;margin-top:5px;line-height:1.45">' + (k.sub || '&nbsp;') + '</div></td>';
+    }).join('') + '</tr></table>';
+  }
+  function hbars(rows, opts) { /* rows: [label, value, text, color] */
+    opts = opts || {};
+    if (!rows.length) return '<div style="font-size:13px;color:' + C.mute + '">기록 없음</div>';
+    var mx = Math.max.apply(null, rows.map(function (r) { return +r[1] || 0; })) || 1;
+    return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:12.5px;table-layout:fixed">' + rows.map(function (r, i) {
+      var w = Math.max(2, Math.round((+r[1] || 0) / mx * 100));
+      return '<tr><td style="padding:4px 8px 4px 0;width:' + (opts.lw || 34) + '%;color:' + C.ink + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + (opts.rank ? '<b style="color:' + C.gold + '">' + (i + 1) + '</b> ' : '') + esc(clip(r[0], opts.clip || 22)) + '</td>' +
+        '<td style="padding:4px 0"><div style="width:' + w + '%;background:' + (r[3] || C.navy2) + ';height:14px;border-radius:7px;font-size:0;line-height:0">&nbsp;</div></td>' +
+        '<td style="padding:4px 0 4px 8px;width:' + (opts.vw || 30) + '%;font-size:11.5px;color:' + C.mute + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + r[2] + '</td></tr>';
+    }).join('') + '</table>';
+  }
+  function stack(parts, total) { /* 100% 막대 */
+    var t = total || sum(parts, function (p) { return p[1]; }) || 1;
+    return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border-radius:8px;overflow:hidden"><tr>' + parts.filter(function (p) { return p[1] > 0; }).map(function (p) {
+      return '<td width="' + Math.max(1, Math.round(p[1] / t * 100)) + '%" style="background:' + p[2] + ';height:16px;font-size:0;line-height:0">&nbsp;</td>';
+    }).join('') + '</tr></table><div style="margin-top:7px;font-size:12px;color:' + C.mute + '">' + parts.map(function (p) { return '<span style="display:inline-block;margin-right:12px;white-space:nowrap"><span style="display:inline-block;width:9px;height:9px;border-radius:3px;background:' + p[2] + ';margin-right:4px"></span>' + esc(p[0]) + ' <b style="color:' + C.ink + '">' + (p[3] || p[1]) + '</b></span>'; }).join('') + '</div>';
+  }
+  function vbars(series, keys, colors, opts) { /* 날짜별 세로 막대 (쌓기) */
+    opts = opts || {};
+    var H = opts.h || 96, mx = Math.max.apply(null, series.map(function (s) { return sum(keys, function (k) { return s[k]; }); })) || 1;
+    var many = series.length > 14;
+    var cols = series.map(function (s) {
+      var tot = sum(keys, function (k) { return s[k]; }), inner = '';
+      keys.slice().reverse().forEach(function (k, i) { var v = +s[k] || 0; if (!v) return; var hh = Math.max(2, Math.round(v / mx * H)); inner += '<div style="height:' + hh + 'px;background:' + colors[keys.length - 1 - i] + ';font-size:0;line-height:0;' + (inner ? '' : 'border-radius:4px 4px 0 0;') + '">&nbsp;</div>'; });
+      if (!inner) inner = '<div style="height:2px;background:#E3E7EF;font-size:0;line-height:0">&nbsp;</div>';
+      var we = s.we ? 'color:' + C.red + ';' : '';
+      return '<td valign="bottom" align="center" style="padding:0 ' + (many ? 1 : 4) + 'px;vertical-align:bottom">' +
+        (opts.top && tot && !many ? '<div style="font-size:10.5px;color:' + C.mute + ';margin-bottom:3px;white-space:nowrap">' + opts.top(tot, s) + '</div>' : '') +
+        '<div style="width:' + (many ? '70%' : '62%') + ';margin:0 auto">' + inner + '</div>' +
+        '<div style="font-size:' + (many ? 9.5 : 11) + 'px;color:' + C.mute + ';margin-top:4px;white-space:nowrap;' + we + '">' + s.lab + '</div></td>';
+    }).join('');
+    return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed"><tr style="height:' + (H + 34) + 'px">' + cols + '</tr></table>' +
+      (opts.legend ? '<div style="margin-top:8px;font-size:12px;color:' + C.mute + '">' + keys.map(function (k, i) { return '<span style="display:inline-block;margin-right:12px"><span style="display:inline-block;width:9px;height:9px;border-radius:3px;background:' + colors[i] + ';margin-right:4px"></span>' + esc(opts.legend[i] || k) + '</span>'; }).join('') + '</div>' : '');
+  }
+  function heat(days, valf, labf) { /* 달력 (월~일) */
+    var mx = Math.max.apply(null, days.map(valf)) || 1;
+    var first = (dowN(days[0]) + 6) % 7, cells = [];
+    for (var i = 0; i < first; i++) cells.push(null);
+    days.forEach(function (d) { cells.push(d); });
+    while (cells.length % 7) cells.push(null);
+    var h = '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:4px;table-layout:fixed;font-size:11px"><tr>' + '월화수목금토일'.split('').map(function (x, i) { return '<td align="center" style="color:' + (i >= 5 ? C.red : C.mute) + ';font-weight:700;padding-bottom:2px">' + x + '</td>'; }).join('') + '</tr>';
+    for (var r = 0; r < cells.length; r += 7) {
+      h += '<tr>' + cells.slice(r, r + 7).map(function (d) {
+        if (!d) return '<td style="height:44px"></td>';
+        var v = valf(d), a = v ? 0.12 + 0.88 * (v / mx) : 0;
+        var bg = v ? 'rgba(214,69,69,' + a.toFixed(2) + ')' : '#F1F4F9', fg = a > 0.55 ? '#fff' : C.ink;
+        return '<td valign="top" style="height:44px;background:' + bg + ';border-radius:8px;padding:5px 6px;color:' + fg + '"><div style="font-weight:800;font-size:11.5px">' + (+d.slice(8)) + '</div><div style="font-size:10.5px;margin-top:3px;white-space:nowrap">' + (v ? labf(d) : '') + '</div></td>';
+      }).join('') + '</tr>';
+    }
+    return h + '</table><div style="font-size:11.5px;color:' + C.mute + ';margin-top:6px">색이 진할수록 지연 시간이 길었던 날 · 숫자는 그날 총 지연 시간</div>';
+  }
+  function matrix(rows, days) { /* 일지 작성 현황: 양식 × 날짜 */
+    if (!rows.length) return '<div style="font-size:13px;color:' + C.mute + '">이 기간에 저장된 일지가 없습니다.</div>';
+    var many = days.length > 10;
+    var h = '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:11.5px;table-layout:fixed"><tr><td style="width:' + (many ? 30 : 38) + '%"></td>' +
+      days.map(function (d) { var w = dowN(d); return '<td align="center" style="color:' + (w === 0 || w === 6 ? C.red : C.mute) + ';font-size:' + (many ? 9 : 11) + 'px;padding-bottom:4px">' + (many ? (+d.slice(8)) : md(d) + '<br>' + dowOf(d)) + '</td>'; }).join('') + '<td align="right" style="width:9%;color:' + C.mute + ';font-size:11px">합계</td></tr>';
+    rows.forEach(function (r) {
+      h += '<tr><td style="padding:3px 6px 3px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:' + (TC[r.team] || C.mute) + ';margin-right:5px"></span>' + esc(clip(r.name, many ? 16 : 22)) + '</td>' +
+        days.map(function (d) { var n = r.days[d] || 0; return '<td align="center" style="padding:2px 1px"><div style="height:' + (many ? 12 : 16) + 'px;border-radius:4px;background:' + (n ? (TC[r.team] || C.navy2) : '#EEF1F6') + ';' + (n ? '' : 'opacity:.9;') + 'font-size:0;line-height:0">&nbsp;</div></td>'; }).join('') +
+        '<td align="right" style="font-weight:800;color:' + C.ink + '">' + r.n + '</td></tr>';
+    });
+    return h + '</table>';
+  }
+  function table(head, rows, opts) {
+    opts = opts || {};
+    if (!rows.length) return '<div style="font-size:13px;color:' + C.mute + '">' + (opts.empty || '기록 없음') + '</div>';
+    return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:12.5px"><tr>' + head.map(function (x) { return '<th align="left" style="background:' + C.soft + ';color:' + C.mute + ';font-weight:700;padding:7px 8px;border-bottom:1px solid ' + C.line + ';white-space:nowrap">' + x + '</th>'; }).join('') + '</tr>' +
+      rows.map(function (r) { return '<tr>' + r.map(function (x) { return '<td valign="top" style="padding:7px 8px;border-bottom:1px solid #EEF1F5">' + x + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>';
+  }
+  function chip(t, bg, fg) { return '<span style="display:inline-block;padding:2px 8px;border-radius:999px;background:' + bg + ';color:' + fg + ';font-size:11.5px;font-weight:700;white-space:nowrap">' + t + '</span>'; }
+  function light(level) { return level === 2 ? chip('주의', C.redBg, C.red) : level === 1 ? chip('관찰', C.amberBg, '#B8701A') : chip('양호', C.greenBg, C.green); }
 
-  return { build: build, records: records, kstDate: kstDate, addDays: addDays, AI_SYSTEM: AI_SYSTEM, DIVS: DIVS };
+  /* ───────── 보고서 조립 ───────── */
+  function compose(M, opts) {
+    var P = M.P, kind = P.kind, J = M.J, pJ = M.pJ;
+    var KN = { daily: '일일', weekly: '주간', monthly: '월간' }[kind];
+    var nd = M.days.length;
+    /* 부서별 상태 */
+    var status = DIVS.map(function (dv) {
+      var s = M.div[dv], base = s.pmin || 0, lv = 0;
+      if (s.min >= 60 && s.min > base * 1.3) lv = s.min > base * 1.8 || s.min >= 240 * nd ? 2 : 1;
+      return { dv: dv, s: s, lv: lv };
+    });
+    var devN = J.devs.length;
+    var summary = KN + ' · 지연 ' + M.delayN + '건(' + hrs(M.delayMin) + ') · 정비 ' + M.maintN + '건 · 일지 ' + J.docs.length + '건' + (devN ? ' · 기준 이탈 ' + devN + '건' : '') + (J.pendingAll ? ' · 결재 대기 ' + J.pendingAll + '건' : '');
+    if (M.reasons[0]) summary += ' · 최다 사유: ' + M.reasons[0][0];
+    var title = { daily: '📋 ' + md(P.from) + '(' + dowOf(P.from) + ') 일일 보고', weekly: '📊 주간 보고 · ' + md(P.from) + '~' + md(P.to), monthly: '📈 월간 보고 · ' + P.label }[kind];
+
+    var h = '<div style="font-family:' + FONT + ';color:' + C.ink + ';max-width:760px;margin:0 auto;background:' + C.soft + ';padding:14px;border-radius:18px">';
+    /* 머리 */
+    var accent = { daily: '#3B6FE0', weekly: '#7B5CD6', monthly: '#C8A15A' }[kind];
+    h += '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-radius:16px;background:' + C.navy + ';background-image:linear-gradient(120deg,#0A142B 0%,#1B356F 60%,#24448C 100%)"><tr><td style="padding:22px 24px;color:#fff">' +
+      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td><div style="font-size:11.5px;letter-spacing:.16em;color:' + C.gold2 + ';font-weight:800">연세우유 상온제품생산부문</div>' +
+      '<div style="font-size:26px;font-weight:800;margin-top:6px;letter-spacing:-.4px">' + KN + ' 업무 보고</div>' +
+      '<div style="font-size:14px;margin-top:4px;color:#C9D4EE">' + esc(P.label) + (kind !== 'daily' ? ' · ' + nd + '일' : '') + '</div></td>' +
+      '<td align="right" valign="top"><span style="display:inline-block;padding:6px 12px;border-radius:999px;background:' + accent + ';color:#fff;font-size:12px;font-weight:800">' + KN + ' REPORT</span></td></tr></table>' +
+      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;border-collapse:separate;border-spacing:0"><tr>' + status.map(function (x) {
+        var col = x.lv === 2 ? '#FF8A8A' : x.lv === 1 ? '#FFC870' : '#7EE0A8';
+        return '<td width="32%" style="padding:10px 12px;background:#22345F;background:rgba(255,255,255,.08);border-radius:10px;border-left:4px solid ' + col + '"><div style="font-size:11.5px;color:#C9D4EE">' + x.dv + ' · ' + DIVSUB[x.dv] + '</div><div style="font-size:15px;font-weight:800;margin-top:2px">' + (x.s.n ? x.s.n + '건 · ' + hrs(x.s.min) : '지연 없음') + '</div></td>' + (x.dv !== DIVS[DIVS.length - 1] ? '<td style="width:2%"></td>' : '');
+      }).join('') + '</tr></table></td></tr></table>';
+    /* AI 요약 */
+    if (opts.ai) h += '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;border-collapse:separate;background:#FFFDF6;border:1px solid #EFE3C8;border-left:5px solid ' + C.gold + ';border-radius:14px"><tr><td style="padding:15px 18px"><div style="font-size:12px;font-weight:800;color:#A9853F;letter-spacing:.06em">✦ AI 핵심 요약</div><div style="font-size:14px;line-height:1.8;margin-top:6px">' + mdLite(opts.ai) + '</div></td></tr></table>';
+
+    /* KPI */
+    var lead = J.leadH.length ? Math.round(sum(J.leadH) / J.leadH.length * 10) / 10 : null;
+    var unit = kind === 'daily' ? '최근 7일 평균 대비' : kind === 'weekly' ? '지난주 대비' : '지난달 대비';
+    h += kpis([
+      { icon: '⏱', label: '생산 지연', value: M.delayN + '<span style="font-size:14px;color:' + C.mute + '">건</span>', sub: '<b>' + hrs(M.delayMin) + '</b><br>' + chg(M.delayMin, M.pDelayMin, true, unit), color: C.red },
+      { icon: '🔧', label: '설비 정비', value: M.maintN + '<span style="font-size:14px;color:' + C.mute + '">건</span>', sub: chg(M.maintN, M.pMaintN, false, unit), color: C.teal },
+      { icon: '📝', label: '작성된 일지', value: J.docs.length + '<span style="font-size:14px;color:' + C.mute + '">건</span>', sub: (kind === 'daily' ? '' : '하루 평균 ' + (Math.round(J.docs.length / nd * 10) / 10) + '건<br>') + chg(J.docs.length, kind === 'daily' ? pJ.docs.length / 7 : pJ.docs.length, false, unit), color: C.blue },
+      { icon: '🛡', label: '기준 이탈 · 부적합', value: devN + '<span style="font-size:14px;color:' + C.mute + '">건</span>', sub: (J.ccpChecks ? 'HACCP 측정 ' + J.ccpChecks + '회 중<br>' : '') + (devN ? '<span style="color:' + C.red + ';font-weight:700">확인 필요</span>' : '<span style="color:' + C.green + ';font-weight:700">이탈 없음</span>'), color: devN ? C.red : C.green }
+    ]);
+    h += kpis([
+      { icon: '✅', label: '결재', value: J.completed + '<span style="font-size:14px;color:' + C.mute + '">완료</span>', sub: '대기 <b>' + J.pendingAll + '</b>건' + (J.rejected ? ' · 반려 ' + J.rejected + '건' : '') + (lead != null ? '<br>작성→승인 평균 ' + lead + '시간' : ''), color: C.navy2 },
+      { icon: '👥', label: '시간 외 근무(OT)', value: (Math.round(J.ot.total * 10) / 10) + '<span style="font-size:14px;color:' + C.mute + '">시간</span>', sub: Object.keys(J.ot.byTeam).map(function (t) { return t + ' ' + Math.round(J.ot.byTeam[t] * 10) / 10 + 'h'; }).join(' · ') || '근무일보 OT 기록 없음', color: '#7B5CD6' },
+      { icon: '🏭', label: '멸균 적산량', value: fmtQty(sum(Object.keys(J.ster), function (k) { return J.ster[k].qty; })), sub: '가동 ' + (Math.round(sum(Object.keys(J.ster), function (k) { return J.ster[k].run; }) * 10) / 10) + '시간 · 배치 ' + sum(Object.keys(J.ster), function (k) { return J.ster[k].batch; }) + '<br>정지 ' + J.stops.length + '건', color: C.gold },
+      { icon: '📅', label: kind === 'daily' ? '내일 생산계획' : (kind === 'weekly' ? '다음 주 생산계획' : '다음 달 생산계획'), value: M.plan.length + '<span style="font-size:14px;color:' + C.mute + '">건</span>', sub: M.plan.length ? Object.keys(groupBy(M.plan, 'colLabel')).length + '개 설비' : '등록된 계획 없음', color: '#2E9E6A' }
+    ]);
+
+    /* 지연 추이 */
+    if (kind !== 'daily') {
+      var ser = M.daily.map(function (o) { var w = dowN(o.d); return Object.assign({ lab: kind === 'weekly' ? md(o.d) + ' ' + dowOf(o.d) : String(+o.d.slice(8)), we: w === 0 || w === 6 }, o); });
+      h += card('⏱ 날짜별 생산 지연', vbars(ser, DIVS, DIVS.map(function (d) { return DC[d]; }), { h: kind === 'weekly' ? 110 : 90, top: function (t) { return hshort(t); }, legend: DIVS.map(function (d) { return d + ' (' + DIVSUB[d] + ')'; }) }),
+        '총 ' + hrs(M.delayMin) + ' · 하루 평균 ' + hrs(M.delayMin / nd));
+    }
+    if (kind === 'monthly') h += card('🗓 지연 달력', heat(M.days, function (d) { var o = M.daily.filter(function (x) { return x.d === d; })[0]; return o ? o.total : 0; }, function (d) { var o = M.daily.filter(function (x) { return x.d === d; })[0]; return hshort(o.total); }));
+    /* 원인 · 부서 */
+    var share = DIVS.map(function (dv) { return [dv, M.div[dv].min, DC[dv], hrs(M.div[dv].min)]; });
+    var reasonRows = (function () { var tot = M.delayMin || 1, cum = 0; return M.reasons.map(function (r) { cum += r[1]; return [r[0], r[1], hshort(r[1]) + ' · ' + r[2] + '건 · <span style="color:#A9853F">' + pct(cum, tot) + '%</span>', r === M.reasons[0] ? C.red : C.navy2]; }); })();
+    h += two(card('🎯 지연 원인 TOP', hbars(reasonRows, { rank: 1, lw: 36, vw: 34 }), '파레토'),
+      card('🏷 부서 · 호기별', stack(share) + '<div style="height:12px"></div>' + hbars(M.hogi.map(function (r) { return [r[0], r[1], hshort(r[1]) + ' · ' + r[2] + '건', C.teal]; }), { lw: 34, vw: 26 })));
+    if (kind !== 'daily' && M.products.length) h += two(card('🥛 지연이 많았던 제품', hbars(M.products.map(function (r) { return [r[0], r[1], hrs(r[1]), '#7B5CD6']; }), { lw: 40 })),
+      card('🕑 시간대별 지연', vbars(M.hours.map(function (x) { return { lab: x.h + '시', v: x.min }; }), ['v'], [C.amber], { h: 70, top: function (t) { return hshort(t); } })));
+    /* 큰 지연 */
+    h += card('⚠ ' + (kind === 'daily' ? '2시간' : '3시간') + ' 이상 지연', table(['날짜', '부서 · 호기', '제품', '사유', '시간'], M.big.map(function (r) {
+      return [md(r.d), esc(r.div) + '<br><span style="color:' + C.mute + '">' + esc((r.team || '') + ' ' + (r.hogi || '')) + '</span>', esc(clip(r.product || '-', 18)), esc(clip(r.reason || '-', 26)) + (r.detail ? '<div style="color:' + C.mute + ';font-size:11.5px;margin-top:2px">' + esc(clip(r.detail, 60)) + '</div>' : ''), '<b style="color:' + C.red + '">' + hrs(r.min) + '</b>'];
+    }), { empty: '해당 지연 없음 👍' }));
+    /* 일지 */
+    var fr = Object.keys(J.byForm).map(function (k) { return J.byForm[k]; }).sort(function (a, b) { return TEAMS.indexOf(a.team) - TEAMS.indexOf(b.team) || b.n - a.n; });
+    var tparts = TEAMS.filter(function (t) { return J.byTeam[t]; }).map(function (t) { return [t, J.byTeam[t], TC[t], J.byTeam[t] + '건']; });
+    if (kind === 'daily') {
+      h += card('📝 일지 작성 · 결재', (tparts.length ? stack(tparts) : '') + '<div style="height:10px"></div>' + table(['일지', '팀', '건수'], fr.slice(0, 14).map(function (r) { return [esc(r.name), chip(r.team, '#F1F3F8', TC[r.team] || C.mute), '<b>' + r.n + '</b>']; }), { empty: '저장된 일지 없음' }), '결재 대기 ' + J.pendingAll + '건');
+    } else {
+      var md2 = kind === 'monthly' ? M.days : M.days;
+      h += card('📝 일지 작성 현황', (tparts.length ? stack(tparts) + '<div style="height:12px"></div>' : '') + matrix(fr.slice(0, kind === 'monthly' ? 18 : 22), md2), '칸이 채워진 날 = 그 일지를 작성한 날');
+    }
+    /* 품질 · HACCP */
+    if (J.devs.length || J.ccpChecks) {
+      var dg = topBy(J.devs, function (x) { return x.form; }, null, 6);
+      h += card('🛡 품질 · HACCP 기준 이탈', (J.devs.length ? hbars(dg.map(function (r) { return [r[0], r[1], r[1] + '건', C.red]; }), { lw: 40 }) + '<div style="height:10px"></div>' : '') +
+        table(['날짜', '일지', '항목', '값', '기준'], J.devs.slice(0, kind === 'monthly' ? 14 : 10).map(function (x) { return [md(x.d), esc(clip(x.form, 18)), esc(clip(x.what, 34)), '<b style="color:' + C.red + '">' + esc(x.val) + '</b>', esc(x.spec)]; }), { empty: 'HACCP 측정 ' + J.ccpChecks + '회 — 기준 이탈 없음 ✅' }),
+        J.ccpChecks ? '측정 ' + J.ccpChecks + '회 · 이탈률 ' + (J.ccpChecks ? Math.round(J.devs.length / J.ccpChecks * 1000) / 10 : 0) + '%' : '');
+    }
+    /* 멸균 */
+    var sk = Object.keys(J.ster);
+    if (sk.length || J.stops.length) {
+      var qmax = Math.max.apply(null, sk.map(function (k) { return J.ster[k].qty; })) || 1;
+      h += card('🏭 멸균 호기별 가동', table(['호기', '가동 시간', '적산량', '배치', '품목'], sk.map(function (k) { var s = J.ster[k]; return ['<b>' + esc(k) + '</b>', (Math.round(s.run * 10) / 10) + '시간', '<table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td width="' + Math.max(3, Math.round(s.qty / qmax * 100)) + '%" style="background:' + C.gold + ';height:10px;border-radius:5px;font-size:0">&nbsp;</td><td style="padding-left:6px;white-space:nowrap;font-size:12px">' + fmtQty(s.qty) + '</td></tr></table>', s.batch || '-', esc(clip(Object.keys(s.items).join(', '), 30))]; })) +
+        (J.stops.length ? '<div style="font-weight:800;font-size:13px;margin:14px 0 6px;color:' + C.navy + '">정지 기록 ' + J.stops.length + '건</div>' + table(['날짜', '호기', '정지 → 재가동', '사유'], J.stops.slice(0, 10).map(function (s) { return [md(s.d), esc(s.hogi), esc(s.start) + ' → ' + esc(s.end) + (s.min ? ' <b>(' + hrs(s.min) + ')</b>' : ''), esc(clip(s.why, 40))]; })) : ''));
+    }
+    /* 인원 · OT */
+    if (J.heads.length || J.ot.total) {
+      var hb = {}; J.heads.forEach(function (x) { var b = hb[x.team] = hb[x.team] || { n: 0, w: 0, o: 0, t: 0 }; b.n++; b.w += x.work || 0; b.o += x.off || 0; b.t += x.total || 0; });
+      h += card('👥 근무 인원 · 시간 외 근무', table(['팀', '근무일보', '평균 근무인원', '평균 휴무', '총 OT'], Object.keys(hb).map(function (t) { var b = hb[t]; return [chip(t, '#F1F3F8', TC[t] || C.mute), b.n + '건', b.w ? (Math.round(b.w / b.n * 10) / 10) + '명' : '-', b.o ? (Math.round(b.o / b.n * 10) / 10) + '명' : '-', '<b>' + (Math.round((J.ot.byTeam[t] || 0) * 10) / 10) + '시간</b>']; })));
+    }
+    /* 정비 */
+    if (M.maints.length) {
+      h += two(card('🔧 정비 종류', hbars(M.mtype.map(function (r) { return [r[0], r[1], r[1] + '건', C.teal]; }), { lw: 40 })),
+        card('🔩 정비가 잦은 설비', hbars(M.massets.map(function (r) { return [r[0], r[1], r[1] + '건', '#5B7BB7']; }), { lw: 46, clip: 20 })));
+      if (kind === 'daily') h += card('🔧 정비 내역', table(['설비', '내용', '종류', '담당'], M.maints.slice(0, 12).map(function (r) { return [esc(r.asset || '-'), esc(clip(r.content || '-', 40)), esc(r.mtype || '-'), esc(r.person || '')]; })));
+    }
+    /* 현장 메모 */
+    if (J.notes.length) h += card('💬 현장 메모 · 특이사항', J.notes.slice(0, kind === 'daily' ? 10 : 14).map(function (n) {
+      return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:8px"><tr><td width="4" style="background:' + (TC[n.team] || C.mute) + ';border-radius:3px;font-size:0">&nbsp;</td><td style="padding:2px 10px"><div style="font-size:11.5px;color:' + C.mute + '">' + md(n.d) + ' · ' + esc(n.form) + ' · ' + esc(n.what) + '</div><div style="font-size:13px;margin-top:2px">' + esc(n.text) + '</div></td></tr></table>';
+    }).join(''), J.notes.length > 14 ? '외 ' + (J.notes.length - 14) + '건' : '');
+    /* 다음 기간 생산계획 */
+    var pb = groupBy(M.plan, 'colLabel'), pl = Object.keys(pb).sort();
+    h += card('📅 ' + (kind === 'daily' ? md(M.planFrom) + '(' + dowOf(M.planFrom) + ') ' : (kind === 'weekly' ? '다음 주 (' + md(M.planFrom) + '~' + md(M.planTo) + ') ' : '다음 달 ')) + '생산계획',
+      pl.length ? (kind === 'daily' ? table(['설비', '품목'], pl.map(function (l) { return ['<b>' + esc(l) + '</b>', pb[l].map(function (c) { return esc(c.code || '') + (c.batch ? ' &lt;' + esc(c.batch) + '&gt;' : '') + ' ' + esc(c.name || ''); }).join('<br>')]; }))
+        : hbars(pl.map(function (l) { return [l, pb[l].length, pb[l].length + '건', '#2E9E6A']; }), { lw: 30 })) : '<div style="font-size:13px;color:' + C.mute + '">등록된 생산계획 없음</div>');
+    h += '<div style="font-size:11.5px;color:' + C.mute + ';margin-top:16px;text-align:center;line-height:1.7">이 보고서는 업무포털의 일지 · 지연 · 정비 · 생산계획 데이터로 자동 생성되었습니다.' + (opts.portalUrl ? '<br><a href="' + esc(opts.portalUrl) + '#/reports?t=' + kind + '&amp;k=' + esc(P.key) + '" style="color:#2F5BD3;font-weight:700">포털에서 보기 →</a>' : '') + '</div></div>';
+    return { title: title, summary: summary, html: h };
+  }
+  function groupBy(a, k) { var o = {}; a.forEach(function (x) { (o[x[k]] = o[x[k]] || []).push(x); }); return o; }
+  function fmtQty(q) { q = +q || 0; if (!q) return '0'; return q >= 10000 ? (Math.round(q / 1000) / 10) + '만' : q.toLocaleString('ko-KR'); }
+
+  function textOf(M) {
+    var P = M.P, J = M.J, t = [];
+    t.push('보고 종류: ' + { daily: '일일', weekly: '주간', monthly: '월간' }[P.kind] + ' / 기간: ' + P.from + ' ~ ' + P.to + ' (' + M.days.length + '일)');
+    t.push('생산 지연: ' + M.delayN + '건, 총 ' + Math.round(M.delayMin) + '분 (비교 기간: ' + Math.round(M.pDelayN * 10) / 10 + '건, ' + Math.round(M.pDelayMin) + '분)');
+    DIVS.forEach(function (dv) { var s = M.div[dv]; t.push('  [' + dv + ' ' + DIVSUB[dv] + '] ' + s.n + '건 ' + Math.round(s.min) + '분 (비교 ' + Math.round(s.pmin) + '분), 정비 ' + s.maint + '건'); });
+    t.push('지연 원인 TOP: ' + M.reasons.map(function (r) { return r[0] + ' ' + Math.round(r[1]) + '분/' + r[2] + '건'; }).join(', '));
+    t.push('호기별: ' + M.hogi.map(function (r) { return r[0] + ' ' + Math.round(r[1]) + '분'; }).join(', '));
+    M.big.forEach(function (r) { t.push('  큰 지연: ' + [r.d, r.div, r.team, r.hogi, r.product, r.reason, r.min + '분', r.detail].filter(Boolean).join(' / ')); });
+    t.push('정비: ' + M.maintN + '건 (종류: ' + M.mtype.map(function (r) { return r[0] + ' ' + r[1]; }).join(', ') + ')');
+    if (P.kind === 'daily') M.maints.forEach(function (r) { t.push('  정비: ' + [r.asset, r.content, r.mtype].filter(Boolean).join(' / ')); });
+    t.push('일지: ' + J.docs.length + '건 (팀별 ' + Object.keys(J.byTeam).map(function (k) { return k + ' ' + J.byTeam[k]; }).join(', ') + '), 결재 완료 ' + J.completed + ', 대기 ' + J.pendingAll + ', 반려 ' + J.rejected);
+    t.push('HACCP 측정 ' + J.ccpChecks + '회, 기준 이탈·부적합 ' + J.devs.length + '건');
+    J.devs.slice(0, 15).forEach(function (x) { t.push('  이탈: ' + x.d + ' ' + x.form + ' ' + x.what + ' 값 ' + x.val + ' (기준 ' + x.spec + ')'); });
+    t.push('OT 합계 ' + Math.round(J.ot.total * 10) / 10 + '시간');
+    Object.keys(J.ster).forEach(function (k) { var s = J.ster[k]; t.push('  멸균 ' + k + ': 가동 ' + Math.round(s.run * 10) / 10 + 'h, 적산량 ' + s.qty + ', 배치 ' + s.batch); });
+    J.stops.slice(0, 10).forEach(function (s) { t.push('  정지: ' + s.d + ' ' + s.hogi + ' ' + s.start + '~' + s.end + ' ' + s.why); });
+    J.notes.slice(0, 15).forEach(function (n) { t.push('  메모: ' + n.d + ' ' + n.form + ' ' + n.what + ': ' + n.text); });
+    t.push('다음 기간 생산계획 ' + M.plan.length + '건');
+    return t.join('\n');
+  }
+
+  /* opts: { kind, ref(기준일), date(일일 보고 대상일), ai, portalUrl, templates, sections, now } */
+  function report(data, NF, opts) {
+    opts = opts || {};
+    var kind = opts.kind || 'daily';
+    var P = kind === 'daily' ? period('daily', opts.date || kstDate(-1, opts.now)) : period(kind, opts.ref || kstDate(0, opts.now), opts.now);
+    var M = analyze(data, NF, P, opts);
+    var out = compose(M, opts);
+    var J = M.J;
+    return { kind: kind, key: P.key, date: P.key, from: P.from, to: P.to, label: P.label, title: out.title, summary: out.summary, html: out.html, text: textOf(M),
+      stats: { from: P.from, to: P.to, delayN: M.delayN, delayMin: Math.round(M.delayMin), maintN: M.maintN, docs: J.docs.length, devs: J.devs.length, pending: J.pendingAll, ot: Math.round(J.ot.total * 10) / 10,
+        totalN: M.delayN, totalMin: Math.round(M.delayMin), totalM: M.maintN, docsSaved: J.docs.length } };
+  }
+  /* 예전 방식 호환 (일일) */
+  function build(data, NF, opts) { opts = Object.assign({}, opts || {}); opts.kind = 'daily'; return report(data, NF, opts); }
+
+  var AI_BASE = '당신은 연세우유 상온제품생산부문의 생산관리 보고 담당자입니다. 주어진 데이터만 근거로 한국어로 요약하세요. 데이터에 없는 내용은 추측하지 말고, 기록이 없으면 "특이사항 없음"이라고 쓰세요. ';
+  var AI = {
+    daily: AI_BASE + '부서장이 아침에 1분 안에 읽을 수 있게 3~6개의 짧은 글머리표(•)로: 가장 큰 문제(시간 기준), 반복 원인, 평소보다 늘어난 부서, 기준 이탈, 오늘 확인할 점을 우선합니다.',
+    weekly: AI_BASE + '지난 한 주를 돌아보는 주간 보고 요약입니다. 4~7개의 글머리표(•)로: 한 주 총평(지난주 대비 증감), 가장 큰 손실 원인과 호기, 품질·HACCP 이탈, 반복되는 정비, 일지·결재 상황, 다음 주에 집중할 점(제안 1~2개)을 씁니다.',
+    monthly: AI_BASE + '지난달 월간 보고 요약입니다. 5~8개의 글머리표(•)로: 월 총평(지난달 대비 증감 %), 손실이 컸던 원인 TOP3와 비중, 문제가 몰린 주·요일·시간대, 품질·HACCP, 설비 정비 경향, 인력(OT), 다음 달 개선 과제 2~3개를 씁니다.'
+  };
+  var AI_SYSTEM = AI.daily;
+
+  return { build: build, report: report, period: period, records: records, analyze: analyze, introspect: introspect, specOf: specOf,
+    kstDate: kstDate, addDays: addDays, isoWeek: isoWeek, AI: AI, AI_SYSTEM: AI_SYSTEM, DIVS: DIVS };
 });
 
 </script>
@@ -10000,7 +10405,7 @@ console.log('[확장 모듈 36] AI 업무도우미 개인 계정 연결 로드 �
 </script>
 
 <script>
-/* ============ 확장 모듈 37 — 일일 보고서 · 폰 알림 · 보고서 자동화(관리자 전용) ============
+/* ============ 확장 모듈 37 — 업무 보고서(일일 · 주간 · 월간) · 폰 알림 · 보고서 자동화(관리자 전용) ============
    · #/reports      : 보고서함 (모든 직원) + 「이 폰에서 알림 받기」(안드로이드·아이폰 웹 푸시)
    · #/report-admin : 보고서 자동화 관리 — 지정된 관리자 1명만 열람·수정
                       발송 켜기/끄기 · 시각 · 요일 · 항목 · AI 요약 · 수신자 · 알림 키 · 미리보기 · 발송 기록
@@ -10033,6 +10438,7 @@ try{
     var R=Object.assign({},remote.dailyReports||{});
     Object.keys(local.dailyReports||{}).forEach(function(k){var a=R[k],b=local.dailyReports[k];if(!a||String(b.generatedAt||'')>String(a.generatedAt||''))R[k]=b});
     if(remote.dailyReports||local.dailyReports)out.dailyReports=R;
+    ['weeklyReports','monthlyReports'].forEach(function(F){if(!remote[F]&&!local[F])return;var X=Object.assign({},remote[F]||{});Object.keys(local[F]||{}).forEach(function(k){var a=X[k],b=local[F][k];if(!a||String(b.generatedAt||'')>String(a.generatedAt||''))X[k]=b});out[F]=X});
     var P={},ap=function(src){Object.keys(src||{}).forEach(function(u){var m={};(P[u]||[]).concat(src[u]||[]).forEach(function(s){if(s&&s.endpoint){var c=m[s.endpoint];if(!c||String(s.at||'')>=String(c.at||''))m[s.endpoint]=s}});P[u]=Object.keys(m).map(function(k){return m[k]})})};
     ap(remote.pushSubs);ap(local.pushSubs);
     if(remote.pushSubs||local.pushSubs)out.pushSubs=P;
@@ -10099,24 +10505,40 @@ function pushCard(){
 
 /* ---------- 보고서 생성(미리보기) ---------- */
 function NF(){return window.__YUM_NOTION_FINAL__||{delay:[],maint:[]}}
-function build(date,ai){var c=cfg();return window.YumReportCore.build(DB.data,NF(),{date:date,sections:c.sections,ai:ai,portalUrl:c.portalUrl||''})}
+function build(date,ai){return rep('daily',date,ai)}
+/* kind: daily(date=보고 대상일) · weekly(key=YYYY-Www 또는 그 주의 날짜) · monthly(key=YYYY-MM) */
+function refOf(kind,key){var C=window.YumReportCore;
+ if(kind==='weekly'){if(/^\d{4}-W\d{2}$/.test(key)){var y=+key.slice(0,4),w=+key.slice(6),j4=new Date(Date.UTC(y,0,4)),mon=new Date(j4.getTime()-((j4.getUTCDay()+6)%7)*86400000+(w-1)*7*86400000);return C.addDays(mon.toISOString().slice(0,10),7)}return C.addDays(key,7)}
+ if(kind==='monthly'){var y2=+key.slice(0,4),m2=+key.slice(5,7)+1;if(m2>12){m2=1;y2++}return y2+'-'+(m2<10?'0':'')+m2+'-01'}
+ return key}
+function rep(kind,key,ai){var c=cfg(),o={kind:kind,sections:c.sections,ai:ai,portalUrl:c.portalUrl||''};if(kind==='daily')o.date=key;else o.ref=refOf(kind,key);return window.YumReportCore.report(DB.data,NF(),o)}
+var KINDS=[['daily','일일','dailyReports'],['weekly','주간','weeklyReports'],['monthly','월간','monthlyReports']];
+function lastKey(kind){var C=window.YumReportCore;return kind==='daily'?kst(-1):C.period(kind,kst(0)).key}
 function kst(n){return window.YumReportCore.kstDate(n)}
 
 /* ---------- 보고서함 ---------- */
 function reportsHTML(){
- var R=DB.data.dailyReports||{},ks=Object.keys(R).sort().reverse(),q=qs(),sel=q.d&&R[q.d]?q.d:ks[0];
- var h='<div class="hrow pg-theme-dash"><div><h1 class="pgt">일일 보고서함</h1><div class="pgt-sub">매일 아침 자동으로 만들어지는 생산 지연 · 정비 · 일지 · 생산계획 요약입니다.</div></div>'+
+ var q=qs(),kind=q.t||'daily';if(!KINDS.some(function(k){return k[0]===kind}))kind='daily';
+ var KD=KINDS.filter(function(k){return k[0]===kind})[0],R=DB.data[KD[2]]||{},ks=Object.keys(R).sort().reverse();
+ var cur=q.k||q.d||ks[0]||lastKey(kind),stored=R[cur];
+ var sched={daily:'설정한 요일 아침 · 전날 보고',weekly:'매주 월요일 · 지난주(월~일) 보고',monthly:'매월 1일 · 지난달 보고'}[kind];
+ var h='<div class="hrow pg-theme-dash"><div><h1 class="pgt">업무 보고서함</h1><div class="pgt-sub">일지 · 지연 · 정비 · 생산계획 데이터로 자동으로 만들어지는 일일 · 주간 · 월간 보고입니다.</div></div>'+
   '<div class="od-tools">'+(isOwner()?'<a class="btn btn-p btn-sm" href="#/report-admin">⚙ 보고서 자동화 관리</a>':(canClaim()?'<a class="btn btn-o btn-sm" href="#/report-admin">⚙ 보고서 자동화 설정</a>':''))+'</div></div>';
  h+=pushCard();
- if(!ks.length){
-  h+='<div class="panel" style="margin-top:14px;text-align:center;padding:30px"><b>아직 발송된 보고서가 없습니다.</b><div class="rp-sub" style="margin-top:6px">자동 발송이 시작되면 여기에 날짜별로 쌓입니다. 아래는 어제 데이터로 만든 미리보기입니다.</div></div>';
-  try{h+='<div class="rp-paper">'+build(kst(-1)).html+'</div>'}catch(e){}
-  return h;
- }
- h+='<div class="rp-grid"><div class="panel rp-list">'+ks.slice(0,60).map(function(k){var r=R[k];return '<a class="rp-li'+(k===sel?' on':'')+'" href="#/reports?d='+k+'"><b>'+k.slice(5).replace('-','/')+' ('+DOW[new Date(k+'T00:00:00').getDay()]+')</b><span>'+esc(r.summary||'')+'</span>'+(r.sent&&r.sent.at?'<small>메일 '+(r.sent.mail||0)+' · 알림 '+(r.sent.push||0)+'</small>':'')+'</a>'}).join('')+'</div>'+
-  '<div class="rp-paper">'+(R[sel]?R[sel].html:'')+'</div></div>';
+ h+='<div class="rp-tabs">'+KINDS.map(function(k){var n=Object.keys(DB.data[k[2]]||{}).length;return '<a class="rp-tab'+(k[0]===kind?' on':'')+'" href="#/reports?t='+k[0]+'">'+k[1]+' 보고'+(n?'<span>'+n+'</span>':'')+'</a>'}).join('')+'<span class="rp-sched">🕖 '+sched+'</span></div>';
+ var C=window.YumReportCore,opts=[];
+ /* 목록: 발송된 보고 + 최근 기간(아직 안 보낸 것도 지금 데이터로 볼 수 있게) */
+ var base=lastKey(kind),seen={};
+ ks.forEach(function(k){seen[k]=1;opts.push(k)});
+ for(var i=0;i<(kind==='daily'?14:kind==='weekly'?8:6);i++){var k2=kind==='daily'?C.addDays(base,-i):(kind==='weekly'?C.period('weekly',C.addDays(kst(0),-7*i)).key:C.period('monthly',shiftMonth(kst(0),-i)).key);if(!seen[k2]){seen[k2]=1;opts.push(k2)}}
+ opts.sort().reverse();
+ function lab(k){if(kind==='daily')return k.slice(5).replace('-','/')+' ('+DOW[new Date(k+'T00:00:00').getDay()]+')';if(kind==='weekly'){var p=C.period('weekly',refOf('weekly',k));return p.from.slice(5).replace('-','/')+' ~ '+p.to.slice(5).replace('-','/')}return (+k.slice(0,4))+'년 '+(+k.slice(5,7))+'월'}
+ var html='';try{html=rep(kind,cur,stored&&stored.ai).html}catch(e){html='<div class="rp-guide">보고서를 만들지 못했습니다: '+esc(e.message)+'</div>'}
+ h+='<div class="rp-grid"><div class="panel rp-list">'+opts.slice(0,60).map(function(k){var r=R[k];return '<a class="rp-li'+(k===cur?' on':'')+'" href="#/reports?t='+kind+'&k='+k+'"><b>'+lab(k)+'</b><span>'+esc(r?(r.summary||''):'지금 데이터로 보기')+'</span>'+(r&&r.sent&&r.sent.at?'<small>✉ 메일 '+(r.sent.mail||0)+' · 알림 '+(r.sent.push||0)+'</small>':'<small style="color:var(--muted)">미발송</small>')+'</a>'}).join('')+'</div>'+
+  '<div><div class="rp-bar">'+(stored&&stored.sent&&stored.sent.at?'<span class="badge bg-ok">발송됨 '+esc(String(stored.sent.at).replace('T',' ').slice(0,16))+'</span>':'<span class="badge">아직 발송 전 · 현재 데이터 기준</span>')+'<button class="btn btn-o btn-sm" onclick="yumRA.print()">🖨 인쇄 · PDF</button></div><div class="rp-paper" id="rp-paper">'+html+'</div></div></div>';
  return h;
 }
+function shiftMonth(d,n){var y=+d.slice(0,4),m=+d.slice(5,7)+n;while(m<1){m+=12;y--}while(m>12){m-=12;y++}return y+'-'+(m<10?'0':'')+m+'-'+d.slice(8,10)}
 
 /* ---------- 보고서 자동화 관리 (관리자 1명) ---------- */
 function adminHTML(){
@@ -10128,7 +10550,7 @@ function adminHTML(){
  var c=cfg(),S=c.sections||{};
  var users=(DB.data.users||[]).filter(function(x){return x.status==='active'&&/@/.test(x.email||'')});
  var subsN=0,subsRows='';Object.keys(DB.data.pushSubs||{}).forEach(function(uid){var nm=((DB.data.users||[]).filter(function(x){return x.id===uid})[0]||{}).name||uid;(DB.data.pushSubs[uid]||[]).filter(liveSub).forEach(function(s){subsN++;subsRows+='<tr><td>'+esc(nm)+'</td><td>'+esc(s.dev||'')+'</td><td>'+esc(String(s.at||'').slice(0,10))+'</td><td><button class="btn btn-ghost btn-sm" onclick="yumPush.removeSub(\''+esc(uid)+'\',\''+esc(s.endpoint)+'\')">삭제</button></td></tr>'})});
- var R=DB.data.dailyReports||{},log=Object.keys(R).sort().reverse().slice(0,10).map(function(k){var r=R[k];return '<tr><td>'+k+'</td><td>'+esc(r.summary||'')+'</td><td>'+(r.sent&&r.sent.at?esc(String(r.sent.at).replace('T',' ').slice(0,16))+' · 메일 '+(r.sent.mail||0)+' · 알림 '+(r.sent.push||0):'-')+'</td></tr>'}).join('');
+ var R={};KINDS.forEach(function(K){var X=DB.data[K[2]]||{};Object.keys(X).forEach(function(k){R[(X[k].generatedAt||k)+'|'+K[0]+'|'+k]=Object.assign({_k:K[1]+' '+k},X[k])})});var log=Object.keys(R).sort().reverse().slice(0,12).map(function(k){var r=R[k];return '<tr><td>'+esc(r._k)+'</td><td>'+esc(r.summary||'')+'</td><td>'+(r.sent&&r.sent.at?esc(String(r.sent.at).replace('T',' ').slice(0,16))+' · 메일 '+(r.sent.mail||0)+' · 알림 '+(r.sent.push||0):'-')+'</td></tr>'}).join('');
  var chk=function(id,on,label){return '<label class="rp-chk"><input type="checkbox" id="'+id+'"'+(on?' checked':'')+'> '+label+'</label>'};
  var h='<div class="hrow pg-theme-dash"><div><h1 class="pgt">보고서 자동화 관리</h1><div class="pgt-sub">관리자 '+esc(u.name)+' 님만 볼 수 있는 화면입니다 · 실제 발송은 GitHub Actions가 매시간 확인해 아래 시각에 보냅니다.</div></div>'+
   '<div class="od-tools"><a class="btn btn-o btn-sm" href="#/reports">보고서함</a><button class="btn btn-p btn-sm" onclick="yumRA.save()">설정 저장</button></div></div>';
@@ -10136,6 +10558,8 @@ function adminHTML(){
   '<label class="rp-sw"><input type="checkbox" id="ra-en"'+(c.enabled?' checked':'')+'> <b>매일 자동 발송 켜기</b></label>'+
   '<div class="rp-row"><span>발송 시각</span><select id="ra-hour">'+Array.from({length:24},function(_,i){return '<option value="'+i+'"'+(+c.hour===i?' selected':'')+'>'+(i<12?'오전 ':'오후 ')+((i%12)||12)+'시</option>'}).join('')+'</select><span class="rp-sub">(한국 시간, 전날 데이터로 보고)</span></div>'+
   '<div class="rp-row"><span>발송 요일</span>'+[1,2,3,4,5,6,0].map(function(d){return '<label class="rp-day"><input type="checkbox" data-day="'+d+'"'+((c.days||[]).indexOf(d)>=0?' checked':'')+'>'+DOW[d]+'</label>'}).join('')+'</div>'+
+  '<div class="rp-row"><span>주간 보고</span>'+chk('ra-w-on',(c.weekly||{}).enabled!==false,'<b>매주 월요일</b> 지난주(월~일) 보고 보내기')+hourSel('ra-w-hour',(c.weekly||{}).hour==null?c.hour:c.weekly.hour)+'</div>'+
+  '<div class="rp-row"><span>월간 보고</span>'+chk('ra-m-on',(c.monthly||{}).enabled!==false,'<b>매월 1일</b> 지난달 보고 보내기')+hourSel('ra-m-hour',(c.monthly||{}).hour==null?c.hour:c.monthly.hour)+'</div>'+
   '<div class="rp-row" style="align-items:flex-start"><span>보고 항목</span><div>'+chk('ra-s-delay',S.delay!==false,'부서별 생산 지연')+chk('ra-s-big',S.big!==false,'2시간 이상 지연')+chk('ra-s-maint',S.maint!==false,'정비')+chk('ra-s-docs',S.docs!==false,'일지 · 결재')+chk('ra-s-plan',S.plan!==false,'다음날 생산계획')+'</div></div>'+
   '<div class="rp-row"><span>AI 요약</span>'+chk('ra-ai',c.ai!==false,'맨 위에 AI 요약 넣기')+'</div>'+
   '<div class="rp-row"><span>Claude 모델</span><input id="ra-model" value="'+esc(c.model||'claude-opus-5-5')+'" style="max-width:220px"><span class="rp-sub">GitHub Secret에 ANTHROPIC_API_KEY가 있을 때</span></div>'+
@@ -10145,27 +10569,29 @@ function adminHTML(){
   (c.repoUrl?'<div class="rp-row"><span></span><a class="btn btn-o btn-sm" target="_blank" rel="noopener" href="'+esc(c.repoUrl.replace(/\/$/,''))+'/actions/workflows/daily-report.yml">GitHub에서 지금 보내기 / 실행 기록 ↗</a><a class="btn btn-ghost btn-sm" target="_blank" rel="noopener" href="'+esc(c.repoUrl.replace(/\/$/,''))+'/settings/secrets/actions">Secrets 설정 ↗</a></div>':'')+
   '</div>';
  h+='<div class="panel"><h3 class="rp-h">메일 수신자 <span class="chip">'+(c.recipients||[]).filter(function(r){return r.on!==false}).length+'명</span></h3>'+
-  '<div class="rp-recip">'+(c.recipients||[]).map(function(r,i){return '<div class="rp-rr"><input type="checkbox" data-ri="'+i+'"'+(r.on!==false?' checked':'')+'><input data-rn="'+i+'" value="'+esc(r.name||'')+'" placeholder="이름"><input data-re="'+i+'" value="'+esc(r.email||'')+'" placeholder="메일 주소"><button class="btn btn-ghost btn-sm" onclick="yumRA.delR('+i+')">삭제</button></div>'}).join('')+'</div>'+
+  '<div class="rp-recip">'+(c.recipients||[]).map(function(r,i){return '<div class="rp-rr"><input type="checkbox" data-ri="'+i+'"'+(r.on!==false?' checked':'')+'><input data-rn="'+i+'" value="'+esc(r.name||'')+'" placeholder="이름"><input data-re="'+i+'" value="'+esc(r.email||'')+'" placeholder="메일 주소"><span class="rp-kd">'+KINDS.map(function(k){return '<label title="'+k[1]+' 보고 받기"><input type="checkbox" data-rk="'+i+':'+k[0]+'"'+(!r.kinds||r.kinds[k[0]]!==false?' checked':'')+'>'+k[1].charAt(0)+'</label>'}).join('')+'</span><button class="btn btn-ghost btn-sm" onclick="yumRA.delR('+i+')">삭제</button></div>'}).join('')+'</div>'+
   '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px"><button class="btn btn-o btn-sm" onclick="yumRA.addR()">+ 직접 추가</button>'+(users.length?'<select id="ra-user" style="width:auto"><option value="">포털 사용자에서 추가…</option>'+users.map(function(x){return '<option value="'+esc(x.id)+'">'+esc(x.name+' · '+x.email)+'</option>'}).join('')+'</select><button class="btn btn-o btn-sm" onclick="yumRA.addU()">추가</button>':'')+'</div>'+
   '<h3 class="rp-h" style="margin-top:22px">폰 알림</h3><div class="rp-sub" style="margin-bottom:8px">알림을 켠 기기 <b>'+subsN+'대</b> · 직원들이 보고서함에서 「이 폰에서 알림 받기」를 누르면 여기에 추가됩니다.</div>'+
   (subsRows?'<div style="max-height:200px;overflow:auto"><table class="t"><thead><tr><th>이름</th><th>기기</th><th>등록일</th><th></th></tr></thead><tbody>'+subsRows+'</tbody></table></div>':'')+
   '<div class="rp-key"><b>알림 키 (VAPID)</b><div class="rp-sub" style="margin:4px 0 8px">'+(c.vapidPublic?'설정됨 · 공개키 '+esc(c.vapidPublic.slice(0,16))+'…':'아직 없음 — 한 번만 만들면 됩니다.')+'</div><button class="btn btn-o btn-sm" onclick="yumRA.vapid()">'+(c.vapidPublic?'키 다시 만들기':'알림 키 만들기')+'</button><div id="ra-vk"></div></div>'+
   '</div></div>';
- h+='<div class="panel" style="margin-top:14px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h3 class="rp-h" style="margin:0">보고서 미리보기</h3><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><input type="date" id="ra-pd" value="'+kst(-1)+'" style="width:auto"><button class="btn btn-o btn-sm" onclick="yumRA.preview()">미리보기</button><button class="btn btn-o btn-sm" onclick="yumRA.previewAI()">✦ 내 AI로 요약 미리보기</button></div></div><div class="rp-sub" style="margin-top:4px">실제 발송 보고서는 GitHub Secrets의 AI 키로 요약합니다. 여기 미리보기는 내 기기에 연결한 AI(AI 업무도우미 설정)를 씁니다.</div><div id="ra-prev" class="rp-paper" style="margin-top:12px"></div></div>';
+ h+='<div class="panel" style="margin-top:14px"><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><h3 class="rp-h" style="margin:0">보고서 미리보기</h3><div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><select id="ra-pk" style="width:auto" onchange="yumRA.pk()"><option value="daily">일일</option><option value="weekly">주간</option><option value="monthly">월간</option></select><input type="date" id="ra-pd" value="'+kst(-1)+'" style="width:auto" title="일일: 보고 대상일 · 주간: 그 주의 아무 날 · 월간: 그 달의 아무 날"><button class="btn btn-o btn-sm" onclick="yumRA.preview()">미리보기</button><button class="btn btn-o btn-sm" onclick="yumRA.previewAI()">✦ 내 AI로 요약 미리보기</button></div></div><div class="rp-sub" style="margin-top:4px">실제 발송 보고서는 GitHub Secrets의 AI 키로 요약합니다. 여기 미리보기는 내 기기에 연결한 AI(AI 업무도우미 설정)를 씁니다.</div><div id="ra-prev" class="rp-paper" style="margin-top:12px"></div></div>';
  h+='<div class="rp-2" style="margin-top:14px"><div class="panel"><h3 class="rp-h">최근 발송 기록</h3>'+(log?'<table class="t"><thead><tr><th>날짜</th><th>요약</th><th>발송</th></tr></thead><tbody>'+log+'</tbody></table>':'<div class="rp-sub">아직 없음</div>')+'</div>'+
   '<div class="panel"><h3 class="rp-h">GitHub Secrets (저장소 주인만 등록)</h3><table class="t rp-sec"><tbody>'+
   [['SUPABASE_URL','https://vogcnzfxntaorxnkpznl.supabase.co','필수'],['SUPABASE_SERVICE_KEY','Supabase → Project Settings → API → service_role 키','필수'],['SMTP_HOST · SMTP_PORT','네이버: smtp.naver.com · 465 / Gmail: smtp.gmail.com · 465','메일'],['SMTP_USER · SMTP_PASS','보내는 메일 계정 · 앱 비밀번호','메일'],['MAIL_FROM','예: 업무포털 &lt;내메일@naver.com&gt;','메일'],['VAPID_PUBLIC_KEY · VAPID_PRIVATE_KEY','위 「알림 키 만들기」에서 나온 값','알림'],['PORTAL_URL','포털 https 주소','알림'],['ANTHROPIC_API_KEY 또는 OPENAI_API_KEY','관리자 본인 AI 키 (OpenAI는 OPENAI_MODEL도)','AI 요약']].map(function(r){return '<tr><td><code>'+r[0]+'</code></td><td>'+r[1]+'</td><td><span class="chip">'+r[2]+'</span></td></tr>'}).join('')+
   '</tbody></table><div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-ghost btn-sm" onclick="yumRA.handover()">관리자 넘기기</button></div></div></div>';
  return h;
 }
+function hourSel(id,v){v=v==null?7:+v;return '<select id="'+id+'" style="flex:0 0 auto;min-width:0;width:auto">'+Array.from({length:24},function(_,i){return '<option value="'+i+'"'+(v===i?' selected':'')+'>'+(i<12?'오전 ':'오후 ')+((i%12)||12)+'시</option>'}).join('')+'</select>'}
 function collect(){
  var c=cfg();
  c.enabled=$i('ra-en').checked;c.hour=+$i('ra-hour').value;
  c.days=[].map.call(document.querySelectorAll('[data-day]'),function(x){return x.checked?+x.getAttribute('data-day'):null}).filter(function(x){return x!==null});
  c.sections={delay:$i('ra-s-delay').checked,big:$i('ra-s-big').checked,maint:$i('ra-s-maint').checked,docs:$i('ra-s-docs').checked,plan:$i('ra-s-plan').checked};
+ c.weekly={enabled:$i('ra-w-on').checked,hour:+$i('ra-w-hour').value};c.monthly={enabled:$i('ra-m-on').checked,hour:+$i('ra-m-hour').value};
  c.ai=$i('ra-ai').checked;c.model=($i('ra-model').value||'').trim()||'claude-opus-5-5';c.openaiModel=($i('ra-omodel').value||'').trim();
  c.portalUrl=($i('ra-url').value||'').trim();c.repoUrl=($i('ra-repo').value||'').trim();
- c.recipients=(c.recipients||[]).map(function(r,i){var e=document.querySelector('[data-re="'+i+'"]'),n=document.querySelector('[data-rn="'+i+'"]'),o=document.querySelector('[data-ri="'+i+'"]');return {name:n?n.value.trim():r.name,email:e?e.value.trim():r.email,on:o?o.checked:r.on!==false}}).filter(function(r){return r.email||r.name});
+ c.recipients=(c.recipients||[]).map(function(r,i){var e=document.querySelector('[data-re="'+i+'"]'),n=document.querySelector('[data-rn="'+i+'"]'),o=document.querySelector('[data-ri="'+i+'"]');var kd={};KINDS.forEach(function(k){var x=document.querySelector('[data-rk="'+i+':'+k[0]+'"]');kd[k[0]]=x?x.checked:!(r.kinds&&r.kinds[k[0]]===false)});return {name:n?n.value.trim():r.name,email:e?e.value.trim():r.email,on:o?o.checked:r.on!==false,kinds:kd}}).filter(function(r){return r.email||r.name});
  c.updatedAt=new Date().toISOString();return c;
 }
 window.yumRA={
@@ -10185,11 +10611,15 @@ window.yumRA={
    $i('ra-vk').innerHTML='<div class="rp-guide" style="margin-top:10px"><b>아래 두 값을 GitHub Secrets에 넣어 주세요.</b> 비공개키는 <b>지금 한 번만</b> 보여 드리고 포털에는 저장하지 않습니다.<div class="rp-kv"><code>VAPID_PUBLIC_KEY</code><input readonly value="'+pub+'" onclick="this.select()"><button class="btn btn-o btn-sm" onclick="navigator.clipboard.writeText(\''+pub+'\');U.toast(\'복사했습니다\',\'ok\')">복사</button></div><div class="rp-kv"><code>VAPID_PRIVATE_KEY</code><input readonly value="'+priv+'" onclick="this.select()"><button class="btn btn-o btn-sm" onclick="navigator.clipboard.writeText(\''+priv+'\');U.toast(\'복사했습니다\',\'ok\')">복사</button></div></div>';
    U.toast('알림 키를 만들었습니다. 비공개키를 GitHub Secrets에 넣어 주세요.','ok');
   }).catch(function(e){U.toast('키 만들기 실패: '+e.message,'bad')})},
- preview:function(){var d=$i('ra-pd').value||kst(-1);try{$i('ra-prev').innerHTML=build(d).html}catch(e){$i('ra-prev').textContent='미리보기 실패: '+e.message}},
- previewAI:function(){var d=$i('ra-pd').value||kst(-1),box=$i('ra-prev');
+ pk:function(){var k=$i('ra-pk').value,C=window.YumReportCore;$i('ra-pd').value=k==='daily'?kst(-1):(k==='weekly'?C.period('weekly',kst(0)).from:C.period('monthly',kst(0)).from)},
+ pkey:function(){var k=$i('ra-pk')?$i('ra-pk').value:'daily',d=$i('ra-pd').value||kst(-1),C=window.YumReportCore;return [k,k==='daily'?d:(k==='weekly'?C.isoWeek(C.addDays(d,0)):d.slice(0,7))]},
+ preview:function(){var p=yumRA.pkey();try{$i('ra-prev').innerHTML=rep(p[0],p[1]).html}catch(e){$i('ra-prev').textContent='미리보기 실패: '+e.message}},
+ previewAI:function(){var p=yumRA.pkey(),box=$i('ra-prev'),C=window.YumReportCore;
   if(!window.yumAI||!yumAI.connected()){U.toast('먼저 AI 업무도우미에서 내 AI를 연결해 주세요.','bad');return}
-  var base=build(d);box.innerHTML='<div class="rp-sub">AI 요약 만드는 중…</div>'+base.html;
-  yumAI.call(window.YumReportCore.AI_SYSTEM,[{role:'user',content:'[하루치 데이터]\n'+base.text+'\n\n위 데이터로 오늘 아침 보고용 요약을 작성하세요.'}]).then(function(ai){box.innerHTML=build(d,ai).html}).catch(function(e){box.innerHTML='<div class="rp-guide">AI 요약 실패: '+esc(e.message)+'</div>'+base.html})}
+  var base=rep(p[0],p[1]);box.innerHTML='<div class="rp-sub">AI 요약 만드는 중…</div>'+base.html;
+  yumAI.call((C.AI&&C.AI[p[0]])||C.AI_SYSTEM,[{role:'user',content:'[데이터]\n'+base.text+'\n\n위 데이터로 보고용 요약을 작성하세요.'}]).then(function(ai){box.innerHTML=rep(p[0],p[1],ai).html}).catch(function(e){box.innerHTML='<div class="rp-guide">AI 요약 실패: '+esc(e.message)+'</div>'+base.html})},
+ print:function(){var el=$i('rp-paper');if(!el)return;var w=window.open('','_blank');if(!w){U.toast('팝업이 막혀 있습니다. 팝업을 허용해 주세요.','bad');return}
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>업무 보고</title><style>@page{size:A4;margin:10mm}body{margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}</style></head><body>'+el.innerHTML+'</body></html>');w.document.close();setTimeout(function(){w.focus();w.print()},400)}
 };
 
 /* ---------- 라우팅 · 메뉴 ---------- */
@@ -10208,11 +10638,13 @@ App.render=function(){
  return _r.apply(this,arguments);
 };
 var _nav=App.navItems;
-App.navItems=function(){var a=_nav.apply(this,arguments);try{var i=-1;a.forEach(function(n,k){if(n&&(n.k==='#/ndash'||n.k==='#/dash'))i=k});if(i>=0&&!a.some(function(n){return n&&n.k==='#/reports'}))a.splice(i+1,0,{k:'#/reports',t:'일일 보고서함',i:'📋'})}catch(e){}return a};
+App.navItems=function(){var a=_nav.apply(this,arguments);try{var i=-1;a.forEach(function(n,k){if(n&&(n.k==='#/ndash'||n.k==='#/dash'))i=k});if(i>=0&&!a.some(function(n){return n&&n.k==='#/reports'}))a.splice(i+1,0,{k:'#/reports',t:'업무 보고서함',i:'📋'})}catch(e){}return a};
 /* 알림을 눌러 들어온 경우 */
 try{navigator.serviceWorker&&navigator.serviceWorker.addEventListener('message',function(e){if(e.data&&e.data.url){var h=e.data.url.split('#')[1];if(h)location.hash='#'+h}})}catch(e){}
 
 try{var st=document.createElement('style');st.textContent=
+ '.rp-tabs{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:6px 0 2px}.rp-tab{padding:9px 16px;border-radius:999px;background:#fff;border:1px solid var(--line);color:var(--ink);text-decoration:none;font-weight:700;font-size:14px}.rp-tab span{margin-left:6px;font-size:11.5px;background:#EEF1F7;border-radius:999px;padding:1px 7px;color:var(--muted)}.rp-tab.on{background:linear-gradient(135deg,#13254B,#2B4C94);color:#fff;border-color:transparent}.rp-tab.on span{background:rgba(255,255,255,.18);color:#fff}.rp-sched{margin-left:auto;font-size:12.5px;color:var(--muted)}'+
+ '.rp-bar{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}.rp-kd{display:inline-flex;gap:2px}.rp-kd label{display:inline-flex;align-items:center;gap:1px;font-size:11.5px;color:var(--muted)}.rp-kd input{width:auto!important}'+
  '.rp-push{margin-bottom:14px}.rp-ph{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.rp-ic{font-size:26px}.rp-sub{font-size:12.5px;color:var(--muted)}'+
  '.rp-guide{margin-top:12px;background:#FFF8EA;border-radius:10px;padding:11px 14px;font-size:13px;line-height:1.7;color:#4A3B12}'+
  '.rp-grid{display:grid;grid-template-columns:260px minmax(0,1fr);gap:14px;margin-top:14px;align-items:start}'+
@@ -10222,7 +10654,7 @@ try{var st=document.createElement('style');st.textContent=
  '.rp-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0;font-size:13.5px}.rp-row>span:first-child{width:96px;font-weight:700;color:var(--muted);flex:0 0 auto}.rp-row input:not([type=checkbox]),.rp-row select{flex:1;min-width:140px;width:auto}'+
  '.rp-chk{display:inline-flex;gap:6px;align-items:center;margin:0 12px 6px 0;font-size:13.5px}.rp-chk input,.rp-day input,.rp-sw input,.rp-rr input[type=checkbox]{width:auto}'+
  '.rp-day{display:inline-flex;gap:3px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:4px 8px;font-size:13px}.rp-sw{display:flex;gap:8px;align-items:center;font-size:14px;margin-bottom:6px}'+
- '.rp-recip{display:flex;flex-direction:column;gap:6px}.rp-rr{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1.6fr) auto;gap:6px;align-items:center}.rp-rr input:not([type=checkbox]){padding:7px 9px}'+
+ '.rp-recip{display:flex;flex-direction:column;gap:6px}.rp-rr{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1.6fr) auto auto;gap:6px;align-items:center}.rp-rr input:not([type=checkbox]){padding:7px 9px}'+
  '.rp-key{margin-top:16px;border-top:1px solid var(--line);padding-top:14px}.rp-kv{display:grid;grid-template-columns:150px 1fr auto;gap:6px;align-items:center;margin-top:8px}.rp-kv input{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;padding:7px}'+
  '.rp-sec td{font-size:12.5px;vertical-align:top}.rp-sec code{font-size:11.5px}'+
  '@media (max-width:900px){.rp-grid,.rp-2{grid-template-columns:1fr}.rp-list{max-height:none}.rp-kv{grid-template-columns:1fr}}';
