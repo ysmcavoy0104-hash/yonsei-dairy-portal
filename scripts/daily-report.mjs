@@ -210,6 +210,72 @@ async function runInsights(data, cfg, NF, TPL, now) {
   if (reds.length) await sendPush(fresh, { kind: 'insight', key: D, date: D, title: '🔴 설비 · 품질 인사이트', summary: reds.length === 1 ? reds[0].title : `${reds[0].title} 외 ${reds.length - 1}건` }, '#/notice?t=auto');
 }
 
+/* 자료·안전 「업계 안전 뉴스」: 뉴스 검색(구글 뉴스 RSS)으로 유업 · 음료 · 식품 제조업 사건사고 기사를 모아 저장 */
+const NEWS_Q = ['우유 공장 사고', '유업 공장 사고', '유제품 공장 사망', '음료 공장 사고', '음료 공장 끼임', '식품공장 끼임 사망', '식품공장 화재', '식품공장 암모니아 누출',
+  '식품 제조 중대재해', '두유 공장', '우유 회수 식약처', '음료 회수 이물'];
+const NEWS_HIT = /(사망|숨져|숨진|숨지|부상|다쳐|사고|화재|불이|불나|폭발|누출|질식|끼임|끼여|끼어|협착|추락|깔려|중대재해|작업중지|회수|리콜|이물|식중독|판매\s*중단|세균|대장균)/;
+const NEWS_IND = /(우유|유업|유제품|낙농|목장|음료|두유|주스|커피|식품|제과|제빵|빵|라면|면|공장|가공)/;
+const NEWS_NO = /(주가|실적|출시|할인|이벤트|광고|매출|인사|증시|신제품|프로모션|캠페인|기부|후원|협약|수상)/;
+function newsCat(t) {
+  if (/끼|협착|말려|압착|깔려|팔레타이저|컨베이어|배합기|롤러/.test(t)) return '끼임·협착';
+  if (/질식|밀폐|탱크|사일로|맨홀|가스\s*중독/.test(t)) return '밀폐공간·질식';
+  if (/암모니아|누출|가스/.test(t)) return '가스 누출';
+  if (/화재|불이|불나|폭발|연기/.test(t)) return '화재·폭발';
+  if (/회수|리콜|이물|식중독|대장균|세균|판매\s*중단|식약처/.test(t)) return '식품안전·회수';
+  if (/중대재해|벌금|선고|기소|재판|법/.test(t)) return '법·제도';
+  return '기타';
+}
+function unent(s) { return String(s || '').replace(/<!\[CDATA\[|\]\]>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); }
+function hash(s) { let h = 0; for (const c of String(s)) h = (h * 31 + c.codePointAt(0)) | 0; return (h >>> 0).toString(36); }
+async function runNews(cfg, now) {
+  const found = [], seen = new Set();
+  const cut = new Date(now.getTime() - 60 * 86400000).toISOString().slice(0, 10);
+  for (const q of NEWS_Q) {
+    try {
+      const r = await fetch(`https://news.google.com/rss/search?q=${encodeURIComponent(q + ' when:60d')}&hl=ko&gl=KR&ceid=KR:ko`, { headers: { 'User-Agent': 'Mozilla/5.0 (portal safety news)' } });
+      if (!r.ok) { log('뉴스 검색 실패', q, r.status); continue; }
+      const xml = await r.text();
+      for (const it of xml.split('<item>').slice(1)) {
+        const g = (t) => { const m = it.match(new RegExp(`<${t}[^>]*>([\\s\\S]*?)</${t}>`)); return m ? unent(m[1]) : ''; };
+        let title = g('title'); const link = g('link'), src = g('source'), pd = g('pubDate');
+        if (!title || !link) continue;
+        if (src && title.endsWith(' - ' + src)) title = title.slice(0, -(src.length + 3));
+        const d = pd ? new Date(pd).toISOString().slice(0, 10) : '';
+        if (!d || d < cut) continue;
+        if (!NEWS_HIT.test(title) || !NEWS_IND.test(title + ' ' + q) || NEWS_NO.test(title)) continue;
+        const key = title.replace(/[^가-힣A-Za-z0-9]/g, '').slice(0, 26);
+        if (seen.has(key)) continue; seen.add(key);
+        found.push({ id: 'g-' + hash(key), d, src, title, url: link, cat: newsCat(title), auto: 1, tags: [q.split(' ')[0]] });
+      }
+    } catch (e) { log('뉴스 검색 오류', q, e.message); }
+  }
+  /* AI 키가 있으면: 관련 없는 기사 거르기 + 한두 문장 요약 */
+  let list = found;
+  if (found.length && env.ANTHROPIC_API_KEY && cfg.ai !== false) {
+    try {
+      const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+      const body = found.map((x, i) => `${i}. [${x.d}] ${x.title} (${x.src})`).join('\n');
+      const res = await client.messages.create({ model: cfg.model || 'claude-opus-5-5', max_tokens: 8000,
+        system: '유업 · 음료 · 식품 제조 공장의 안전 담당자를 돕습니다. 기사 제목 목록을 보고, 제조 현장의 안전사고 · 화재 · 가스 누출 · 식품안전 사고(회수 등) · 관련 법적 처벌과 관계있는 기사만 고르세요. 각 기사에 대해 제목에 있는 사실만으로 한국어 한 문장 요약을 쓰세요(추측 금지). JSON 배열만 출력: [{"i":번호,"keep":true|false,"sum":"요약"}]',
+        messages: [{ role: 'user', content: body }] });
+      const txt = textOf(res.content); const m = txt.match(/\[[\s\S]*\]/);
+      if (m) { const arr = JSON.parse(m[0]); const by = {}; arr.forEach((o) => { by[o.i] = o; }); list = found.filter((x, i) => !by[i] || by[i].keep !== false).map((x, i0) => { const o = by[found.indexOf(x)]; return o && o.sum ? { ...x, sum: String(o.sum).slice(0, 220) } : x; }); }
+    } catch (e) { log('뉴스 AI 정리 실패 — 제목만 저장', e.message); }
+  }
+  const fresh = await readState();
+  const sn = fresh.safetyNews = fresh.safetyNews || { items: [] };
+  const have = new Set((sn.items || []).map((x) => x.id));
+  const add = list.filter((x) => !have.has(x.id));
+  const keepCut = new Date(now.getTime() - 365 * 86400000).toISOString().slice(0, 10);
+  sn.items = (sn.items || []).concat(add).filter((x) => !x.auto || x.d >= keepCut).sort((a, b) => String(b.d).localeCompare(String(a.d)));
+  const autos = sn.items.filter((x) => x.auto); if (autos.length > 150) { const drop = new Set(autos.slice(150).map((x) => x.id)); sn.items = sn.items.filter((x) => !drop.has(x.id)); }
+  sn.updatedAt = new Date().toISOString();
+  log(`안전 뉴스: 검색 ${found.length}건 · 새로 추가 ${add.length}건`);
+  if (DRY) return;
+  const w = await fetch(`${SB}/rest/v1/app_state?id=eq.1`, { method: 'PATCH', headers: { ...sbHeaders, Prefer: 'return=minimal' }, body: JSON.stringify({ data: fresh, updated_at: new Date().toISOString() }) });
+  if (!w.ok) throw new Error(`안전 뉴스 저장 실패 ${w.status}`);
+}
+
 async function main() {
   const now = env.NOW ? new Date(env.NOW) : new Date();   // NOW: 시험용 시각 (보통은 비움)
   let data = await readState();
@@ -220,6 +286,9 @@ async function main() {
   const kstHour = (now.getUTCHours() + 9) % 24, hour = cfg.hour == null ? 7 : +cfg.hour;
   const wantIns = FORCE ? /insight/.test(env.KIND || '') : ((cfg.insights || {}).enabled !== false && kstHour === hour && String((data.insights || {}).lastD || '') < Core.kstDate(-1, now));
   if (wantIns) { try { await runInsights(data, cfg, NF, TPL, now); data = await readState(); } catch (e) { console.error('[daily-report] 인사이트 실패:', e.message); process.exitCode = 1; } }
+  /* 업계 안전 뉴스: 하루 한 번 (보고서 발송 시각) 또는 수동 실행 kind=news */
+  const wantNews = FORCE ? /news/.test(env.KIND || '') : (kstHour === hour && String((data.safetyNews || {}).updatedAt || '').slice(0, 10) < Core.kstDate(0, now));
+  if (wantNews) { try { await runNews(cfg, now); data = await readState(); } catch (e) { console.error('[daily-report] 안전 뉴스 실패:', e.message); } }
   if (!kinds.length) { log('이번 시각에 보낼 보고서가 없습니다'); return; }
   let fail = 0;
   for (const kind of kinds) {
