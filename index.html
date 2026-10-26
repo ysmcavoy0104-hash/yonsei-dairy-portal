@@ -11023,6 +11023,13 @@ Auth.login=async function(ev){
  var slow=setTimeout(function(){try{if(b)b.textContent='서버 응답을 기다리는 중…'}catch(e){}},4000);
  try{return await _login(ev)}finally{window.__yumLogin=false;clearTimeout(slow);if(b){b.disabled=false;b.textContent=t||'로그인'}}
 };
+/* 노션 지연 · 정비 일지는 포털로 모두 옮겼고 이제 노션에 쓰지 않으므로, 대시보드가 1분마다 노션 서버를 다시 읽던 것을 멈춤
+   (기록은 포털에 들어 있는 이전 데이터 + 포털 작성 기록으로 계속 보임) */
+(function(){var RETIRED=['27fbeba6-3141-8055-bc79-cc9dba5e46d5','27fbeba6-3141-80e9-b3e2-000b86ea8347','280beba6-3141-8068-a41c-f59078c7b9ba'];
+ var _nf=window.yumNotionFetch;if(!_nf)return;
+ window.yumNotionFetch=function(path){if(RETIRED.some(function(id){return String(path||'').indexOf(id)>=0}))return Promise.reject(new Error('노션 기록은 포털로 옮겨져 다시 읽지 않습니다'));return _nf.apply(this,arguments)};
+ window.__yumNotionLive=window.__yumNotionLive||new Date();
+})();
 console.log('[확장 모듈 44] 서버 사용량 줄이기 · 로그인 지연 해결 로드 완료');
 })();
 </script>
