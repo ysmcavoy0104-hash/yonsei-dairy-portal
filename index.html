@@ -8434,7 +8434,7 @@ console.log('[확장 모듈 30] 일지 저장 안정화 · 문서함 · 노션 �
 if(window.__YUM_JFOLDER__)return;window.__YUM_JFOLDER__=1;
 
 /* 원래 팀 분류(본 화면 모듈의 FORM_TEAM과 동일) + 폴더 이동으로 바뀐 팀(jteam) */
-var FORM_TEAM0={f1:'공통',f2:'공통',f3:'공통',f4:'공통',f5:'공통',f6:'배합팀',f7:'공통',f8:'배합팀',f9:'착즙팀',f10:'착즙팀',f11:'멸균팀',f12:'공통',f13:'공통',f14:'배합팀'};
+var FORM_TEAM0={f1:'공통',f2:'공통',f3:'공통',f4:'공통',f5:'공통',f6:'착즙팀',f7:'착즙팀',f8:'배합팀',f9:'착즙팀',f10:'착즙팀',f11:'멸균팀',f12:'배합팀',f13:'공통',f14:'배합팀',f15:'착즙팀',f28:'착즙팀'};
 function teamOfForm(f){return (f&&(f.jteam||FORM_TEAM0[f.id]||f.team))||'공통'}
 function teamList(){return (window.JOURNAL_TEAMS||['배합팀','착즙팀','멸균팀','포장팀','지원팀'])}
 
@@ -9859,7 +9859,7 @@ console.log('[확장 모듈 34] 지연·정비 기록 (노션 이전 '+notionRec
   }
 
   /* ───────── 일지 → 팀 ───────── */
-  var TEAM0 = { f6: '배합팀', f8: '배합팀', f9: '착즙팀', f10: '착즙팀', f11: '멸균팀', f14: '배합팀', f28: '착즙팀' };
+  var TEAM0 = { f6: '착즙팀', f7: '착즙팀', f8: '배합팀', f9: '착즙팀', f10: '착즙팀', f11: '멸균팀', f12: '배합팀', f14: '배합팀', f15: '착즙팀', f28: '착즙팀' };
   function teamOf(f) {
     if (!f) return '공통';
     if (f.jteam) return f.jteam; if (TEAM0[f.id]) return TEAM0[f.id]; if (f.team && TEAMS.indexOf(f.team) >= 0) return f.team;
@@ -9875,7 +9875,7 @@ console.log('[확장 모듈 34] 지연·정비 기록 (노션 이전 '+notionRec
   var NOTE_RE = /특이|개선\s*조치|정지\s*사유|사유|비\s*고|이탈|조치\s*사항|메모/;
   function analyzeDocs(data, from, to, templates) {
     var forms = {}; ((data && data.forms) || []).forEach(function (f) { forms[f.id] = f; });
-    var docs = ((data && data.docs) || []).filter(function (d) { return d && !d.deleted && d.status !== 'draft' && d.status !== 'temp'; });
+    var docs = ((data && data.docs) || []).filter(function (d) { return d && !d.deleted; });   /* 임시저장 일지도 포함 (작성 중인 그날 일지) */
     var inP = docs.filter(function (d) { var x = docDate(d); return x >= from && x <= to; });
     var R = { docs: inP, byForm: {}, byTeam: {}, byDay: {}, devs: [], notes: [], ot: { total: 0, byTeam: {}, people: 0 }, heads: [], ster: {}, sterDay: {}, stops: [], ccpChecks: 0, pending: 0, completed: 0, rejected: 0, leadH: [] };
     inP.forEach(function (d) {
@@ -9946,6 +9946,40 @@ console.log('[확장 모듈 34] 지연·정비 기록 (노션 이전 '+notionRec
   }
 
   /* ───────── 기간 지표 ───────── */
+
+  /* ───────── 배합 · 착즙 공정 요약 (포털 「생산계획 › 배합 · 착즙」 대시보드와 같은 계산) ───────── */
+  function proc(data, from, to, templates) {
+    var forms = {}; ((data && data.forms) || []).forEach(function (f) { if (f.code) forms[f.code] = f; });
+    function latest(code) { var f = forms[code], m = {}; if (!f) return m;
+      ((data && data.docs) || []).forEach(function (d) { if (!d || d.deleted || d.formId !== f.id || !d.data) return; var k = docDate(d); if (k < from || k > to) return; if (!m[k] || String(d.updatedAt || '') > String(m[k].updatedAt || '')) m[k] = d; });
+      return m; }
+    function F(code) { var f = forms[code]; if (!f) return []; var wt = (templates && templates[code]) || f.wtpl; return wt ? introspect(code, wt) : []; }
+    function g(d, k) { var x = ((d && d.data && d.data.grid) || {})[k]; return x == null ? '' : String(x).trim(); }
+    function n(d, k) { var m = g(d, k).replace(/,/g, '').match(/-?\d+(\.\d+)?/); return m ? parseFloat(m[0]) : null; }
+    function tot(a) { var s = 0, c = 0; a.forEach(function (x) { if (x != null && !isNaN(x)) { s += x; c++; } }); return c ? s : null; }
+    function mean(a) { var b = a.filter(function (x) { return x != null && !isNaN(x); }); return b.length ? b.reduce(function (p, c) { return p + c; }, 0) / b.length : null; }
+    var sp = function (x) { return String(x || '').replace(/\s+/g, ''); };
+    var oxF = F('FRM-012').filter(function (x) { return x.kind === 'ox'; }), sF = F('FRM-008');
+    var M12 = latest('FRM-012'), M8 = latest('FRM-008'), M9 = latest('FRM-009'), M10 = latest('FRM-010');
+    var mix = {}, juice = {};
+    Object.keys(M12).forEach(function (D) { var d = M12[D], nb = 0, b1 = [], q = [], x = 0;
+      for (var r = 10; r <= 24; r++) { var row = [1, 2, 3, 6, 8, 9, 10, 11, 13, 15].map(function (c) { return g(d, 'g2_' + r + '_' + c); }); if (row.some(Boolean)) { nb++; b1.push(n(d, 'g2_' + r + '_8')); } }
+      for (var h = 1; h <= 5; h++) for (var rr = 3; rr <= 6; rr++) q.push(n(d, 'g2_' + rr + '_' + (2 * h + 1)));
+      oxF.forEach(function (f) { if (/^[xX×]$/.test(g(d, f.k))) x++; });
+      mix[D] = { nb: nb, q: tot(q), b1: mean(b1), x: x }; });
+    Object.keys(M8).forEach(function (D) { var s = M8[D]; (mix[D] = mix[D] || {}).sug = tot(sF.filter(function (f) { return /설탕투입/.test(sp(f.col)); }).map(function (f) { return n(s, f.k); })); });
+    Object.keys(M9).forEach(function (D) { var d = M9[D], use = n(d, 'g4_7_3'); if (use == null) use = tot([n(d, 'g4_5_3'), n(d, 'g4_6_3')]);
+      var by = tot(['g4_5_8', 'g4_5_9', 'g4_5_10', 'g4_5_11', 'g4_5_12'].map(function (k) { return n(d, k); })), ph = 0, stop = 0;
+      for (var l = 1; l <= 4; l++) for (var h = 0; h <= 24; h++) { var c = g(d, 'ax' + l + '_' + h).toLowerCase(); if (c === 'b') ph++; else if (/^[chj]$/.test(c)) stop++; }
+      juice[D] = { use: use, by: by, rate: use && by != null ? by / use * 100 : null, prodH: ph, stopH: stop }; });
+    Object.keys(M10).forEach(function (D) { var o = M10[D], raw = n(o, 'g3_12_15'); if (raw == null) raw = tot([n(o, 'g3_12_12'), n(o, 'g3_12_13'), n(o, 'g3_12_14')]);
+      var ts = []; for (var r = 10; r <= 22; r++) ts.push(n(o, 'g3_' + r + '_6'));
+      var j = juice[D] = juice[D] || {}; j.raw = raw; j.ts = mean(ts); });
+    function S(o, k, f) { var a = Object.keys(o).map(function (D) { return o[D][k]; }); return f === 'avg' ? mean(a) : tot(a); }
+    return { mix: mix, juice: juice,
+      mixSum: { days: Object.keys(mix).length, nb: S(mix, 'nb'), q: S(mix, 'q'), b1: S(mix, 'b1', 'avg'), sug: S(mix, 'sug'), x: S(mix, 'x') },
+      juiceSum: { days: Object.keys(juice).length, use: S(juice, 'use'), by: S(juice, 'by'), prodH: S(juice, 'prodH'), stopH: S(juice, 'stopH'), raw: S(juice, 'raw'), ts: S(juice, 'ts', 'avg') } };
+  }
   function analyze(data, NF, P, opts) {
     var all = records(data, NF);
     var cur = all.filter(function (r) { return r.d >= P.from && r.d <= P.to; });
@@ -9972,6 +10006,7 @@ console.log('[확장 모듈 34] 지연·정비 기록 (노션 이전 '+notionRec
     /* 일지 */
     M.J = analyzeDocs(data, P.from, P.to, opts.templates);
     M.pJ = analyzeDocs(data, P.pFrom, P.pTo, opts.templates);
+    M.PR = proc(data, P.from, P.to, opts.templates);
     /* 생산계획 (다음 기간) */
     var nxtFrom = addDays(P.to, 1), nxtTo = P.kind === 'daily' ? nxtFrom : (P.kind === 'weekly' ? addDays(nxtFrom, 6) : monthEnd(nxtFrom.slice(0, 7)));
     var plan = [];
@@ -10167,6 +10202,22 @@ console.log('[확장 모듈 34] 지연·정비 기록 (노션 이전 '+notionRec
       var qmax = Math.max.apply(null, sk.map(function (k) { return J.ster[k].qty; })) || 1;
       h += card('🏭 멸균 호기별 가동', table(['호기', '가동 시간', '적산량', '배치', '품목'], sk.map(function (k) { var s = J.ster[k]; return ['<b>' + esc(k) + '</b>', (Math.round(s.run * 10) / 10) + '시간', '<table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td width="' + Math.max(3, Math.round(s.qty / qmax * 100)) + '%" style="background:' + C.gold + ';height:10px;border-radius:5px;font-size:0">&nbsp;</td><td style="padding-left:6px;white-space:nowrap;font-size:12px">' + fmtQty(s.qty) + '</td></tr></table>', s.batch || '-', esc(clip(Object.keys(s.items).join(', '), 30))]; })) +
         (J.stops.length ? '<div style="font-weight:800;font-size:13px;margin:14px 0 6px;color:' + C.navy + '">정지 기록 ' + J.stops.length + '건</div>' + table(['날짜', '호기', '정지 → 재가동', '사유'], J.stops.slice(0, 10).map(function (s) { return [md(s.d), esc(s.hogi), esc(s.start) + ' → ' + esc(s.end) + (s.min ? ' <b>(' + hrs(s.min) + ')</b>' : ''), esc(clip(s.why, 40))]; })) : ''));
+    }
+    /* 배합 · 착즙 공정 */
+    var PM = M.PR && M.PR.mixSum, PJ = M.PR && M.PR.juiceSum;
+    if (PM && (PM.days || PJ.days)) {
+      var f1 = function (x, dg) { return x == null ? '-' : (Math.round(x * Math.pow(10, dg || 0)) / Math.pow(10, dg || 0)).toLocaleString('ko-KR'); };
+      var many = kind !== 'daily', per = function (x, dg) { return many && x != null ? ' <span style="color:' + C.mute + '">(일 평균 ' + f1(x, dg) + ')</span>' : ''; };
+      var mixT = table(['배합', kind === 'daily' ? '값' : '합계 · 평균'], [
+        ['배치', '<b>' + f1(PM.nb) + '</b>배치' + per(PM.days ? PM.nb / PM.days : null, 1)], ['호기별 생산량', f1(PM.q, 1) + ' Batch'], ['평균 최종 Brix', f1(PM.b1, 2)],
+        ['설탕 투입', f1(PM.sug) + ' kg' + per(PM.days ? PM.sug / PM.days : null)], ['점검 X', PM.x ? '<b style="color:' + C.red + '">' + PM.x + '건</b>' : '0건']]);
+      var juiceT = table(['착즙', kind === 'daily' ? '값' : '합계 · 평균'], [
+        ['대두 사용량', '<b>' + f1(PJ.use) + '</b> kg' + per(PJ.days ? PJ.use / PJ.days : null)], ['부산물', f1(PJ.by) + ' kg' + (PJ.use && PJ.by != null ? ' (' + f1(PJ.by / PJ.use * 100, 1) + '%)' : '')],
+        ['분리액 생산 · 중단', f1(PJ.prodH) + '시간 · ' + f1(PJ.stopH) + '시간'], ['원액 생산', f1(PJ.raw) + ' kg'], ['원액 T.S 평균', f1(PJ.ts, 2) + ' <span style="color:' + C.mute + '">(10±0.2)</span>']]);
+      var pser = '';
+      if (many) { var dd = M.daily.map(function (o) { var w = dowN(o.d), mx = M.PR.mix[o.d] || {}, jx = M.PR.juice[o.d] || {}; return { lab: kind === 'weekly' ? md(o.d) + ' ' + dowOf(o.d) : String(+o.d.slice(8)), we: w === 0 || w === 6, nb: mx.nb || 0, use: jx.use ? Math.round(jx.use / 1000 * 10) / 10 : 0 }; });
+        pser = two(card('⚗ 날짜별 배합 배치', vbars(dd, ['nb'], ['#7B5CD6'], { h: 80, top: function (t) { return t || ''; } })), card('❖ 날짜별 대두 사용량(톤)', vbars(dd, ['use'], [C.amber], { h: 80, top: function (t) { return t || ''; } }))); }
+      h += card('⚗ 배합 · ❖ 착즙 공정', two(mixT, juiceT), '제품생산작업일보 · 설탕 용해 · 착즙공정일보 · 원액생산작업일보 기준') + pser;
     }
     /* 인원 · OT */
     if (J.heads.length || J.ot.total) {
@@ -12201,6 +12252,271 @@ function hook(){
 }
 hook();setTimeout(hook,500);window.addEventListener('load',hook);
 console.log('[확장 모듈 50] 일지 칸 글씨 맞춤 로드 완료');
+})();
+</script>
+
+<script>
+/* ============ 확장 모듈 51 — 배합 · 착즙 공정 대시보드 (저장된 일지 기준) ============
+   생산계획 > 배합 / 착즙 화면을 「준비 중」에서 실제 대시보드로 바꿉니다.
+   데이터: 포털에 저장(임시저장 포함)된 일지만 사용 — 일지를 저장하면 바로 반영됩니다.
+     배합: FRM-012 제품생산작업일보 · FRM-008 설탕 용해 기록 일보 · FRM-014 근무일보(배합팀)
+     착즙: FRM-009 착즙공정일보 · FRM-010 원액생산작업일보 · FRM-006 검은콩 · FRM-007 볶음 탈피
+           · FRM-015 착즙팀 CIP 일보 · FRM-028 근무일보(착즙팀)
+   화면: 날짜 하나를 골라 보는 일별 분석 + 최근 14일 추이 + 자동 인사이트 (멸균 대시보드와 같은 구성) */
+(function(){
+if(window.__YUM_PROCDASH__)return;window.__YUM_PROCDASH__=1;
+var DEF={
+ mix:{title:'배합 공정 분석',main:'FRM-012',codes:['FRM-012','FRM-008','FRM-014'],work:'FRM-014'},
+ juice:{title:'착즙 공정 분석',main:'FRM-009',codes:['FRM-009','FRM-010','FRM-006','FRM-007','FRM-015','FRM-028'],work:'FRM-028'}};
+var C={blue:'#2F6FD6',teal:'#12A39A',red:'#D64545',amber:'#E0A030',violet:'#7B5CD6',green:'#1F9D6B',gray:'#8B95A7',navy:'#1F3B7A'};
+var st={mix:{},juice:{}};
+
+/* ---------- 공통 도우미 ---------- */
+function esc(x){return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function form(code){return ((DB.data&&DB.data.forms)||[]).filter(function(f){return f.code===code})[0]}
+function dateOf(d){return String((d.data&&d.data.pdate)||d.savedAt||d.updatedAt||d.createdAt||'').slice(0,10)}
+var DC={};
+function byDate(code){var f=form(code);if(!f)return {};var sig=f.id+':'+(DB.data.docs||[]).length+':'+((DB.data.docs||[])[0]||{}).updatedAt;
+ if(DC[code]&&DC[code].sig===sig)return DC[code].m;var m={};
+ (DB.data.docs||[]).forEach(function(d){if(d.formId!==f.id||!d.data)return;var k=dateOf(d);if(!/^\d{4}-\d\d-\d\d$/.test(k))return;
+  if(!m[k]||String(d.updatedAt||'')>String(m[k].updatedAt||''))m[k]=d});
+ DC[code]={sig:sig,m:m};return m}
+function G(d){return (d&&d.data&&d.data.grid)||{}}
+function v(d,k){var x=G(d)[k];return x==null?'':String(x).trim()}
+function num(x){if(x==null)return null;var m=String(x).replace(/,/g,'').match(/-?\d+(\.\d+)?/);return m?parseFloat(m[0]):null}
+function nv(d,k){return num(v(d,k))}
+function mins(x){var m=String(x||'').match(/(\d{1,2})\s*[:시.]\s*(\d{1,2})?/);if(!m)return null;var h=+m[1],mi=+(m[2]||0);if(h>30||mi>59)return null;return h*60+mi}
+function hm(t){if(t==null)return '';t=((t%1440)+1440)%1440;return ('0'+Math.floor(t/60)).slice(-2)+':'+('0'+(t%60)).slice(-2)}
+function fmt(x,dg){if(x==null||isNaN(x))return '-';var r=Math.pow(10,dg==null?1:dg);return (Math.round(x*r)/r).toLocaleString('ko-KR')}
+function sum(a){var s=0,n=0;a.forEach(function(x){if(x!=null&&!isNaN(x)){s+=x;n++}});return n?s:null}
+function avg(a){var b=a.filter(function(x){return x!=null&&!isNaN(x)});return b.length?b.reduce(function(p,c){return p+c},0)/b.length:null}
+var FC={};
+function fields(code){var f=form(code);if(!f||!f.wtpl||!window.YumReportCore)return [];var ck=code+(f.wtpl.ver||'');if(FC[ck])return FC[ck];
+ try{FC[ck]=YumReportCore.introspect(code,f.wtpl)||[]}catch(e){FC[ck]=[]}return FC[ck]}
+function sp(s){return String(s||'').replace(/\s+/g,'')}
+function pick(code,row,col,lab){return fields(code).filter(function(x){return (!row||row.test(sp(x.row)))&&(!col||col.test(sp(x.col)))&&(!lab||lab.test(sp(x.lab)))})}
+function addDays(s,n){var d=new Date(s+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
+function dow(s){return '일월화수목금토'[new Date(s+'T00:00:00Z').getUTCDay()]}
+function md(s){return (+s.slice(5,7))+'/'+(+s.slice(8,10))}
+var NOTE=/특이|기타|비고|조치|사유|메모/;
+function clean(t){return String(t||'').replace(/([가-힣ⅠⅡ℃])\s(?=[가-힣ⅠⅡ])/g,'$1').replace(/[(（]?\s*기\s*준\s*[:：].*$/,'').replace(/\([^)]*\)/g,'').replace(/\s+/g,' ').trim()}
+function notes(code,d){var out=[];if(!d)return out;var seen={};
+ fields(code).forEach(function(x){var t=sp(x.row)+'|'+sp(x.col)+'|'+sp(x.lab);if(!NOTE.test(t))return;var s=v(d,x.k);if(!s||s.length<2||seen[s]||/^[\d.\-:\s]+$/.test(s))return;seen[s]=1;
+  out.push({f:code,t:s,where:(sp(x.row)||sp(x.lab)||sp(x.col)).replace(/[:：]$/,'').slice(0,20)})});
+ return out}
+function devs(code,d){var out=[];if(!d)return out;
+ fields(code).forEach(function(x){if(!x.spec)return;var n=nv(d,x.k);if(n==null)return;var s=x.spec;
+  if((s.lo!=null&&n<s.lo)||(s.hi!=null&&n>s.hi))out.push({f:code,item:(clean(x.col)+' '+clean(String(x.row||'').replace(/^\d+\s*/,'').replace(/^℃\s*/,''))).trim().slice(0,40),val:n,spec:s.txt||''})});
+ return out}
+/* 근무일보: 근무 · 휴무 · OT */
+function work(code,d){if(!d)return null;var p=code==='FRM-014'?'m14':'m28';
+ var w=num(v(d,code==='FRM-014'?'m14_260':'m28_work')),o=num(v(d,code==='FRM-014'?'m14_261':'m28_off')),t=num(v(d,code==='FRM-014'?'m14_total_headcount':'m28_total'));
+ var ot=0,people=[];pick(code,null,/^OT$/).forEach(function(x){var n=nv(d,x.k);if(n){ot+=n;people.push({who:String(x.row||'').replace(/^\S+\s+/,'').trim()||String(x.row||''),h:n})}});
+ var why=pick(code,null,/시간외근무사유/).map(function(x){return v(d,x.k)}).filter(Boolean);
+ return {work:w,off:o,total:t,ot:ot,people:people,why:why}}
+
+/* ---------- 그리기 도우미 ---------- */
+function kpi(ic,label,val,unit,sub,color){return '<div class="pd-k" style="--c:'+(color||C.blue)+'"><div class="pd-kl">'+ic+' '+esc(label)+'</div><div class="pd-kv">'+val+(unit?'<small>'+esc(unit)+'</small>':'')+'</div><div class="pd-ks">'+(sub||'')+'</div></div>'}
+function card(title,sub,body,wide){return '<section class="pd-c'+(wide?' wide':'')+'"><h3>'+title+(sub?' <small>'+sub+'</small>':'')+'</h3>'+body+'</section>'}
+function empty(t){return '<div class="pd-empty">'+esc(t||'기록 없음')+'</div>'}
+function table(h,rows,cls){if(!rows.length)return empty();return '<div class="pd-tw"><table class="pd-t '+(cls||'')+'"><thead><tr>'+h.map(function(x){return '<th>'+x+'</th>'}).join('')+'</tr></thead><tbody>'+rows.map(function(r){return '<tr>'+r.map(function(c){return '<td>'+(c==null||c===''?'<span class="pd-mu">-</span>':c)+'</td>'}).join('')+'</tr>'}).join('')+'</tbody></table></div>'}
+function hbars(items,unit,color){var mx=Math.max.apply(null,items.map(function(x){return x.v||0}).concat([1]));if(!items.length)return empty();
+ return '<div class="pd-hb">'+items.map(function(x){return '<div class="pd-hr"><span class="pd-hl">'+esc(x.l)+'</span><span class="pd-hbar"><i style="width:'+Math.max(2,x.v/mx*100)+'%;background:'+(x.c||color||C.blue)+'"></i></span><span class="pd-hv">'+fmt(x.v,1)+(unit||'')+(x.s?' <em>'+esc(x.s)+'</em>':'')+'</span></div>'}).join('')+'</div>'}
+/* 날짜별 막대 (최근 14일) */
+function short(x){return Math.abs(x)>=10000?fmt(x/1000,0)+'k':Math.abs(x)>=1000?fmt(x/1000,1)+'k':fmt(x,x>=100?0:1)}
+function trend(days,vals,unit,color,band){var mx=Math.max.apply(null,vals.map(function(x){return x||0}).concat([band&&band.hi||0,1])),mn=0,ok=vals.filter(function(x){return x!=null}),lo=ok.length?Math.min.apply(null,ok):0;if(lo>0&&(mx-lo)/mx<0.35)mn=Math.max(0,lo-(mx-lo||mx*0.05)*1.5);
+ var has=vals.some(function(x){return x!=null});if(!has)return empty('이 기간 기록 없음');
+ return '<div class="pd-tr">'+days.map(function(d,i){var x=vals[i],h=x==null?0:Math.max(3,(x-mn)/(mx-mn)*100),bad=band&&x!=null&&((band.lo!=null&&x<band.lo)||(band.hi!=null&&x>band.hi));
+  return '<div class="pd-tc" title="'+md(d)+' '+(x==null?'기록 없음':fmt(x,1)+(unit||''))+'"><span class="pd-tv">'+(x==null?'':short(x))+'</span><span class="pd-tb"><i style="height:'+h+'%;background:'+(bad?C.red:(x==null?'transparent':color))+'"></i></span><span class="pd-td'+(dow(d)==='일'?' sun':'')+'">'+md(d)+'</span></div>'}).join('')+'</div>'}
+/* 꺾은선 (배치별 Brix 등) */
+function line(labels,series,band,unit,HH){var all=[];series.forEach(function(s){s.v.forEach(function(x){if(x!=null)all.push(x)})});if(!all.length)return empty();
+ if(band){if(band.lo!=null)all.push(band.lo);if(band.hi!=null)all.push(band.hi)}
+ var lo=Math.min.apply(null,all),hi=Math.max.apply(null,all);if(hi===lo){hi+=1;lo-=1}var pad=(hi-lo)*0.12;lo-=pad;hi+=pad;
+ var W=640,H=HH||190,L=40,R=10,T=12,B=26,n=labels.length,xs=function(i){return L+(n<=1?0:(W-L-R)*i/(n-1))},ys=function(x){return T+(H-T-B)*(1-(x-lo)/(hi-lo))};
+ var s='<svg viewBox="0 0 '+W+' '+H+'" class="pd-svg">';
+ if(band&&band.lo!=null&&band.hi!=null)s+='<rect x="'+L+'" y="'+ys(band.hi)+'" width="'+(W-L-R)+'" height="'+(ys(band.lo)-ys(band.hi))+'" fill="'+C.green+'" opacity=".09"/>';
+ for(var g=0;g<=4;g++){var yv=lo+(hi-lo)*g/4;s+='<line x1="'+L+'" x2="'+(W-R)+'" y1="'+ys(yv)+'" y2="'+ys(yv)+'" stroke="#E6EAF0"/><text x="'+(L-6)+'" y="'+(ys(yv)+4)+'" text-anchor="end" class="ax">'+fmt(yv,1)+'</text>'}
+ labels.forEach(function(l,i){if(n>16&&i%2)return;s+='<text x="'+xs(i)+'" y="'+(H-8)+'" text-anchor="middle" class="ax">'+esc(l)+'</text>'});
+ series.forEach(function(se){var pts=[];se.v.forEach(function(x,i){if(x!=null)pts.push([xs(i),ys(x),x])});
+  if(pts.length>1)s+='<polyline fill="none" stroke="'+se.c+'" stroke-width="2.4" points="'+pts.map(function(p){return p[0]+','+p[1]}).join(' ')+'"/>';
+  pts.forEach(function(p){var bad=band&&((band.lo!=null&&p[2]<band.lo)||(band.hi!=null&&p[2]>band.hi));s+='<circle cx="'+p[0]+'" cy="'+p[1]+'" r="'+(bad?5:3.5)+'" fill="'+(bad?C.red:se.c)+'"><title>'+esc(se.n)+' '+fmt(p[2],2)+(unit||'')+'</title></circle>'})});
+ s+='</svg><div class="pd-lg">'+series.map(function(se){return '<span><i style="background:'+se.c+'"></i>'+esc(se.n)+'</span>'}).join('')+(band?'<span><i style="background:'+C.green+';opacity:.35"></i>기준 '+esc(band.txt||'')+'</span>':'')+'</div>';
+ return s}
+/* 시간 막대 (06:00 ~ 익일 06:00) */
+function gantt(rows,legend){if(!rows.length)return empty('시간 기록 없음');var S0=360,S1=360+1440;
+ function x(t){if(t<S0-60)t+=1440;return Math.max(0,Math.min(100,(t-S0)/(S1-S0)*100))}
+ var ax='<div class="pd-gax">'+[6,9,12,15,18,21,24,27,30].map(function(h){return '<span style="left:'+((h*60-S0)/1440*100)+'%">'+('0'+(h%24)).slice(-2)+':00</span>'}).join('')+'</div>';
+ return '<div class="pd-g">'+ax+rows.map(function(r){return '<div class="pd-gr"><span class="pd-gl">'+esc(r.l)+'</span><span class="pd-gt">'+r.seg.map(function(s){var a=x(s.a),b=x(s.b<s.a?s.b+1440:s.b);return '<i title="'+esc(s.t)+'" style="left:'+a+'%;width:'+Math.max(0.6,b-a)+'%;background:'+s.c+'">'+(b-a>6?esc(s.lab||''):'')+'</i>'}).join('')+'</span></div>'}).join('')+'</div>'+
+  (legend?'<div class="pd-lg">'+legend.map(function(l){return '<span><i style="background:'+l[1]+'"></i>'+esc(l[0])+'</span>'}).join('')+'</div>':'')}
+
+/* ---------- 배합 ---------- */
+var OXR=/^(\d+)B\s*/;
+function mixDay(D){var d=byDate('FRM-012')[D],s=byDate('FRM-008')[D],w=work('FRM-014',byDate('FRM-014')[D]);
+ var R={d:d,s:s,w:w,batches:[],lines:[],ox:[],dev:[],notes:[]};
+ if(d){
+  for(var r=10;r<=24;r++){var b={n:(r-9)+'B',in:mins(v(d,'g2_'+r+'_1')),conc:nv(d,'g2_'+r+'_2'),ph:nv(d,'g2_'+r+'_3'),b0:nv(d,'g2_'+r+'_6'),adj:v(d,'g2_'+r+'_7'),b1:nv(d,'g2_'+r+'_8'),lvl:nv(d,'g2_'+r+'_9'),tmp:nv(d,'g2_'+r+'_10'),done:mins(v(d,'g2_'+r+'_11')),out:mins(v(d,'g2_'+r+'_13')),bp:nv(d,'g2_'+r+'_15'),who:v(d,'g2_'+r+'_5')||v(d,'g2_'+r+'_12')};
+   if([b.in,b.conc,b.ph,b.b0,b.b1,b.lvl,b.tmp,b.done,b.out,b.bp].some(function(x){return x!=null}))R.batches.push(b)}
+  for(var h=1;h<=5;h++){var items=[],q=0;for(var rr=3;rr<=6;rr++){var it=v(d,'g2_'+rr+'_'+(2*h)),n=nv(d,'g2_'+rr+'_'+(2*h+1));if(it)items.push(it+(n!=null?' ('+fmt(n,1)+')':''));if(n!=null)q+=n}
+   if(items.length||q)R.lines.push({h:h+'호기',items:items,q:q})}
+  pick('FRM-012',null,null).filter(function(x){return x.kind==='ox'}).forEach(function(x){var val=v(d,x.k).toUpperCase().replace('○','O').replace('×','X');R.ox.push({item:String(x.row||'').replace(OXR,'').trim(),when:sp(x.col),v:val})});
+  R.notes=R.notes.concat(notes('FRM-012',d));R.dev=R.dev.concat(devs('FRM-012',d));
+ }
+ if(s){R.sugar=[1,2].map(function(t){var p=new RegExp('^TK'+t);var a=function(re){return pick('FRM-008',p,re).map(function(x){return nv(s,x.k)})};
+  return {tk:'TK '+t,sugar:sum(a(/설탕투입/)),water:sum(a(/정제수투입/)),stock:a(/재고량/).filter(function(x){return x!=null}).pop(),temp:a(/온도/).filter(function(x){return x!=null}).pop()}});
+  R.notes=R.notes.concat(notes('FRM-008',s));R.dev=R.dev.concat(devs('FRM-008',s))}
+ R.nb=R.batches.length;R.q=sum(R.lines.map(function(l){return l.q}));
+ R.b1=avg(R.batches.map(function(b){return b.b1}));R.bp=avg(R.batches.map(function(b){return b.bp}));
+ R.x=R.ox.filter(function(o){return o.v==='X'});R.sug=R.sugar?sum(R.sugar.map(function(t){return t.sugar})):null;
+ return R}
+function mixView(D,days){var R=mixDay(D),T=days.map(mixDay),h='';
+ var bmin=R.batches.filter(function(b){return b.b1!=null}).sort(function(a,b){return a.b1-b.b1})[0];
+ h+='<div class="pd-ks6">'+
+  kpi('🧪','배합 배치',R.nb,'배치',R.batches.length?'1B~'+R.batches[R.batches.length-1].n:'제품생산작업일보 기준',C.blue)+
+  kpi('🏭','호기별 생산량',R.q!=null?fmt(R.q,1):'-','Batch',R.lines.map(function(l){return l.h+' '+fmt(l.q,1)}).join(' · ')||'호기 품목 · 생산량 칸',C.teal)+
+  kpi('📈','평균 최종 Brix',R.b1!=null?fmt(R.b1,2):'-','',bmin?'최저 '+bmin.n+' '+fmt(bmin.b1,2):'',C.violet)+
+  kpi('🍬','설탕 투입',R.sug!=null?fmt(R.sug,0):'-','kg',R.sugar?R.sugar.map(function(t){return t.tk+' '+fmt(t.sugar,0)}).join(' · '):'설탕 용해 기록 일보',C.amber)+
+  kpi('✅','점검 X',R.x.length,'건',R.ox.filter(function(o){return o.v}).length?'O/X 기록 '+R.ox.filter(function(o){return o.v}).length+'칸 중':'점검 기록 없음',R.x.length?C.red:C.green)+
+  kpi('👥','근무 · OT',R.w&&R.w.work!=null?fmt(R.w.work,0)+'명':'-','',R.w?'OT '+fmt(R.w.ot,1)+'시간'+(R.w.off!=null?' · 휴무 '+fmt(R.w.off,0)+'명':''):'근무일보(배합팀)',C.navy)+'</div>';
+ /* 배치 타임라인 */
+ var rows=R.batches.filter(function(b){return b.in!=null||b.done!=null||b.out!=null}).map(function(b){var seg=[];
+  if(b.in!=null&&b.done!=null)seg.push({a:b.in,b:b.done,c:C.blue,t:b.n+' 유입 '+hm(b.in)+' → 혼합 완료 '+hm(b.done),lab:'배합'});
+  if(b.done!=null&&b.out!=null)seg.push({a:b.done,b:b.out,c:C.amber,t:b.n+' 혼합 완료 '+hm(b.done)+' → 이송 '+hm(b.out),lab:'대기'});
+  [[b.in,'유입',C.navy],[b.out,'이송',C.green]].forEach(function(p){if(p[0]!=null)seg.push({a:p[0],b:p[0]+6,c:p[2],t:b.n+' '+p[1]+' '+hm(p[0])})});
+  return {l:b.n,seg:seg}});
+ var wait=avg(R.batches.map(function(b){return b.done!=null&&b.out!=null?((b.out-b.done+1440)%1440):null})),mixT=avg(R.batches.map(function(b){return b.in!=null&&b.done!=null?((b.done-b.in+1440)%1440):null}));
+ h+=card('⏱ 배치 타임라인','유입 → 혼합 완료(배합) → 이송 · 평균 배합 '+(mixT!=null?fmt(mixT,0)+'분':'-')+' · 평균 이송 대기 '+(wait!=null?fmt(wait,0)+'분':'-'),gantt(rows,[['배합(유입~혼합 완료)',C.blue],['이송 대기(혼합 완료~이송)',C.amber],['유입',C.navy],['이송',C.green]]),1);
+ /* Brix */
+ var lb=R.batches.map(function(b){return b.n});
+ h+='<div class="pd-row">'+card('📈 배치별 Brix','초기 → 최종 → 제품',line(lb,[{n:'초기 Brix',c:C.gray,v:R.batches.map(function(b){return b.b0})},{n:'최종 Brix',c:C.violet,v:R.batches.map(function(b){return b.b1})},{n:'제품 Brix',c:C.teal,v:R.batches.map(function(b){return b.bp})}]))+
+  card('🌡 탱크 온도 · 레벨','배치별',line(lb,[{n:'탱크온도(℃)',c:C.red,v:R.batches.map(function(b){return b.tmp})}],null,'℃',120)+line(lb,[{n:'탱크레벨(%)',c:C.blue,v:R.batches.map(function(b){return b.lvl})}],null,'%',120))+'</div>';
+ /* 호기별 품목 */
+ h+='<div class="pd-row">'+card('🏭 호기별 품목 · 생산량','생산량(Batch)',R.lines.length?hbars(R.lines.map(function(l){return {l:l.h,v:l.q,s:l.items.join(', ').slice(0,60),c:C.teal}}),' B'):empty())+
+  card('✅ 생산 진행 중 점검 (O/X)','X = 이상',R.ox.length?'<div class="pd-ox">'+(function(){var it={};R.ox.forEach(function(o){(it[o.item]=it[o.item]||{})[o.when]=o.v});return Object.keys(it).filter(Boolean).map(function(k){var a=it[k];return '<div class="pd-oxr"><span>'+esc(k)+'</span>'+['오전','오후'].map(function(w){var x=a[w]||'';return '<b class="'+(x==='X'?'x':x==='O'?'o':'')+'">'+(x||'·')+'</b>'}).join('')+'</div>'}).join('')})()+'</div>':empty())+'</div>';
+ /* 배치 표 */
+ h+=card('🧾 배치 기록','제품생산작업일보 그대로',table(['배치','유입','농도','PH','초기 Brix','조정','최종 Brix','레벨(%)','온도(℃)','혼합 완료','이송','제품 Brix','작업자'],R.batches.map(function(b){return [b.n,b.in!=null?hm(b.in):'',fmt(b.conc,2),fmt(b.ph,2),fmt(b.b0,2),esc(b.adj),fmt(b.b1,2),fmt(b.lvl,0),fmt(b.tmp,1),b.done!=null?hm(b.done):'',b.out!=null?hm(b.out):'',fmt(b.bp,2),esc(b.who)]})),1);
+ /* 설탕 · 근무 */
+ h+='<div class="pd-row">'+card('🍬 설탕 용해','설탕 용해 기록 일보',R.sugar?table(['탱크','설탕 투입(kg)','정제수 투입(kg)','재고량','온도(℃)'],R.sugar.map(function(t){return [t.tk,fmt(t.sugar,0),fmt(t.water,0),fmt(t.stock,0),fmt(t.temp,1)]})):empty('이 날 설탕 용해 기록 없음'))+
+  card('👥 근무 · 시간 외 근무','근무일보(배합팀)',R.w?('<div class="pd-mini"><b>'+fmt(R.w.work,0)+'</b>명 근무 · 휴무 <b>'+fmt(R.w.off,0)+'</b>명 · OT 합계 <b>'+fmt(R.w.ot,1)+'</b>시간</div>'+hbars(R.w.people.sort(function(a,b){return b.h-a.h}).slice(0,8).map(function(p){return {l:p.who,v:p.h,c:C.navy}}),'h')+(R.w.why.length?'<div class="pd-why">사유: '+esc(R.w.why.join(' · '))+'</div>':'')):empty('이 날 근무일보 없음'))+'</div>';
+ h+=trendBlock(days,[['배치 수',T.map(function(r){return r.nb||null}),'',C.blue],['평균 최종 Brix',T.map(function(r){return r.b1}),'',C.violet],['설탕 투입(kg)',T.map(function(r){return r.sug}),'kg',C.amber],['점검 X',T.map(function(r){return r.d?r.x.length:null}),'건',C.red],['OT(시간)',T.map(function(r){return r.w?r.w.ot:null}),'h',C.navy]]);
+ h+=devNotes(R.dev,R.notes);
+ var ins=[];if(R.nb)ins.push('배치 <b>'+R.nb+'개</b>를 배합했고, 평균 최종 Brix는 <b>'+fmt(R.b1,2)+'</b>'+(bmin?' (최저 '+bmin.n+' '+fmt(bmin.b1,2)+')':'')+'입니다.');
+ if(mixT!=null)ins.push('유입부터 혼합 완료까지 평균 <b>'+fmt(mixT,0)+'분</b>, 혼합 완료 후 이송까지 평균 <b>'+fmt(wait,0)+'분</b> 걸렸습니다.');
+ var prev=T.slice(0,-1).filter(function(r){return r.nb}),pa=avg(prev.map(function(r){return r.nb}));if(R.nb&&pa)ins.push('최근 '+prev.length+'일 평균 '+fmt(pa,1)+'배치 대비 '+(R.nb>=pa?'▲':'▼')+' '+fmt(Math.abs(R.nb-pa),1)+'배치.');
+ if(R.x.length)ins.push('점검 X: '+R.x.map(function(o){return esc(o.item)+'('+o.when+')'}).join(', ')+' — 조치 내용을 특이사항에 남겨 주세요.');
+ if(R.w&&R.w.ot)ins.push('시간 외 근무 <b>'+fmt(R.w.ot,1)+'시간</b>'+(R.w.why.length?' — '+esc(R.w.why[0]):'')+'.');
+ return h+insights(ins)}
+
+/* ---------- 착즙 ---------- */
+var CODE={a:['메인드럼 히터 가동',C.amber],b:['분리액 생산',C.teal],c:['배합요청 일시 중단',C.red],d:['생산 종료',C.gray],e:['생산 재시작',C.green],f:['호기 변경',C.violet],g:['탈피실 자동운전',C.blue],h:['일시 생산 중단',C.red],j:['멸균요청 일시 중단','#B4503C']};
+function juiceDay(D){var d=byDate('FRM-009')[D],o=byDate('FRM-010')[D],b6=byDate('FRM-006')[D],b7=byDate('FRM-007')[D],cp=byDate('FRM-015')[D],w=work('FRM-028',byDate('FRM-028')[D]);
+ var R={d:d,o:o,w:w,lines:[],dev:[],notes:[]};
+ if(d){
+  for(var n=1;n<=4;n++){var hrs=[];for(var hh=0;hh<=24;hh++)hrs.push(v(d,'ax'+n+'_'+hh).toLowerCase());
+   var info={n:n,bk:v(d,'bk'+n),wt:v(d,'wt'+n),ms:v(d,'ms'+n),nm:v(d,'nm'+n),hrs:hrs};if(hrs.some(Boolean)||info.nm||info.bk)R.lines.push(info)}
+  R.silo=['SILO1','SILO2','합계'].map(function(s,i){var r=5+i;return {s:s,prev:nv(d,'g4_'+r+'_1'),inn:nv(d,'g4_'+r+'_2'),use:nv(d,'g4_'+r+'_3'),stock:nv(d,'g4_'+r+'_4'),org:v(d,'g4_'+r+'_5')}});
+  R.use=R.silo[2].use!=null?R.silo[2].use:sum([R.silo[0].use,R.silo[1].use]);
+  R.by=[['대두피','g4_5_8'],['콩눈','g4_5_9'],['잡곡','g4_5_10'],['이물','g4_5_11'],['기타(수분)','g4_5_12']].map(function(p){return {l:p[0],v:nv(d,p[1])}}).filter(function(x){return x.v!=null});
+  R.bysum=sum(R.by.map(function(x){return x.v}));R.half=nv(d,'g4_10_2');R.halfUse=nv(d,'g4_10_3');
+  R.heat=[nv(d,'g4_8_10'),nv(d,'g4_9_15')];
+  R.heat.forEach(function(x,i){if(x!=null&&(x<120||x>140))R.dev.push({f:'FRM-009',item:'히터 온도 '+(i?'오후':'오전'),val:x,spec:'120~140℃'})});
+  R.note=v(d,'jt_note');R.notes=notes('FRM-009',d);R.dev=R.dev.concat(devs('FRM-009',d));
+  var cnt={};R.lines.forEach(function(l){l.hrs.forEach(function(c){if(c)cnt[c]=(cnt[c]||0)+1})});R.cnt=cnt;
+ }
+ if(o){R.ts=[];for(var r=10;r<=22;r++){var t=mins(v(o,'g3_'+r+'_0')),a={t:t,lab:v(o,'g3_'+r+'_0'),ts1:nv(o,'g3_'+r+'_1'),ph1:nv(o,'g3_'+r+'_3'),ts2:nv(o,'g3_'+r+'_6'),ph2:nv(o,'g3_'+r+'_7'),tmp:nv(o,'g3_'+r+'_8')};if([a.ts1,a.ph1,a.ts2,a.ph2,a.tmp].some(function(x){return x!=null}))R.ts.push(a)}
+  R.raw=nv(o,'g3_12_15');if(R.raw==null)R.raw=sum([nv(o,'g3_12_12'),nv(o,'g3_12_13'),nv(o,'g3_12_14')]);
+  R.rawS=['S-1','S-2','S-3'].map(function(s,i){return {l:s,prod:nv(o,'g3_12_'+(12+i)),tmp:nv(o,'g3_13_'+(12+i)),ts:nv(o,'g3_14_'+(12+i)),stock:nv(o,'g3_23_'+[1,3,4][i])}});
+  R.ts.forEach(function(a){[[a.ts1,9.8,10.2,'분리유액 T.S'],[a.ph1,7.2,7.6,'분리유액 PH'],[a.ts2,9.8,10.2,'저장탱크 T.S'],[a.ph2,7.0,7.4,'저장탱크 PH'],[a.tmp,null,6,'이송온도']].forEach(function(q){if(q[0]!=null&&((q[1]!=null&&q[0]<q[1])||(q[2]!=null&&q[0]>q[2])))R.dev.push({f:'FRM-010',item:q[3]+' '+(a.lab||''),val:q[0],spec:(q[1]!=null?q[1]+'~':'')+q[2]+(q[3]==='이송온도'?'℃ 이하':'')})})});
+  R.dev=R.dev.concat(devs('FRM-010',o));R.notes=R.notes.concat(notes('FRM-010',o))}
+ R.bean=[['FRM-006','검은콩(서리태)',b6],['FRM-007','볶음 탈피',b7]].filter(function(x){return x[2]}).map(function(x){var c=x[0],dd=x[2],a=function(re){return sum(pick(c,null,re).map(function(f){return nv(dd,f.k)}))};
+  var col=pick(c,null,/색도/).map(function(f){return {v:nv(dd,f.k),s:f.spec}}).filter(function(q){return q.v!=null});
+  R.dev=R.dev.concat(devs(c,dd));R.notes=R.notes.concat(notes(c,dd));
+  return {n:x[1],inp:a(/투입량/),prod:a(/^금일생산량/),real:a(/실생산량/),gas:a(/가스/),dry:avg(pick(c,null,/건조기온도/).map(function(f){return nv(dd,f.k)})),col:avg(col.map(function(q){return q.v})),colSpec:(col[0]&&col[0].s&&col[0].s.txt)||'',colBad:col.filter(function(q){return q.s&&((q.s.lo!=null&&q.v<q.s.lo)||(q.s.hi!=null&&q.v>q.s.hi))}).length}});
+ if(cp){R.cip=[];var rows={};fields('FRM-015').forEach(function(f){var m=String(f.k).match(/^m15_r(\d+)_(start|end|temp|resid)$/);if(!m)return;(rows[m[1]]=rows[m[1]]||{name:String(f.row||'').replace(/^\d\s*호\s*기\s*\d\s*/,'').replace(/(\s+\d+)+$/,'').trim(),hogi:(String(f.row||'').match(/^(\d)\s*호\s*기/)||[])[1]})[m[2]]=v(cp,f.k)});
+  Object.keys(rows).sort(function(a,b){return a-b}).forEach(function(k){var r=rows[k];if(r.start||r.end||r.temp)R.cip.push(r)});
+  R.dev=R.dev.concat(devs('FRM-015',cp));R.notes=R.notes.concat(notes('FRM-015',cp))}
+ R.prodH=R.cnt?(R.cnt.b||0):null;R.stopH=R.cnt?((R.cnt.c||0)+(R.cnt.h||0)+(R.cnt.j||0)):null;
+ R.byRate=R.use&&R.bysum!=null?R.bysum/R.use*100:null;
+ return R}
+function juiceView(D,days){var R=juiceDay(D),T=days.map(juiceDay),h='';
+ h+='<div class="pd-ks6">'+
+  kpi('🫘','대두 사용량',R.use!=null?fmt(R.use,0):'-','kg',R.silo?'SILO1 '+fmt(R.silo[0].use,0)+' · SILO2 '+fmt(R.silo[1].use,0):'착즙공정일보 SILO 현황',C.amber)+
+  kpi('⚙','분리액 생산 시간',R.prodH!=null?R.prodH:'-','시간',R.stopH?'일시 중단 '+R.stopH+'시간':'작업 현황 b 칸 수',C.teal)+
+  kpi('♻','부산물',R.bysum!=null?fmt(R.bysum,0):'-','kg',R.byRate!=null?'대두 사용량의 '+fmt(R.byRate,1)+'%':'대두피 · 콩눈 · 잡곡 · 이물',C.gray)+
+  kpi('🥛','원액 생산',R.raw!=null?fmt(R.raw,0):'-','kg',R.ts&&R.ts.length?'T.S 평균 '+fmt(avg(R.ts.map(function(a){return a.ts2!=null?a.ts2:a.ts1})),2):'원액생산작업일보',C.blue)+
+  kpi('⚠','기준 이탈',R.dev.length,'건',R.dev.length?esc(R.dev[0].item):'히터 · T.S · PH · 색도 · 세제온도',R.dev.length?C.red:C.green)+
+  kpi('👥','근무 · OT',R.w&&R.w.work!=null?fmt(R.w.work,0)+'명':'-','',R.w?'OT '+fmt(R.w.ot,1)+'시간':'근무일보(착즙팀)',C.navy)+'</div>';
+ /* 시간별 작업 현황 */
+ var lg=Object.keys(CODE).map(function(k){return [k+' '+CODE[k][0],CODE[k][1]]});
+ h+=card('⏱ 시간별 작업 현황','착즙공정일보 가.작업 현황 (칸에 적은 a~j 기호)',R.lines.length?'<div class="pd-hg"><div class="pd-hgr hd"><span></span>'+Array.apply(null,{length:25}).map(function(_,i){return '<b>'+i+'</b>'}).join('')+'</div>'+R.lines.map(function(l){
+   return '<div class="pd-hgr"><span title="'+esc(l.nm)+'">빈쿠커 '+esc(l.bk||l.n)+'<small>'+esc(l.nm||'')+'</small></span>'+l.hrs.map(function(c,i){var k=(c||'').replace(/[^a-j]/g,'').slice(0,1),cc=CODE[k];return '<i title="'+i+'시 '+esc(c)+(cc?' · '+cc[0]:'')+'" style="background:'+(cc?cc[1]:'transparent')+'">'+esc(c||'')+'</i>'}).join('')+'</div>'}).join('')+'</div><div class="pd-lg">'+lg.map(function(l){return '<span><i style="background:'+l[1]+'"></i>'+esc(l[0])+'</span>'}).join('')+'</div>':empty('이 날 작업 현황 기록 없음'),1);
+ h+='<div class="pd-row">'+card('🫘 대두 SILO 현황','kg',R.silo?table(['SILO','전일 재고','입고','사용','금일 재고','원산지'],R.silo.map(function(s){return ['<b>'+s.s+'</b>',fmt(s.prev,0),fmt(s.inn,0),fmt(s.use,0),fmt(s.stock,0),esc(s.org)]})):empty())+
+  card('♻ 부산물','kg · 대두 사용량 대비',R.by&&R.by.length?hbars(R.by.map(function(x){return {l:x.l,v:x.v,s:R.use?fmt(x.v/R.use*100,1)+'%':'',c:C.gray}}),'kg')+(R.half!=null?'<div class="pd-mini">반할두 금일 생산 <b>'+fmt(R.half,0)+'</b>kg · 사용 <b>'+fmt(R.halfUse,0)+'</b>kg</div>':''):empty())+'</div>';
+ if(R.ts&&R.ts.length){var lb=R.ts.map(function(a){return a.t!=null?hm(a.t):a.lab});
+  h+='<div class="pd-row">'+card('🥛 원액 T.S','검사 시간별 · 기준 10±0.2',line(lb,[{n:'분리유액 T.S',c:C.gray,v:R.ts.map(function(a){return a.ts1})},{n:'저장탱크 T.S',c:C.blue,v:R.ts.map(function(a){return a.ts2})}],{lo:9.8,hi:10.2,txt:'9.8~10.2'}))+
+   card('🧪 원액 PH · 이송온도','검사 시간별',line(lb,[{n:'분리유액 PH',c:C.violet,v:R.ts.map(function(a){return a.ph1})},{n:'저장탱크 PH',c:C.teal,v:R.ts.map(function(a){return a.ph2})},{n:'이송온도(℃)',c:C.red,v:R.ts.map(function(a){return a.tmp})}]))+'</div>'}
+ h+='<div class="pd-row">'+card('🥛 원액 저장탱크','원액생산작업일보 관리 현황',R.rawS?table(['탱크','금일 생산(kg)','저장온도(℃)','T.S','총 재고(kg)'],R.rawS.map(function(s){return [s.l,fmt(s.prod,0),s.tmp!=null&&s.tmp>6?'<b class="bad">'+fmt(s.tmp,1)+'</b>':fmt(s.tmp,1),s.ts!=null&&(s.ts<9.8||s.ts>10.2)?'<b class="bad">'+fmt(s.ts,2)+'</b>':fmt(s.ts,2),fmt(s.stock,0)]})):empty('이 날 원액생산작업일보 없음'))+
+  card('🔥 검은콩 · 볶음 탈피','공정 작업 일보',R.bean.length?table(['일지','투입량','생산량','실 생산량','가스(㎥)','건조기 온도','색도'],R.bean.map(function(b){return [b.n,fmt(b.inp,0),fmt(b.prod,0),fmt(b.real,0),fmt(b.gas,1),fmt(b.dry,0),(b.colBad?'<b class="bad">':'')+fmt(b.col,1)+(b.colBad?'</b>':'')+' <span class="pd-mu">('+esc(b.colSpec)+')</span>']})):empty('이 날 검은콩 · 볶음 탈피 기록 없음'))+'</div>';
+ h+='<div class="pd-row">'+card('🧼 CIP','착즙팀 CIP 일보 · 세제온도 70~80℃',R.cip&&R.cip.length?table(['호기','설비','시작','종료','세제온도(℃)'],R.cip.map(function(r){var t=num(r.temp);return [r.hogi?r.hogi+'호기':'',esc(r.name),esc(r.start),esc(r.end),t!=null&&(t<70||t>80)?'<b class="bad">'+fmt(t,1)+'</b>':fmt(t,1)]})):empty('이 날 CIP 기록 없음'))+
+  card('👥 근무 · 시간 외 근무','근무일보(착즙팀)',R.w?('<div class="pd-mini"><b>'+fmt(R.w.work,0)+'</b>명 근무 · 휴무 <b>'+fmt(R.w.off,0)+'</b>명 · OT 합계 <b>'+fmt(R.w.ot,1)+'</b>시간</div>'+hbars(R.w.people.sort(function(a,b){return b.h-a.h}).slice(0,8).map(function(p){return {l:p.who,v:p.h,c:C.navy}}),'h')+(R.w.why.length?'<div class="pd-why">사유: '+esc(R.w.why.join(' · '))+'</div>':'')):empty('이 날 근무일보 없음'))+'</div>';
+ h+=trendBlock(days,[['대두 사용량(kg)',T.map(function(r){return r.use}),'kg',C.amber],['분리액 생산(시간)',T.map(function(r){return r.prodH||null}),'h',C.teal],['부산물 비율(%)',T.map(function(r){return r.byRate}),'%',C.gray],['원액 생산(kg)',T.map(function(r){return r.raw}),'kg',C.blue],['기준 이탈',T.map(function(r){return (r.d||r.o)?r.dev.length:null}),'건',C.red],['OT(시간)',T.map(function(r){return r.w?r.w.ot:null}),'h',C.navy]]);
+ if(R.note)R.notes.unshift({f:'FRM-009',where:'착즙팀 특이사항',t:R.note});
+ h+=devNotes(R.dev,R.notes);
+ var ins=[];if(R.use!=null)ins.push('대두 <b>'+fmt(R.use,0)+'kg</b>을 사용했고'+(R.byRate!=null?', 부산물은 <b>'+fmt(R.bysum,0)+'kg('+fmt(R.byRate,1)+'%)</b>':'')+' 나왔습니다.');
+ var pr=T.slice(0,-1).map(function(r){return r.byRate}).filter(function(x){return x!=null}),pa=avg(pr);if(R.byRate!=null&&pa!=null&&pr.length>=3)ins.push('부산물 비율이 최근 '+pr.length+'일 평균('+fmt(pa,1)+'%)보다 '+(R.byRate>=pa?'<b>높습니다 ▲</b>':'낮습니다 ▼')+' '+fmt(Math.abs(R.byRate-pa),1)+'%p.');
+ if(R.prodH)ins.push('분리액 생산 <b>'+R.prodH+'시간</b>'+(R.stopH?', 일시 중단 <b>'+R.stopH+'시간</b>(c · h · j)':'')+'.');
+ if(R.dev.length)ins.push('기준 이탈 <b>'+R.dev.length+'건</b> — '+R.dev.slice(0,3).map(function(x){return esc(x.item)+' '+fmt(x.val,2)}).join(', ')+'.');
+ if(R.w&&R.w.ot)ins.push('시간 외 근무 <b>'+fmt(R.w.ot,1)+'시간</b>'+(R.w.why.length?' — '+esc(R.w.why[0]):'')+'.');
+ return h+insights(ins)}
+
+function trendBlock(days,list){return card('📊 최근 14일 추이','저장된 일지 기준 · 빈 날 = 기록 없음','<div class="pd-trs">'+list.map(function(x){return '<div><div class="pd-trt">'+esc(x[0])+'</div>'+trend(days,x[1],x[2],x[3])+'</div>'}).join('')+'</div>',1)}
+function devNotes(dev,nts){var sn={};nts=nts.filter(function(n){var k=String(n.t).replace(/\s/g,'');if(sn[k])return false;sn[k]=1;return true});return '<div class="pd-row">'+card('⚠ 기준 이탈','양식에 적힌 기준과 비교',dev.length?table(['일지','항목','값','기준'],dev.map(function(x){return [x.f,esc(x.item),'<b class="bad">'+fmt(x.val,2)+'</b>',esc(x.spec)]})):'<div class="pd-ok">기준 이탈 없음 👍</div>')+
+ card('📝 현장 메모','특이사항 · 비고 · 사유',nts.length?'<ul class="pd-notes">'+nts.slice(0,12).map(function(n){return '<li><span>'+esc(n.where||n.f)+'</span>'+esc(n.t)+'</li>'}).join('')+'</ul>':empty('메모 없음'))+'</div>'}
+function insights(a){return card('💡 인사이트','이 날 일지에서 자동으로 정리',a.length?'<ul class="pd-ins">'+a.map(function(x){return '<li>'+x+'</li>'}).join('')+'</ul>':empty('이 날 정리할 기록이 없습니다'),1)}
+
+/* ---------- 화면 ---------- */
+function dates(k){var m={};DEF[k].codes.forEach(function(c){Object.keys(byDate(c)).forEach(function(d){m[d]=(m[d]||0)+1})});return Object.keys(m).sort().reverse()}
+function render(box){var k=box.getAttribute('data-k'),cfg=DEF[k];if(!cfg)return;
+ var ds=dates(k),S=st[k];if(!S.date||ds.indexOf(S.date)<0)S.date=ds[0]||'';
+ var D=S.date,days=[];if(D)for(var i=13;i>=0;i--)days.push(addDays(D,-i));
+ var src=cfg.codes.map(function(c){var f=form(c),d=D&&byDate(c)[D];return '<a class="pd-src'+(d?' on':'')+'" '+(d?'href="#/doc/'+d.id+'"':(f?'href="#/doc-new?form='+f.id+'"':''))+' title="'+(d?'열기':'이 날 기록 없음 — 눌러서 작성')+'">'+(d?'✓ ':'· ')+esc(f?f.name.replace(/\s*\(상온제품가공[^)]*\)/,''):c)+(d&&d.status==='temp'?' <em>임시</em>':'')+'</a>'}).join('');
+ var mainF=form(cfg.main);
+ var h='<div class="pd"><div class="pd-hd"><div><h2>'+esc(cfg.title)+'</h2><div class="pd-sub">'+(D?D+' ('+dow(D)+')':'아직 저장된 일지가 없습니다')+' · 포털에 저장된 일지로 자동 작성 · 일지를 저장하면 바로 반영</div></div>'+
+  '<div class="pd-act">'+(ds.length?'<select onchange="yumProcDash.pick(\''+k+'\',this.value)">'+ds.map(function(d){return '<option value="'+d+'"'+(d===D?' selected':'')+'>'+d+' ('+dow(d)+')</option>'}).join('')+'</select>':'')+
+  (mainF?'<a class="btn btn-o btn-sm" href="#/doc-new?form='+mainF.id+'">일지 작성</a>':'')+'<button class="btn btn-ghost btn-sm" onclick="yumProcDash.print()">🖨 인쇄 · PDF</button></div></div>'+
+  '<div class="pd-srcs">'+src+'</div>';
+ if(!D)h+=empty('배합 · 착즙 일지를 저장하면 여기에 날짜별 분석이 나타납니다.');
+ else h+=(k==='mix'?mixView(D,days):juiceView(D,days));
+ box.innerHTML=h+'</div>';box.setAttribute('data-r',DB.data.docs.length+':'+D)}
+var CSS='.pd{--b:#E3E7EF;color:#1A2233}.pd-hd{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px}.pd-hd h2{margin:0;font-size:22px;font-weight:800}.pd-sub{color:#6B7685;font-size:12.5px;margin-top:4px}.pd-act{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.pd-act select{padding:6px 10px;border:1px solid var(--b);border-radius:8px;font-weight:700;background:#fff}'+
+ '.pd-srcs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px}.pd-src{font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--b);color:#8B95A7;text-decoration:none;background:#fff}.pd-src.on{color:#1B7F4E;border-color:#BFE6CF;background:#EFFAF3;font-weight:700}.pd-src em{font-style:normal;color:#B26B00;font-weight:700}'+
+ '.pd-ks6{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:12px}@media(max-width:1100px){.pd-ks6{grid-template-columns:repeat(3,1fr)}}@media(max-width:640px){.pd-ks6{grid-template-columns:repeat(2,1fr)}}'+
+ '.pd-k{background:#fff;border:1px solid var(--b);border-top:4px solid var(--c);border-radius:12px;padding:10px 12px}.pd-kl{font-size:12px;color:#5B6478;font-weight:700}.pd-kv{font-size:26px;font-weight:900;margin-top:2px;color:#111a2c}.pd-kv small{font-size:13px;color:#6B7685;margin-left:3px;font-weight:700}.pd-ks{font-size:11.5px;color:#6B7685;margin-top:2px;line-height:1.4}'+
+ '.pd-c{background:#fff;border:1px solid var(--b);border-radius:12px;padding:12px 14px;margin-bottom:12px;min-width:0}.pd-c h3{margin:0 0 10px;font-size:14.5px;font-weight:800}.pd-c h3 small{font-weight:500;color:#8B95A7;font-size:11.5px;margin-left:4px}.pd-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}@media(max-width:900px){.pd-row{grid-template-columns:1fr}}.pd-row>.pd-c{margin-bottom:12px}'+
+ '.pd-empty{color:#8B95A7;font-size:12.5px;padding:14px;border:1px dashed var(--b);border-radius:10px;text-align:center;background:#FAFBFD}.pd-ok{color:#1B7F4E;font-weight:700;padding:10px}.pd-mu{color:#A3ABB8}.bad{color:#D64545}'+
+ '.pd-tw{overflow-x:auto}.pd-t{width:100%;border-collapse:collapse;font-size:12px}.pd-t th{background:#F3F5F9;color:#5B6478;font-weight:700;padding:6px 7px;text-align:center;white-space:nowrap;border-bottom:1px solid var(--b)}.pd-t td{padding:5px 7px;border-bottom:1px solid #EEF1F5;text-align:center;white-space:nowrap}.pd-t td:first-child{font-weight:700}'+
+ '.pd-hb{display:grid;gap:6px}.pd-hr{display:grid;grid-template-columns:110px 1fr 140px;gap:8px;align-items:center;font-size:12px}.pd-hl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}.pd-hbar{height:14px;background:#F1F3F7;border-radius:7px;overflow:hidden}.pd-hbar i{display:block;height:100%;border-radius:7px}.pd-hv{color:#5B6478;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pd-hv em{font-style:normal;color:#8B95A7}'+
+ '.pd-svg{width:100%;height:auto;display:block}.pd-svg .ax{font-size:10px;fill:#8B95A7}.pd-lg{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:#5B6478;margin-top:6px}.pd-lg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}'+
+ '.pd-g{position:relative;padding-top:18px}.pd-gax{position:relative;height:14px;margin-left:56px;font-size:10px;color:#8B95A7}.pd-gax span{position:absolute;transform:translateX(-50%)}.pd-gr{display:flex;align-items:center;height:22px;border-bottom:1px solid #F1F3F7}.pd-gl{width:56px;font-size:12px;font-weight:700}.pd-gt{position:relative;flex:1;height:14px;background:repeating-linear-gradient(90deg,#F7F8FB 0,#F7F8FB calc(12.5% - 1px),#ECEFF4 calc(12.5% - 1px),#ECEFF4 12.5%)}.pd-gt i{position:absolute;top:0;height:100%;border-radius:3px;color:#fff;font-size:9.5px;font-style:normal;line-height:14px;text-align:center;overflow:hidden;white-space:nowrap}'+
+ '.pd-trs{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}.pd-trt{font-size:12px;font-weight:700;color:#5B6478;margin-bottom:4px}.pd-tr{display:flex;gap:3px;align-items:flex-end;height:118px}.pd-tc{flex:1;display:flex;flex-direction:column;align-items:center;min-width:0;height:100%}.pd-tv{font-size:9.5px;color:#5B6478;height:13px;white-space:nowrap}.pd-tb{flex:1;width:100%;display:flex;align-items:flex-end;background:#F7F8FB;border-radius:4px}.pd-tb i{display:block;width:100%;border-radius:4px}.pd-td{font-size:9.5px;color:#8B95A7;margin-top:2px}.pd-td.sun{color:#D64545}'+
+ '.pd-ox{display:grid;gap:3px}.pd-oxr{display:grid;grid-template-columns:1fr 40px 40px;gap:4px;align-items:center;font-size:12px}.pd-oxr b{text-align:center;border-radius:6px;padding:2px 0;background:#F3F5F9;color:#8B95A7}.pd-oxr b.o{background:#EFFAF3;color:#1B7F4E}.pd-oxr b.x{background:#FDECEC;color:#D64545}'+
+ '.pd-hg{overflow-x:auto}.pd-hgr{display:grid;grid-template-columns:150px repeat(25,minmax(22px,1fr));gap:2px;align-items:center;margin-bottom:2px}.pd-hgr span{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pd-hgr span small{display:block;font-weight:500;color:#8B95A7;font-size:10.5px}.pd-hgr i{height:26px;border-radius:4px;font-style:normal;color:#fff;font-weight:800;font-size:11px;display:flex;align-items:center;justify-content:center;border:1px solid #EEF1F5}.pd-hgr.hd b{font-size:10px;color:#8B95A7;text-align:center}'+
+ '.pd-mini{font-size:12.5px;color:#5B6478;margin:2px 0 10px}.pd-mini b{color:#111a2c}.pd-why{font-size:12px;color:#5B6478;margin-top:8px}.pd-notes{margin:0;padding:0;list-style:none;display:grid;gap:6px;font-size:12.5px}.pd-notes li span{display:inline-block;font-size:11px;color:#2F6FD6;background:#EEF3FF;border-radius:6px;padding:1px 6px;margin-right:6px;font-weight:700}.pd-ins{margin:0;padding-left:18px;font-size:13px;line-height:1.75}'+
+ '@media print{.pd-act,.pd-srcs{display:none}.pd-c,.pd-k{break-inside:avoid}}';
+function css(){if(document.getElementById('pd-css'))return;var s=document.createElement('style');s.id='pd-css';s.textContent=CSS;document.head.appendChild(s)}
+function paint(){var b=document.getElementById('pd-dash');if(!b)return;var k=b.getAttribute('data-k');var sig=DB.data.docs.length+':'+(st[k].date||'')+':'+((DB.data.docs[0]||{}).updatedAt||'');if(b.getAttribute('data-sig')===sig)return;css();try{render(b)}catch(e){console.error('[공정 대시보드]',e);b.innerHTML='<div class="pd-empty">대시보드를 그리지 못했습니다: '+esc(e.message)+'</div>'}b.setAttribute('data-sig',sig)}
+window.yumProcDash={pick:function(k,d){st[k].date=d;var b=document.getElementById('pd-dash');if(b)b.removeAttribute('data-sig');paint()},
+ print:function(){var b=document.getElementById('pd-dash');if(!b)return;var w=window.open('','_blank');if(!w){alert('팝업이 차단되었습니다');return}
+  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc((b.querySelector('h2')||{}).textContent||'공정 분석')+'</title><style>body{font-family:"Malgun Gothic",sans-serif;margin:12mm}'+CSS+'</style></head><body>'+b.innerHTML+'</body></html>');w.document.close();setTimeout(function(){w.print()},400)},
+ day:function(k,d){return k==='mix'?mixDay(d):juiceDay(d)},render:paint};
+
+/* 생산계획 > 배합 · 착즙 탭을 「운영 중」으로 */
+function hook(){var P=window.ProcPages;if(!P||P.__pd)return;P.__pd=1;
+ ['mix','juice'].forEach(function(k){if(P.list[k]){P.list[k].live=1;P.list[k].desc=k==='mix'?'제품생산작업일보 · 설탕 용해 · 근무일보 — 배치 · Brix · 탱크 · 점검 O/X · OT':'착즙공정일보 · 원액 · 검은콩 · CIP · 근무일보 — 대두 · 부산물 · 시간별 작업 · T.S · OT'}});
+ var ov=P.view;P.view=function(k){var h=ov.apply(this,arguments);if(k==='mix'||k==='juice'){h=h.replace('<div id="ster-dash"></div>','<div id="pd-dash" data-k="'+k+'"></div>');setTimeout(paint,0)}return h}}
+hook();setTimeout(hook,300);window.addEventListener('load',hook);
+new MutationObserver(function(){var b=document.getElementById('pd-dash');if(b&&!b.getAttribute('data-sig'))paint()}).observe(document.documentElement,{childList:true,subtree:true});
+setInterval(function(){if(document.getElementById('pd-dash'))paint()},5000);
+console.log('[확장 모듈 51] 배합 · 착즙 공정 대시보드 로드 완료');
 })();
 </script>
 
