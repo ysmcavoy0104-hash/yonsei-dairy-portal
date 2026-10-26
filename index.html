@@ -10230,15 +10230,185 @@ console.log('[확장 모듈 34] 지연·정비 기록 (노션 이전 '+notionRec
   /* 예전 방식 호환 (일일) */
   function build(data, NF, opts) { opts = Object.assign({}, opts || {}); opts.kind = 'daily'; return report(data, NF, opts); }
 
+  /* ═════════ 자동 인사이트 (공지사항 「자동 인사이트」) ═════════
+     하루(D)의 일지 · 지연 · 정비 기록을 최근 기간과 비교해 「확인할 일」을 찾아 글로 만듦.
+     규칙으로 찾은 사실만 쓰고, 근거 숫자를 함께 둠.  level: red(즉시 확인) · amber(관찰) · green(참고 · 좋은 소식)
+     같은 주제가 며칠 이어지면 새 글을 만들지 않고 기존 글을 갱신(key가 같고 최근 3일 안에 본 글)           */
+  function seriesRows(data, from, to, templates) {
+    /* 기준 범위가 있는 줄(예: HACCP 「멸균 TSL 42 135~150℃」)의 날짜별 평균값 */
+    var forms = {}; ((data && data.forms) || []).forEach(function (f) { forms[f.id] = f; });
+    var S = {};
+    ((data && data.docs) || []).forEach(function (d) {
+      if (!d || d.deleted || d.status === 'draft' || d.status === 'temp') return;
+      var day = docDate(d); if (day < from || day > to) return;
+      var f = forms[d.formId]; if (!f) return;
+      var wt = (templates && f.code && templates[f.code]) || f.wtpl;
+      var grid = (d.data && d.data.grid) || {};
+      introspect(f.code || f.id, wt).forEach(function (fd) {
+        if (!fd.spec || fd.kind === 'tm') return;
+        var n = num(grid[fd.k]); if (n == null) return;
+        var key = (f.code || f.id) + '|' + fd.row;
+        var s = S[key] = S[key] || { form: shortName(f.name), team: teamOf(f), row: fd.row, spec: fd.spec, days: {} };
+        (s.days[day] = s.days[day] || []).push(n);
+      });
+    });
+    return S;
+  }
+  function lvMax(a, b) { var o = { green: 0, amber: 1, red: 2 }; return o[a] >= o[b] ? a : b; }
+
+  function insights(data, NF, opts) {
+    opts = opts || {};
+    var D = opts.date || kstDate(-1, opts.now);
+    var W0 = addDays(D, -6), P0 = addDays(D, -13), P1 = addDays(D, -7);
+    var all = records(data, NF);
+    var w = all.filter(function (r) { return r.d >= W0 && r.d <= D; });
+    var p = all.filter(function (r) { return r.d >= P0 && r.d <= P1; });
+    var out = [];
+    function add(o) { o.d = D; out.push(o); }
+    var link = '#/reports?t=daily&k=' + D;
+
+    /* 1. 같은 설비 정비 반복 */
+    topBy(w.filter(function (r) { return r.kind === 'maint'; }), function (r) { return String(r.asset || '').replace(/\s+/g, ' ').trim(); }, null, 20).forEach(function (g) {
+      if (g[2] < 3) return;
+      var list = w.filter(function (r) { return r.kind === 'maint' && String(r.asset || '').replace(/\s+/g, ' ').trim() === g[0]; });
+      add({ key: 'maint|' + g[0], level: g[2] >= 4 ? 'red' : 'amber', cat: '설비', icon: '🔧', title: g[0] + ' — 최근 7일 정비 ' + g[2] + '회',
+        body: '같은 설비에 정비가 반복되고 있습니다. 부품 교체만으로 끝나지 않는 근본 원인(설치 상태 · 운전 조건 · 예방 정비 주기)을 점검해 주세요.',
+        lines: list.slice(0, 6).map(function (r) { return md(r.d) + ' · ' + (r.content || '-') + (r.mtype ? ' (' + r.mtype + ')' : ''); }),
+        ev: [['정비 횟수', g[2] + '회 / 7일'], ['종류', topBy(list, function (r) { return r.mtype || '기타'; }, null, 3).map(function (x) { return x[0] + ' ' + x[1]; }).join(', ')]], link: '#/oplogs' });
+    });
+    /* 2. 같은 호기 지연 반복 */
+    var dl5 = w.filter(function (r) { return r.kind === 'delay' && r.d >= addDays(D, -4); });
+    var byH = {}; dl5.forEach(function (r) { var k = (r.team || r.div) + ' ' + (r.hogi || ''); (byH[k] = byH[k] || []).push(r); });
+    Object.keys(byH).forEach(function (k) {
+      var L = byH[k], days = {}; L.forEach(function (r) { days[r.d] = 1; });
+      var nd = Object.keys(days).length; if (nd < 3) return;
+      var mins = sum(L, function (r) { return r.min; }); if (mins < 180) return;
+      var top = topBy(L, function (r) { return r.reason; }, function (r) { return r.min; }, 2);
+      add({ key: 'hogi|' + k, level: nd >= 4 && mins >= 360 ? 'red' : 'amber', cat: '설비', icon: '⏱', title: k.trim() + ' — 최근 5일 중 ' + nd + '일 지연 (' + hrs(mins) + ')',
+        body: '같은 호기에서 지연이 며칠째 이어지고 있습니다. 주요 원인: ' + top.map(function (t) { return t[0] + ' ' + hrs(t[1]); }).join(', ') + '.',
+        lines: L.slice(-6).map(function (r) { return md(r.d) + ' ' + (r.start || '') + ' · ' + (r.reason || '-') + ' · ' + hrs(r.min) + (r.product ? ' · ' + r.product : ''); }),
+        ev: [['지연 일수', nd + '일 / 5일'], ['총 지연', hrs(mins)]], link: '#/oplogs' });
+    });
+    /* 3. 멸균 정지 반복 · 일지 분석 */
+    var J = analyzeDocs(data, W0, D, opts.templates);
+    var stopBy = {}; J.stops.forEach(function (s) { (stopBy[s.hogi] = stopBy[s.hogi] || []).push(s); });
+    Object.keys(stopBy).forEach(function (h) {
+      var L = stopBy[h], days = {}; L.forEach(function (s) { days[s.d] = 1; }); var nd = Object.keys(days).length; if (nd < 3) return;
+      var run = 0, ds = Object.keys(days).sort(), mx = 1; for (var i = 1; i < ds.length; i++) { run = addDays(ds[i - 1], 1) === ds[i] ? (run || 1) + 1 : 1; mx = Math.max(mx, run); }
+      add({ key: 'stop|' + h, level: nd >= 4 || mx >= 3 ? 'red' : 'amber', cat: '설비', icon: '⛔', title: h + ' — 최근 7일 중 ' + nd + '일 정지' + (mx >= 3 ? ' (' + mx + '일 연속)' : ''),
+        body: '멸균 파트 업무 일지에 정지 기록이 반복됩니다. 주요 사유: ' + (topBy(L, function (s) { return s.why || '사유 미기재'; }, null, 3).map(function (x) { return x[0] + ' ' + x[1] + '회'; }).join(', ')) + '.',
+        lines: L.slice(-6).map(function (s) { return md(s.d) + ' ' + s.start + ' → ' + s.end + (s.min ? ' (' + hrs(s.min) + ')' : '') + ' · ' + (s.why || '사유 미기재'); }),
+        ev: [['정지 일수', nd + '일 / 7일'], ['정지 기록', L.length + '건']], link: link });
+    });
+    /* 4. 어제 기준 이탈 · 부적합 */
+    var dd = J.devs.filter(function (x) { return x.d === D; });
+    var byF = {}; dd.forEach(function (x) { (byF[x.form] = byF[x.form] || []).push(x); });
+    Object.keys(byF).forEach(function (f) {
+      var L = byF[f];
+      add({ key: 'dev|' + f + '|' + D, level: 'red', cat: '품질', icon: '🛡', title: f + ' — 기준 이탈 · 부적합 ' + L.length + '건',
+        body: '일지에 적힌 값이 양식의 기준을 벗어났습니다. 한계기준 이탈 시 개선조치 기록이 있는지 확인해 주세요.',
+        lines: L.slice(0, 6).map(function (x) { return clip(x.what, 46) + ' → ' + x.val + ' (기준 ' + x.spec + ')'; }),
+        ev: [['이탈', L.length + '건'], ['날짜', md(D)]], link: link });
+    });
+    /* 5. 기준선에 다가가는 추세 (아직 기준 안) */
+    var S = seriesRows(data, addDays(D, -6), D, opts.templates);
+    Object.keys(S).forEach(function (k) {
+      var s = S[k], ds = Object.keys(s.days).sort(); if (ds.length < 4 || ds[ds.length - 1] !== D) return;
+      var v = ds.map(function (d) { var a = s.days[d]; return sum(a) / a.length; }), sp = s.spec, last = v[v.length - 1];
+      if ((sp.lo != null && v.some(function (x) { return x < sp.lo; })) || (sp.hi != null && v.some(function (x) { return x > sp.hi; }))) return;
+      var rng = (sp.lo != null && sp.hi != null) ? sp.hi - sp.lo : Math.abs((sp.lo != null ? sp.lo : sp.hi)) * 0.1 || 1;
+      var t = v.slice(-4), down = t.every(function (x, i) { return !i || x <= t[i - 1]; }), up = t.every(function (x, i) { return !i || x >= t[i - 1]; });
+      var toward = null;
+      if (down && sp.lo != null && last - sp.lo <= rng * 0.15 && t[0] - last >= rng * 0.1) toward = '하한 ' + sp.lo;
+      if (up && sp.hi != null && sp.hi - last <= rng * 0.15 && last - t[0] >= rng * 0.1) toward = '상한 ' + sp.hi;
+      if (!toward) return;
+      add({ key: 'trend|' + k, level: 'amber', cat: '품질 추세', icon: '📉', title: s.form + ' · ' + clip(s.row, 40) + ' — ' + toward + '에 가까워지는 중',
+        body: '아직 기준 안이지만 ' + t.length + '일째 같은 방향으로 움직여 기준선에 가까워졌습니다. 센서 · 설정값 · 원료 상태를 미리 확인해 주세요.',
+        lines: ds.slice(-5).map(function (d, i) { var a = s.days[d]; return md(d) + ' 평균 ' + Math.round(sum(a) / a.length * 10) / 10; }),
+        ev: [['기준', sp.txt], ['어제 평균', Math.round(last * 10) / 10]], link: link });
+    });
+    /* 6. 지연 원인 급증 */
+    var cr = {}, pr = {};
+    w.filter(function (r) { return r.kind === 'delay'; }).forEach(function (r) { if (r.reason) cr[r.reason] = (cr[r.reason] || []).concat([r]); });
+    p.filter(function (r) { return r.kind === 'delay'; }).forEach(function (r) { if (r.reason) pr[r.reason] = (pr[r.reason] || 0) + (+r.min || 0); });
+    Object.keys(cr).forEach(function (rs) {
+      var L = cr[rs], m = sum(L, function (r) { return r.min; }), pm = pr[rs] || 0;
+      if (m < 180 || m < pm * 2) return;
+      var wd = topBy(L, function (r) { return DOW[dowN(r.d)] + '요일'; }, function (r) { return r.min; }, 1)[0];
+      var hh = topBy(L, function (r) { var t = toMin(r.start); return t == null ? '' : (Math.floor(t / 120) * 2) + '~' + (Math.floor(t / 120) * 2 + 2) + '시'; }, function (r) { return r.min; }, 1)[0];
+      add({ key: 'reason|' + rs, level: m >= 600 && m >= pm * 3 ? 'red' : 'amber', cat: '지연', icon: '📈', title: '「' + rs + '」 지연이 ' + (pm ? Math.round(m / pm * 10) / 10 + '배로 증가' : '새로 크게 발생') + ' (' + hrs(m) + ')',
+        body: '최근 7일 ' + L.length + '건, 지난 7일 ' + hrs(pm) + ' → 이번 7일 ' + hrs(m) + '.' + (wd ? ' ' + wd[0] + '에 가장 많았고' : '') + (hh && hh[0] ? ' 시간대는 ' + hh[0] + '에 몰렸습니다.' : ''),
+        lines: L.slice(-5).map(function (r) { return md(r.d) + ' ' + (r.team || '') + ' ' + (r.hogi || '') + ' · ' + hrs(r.min) + (r.product ? ' · ' + r.product : ''); }),
+        ev: [['이번 7일', hrs(m)], ['지난 7일', hrs(pm)]], link: '#/reports?t=weekly' });
+    });
+    /* 7. 일지 누락 (평소 쓰던 일지가 어제 없음) */
+    if (dowN(D) !== 0) {
+      var forms = {}; ((data && data.forms) || []).forEach(function (f) { forms[f.id] = f; });
+      var hist = analyzeDocs(data, addDays(D, -14), addDays(D, -1), opts.templates), today = analyzeDocs(data, D, D, opts.templates);
+      var work = range(addDays(D, -14), addDays(D, -1)).filter(function (d) { return dowN(d) !== 0; }).length || 1;
+      var miss = Object.keys(hist.byForm).filter(function (id) { var b = hist.byForm[id]; return Object.keys(b.days).length >= work * 0.6 && !today.byForm[id]; }).map(function (id) { return hist.byForm[id]; });
+      if (miss.length) add({ key: 'miss|' + D, level: 'amber', cat: '일지', icon: '📝', title: md(D) + '(' + dowOf(D) + ') 작성되지 않은 일지 ' + miss.length + '건',
+        body: '평소 거의 매일 작성하던 일지가 이날은 저장되지 않았습니다. 작성 · 임시저장 상태를 확인해 주세요.',
+        lines: miss.slice(0, 8).map(function (b) { return b.name + ' (' + b.team + ') · 최근 2주 ' + Object.keys(b.days).length + '일 작성'; }), ev: [['누락', miss.length + '건']], link: '#/journals' });
+    }
+    /* 8. 결재 지연 */
+    var old = ((data && data.docs) || []).filter(function (d) { return d && (d.status === 'pending' || d.status === 'in_progress') && String(d.createdAt || d.savedAt || '').slice(0, 10) <= addDays(D, -3); });
+    if (old.length) add({ key: 'appr', level: old.length >= 20 ? 'red' : 'amber', cat: '결재', icon: '✅', title: '3일 넘게 결재 대기 중인 문서 ' + old.length + '건',
+      body: '결재가 늦어지면 일지 기록이 확정되지 않습니다. 전자결재 → 결재 대기에서 확인해 주세요.',
+      lines: old.slice(0, 6).map(function (d) { return String(d.createdAt || '').slice(5, 10).replace('-', '/') + ' · ' + (d.title || d.docNo || '문서'); }), ev: [['대기', old.length + '건']], link: '#/approval' });
+    /* 9. 좋은 소식 */
+    DIVS.forEach(function (dv) {
+      var n = 0; for (var i = 0; i < 30; i++) { var d = addDays(D, -i); if (all.some(function (r) { return r.kind === 'delay' && r.div === dv && r.d === d; })) break; n++; }
+      var before = all.some(function (r) { return r.kind === 'delay' && r.div === dv && r.d < addDays(D, -n + 1) && r.d >= addDays(D, -n - 13); });
+      if (n >= 5 && before) add({ key: 'good|' + dv, level: 'green', cat: '좋은 소식', icon: '🎉', title: dv + '(' + DIVSUB[dv] + ') ' + n + '일 연속 지연 없음',
+        body: '최근 ' + n + '일 동안 생산 지연 기록이 없습니다. 잘 운영되고 있는 방식을 다른 라인에도 공유해 보세요.', lines: [], ev: [['연속', n + '일']], link: '#/reports?t=weekly' });
+    });
+    if (J.ccpChecks >= 20 && !J.devs.length) add({ key: 'good|haccp', level: 'green', cat: '좋은 소식', icon: '🏅', title: '최근 7일 HACCP · 기준 이탈 0건',
+      body: '측정 ' + J.ccpChecks + '회 모두 기준 안이었습니다.', lines: [], ev: [['측정', J.ccpChecks + '회']], link: link });
+    /* 알림 피로 줄이기: 🔴는 하루 최대 3개(나머지는 🟠), 전체 최대 10개(좋은 소식은 최대 2개 따로) */
+    var ord = { red: 0, amber: 1, green: 2 }, wt = { '품질': 1, '설비': 2, '품질 추세': 3, '지연': 4, '일지': 5, '결재': 6 };
+    out.sort(function (a, b) { return ord[a.level] - ord[b.level] || (wt[a.cat] || 9) - (wt[b.cat] || 9); });
+    var reds = 0;
+    out.forEach(function (x) { if (x.level === 'red') { reds++; if (reds > 3) x.level = 'amber'; } });
+    out.sort(function (a, b) { return ord[a.level] - ord[b.level] || (wt[a.cat] || 9) - (wt[b.cat] || 9); });
+    var main = out.filter(function (x) { return x.level !== 'green'; }).slice(0, 10), good = out.filter(function (x) { return x.level === 'green'; }).slice(0, 2);
+    return main.concat(good);
+  }
+  /* 저장소에 합치기 — 같은 주제(key)를 최근 3일 안에 본 글이 있으면 갱신, 없으면 새 글. 60일 지난 글은 정리 */
+  function mergeInsights(store, list, D, nowIso) {
+    store = store || {}; var items = Object.assign({}, store.items || {}); var added = [];
+    nowIso = nowIso || new Date().toISOString();
+    list.forEach(function (x) {
+      var hit = null;
+      Object.keys(items).forEach(function (id) { var it = items[id]; if (it.key === x.key && it.status !== 'done' && it.last >= addDays(D, -3) && it.first <= D) hit = it; });
+      if (hit) {
+        if (hit.last >= D && hit.gen === D) return;
+        var nl = lvMax(hit.level, x.level);
+        items[hit.id] = Object.assign({}, hit, { title: x.title, body: x.body, lines: x.lines, ev: x.ev, link: x.link, level: nl, last: D > hit.last ? D : hit.last, days: (hit.days || 1) + (D > hit.last ? 1 : 0), gen: D, updatedAt: nowIso });
+        if (nl === 'red' && hit.level !== 'red') added.push(items[hit.id]);
+      } else {
+        var id = x.key + '|' + D;
+        if (items[id]) return;
+        items[id] = Object.assign({ id: id, first: D, last: D, days: 1, gen: D, status: 'open', createdAt: nowIso, updatedAt: nowIso, notes: [] }, x);
+        added.push(items[id]);
+      }
+    });
+    var cut = addDays(D, -60);
+    Object.keys(items).forEach(function (id) { if (items[id].last < cut && !items[id].pinned) delete items[id]; });
+    return { store: Object.assign({}, store, { items: items, lastD: (!store.lastD || D > store.lastD) ? D : store.lastD }), added: added };
+  }
+  var AI_INSIGHT = '당신은 연세우유 상온제품생산부문의 설비 · 품질 데이터 분석 담당자입니다. 아래는 일지 · 지연 · 정비 기록에서 규칙으로 찾은 오늘의 인사이트 목록입니다. 이 목록만 근거로, 현장 관리자가 아침에 읽을 「오늘의 한 줄 브리핑」을 한국어 2~3문장으로 쓰세요. 가장 급한 것부터, 숫자는 그대로, 목록에 없는 내용은 쓰지 마세요.';
+
   var AI_BASE = '당신은 연세우유 상온제품생산부문의 생산관리 보고 담당자입니다. 주어진 데이터만 근거로 한국어로 요약하세요. 데이터에 없는 내용은 추측하지 말고, 기록이 없으면 "특이사항 없음"이라고 쓰세요. ';
   var AI = {
     daily: AI_BASE + '부서장이 아침에 1분 안에 읽을 수 있게 3~6개의 짧은 글머리표(•)로: 가장 큰 문제(시간 기준), 반복 원인, 평소보다 늘어난 부서, 기준 이탈, 오늘 확인할 점을 우선합니다.',
     weekly: AI_BASE + '지난 한 주를 돌아보는 주간 보고 요약입니다. 4~7개의 글머리표(•)로: 한 주 총평(지난주 대비 증감), 가장 큰 손실 원인과 호기, 품질·HACCP 이탈, 반복되는 정비, 일지·결재 상황, 다음 주에 집중할 점(제안 1~2개)을 씁니다.',
     monthly: AI_BASE + '지난달 월간 보고 요약입니다. 5~8개의 글머리표(•)로: 월 총평(지난달 대비 증감 %), 손실이 컸던 원인 TOP3와 비중, 문제가 몰린 주·요일·시간대, 품질·HACCP, 설비 정비 경향, 인력(OT), 다음 달 개선 과제 2~3개를 씁니다.'
   };
+  AI.insight = AI_INSIGHT;
   var AI_SYSTEM = AI.daily;
 
-  return { build: build, report: report, period: period, records: records, analyze: analyze, introspect: introspect, specOf: specOf,
+  return { insights: insights, mergeInsights: mergeInsights, AI_INSIGHT: AI_INSIGHT, build: build, report: report, period: period, records: records, analyze: analyze, introspect: introspect, specOf: specOf,
     kstDate: kstDate, addDays: addDays, isoWeek: isoWeek, AI: AI, AI_SYSTEM: AI_SYSTEM, DIVS: DIVS };
 });
 
@@ -11338,7 +11508,7 @@ try{var _ad=SupaSync.adopt.bind(SupaSync);SupaSync.adopt=function(){ADOPT=true;t
 try{BASE=snap()}catch(e){}
 
 /* ---------- 내정보: 알림 설정 ---------- */
-var KINDS=[['approval','결재','결재 요청 · 승인 · 반려 · 결재란 서명'],['talk','부서톡','내 글에 온 답장 · 요청 처리 상태 (관리자: 새 요청)'],['notice','공지','새 공지 · 긴급 공지'],['daily','일일 보고','매일 아침 일일 보고서']];
+var KINDS=[['approval','결재','결재 요청 · 승인 · 반려 · 결재란 서명'],['talk','부서톡','내 글에 온 답장 · 요청 처리 상태 (관리자: 새 요청)'],['notice','공지','새 공지 · 긴급 공지'],['daily','업무 보고','일일 · 주간 · 월간 보고서'],['insight','자동 인사이트','🔴 즉시 확인 항목 (설비 정지 반복 · 기준 이탈 등)']];
 function devState(){
  var https=location.protocol==='https:'||location.hostname==='localhost',ios=/iPad|iPhone|iPod/.test(navigator.userAgent),sa=(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
  if(!https)return '포털을 https 주소로 열어야 알림을 켤 수 있습니다';
@@ -11534,6 +11704,162 @@ try{var st=document.createElement('style');st.textContent='.wpaper .ftpl td>inpu
 try{var _ad=SupaSync.adopt.bind(SupaSync);SupaSync.adopt=function(){var r=_ad.apply(this,arguments);try{put()}catch(e){}return r}}catch(e){}
 window.addEventListener('load',function(){setTimeout(put,400)});
 console.log('[확장 모듈 46] 원본 양식 29종 로드 완료');
+})();
+</script>
+
+<script>
+/* ============ 확장 모듈 47 — 공지사항 「🤖 자동 인사이트」 ============
+   · 공지사항 화면 탭: 전체 / 부서 공지 / 🤖 자동 인사이트
+   · 매일 전날 일지 · 지연 · 정비 기록으로 확인할 일(설비 반복 정비 · 정지 반복 · 기준 이탈 · 기준선 접근 추세 · 지연 원인 급증 · 일지 누락 · 결재 지연 · 좋은 소식)을 자동으로 글로 씀
+     (생성 규칙은 보고서 생성기 YumReportCore.insights — GitHub Actions와 같은 코드)
+   · GitHub Actions가 아침에 먼저 만들고, 아직 없으면 포털을 처음 연 사람의 화면에서 만듦 (같은 주제는 글 하나로 갱신)
+   · 🔴 즉시 확인 항목만 폰 알림 · 관리자: 고정 / 조치 완료 / 숨김 / 다시 분석 · 누구나: 「확인했습니다」 댓글 */
+(function(){
+if(window.__YUM_INSIGHT__)return;window.__YUM_INSIGHT__=1;
+function $i(id){return document.getElementById(id)}
+function me(){try{return Auth.user()}catch(e){return null}}
+function isAdm(){var u=me();return !!(u&&(u.role==='admin'||u.role==='superadmin'))}
+function C(){return window.YumReportCore}
+function NF(){return window.__YUM_NOTION_FINAL__||{delay:[],maint:[]}}
+function kst(n){return C().kstDate(n)}
+function qs(){var o={},q=(location.hash||'').split('?')[1]||'';q.split('&').forEach(function(kv){if(!kv)return;var p=kv.split('=');o[p[0]]=decodeURIComponent(p[1]||'')});return o}
+function store(){return DB.data.insights||(DB.data.insights={items:{},lastD:''})}
+function items(){return Object.keys(store().items||{}).map(function(k){return store().items[k]})}
+function nowIso(){return new Date().toISOString()}
+function md(d){return (+d.slice(5,7))+'/'+(+d.slice(8,10))}
+var LV={red:['즉시 확인','#D64545','#FDECEC','🔴'],amber:['관찰','#B8701A','#FFF4E3','🟠'],green:['참고','#2E9E6A','#E7F6EE','🟢']};
+
+/* ---------- 서버 동기화 병합: 글은 id로 합치고 더 최근에 바뀐 쪽 ---------- */
+try{
+ var _ms=SupaSync.mergeState.bind(SupaSync);
+ SupaSync.mergeState=function(remote,local,lw){
+  var out=_ms(remote,local,lw);
+  try{if(remote&&local&&(remote.insights||local.insights)){
+   var a=remote.insights||{},b=local.insights||{},it=Object.assign({},a.items||{});
+   Object.keys(b.items||{}).forEach(function(k){var x=it[k],y=b.items[k];if(!x||String(y.updatedAt||'')>=String(x.updatedAt||'')){var n=Object.assign({},y);/* 댓글은 합침 */var m={};((x&&x.notes)||[]).concat(y.notes||[]).forEach(function(c){if(c&&c.id)m[c.id]=c});n.notes=Object.keys(m).map(function(q){return m[q]}).sort(function(p,q){return String(p.at).localeCompare(String(q.at))});it[k]=n}});
+   out.insights={items:it,lastD:[a.lastD||'',b.lastD||''].sort().pop(),digest:Object.assign({},a.digest||{},b.digest||{})};
+  }}catch(e){console.warn('[인사이트 병합]',e)}
+  return out;
+ };
+}catch(e){}
+
+/* ---------- 만들기 ---------- */
+function gen(D,quiet){
+ if(!C()||!C().insights)return [];
+ var L=C().insights(DB.data,NF(),{date:D});
+ var r=C().mergeInsights(store(),L,D,nowIso());
+ DB.data.insights=r.store;
+ try{DB.save()}catch(e){}
+ var reds=r.added.filter(function(x){return x.level==='red'});
+ if(reds.length&&!quiet&&window.yumNotify){
+  var to=(DB.data.users||[]).filter(function(v){return v.status==='active'}).map(function(v){return v.id});
+  var t=reds.length===1?reds[0].title:reds[0].title+' 외 '+(reds.length-1)+'건';
+  try{yumNotify(to,{title:'🔴 설비 · 품질 인사이트',body:t,url:'#/notice?t=auto',tag:'ins-'+D},'insight',{self:true})}catch(e){}
+ }
+ return r.added;
+}
+window.yumInsight={
+ run:function(){/* 아직 안 만든 날(최근 3일까지) 채우기 */
+  if(!me()||!C()||!C().insights)return;
+  var y=kst(-1),last=store().lastD||'',from=C().addDays(y,-2);
+  if(last>=y)return;
+  var d=last&&last>=from?C().addDays(last,1):from,n=0;
+  for(;d<=y;d=C().addDays(d,1)){gen(d,d!==y);n++}
+  if(n&&location.hash.indexOf('#/notice')===0)rerender();
+ },
+ again:function(){if(!isAdm())return;var y=kst(-1);var it=store().items;Object.keys(it).forEach(function(k){if(it[k].gen===y)it[k].gen=''});var a=gen(y,true);U.toast('다시 분석했습니다'+(a.length?' — 새 인사이트 '+a.length+'건':''),'ok');rerender()},
+ set:function(id,f,v){if(!isAdm())return;var x=store().items[id];if(!x)return;x[f]=v;if(f==='status'){x.doneBy=v==='done'?me().name:'';x.doneAt=v==='done'?nowIso():''}x.updatedAt=nowIso();DB.save();rerender()},
+ note:function(id){var x=store().items[id];if(!x)return;var u=me();var el=$i('in-n-'+id.replace(/[^\w]/g,'_'));var t=(el&&el.value||'').trim()||'확인했습니다';
+  x.notes=(x.notes||[]).concat([{id:'n'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),by:u.name,uid:u.id,at:nowIso(),t:t}]);x.updatedAt=nowIso();DB.save();rerender()},
+ toggle:function(id){var el=$i('in-x-'+id);if(el)el.style.display=el.style.display==='none'?'block':'none'}
+};
+function rerender(){var y=window.scrollY;try{App.render()}catch(e){}window.scrollTo(0,y)}
+
+/* ---------- 화면 ---------- */
+function esc2(s){return esc(String(s==null?'':s))}
+function card(x,compact){
+ var L=LV[x.level]||LV.amber,sid=x.id.replace(/[^\w]/g,'_');
+ var span=x.first===x.last?md(x.last):md(x.first)+' ~ '+md(x.last)+' · '+(x.days||1)+'일째';
+ var h='<div class="in-card'+(x.status==='done'?' done':'')+'" style="--lv:'+L[1]+';--lvbg:'+L[2]+'">'+
+  '<div class="in-top"><span class="in-ic">'+esc2(x.icon||'•')+'</span><span class="in-lv">'+L[3]+' '+L[0]+'</span><span class="in-cat">'+esc2(x.cat)+'</span>'+(x.pinned?'<span class="in-pin">📌 고정</span>':'')+(x.status==='done'?'<span class="in-done">✔ 조치 완료'+(x.doneBy?' · '+esc2(x.doneBy):'')+'</span>':'')+(x.status==='hidden'?'<span class="in-cat">숨김</span>':'')+'<span class="in-date">'+span+'</span></div>'+
+  '<div class="in-title">'+esc2(x.title)+'</div>';
+ if(compact)return h+'</div>';
+ h+='<div class="in-body">'+esc2(x.body)+'</div>';
+ if(x.lines&&x.lines.length)h+='<ul class="in-lines">'+x.lines.map(function(l){return '<li>'+esc2(l)+'</li>'}).join('')+'</ul>';
+ if(x.ev&&x.ev.length)h+='<div class="in-ev">'+x.ev.map(function(e){return '<span><small>'+esc2(e[0])+'</small><b>'+esc2(e[1])+'</b></span>'}).join('')+(x.link?'<a class="in-link" href="'+esc2(x.link)+'">근거 보기 →</a>':'')+'</div>';
+ var notes=x.notes||[];
+ h+='<div class="in-foot"><button class="btn btn-ghost btn-sm" onclick="yumInsight.toggle(\''+sid+'\')">💬 확인 · 댓글'+(notes.length?' '+notes.length:'')+'</button>'+
+  (isAdm()?'<span style="flex:1"></span><button class="btn btn-ghost btn-sm" onclick="yumInsight.set(\''+esc2(x.id)+'\',\'pinned\','+(!x.pinned)+')">'+(x.pinned?'고정 해제':'📌 고정')+'</button>'+
+   (x.status==='done'?'<button class="btn btn-ghost btn-sm" onclick="yumInsight.set(\''+esc2(x.id)+'\',\'status\',\'open\')">다시 열기</button>':'<button class="btn btn-o btn-sm" onclick="yumInsight.set(\''+esc2(x.id)+'\',\'status\',\'done\')">✔ 조치 완료</button>')+
+   (x.status==='hidden'?'<button class="btn btn-ghost btn-sm" onclick="yumInsight.set(\''+esc2(x.id)+'\',\'status\',\'open\')">숨김 해제</button>':'<button class="btn btn-ghost btn-sm" onclick="yumInsight.set(\''+esc2(x.id)+'\',\'status\',\'hidden\')">숨김</button>'):'')+'</div>'+
+  '<div class="in-notes" id="in-x-'+sid+'" style="display:'+(notes.length?'block':'none')+'">'+notes.map(function(n){return '<div class="in-note"><b>'+esc2(n.by)+'</b><span>'+esc2(String(n.at).slice(5,16).replace('T',' '))+'</span><div>'+esc2(n.t)+'</div></div>'}).join('')+
+  '<div class="in-add"><input id="in-n-'+sid+'" placeholder="확인했습니다 (내용을 적지 않으면 이 문구로 남습니다)"><button class="btn btn-p btn-sm" onclick="yumInsight.note(\''+esc2(x.id)+'\')">남기기</button></div></div>';
+ return h+'</div>';
+}
+function autoHTML(q){
+ var all=items(),lv=q.lv||'',st=q.st||'open',cat=q.c||'';
+ var f=all.filter(function(x){return (!lv||x.level===lv)&&(!cat||x.cat===cat)&&(st==='all'||(st==='open'?x.status!=='done'&&x.status!=='hidden':x.status===st))});
+ f.sort(function(a,b){return (b.pinned?1:0)-(a.pinned?1:0)||String(b.last).localeCompare(String(a.last))||({red:0,amber:1,green:2}[a.level]-{red:0,amber:1,green:2}[b.level])});
+ var y=kst(-1),wk=C().addDays(y,-6),old=C().addDays(y,-30);
+ var cats={};all.forEach(function(x){cats[x.cat]=(cats[x.cat]||0)+1});
+ var link=function(o){var p=Object.assign({t:'auto',lv:lv,st:st,c:cat},o);return '#/notice?'+Object.keys(p).filter(function(k){return p[k]}).map(function(k){return k+'='+encodeURIComponent(p[k])}).join('&')};
+ var openN=function(l){return all.filter(function(x){return x.level===l&&x.status!=='done'&&x.status!=='hidden'}).length};
+ var h='';
+ var dg=(store().digest||{})[store().lastD||''];
+ h+='<div class="in-hero"><div><div class="in-h1">🤖 자동 인사이트</div><div class="in-h2">'+(store().lastD?md(store().lastD)+' 기록까지 분석 · ':'')+'일지 · 지연 · 정비 데이터에서 확인할 일을 매일 아침 자동으로 찾아 씁니다.</div>'+(dg?'<div class="in-dg">✦ '+esc2(dg)+'</div>':'')+'</div>'+
+  '<div class="in-kpi"><a href="'+link({lv:'red'})+'" style="--c:#D64545"><b>'+openN('red')+'</b>즉시 확인</a><a href="'+link({lv:'amber'})+'" style="--c:#E0902F"><b>'+openN('amber')+'</b>관찰</a><a href="'+link({lv:'green'})+'" style="--c:#2E9E6A"><b>'+openN('green')+'</b>참고</a></div></div>';
+ h+='<div class="in-filter"><span>중요도</span>'+[['','전체'],['red','🔴 즉시 확인'],['amber','🟠 관찰'],['green','🟢 참고']].map(function(o){return '<a class="'+(lv===o[0]?'on':'')+'" href="'+link({lv:o[0]})+'">'+o[1]+'</a>'}).join('')+
+  '<span style="margin-left:10px">상태</span>'+[['open','진행 중'],['done','조치 완료'],['hidden','숨김'],['all','모두']].map(function(o){return '<a class="'+(st===o[0]?'on':'')+'" href="'+link({st:o[0]})+'">'+o[1]+'</a>'}).join('')+
+  (isAdm()?'<button class="btn btn-o btn-sm" style="margin-left:auto" onclick="yumInsight.again()">↻ 어제 기록 다시 분석</button>':'')+'</div>';
+ h+='<div class="in-filter"><span>분류</span><a class="'+(!cat?'on':'')+'" href="'+link({c:''})+'">전체</a>'+Object.keys(cats).map(function(c){return '<a class="'+(cat===c?'on':'')+'" href="'+link({c:c})+'">'+esc2(c)+' <small>'+cats[c]+'</small></a>'}).join('')+'</div>';
+ if(!f.length)return h+'<div class="panel" style="text-align:center;padding:34px;color:var(--muted)">'+(all.length?'조건에 맞는 인사이트가 없습니다.':'아직 만들어진 인사이트가 없습니다. 일지 · 지연 · 정비 기록이 쌓이면 매일 아침 자동으로 채워집니다.')+'</div>';
+ var groups=[['📌 고정',function(x){return x.pinned}],['오늘 확인할 것 ('+md(y)+' 기록)',function(x){return !x.pinned&&x.last>=y}],['이번 주',function(x){return !x.pinned&&x.last<y&&x.last>=wk}],['지난 30일',function(x){return !x.pinned&&x.last<wk&&x.last>=old}]];
+ groups.forEach(function(g){var a=f.filter(g[1]);if(a.length)h+='<div class="in-gh">'+g[0]+' <small>'+a.length+'</small></div><div class="in-list">'+a.map(function(x){return card(x)}).join('')+'</div>'});
+ var older=f.filter(function(x){return !x.pinned&&x.last<old});
+ if(older.length)h+='<details class="in-old"><summary>30일 지난 인사이트 '+older.length+'건 펼치기</summary><div class="in-list">'+older.map(function(x){return card(x)}).join('')+'</div></details>';
+ return h;
+}
+function stripHTML(){
+ var y=kst(-1),a=items().filter(function(x){return x.last>=C().addDays(y,-1)&&x.status!=='done'&&x.status!=='hidden'}).sort(function(p,q){return {red:0,amber:1,green:2}[p.level]-{red:0,amber:1,green:2}[q.level]});
+ if(!a.length)return '';
+ return '<div class="in-strip"><div class="in-sh"><b>🤖 오늘의 자동 인사이트</b><a href="#/notice?t=auto">전체 '+a.length+'건 보기 →</a></div><div class="in-sl">'+a.slice(0,3).map(function(x){return '<a href="#/notice?t=auto">'+card(x,true)+'</a>'}).join('')+'</div></div>';
+}
+var _nv=Views.notice;
+Views.notice=function(){
+ var q=qs(),t=q.t||'all';
+ try{yumInsight.run()}catch(e){}
+ var base='';try{base=_nv.apply(this,arguments)}catch(e){base=''}
+ var reds=items().filter(function(x){return x.level==='red'&&x.status!=='done'&&x.status!=='hidden'}).length;
+ var tabs='<div class="in-tabs">'+[['all','전체'],['notice','📢 부서 공지'],['auto','🤖 자동 인사이트'+(reds?'<i>'+reds+'</i>':'')]].map(function(o){return '<a class="'+(t===o[0]?'on':'')+'" href="#/notice'+(o[0]==='all'?'':'?t='+o[0])+'">'+o[1]+'</a>'}).join('')+'</div>';
+ var i=base.indexOf('<div class="panel"'),head=i>0?base.slice(0,i):'',rows=i>0?base.slice(i):base;
+ head=head.replace('사내 공지와 Notion 공지가 함께 표시됩니다','사람이 쓰는 부서 공지와, 일지 데이터로 자동 작성되는 설비 · 품질 인사이트를 한곳에서 봅니다');
+ if(t==='auto')return head+tabs+autoHTML(q);
+ if(t==='notice')return head+tabs+rows;
+ return head+tabs+stripHTML()+rows;
+};
+/* 처음 열 때 자동 생성 (로그인 후 데이터가 올라온 뒤) */
+setTimeout(function(){try{yumInsight.run()}catch(e){}},6000);
+document.addEventListener('visibilitychange',function(){if(!document.hidden)setTimeout(function(){try{yumInsight.run()}catch(e){}},2500)});
+
+try{var st=document.createElement('style');st.textContent=
+ '.in-tabs{display:flex;gap:6px;margin:4px 0 14px;flex-wrap:wrap}.in-tabs a{padding:9px 16px;border-radius:999px;background:#fff;border:1px solid var(--line);color:var(--ink);text-decoration:none;font-weight:700;font-size:14px;display:inline-flex;gap:6px;align-items:center}.in-tabs a.on{background:linear-gradient(135deg,#13254B,#2B4C94);color:#fff;border-color:transparent}.in-tabs i{font-style:normal;background:#D64545;color:#fff;border-radius:999px;font-size:11px;padding:1px 7px}'+
+ '.in-hero{display:flex;gap:16px;align-items:stretch;justify-content:space-between;flex-wrap:wrap;background:linear-gradient(120deg,#0A142B,#1B356F 60%,#24448C);color:#fff;border-radius:18px;padding:20px 22px;margin-bottom:12px}.in-h1{font-size:20px;font-weight:800}.in-h2{font-size:13px;color:#C9D4EE;margin-top:4px}.in-dg{margin-top:10px;background:rgba(255,255,255,.1);border-left:3px solid #E3C68B;border-radius:8px;padding:9px 12px;font-size:13.5px;line-height:1.6;max-width:720px}'+
+ '.in-kpi{display:flex;gap:8px}.in-kpi a{min-width:84px;text-decoration:none;color:#C9D4EE;background:rgba(255,255,255,.08);border-radius:12px;padding:10px 12px;font-size:12px;border-top:3px solid var(--c);display:flex;flex-direction:column}.in-kpi b{font-size:24px;color:#fff;line-height:1.1}'+
+ '.in-filter{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:8px 0;font-size:13px}.in-filter>span{color:var(--muted);font-weight:700;margin-right:2px}.in-filter a{padding:5px 11px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--ink);text-decoration:none}.in-filter a.on{background:#13254B;color:#fff;border-color:#13254B}.in-filter small{opacity:.7}'+
+ '.in-gh{font-weight:800;color:var(--navy,#13254B);margin:18px 2px 8px;font-size:15px}.in-gh small{color:var(--muted);font-weight:600}'+
+ '.in-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px}'+
+ '.in-card{background:#fff;border:1px solid var(--line);border-left:5px solid var(--lv);border-radius:14px;padding:14px 16px;box-shadow:0 1px 2px rgba(16,24,40,.04)}.in-card.done{opacity:.72}'+
+ '.in-top{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px}.in-ic{font-size:17px}.in-lv{background:var(--lvbg);color:var(--lv);font-weight:800;border-radius:999px;padding:2px 9px}.in-cat{background:#F1F3F8;color:var(--muted);border-radius:999px;padding:2px 9px;font-weight:700}.in-pin{color:#A9853F;font-weight:700}.in-done{color:#2E9E6A;font-weight:700}.in-date{margin-left:auto;color:var(--muted)}'+
+ '.in-title{font-size:15.5px;font-weight:800;margin-top:8px;line-height:1.4;color:var(--ink)}.in-body{font-size:13.5px;color:#3A4560;margin-top:6px;line-height:1.65}'+
+ '.in-lines{margin:8px 0 0;padding:8px 12px 8px 26px;background:#F7F8FB;border-radius:10px;font-size:12.5px;color:#3A4560;line-height:1.7}'+
+ '.in-ev{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}.in-ev span{display:inline-flex;flex-direction:column;background:var(--lvbg);border-radius:10px;padding:5px 10px}.in-ev small{font-size:10.5px;color:var(--muted)}.in-ev b{font-size:13px}.in-link{margin-left:auto;font-size:12.5px;font-weight:700;color:#2F5BD3;text-decoration:none}'+
+ '.in-foot{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:10px;border-top:1px solid var(--line-soft,#EEF1F5);padding-top:8px}'+
+ '.in-notes{margin-top:8px}.in-note{background:#F7F8FB;border-radius:10px;padding:7px 10px;margin-bottom:6px;font-size:12.5px}.in-note span{color:var(--muted);margin-left:6px;font-size:11.5px}.in-add{display:flex;gap:6px}.in-add input{flex:1;padding:7px 10px}'+
+ '.in-old{margin-top:16px}.in-old summary{cursor:pointer;color:var(--muted);font-weight:700;padding:8px 2px}'+
+ '.in-strip{background:linear-gradient(135deg,#F4F7FF,#FFF9EC);border:1px solid #E3E8F5;border-radius:16px;padding:14px 16px;margin-bottom:14px}.in-sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.in-sh a{font-size:13px;font-weight:700;color:#2F5BD3;text-decoration:none}.in-sl{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}.in-sl>a{text-decoration:none;color:inherit}.in-sl .in-card{height:100%;box-sizing:border-box}'+
+ '@media (max-width:700px){.in-list{grid-template-columns:1fr}.in-kpi{width:100%}.in-kpi a{flex:1}}';
+ document.head.appendChild(st)}catch(e){}
+console.log('[확장 모듈 47] 자동 인사이트 로드 완료');
 })();
 </script>
 
