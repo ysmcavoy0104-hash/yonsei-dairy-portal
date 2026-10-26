@@ -94,6 +94,7 @@
   /* ───────── 일지 양식 읽기: 입력칸마다 줄 이름 · 열 머리 · 기준 범위 ───────── */
   var FCACHE = {};
   function cellText(c) {
+    if (c.lab) return String(c.dv || '').trim();   /* 근무일보 명단: 직급 · 이름 입력칸(기본값) */
     if (c.x != null) return String(c.x).replace(/[\/∕]/g, ' ').replace(/\s+/g, ' ').trim();
     if (c.tpl && !/\{(in|tm|sel):/.test(c.tpl)) return String(c.tpl).replace(/\{[^}]*\}/g, ' ').replace(/[\/∕]/g, ' ').replace(/\s+/g, ' ').trim();
     return '';
@@ -120,6 +121,7 @@
       });
       function keysOf(c) {
         var ks = [];
+        if (c.lab) return ks;
         if (c.k) ks.push({ k: c.k, kind: c.tm ? 'tm' : c.ox ? 'ox' : c.sel ? 'sel' : 'in', lab: '' });
         if (c.tpl) { var re = /\{(in|tm|sel):([\w]+)[^}]*\}/g, m, last = 0; while ((m = re.exec(c.tpl))) { var lab = c.tpl.slice(last, m.index).replace(/\{[^}]*\}/g, ' ').replace(/[\/∕]/g, ' ').replace(/\s+/g, ' ').trim(); ks.push({ k: m[2], kind: m[1], lab: lab }); last = re.lastIndex; } }
         return ks;
