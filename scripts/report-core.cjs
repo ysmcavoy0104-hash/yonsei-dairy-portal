@@ -544,14 +544,184 @@
   /* 예전 방식 호환 (일일) */
   function build(data, NF, opts) { opts = Object.assign({}, opts || {}); opts.kind = 'daily'; return report(data, NF, opts); }
 
+  /* ═════════ 자동 인사이트 (공지사항 「자동 인사이트」) ═════════
+     하루(D)의 일지 · 지연 · 정비 기록을 최근 기간과 비교해 「확인할 일」을 찾아 글로 만듦.
+     규칙으로 찾은 사실만 쓰고, 근거 숫자를 함께 둠.  level: red(즉시 확인) · amber(관찰) · green(참고 · 좋은 소식)
+     같은 주제가 며칠 이어지면 새 글을 만들지 않고 기존 글을 갱신(key가 같고 최근 3일 안에 본 글)           */
+  function seriesRows(data, from, to, templates) {
+    /* 기준 범위가 있는 줄(예: HACCP 「멸균 TSL 42 135~150℃」)의 날짜별 평균값 */
+    var forms = {}; ((data && data.forms) || []).forEach(function (f) { forms[f.id] = f; });
+    var S = {};
+    ((data && data.docs) || []).forEach(function (d) {
+      if (!d || d.deleted || d.status === 'draft' || d.status === 'temp') return;
+      var day = docDate(d); if (day < from || day > to) return;
+      var f = forms[d.formId]; if (!f) return;
+      var wt = (templates && f.code && templates[f.code]) || f.wtpl;
+      var grid = (d.data && d.data.grid) || {};
+      introspect(f.code || f.id, wt).forEach(function (fd) {
+        if (!fd.spec || fd.kind === 'tm') return;
+        var n = num(grid[fd.k]); if (n == null) return;
+        var key = (f.code || f.id) + '|' + fd.row;
+        var s = S[key] = S[key] || { form: shortName(f.name), team: teamOf(f), row: fd.row, spec: fd.spec, days: {} };
+        (s.days[day] = s.days[day] || []).push(n);
+      });
+    });
+    return S;
+  }
+  function lvMax(a, b) { var o = { green: 0, amber: 1, red: 2 }; return o[a] >= o[b] ? a : b; }
+
+  function insights(data, NF, opts) {
+    opts = opts || {};
+    var D = opts.date || kstDate(-1, opts.now);
+    var W0 = addDays(D, -6), P0 = addDays(D, -13), P1 = addDays(D, -7);
+    var all = records(data, NF);
+    var w = all.filter(function (r) { return r.d >= W0 && r.d <= D; });
+    var p = all.filter(function (r) { return r.d >= P0 && r.d <= P1; });
+    var out = [];
+    function add(o) { o.d = D; out.push(o); }
+    var link = '#/reports?t=daily&k=' + D;
+
+    /* 1. 같은 설비 정비 반복 */
+    topBy(w.filter(function (r) { return r.kind === 'maint'; }), function (r) { return String(r.asset || '').replace(/\s+/g, ' ').trim(); }, null, 20).forEach(function (g) {
+      if (g[2] < 3) return;
+      var list = w.filter(function (r) { return r.kind === 'maint' && String(r.asset || '').replace(/\s+/g, ' ').trim() === g[0]; });
+      add({ key: 'maint|' + g[0], level: g[2] >= 4 ? 'red' : 'amber', cat: '설비', icon: '🔧', title: g[0] + ' — 최근 7일 정비 ' + g[2] + '회',
+        body: '같은 설비에 정비가 반복되고 있습니다. 부품 교체만으로 끝나지 않는 근본 원인(설치 상태 · 운전 조건 · 예방 정비 주기)을 점검해 주세요.',
+        lines: list.slice(0, 6).map(function (r) { return md(r.d) + ' · ' + (r.content || '-') + (r.mtype ? ' (' + r.mtype + ')' : ''); }),
+        ev: [['정비 횟수', g[2] + '회 / 7일'], ['종류', topBy(list, function (r) { return r.mtype || '기타'; }, null, 3).map(function (x) { return x[0] + ' ' + x[1]; }).join(', ')]], link: '#/oplogs' });
+    });
+    /* 2. 같은 호기 지연 반복 */
+    var dl5 = w.filter(function (r) { return r.kind === 'delay' && r.d >= addDays(D, -4); });
+    var byH = {}; dl5.forEach(function (r) { var k = (r.team || r.div) + ' ' + (r.hogi || ''); (byH[k] = byH[k] || []).push(r); });
+    Object.keys(byH).forEach(function (k) {
+      var L = byH[k], days = {}; L.forEach(function (r) { days[r.d] = 1; });
+      var nd = Object.keys(days).length; if (nd < 3) return;
+      var mins = sum(L, function (r) { return r.min; }); if (mins < 180) return;
+      var top = topBy(L, function (r) { return r.reason; }, function (r) { return r.min; }, 2);
+      add({ key: 'hogi|' + k, level: nd >= 4 && mins >= 360 ? 'red' : 'amber', cat: '설비', icon: '⏱', title: k.trim() + ' — 최근 5일 중 ' + nd + '일 지연 (' + hrs(mins) + ')',
+        body: '같은 호기에서 지연이 며칠째 이어지고 있습니다. 주요 원인: ' + top.map(function (t) { return t[0] + ' ' + hrs(t[1]); }).join(', ') + '.',
+        lines: L.slice(-6).map(function (r) { return md(r.d) + ' ' + (r.start || '') + ' · ' + (r.reason || '-') + ' · ' + hrs(r.min) + (r.product ? ' · ' + r.product : ''); }),
+        ev: [['지연 일수', nd + '일 / 5일'], ['총 지연', hrs(mins)]], link: '#/oplogs' });
+    });
+    /* 3. 멸균 정지 반복 · 일지 분석 */
+    var J = analyzeDocs(data, W0, D, opts.templates);
+    var stopBy = {}; J.stops.forEach(function (s) { (stopBy[s.hogi] = stopBy[s.hogi] || []).push(s); });
+    Object.keys(stopBy).forEach(function (h) {
+      var L = stopBy[h], days = {}; L.forEach(function (s) { days[s.d] = 1; }); var nd = Object.keys(days).length; if (nd < 3) return;
+      var run = 0, ds = Object.keys(days).sort(), mx = 1; for (var i = 1; i < ds.length; i++) { run = addDays(ds[i - 1], 1) === ds[i] ? (run || 1) + 1 : 1; mx = Math.max(mx, run); }
+      add({ key: 'stop|' + h, level: nd >= 4 || mx >= 3 ? 'red' : 'amber', cat: '설비', icon: '⛔', title: h + ' — 최근 7일 중 ' + nd + '일 정지' + (mx >= 3 ? ' (' + mx + '일 연속)' : ''),
+        body: '멸균 파트 업무 일지에 정지 기록이 반복됩니다. 주요 사유: ' + (topBy(L, function (s) { return s.why || '사유 미기재'; }, null, 3).map(function (x) { return x[0] + ' ' + x[1] + '회'; }).join(', ')) + '.',
+        lines: L.slice(-6).map(function (s) { return md(s.d) + ' ' + s.start + ' → ' + s.end + (s.min ? ' (' + hrs(s.min) + ')' : '') + ' · ' + (s.why || '사유 미기재'); }),
+        ev: [['정지 일수', nd + '일 / 7일'], ['정지 기록', L.length + '건']], link: link });
+    });
+    /* 4. 어제 기준 이탈 · 부적합 */
+    var dd = J.devs.filter(function (x) { return x.d === D; });
+    var byF = {}; dd.forEach(function (x) { (byF[x.form] = byF[x.form] || []).push(x); });
+    Object.keys(byF).forEach(function (f) {
+      var L = byF[f];
+      add({ key: 'dev|' + f + '|' + D, level: 'red', cat: '품질', icon: '🛡', title: f + ' — 기준 이탈 · 부적합 ' + L.length + '건',
+        body: '일지에 적힌 값이 양식의 기준을 벗어났습니다. 한계기준 이탈 시 개선조치 기록이 있는지 확인해 주세요.',
+        lines: L.slice(0, 6).map(function (x) { return clip(x.what, 46) + ' → ' + x.val + ' (기준 ' + x.spec + ')'; }),
+        ev: [['이탈', L.length + '건'], ['날짜', md(D)]], link: link });
+    });
+    /* 5. 기준선에 다가가는 추세 (아직 기준 안) */
+    var S = seriesRows(data, addDays(D, -6), D, opts.templates);
+    Object.keys(S).forEach(function (k) {
+      var s = S[k], ds = Object.keys(s.days).sort(); if (ds.length < 4 || ds[ds.length - 1] !== D) return;
+      var v = ds.map(function (d) { var a = s.days[d]; return sum(a) / a.length; }), sp = s.spec, last = v[v.length - 1];
+      if ((sp.lo != null && v.some(function (x) { return x < sp.lo; })) || (sp.hi != null && v.some(function (x) { return x > sp.hi; }))) return;
+      var rng = (sp.lo != null && sp.hi != null) ? sp.hi - sp.lo : Math.abs((sp.lo != null ? sp.lo : sp.hi)) * 0.1 || 1;
+      var t = v.slice(-4), down = t.every(function (x, i) { return !i || x <= t[i - 1]; }), up = t.every(function (x, i) { return !i || x >= t[i - 1]; });
+      var toward = null;
+      if (down && sp.lo != null && last - sp.lo <= rng * 0.15 && t[0] - last >= rng * 0.1) toward = '하한 ' + sp.lo;
+      if (up && sp.hi != null && sp.hi - last <= rng * 0.15 && last - t[0] >= rng * 0.1) toward = '상한 ' + sp.hi;
+      if (!toward) return;
+      add({ key: 'trend|' + k, level: 'amber', cat: '품질 추세', icon: '📉', title: s.form + ' · ' + clip(s.row, 40) + ' — ' + toward + '에 가까워지는 중',
+        body: '아직 기준 안이지만 ' + t.length + '일째 같은 방향으로 움직여 기준선에 가까워졌습니다. 센서 · 설정값 · 원료 상태를 미리 확인해 주세요.',
+        lines: ds.slice(-5).map(function (d, i) { var a = s.days[d]; return md(d) + ' 평균 ' + Math.round(sum(a) / a.length * 10) / 10; }),
+        ev: [['기준', sp.txt], ['어제 평균', Math.round(last * 10) / 10]], link: link });
+    });
+    /* 6. 지연 원인 급증 */
+    var cr = {}, pr = {};
+    w.filter(function (r) { return r.kind === 'delay'; }).forEach(function (r) { if (r.reason) cr[r.reason] = (cr[r.reason] || []).concat([r]); });
+    p.filter(function (r) { return r.kind === 'delay'; }).forEach(function (r) { if (r.reason) pr[r.reason] = (pr[r.reason] || 0) + (+r.min || 0); });
+    Object.keys(cr).forEach(function (rs) {
+      var L = cr[rs], m = sum(L, function (r) { return r.min; }), pm = pr[rs] || 0;
+      if (m < 180 || m < pm * 2) return;
+      var wd = topBy(L, function (r) { return DOW[dowN(r.d)] + '요일'; }, function (r) { return r.min; }, 1)[0];
+      var hh = topBy(L, function (r) { var t = toMin(r.start); return t == null ? '' : (Math.floor(t / 120) * 2) + '~' + (Math.floor(t / 120) * 2 + 2) + '시'; }, function (r) { return r.min; }, 1)[0];
+      add({ key: 'reason|' + rs, level: m >= 600 && m >= pm * 3 ? 'red' : 'amber', cat: '지연', icon: '📈', title: '「' + rs + '」 지연이 ' + (pm ? Math.round(m / pm * 10) / 10 + '배로 증가' : '새로 크게 발생') + ' (' + hrs(m) + ')',
+        body: '최근 7일 ' + L.length + '건, 지난 7일 ' + hrs(pm) + ' → 이번 7일 ' + hrs(m) + '.' + (wd ? ' ' + wd[0] + '에 가장 많았고' : '') + (hh && hh[0] ? ' 시간대는 ' + hh[0] + '에 몰렸습니다.' : ''),
+        lines: L.slice(-5).map(function (r) { return md(r.d) + ' ' + (r.team || '') + ' ' + (r.hogi || '') + ' · ' + hrs(r.min) + (r.product ? ' · ' + r.product : ''); }),
+        ev: [['이번 7일', hrs(m)], ['지난 7일', hrs(pm)]], link: '#/reports?t=weekly' });
+    });
+    /* 7. 일지 누락 (평소 쓰던 일지가 어제 없음) */
+    if (dowN(D) !== 0) {
+      var forms = {}; ((data && data.forms) || []).forEach(function (f) { forms[f.id] = f; });
+      var hist = analyzeDocs(data, addDays(D, -14), addDays(D, -1), opts.templates), today = analyzeDocs(data, D, D, opts.templates);
+      var work = range(addDays(D, -14), addDays(D, -1)).filter(function (d) { return dowN(d) !== 0; }).length || 1;
+      var miss = Object.keys(hist.byForm).filter(function (id) { var b = hist.byForm[id]; return Object.keys(b.days).length >= work * 0.6 && !today.byForm[id]; }).map(function (id) { return hist.byForm[id]; });
+      if (miss.length) add({ key: 'miss|' + D, level: 'amber', cat: '일지', icon: '📝', title: md(D) + '(' + dowOf(D) + ') 작성되지 않은 일지 ' + miss.length + '건',
+        body: '평소 거의 매일 작성하던 일지가 이날은 저장되지 않았습니다. 작성 · 임시저장 상태를 확인해 주세요.',
+        lines: miss.slice(0, 8).map(function (b) { return b.name + ' (' + b.team + ') · 최근 2주 ' + Object.keys(b.days).length + '일 작성'; }), ev: [['누락', miss.length + '건']], link: '#/journals' });
+    }
+    /* 8. 결재 지연 */
+    var old = ((data && data.docs) || []).filter(function (d) { return d && (d.status === 'pending' || d.status === 'in_progress') && String(d.createdAt || d.savedAt || '').slice(0, 10) <= addDays(D, -3); });
+    if (old.length) add({ key: 'appr', level: old.length >= 20 ? 'red' : 'amber', cat: '결재', icon: '✅', title: '3일 넘게 결재 대기 중인 문서 ' + old.length + '건',
+      body: '결재가 늦어지면 일지 기록이 확정되지 않습니다. 전자결재 → 결재 대기에서 확인해 주세요.',
+      lines: old.slice(0, 6).map(function (d) { return String(d.createdAt || '').slice(5, 10).replace('-', '/') + ' · ' + (d.title || d.docNo || '문서'); }), ev: [['대기', old.length + '건']], link: '#/approval' });
+    /* 9. 좋은 소식 */
+    DIVS.forEach(function (dv) {
+      var n = 0; for (var i = 0; i < 30; i++) { var d = addDays(D, -i); if (all.some(function (r) { return r.kind === 'delay' && r.div === dv && r.d === d; })) break; n++; }
+      var before = all.some(function (r) { return r.kind === 'delay' && r.div === dv && r.d < addDays(D, -n + 1) && r.d >= addDays(D, -n - 13); });
+      if (n >= 5 && before) add({ key: 'good|' + dv, level: 'green', cat: '좋은 소식', icon: '🎉', title: dv + '(' + DIVSUB[dv] + ') ' + n + '일 연속 지연 없음',
+        body: '최근 ' + n + '일 동안 생산 지연 기록이 없습니다. 잘 운영되고 있는 방식을 다른 라인에도 공유해 보세요.', lines: [], ev: [['연속', n + '일']], link: '#/reports?t=weekly' });
+    });
+    if (J.ccpChecks >= 20 && !J.devs.length) add({ key: 'good|haccp', level: 'green', cat: '좋은 소식', icon: '🏅', title: '최근 7일 HACCP · 기준 이탈 0건',
+      body: '측정 ' + J.ccpChecks + '회 모두 기준 안이었습니다.', lines: [], ev: [['측정', J.ccpChecks + '회']], link: link });
+    /* 알림 피로 줄이기: 🔴는 하루 최대 3개(나머지는 🟠), 전체 최대 10개(좋은 소식은 최대 2개 따로) */
+    var ord = { red: 0, amber: 1, green: 2 }, wt = { '품질': 1, '설비': 2, '품질 추세': 3, '지연': 4, '일지': 5, '결재': 6 };
+    out.sort(function (a, b) { return ord[a.level] - ord[b.level] || (wt[a.cat] || 9) - (wt[b.cat] || 9); });
+    var reds = 0;
+    out.forEach(function (x) { if (x.level === 'red') { reds++; if (reds > 3) x.level = 'amber'; } });
+    out.sort(function (a, b) { return ord[a.level] - ord[b.level] || (wt[a.cat] || 9) - (wt[b.cat] || 9); });
+    var main = out.filter(function (x) { return x.level !== 'green'; }).slice(0, 10), good = out.filter(function (x) { return x.level === 'green'; }).slice(0, 2);
+    return main.concat(good);
+  }
+  /* 저장소에 합치기 — 같은 주제(key)를 최근 3일 안에 본 글이 있으면 갱신, 없으면 새 글. 60일 지난 글은 정리 */
+  function mergeInsights(store, list, D, nowIso) {
+    store = store || {}; var items = Object.assign({}, store.items || {}); var added = [];
+    nowIso = nowIso || new Date().toISOString();
+    list.forEach(function (x) {
+      var hit = null;
+      Object.keys(items).forEach(function (id) { var it = items[id]; if (it.key === x.key && it.status !== 'done' && it.last >= addDays(D, -3) && it.first <= D) hit = it; });
+      if (hit) {
+        if (hit.last >= D && hit.gen === D) return;
+        var nl = lvMax(hit.level, x.level);
+        items[hit.id] = Object.assign({}, hit, { title: x.title, body: x.body, lines: x.lines, ev: x.ev, link: x.link, level: nl, last: D > hit.last ? D : hit.last, days: (hit.days || 1) + (D > hit.last ? 1 : 0), gen: D, updatedAt: nowIso });
+        if (nl === 'red' && hit.level !== 'red') added.push(items[hit.id]);
+      } else {
+        var id = x.key + '|' + D;
+        if (items[id]) return;
+        items[id] = Object.assign({ id: id, first: D, last: D, days: 1, gen: D, status: 'open', createdAt: nowIso, updatedAt: nowIso, notes: [] }, x);
+        added.push(items[id]);
+      }
+    });
+    var cut = addDays(D, -60);
+    Object.keys(items).forEach(function (id) { if (items[id].last < cut && !items[id].pinned) delete items[id]; });
+    return { store: Object.assign({}, store, { items: items, lastD: (!store.lastD || D > store.lastD) ? D : store.lastD }), added: added };
+  }
+  var AI_INSIGHT = '당신은 연세우유 상온제품생산부문의 설비 · 품질 데이터 분석 담당자입니다. 아래는 일지 · 지연 · 정비 기록에서 규칙으로 찾은 오늘의 인사이트 목록입니다. 이 목록만 근거로, 현장 관리자가 아침에 읽을 「오늘의 한 줄 브리핑」을 한국어 2~3문장으로 쓰세요. 가장 급한 것부터, 숫자는 그대로, 목록에 없는 내용은 쓰지 마세요.';
+
   var AI_BASE = '당신은 연세우유 상온제품생산부문의 생산관리 보고 담당자입니다. 주어진 데이터만 근거로 한국어로 요약하세요. 데이터에 없는 내용은 추측하지 말고, 기록이 없으면 "특이사항 없음"이라고 쓰세요. ';
   var AI = {
     daily: AI_BASE + '부서장이 아침에 1분 안에 읽을 수 있게 3~6개의 짧은 글머리표(•)로: 가장 큰 문제(시간 기준), 반복 원인, 평소보다 늘어난 부서, 기준 이탈, 오늘 확인할 점을 우선합니다.',
     weekly: AI_BASE + '지난 한 주를 돌아보는 주간 보고 요약입니다. 4~7개의 글머리표(•)로: 한 주 총평(지난주 대비 증감), 가장 큰 손실 원인과 호기, 품질·HACCP 이탈, 반복되는 정비, 일지·결재 상황, 다음 주에 집중할 점(제안 1~2개)을 씁니다.',
     monthly: AI_BASE + '지난달 월간 보고 요약입니다. 5~8개의 글머리표(•)로: 월 총평(지난달 대비 증감 %), 손실이 컸던 원인 TOP3와 비중, 문제가 몰린 주·요일·시간대, 품질·HACCP, 설비 정비 경향, 인력(OT), 다음 달 개선 과제 2~3개를 씁니다.'
   };
+  AI.insight = AI_INSIGHT;
   var AI_SYSTEM = AI.daily;
 
-  return { build: build, report: report, period: period, records: records, analyze: analyze, introspect: introspect, specOf: specOf,
+  return { insights: insights, mergeInsights: mergeInsights, AI_INSIGHT: AI_INSIGHT, build: build, report: report, period: period, records: records, analyze: analyze, introspect: introspect, specOf: specOf,
     kstDate: kstDate, addDays: addDays, isoWeek: isoWeek, AI: AI, AI_SYSTEM: AI_SYSTEM, DIVS: DIVS };
 });

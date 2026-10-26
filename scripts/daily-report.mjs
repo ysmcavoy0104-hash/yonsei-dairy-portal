@@ -113,13 +113,13 @@ async function sendMail(cfg, rep) {
   return { mail: to.length };
 }
 
-async function sendPush(data, rep) {
+async function sendPush(data, rep, urlPath) {
   if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) { log('VAPID 키가 없어 폰 알림을 건너뜁니다'); return { push: 0, gone: [] }; }
   webpush.setVapidDetails(env.MAIL_FROM ? `mailto:${env.MAIL_FROM.replace(/.*</, '').replace(/>.*/, '')}` : 'mailto:admin@example.com', env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY);
   const subs = [];
-  const offDaily = new Set((data.users || []).filter((u) => u && u.notify && (u.notify.daily === false || u.notify[rep.kind] === false)).map((u) => u.id));
+  const offDaily = new Set((data.users || []).filter((u) => u && u.notify && (rep.kind === 'insight' ? u.notify.insight === false : (u.notify.daily === false || u.notify[rep.kind] === false))).map((u) => u.id));
   Object.entries(data.pushSubs || {}).forEach(([uid, list]) => !offDaily.has(uid) && (list || []).forEach((s) => { if (s && s.endpoint && s.on !== false && (!s.vk || s.vk === env.VAPID_PUBLIC_KEY)) subs.push({ uid, s }); }));
-  const payload = JSON.stringify({ title: rep.title, body: rep.summary, url: (env.PORTAL_URL || '') + '#/reports?t=' + rep.kind + '&k=' + rep.key, tag: rep.kind + '-' + rep.key });
+  const payload = JSON.stringify({ title: rep.title, body: rep.summary, url: (env.PORTAL_URL || '') + (urlPath || ('#/reports?t=' + rep.kind + '&k=' + rep.key)), tag: rep.kind + '-' + rep.key });
   let ok = 0; const gone = [];
   for (const { uid, s } of subs) {
     if (DRY) { ok++; continue; }
@@ -138,7 +138,7 @@ function due(data, cfg, now) {
   const out = [];
   const KIND = (env.KIND || '').toLowerCase();
   if (FORCE) {   /* 수동 실행: 고른 종류만 (기본 일일) */
-    (KIND ? KIND.split(',') : ['daily']).forEach((k) => out.push(k.trim()));
+    (KIND ? KIND.split(',') : ['daily']).map((k) => k.trim()).filter((k) => ['daily', 'weekly', 'monthly'].indexOf(k) >= 0).forEach((k) => out.push(k));
     return out;
   }
   if (cfg.enabled) {
@@ -189,13 +189,38 @@ async function sendOne(kind, data, cfg, NF, TPL, now) {
   return { ok: true };
 }
 
+/* 공지사항 「자동 인사이트」: 전날 기록 분석 → 저장 · 🔴 항목 폰 알림 */
+async function runInsights(data, cfg, NF, TPL, now) {
+  const D = env.REPORT_DATE || Core.kstDate(-1, now);
+  let L = Core.insights(data, NF, { date: D, templates: TPL, now });
+  let digest = '';
+  if (L.length && cfg.ai !== false) {
+    const txt = L.map((x) => `[${{ red: '즉시 확인', amber: '관찰', green: '참고' }[x.level]}] ${x.cat} · ${x.title} — ${x.body}`).join('\n');
+    digest = await aiSummary({ ...cfg, ai: true }, txt, 'insight');
+  }
+  const fresh = await readState();
+  const r = Core.mergeInsights(fresh.insights, L, D, new Date().toISOString());
+  fresh.insights = r.store;
+  if (digest) { fresh.insights.digest = Object.assign({}, fresh.insights.digest || {}); fresh.insights.digest[D] = digest.replace(/\s+/g, ' ').trim().slice(0, 400); const ks = Object.keys(fresh.insights.digest).sort(); while (ks.length > 30) delete fresh.insights.digest[ks.shift()]; }
+  log(`인사이트 ${D}: 찾은 것 ${L.length}건 · 새 글 ${r.added.length}건`, digest ? '· AI 브리핑 포함' : '');
+  if (DRY) return;
+  const w = await fetch(`${SB}/rest/v1/app_state?id=eq.1`, { method: 'PATCH', headers: { ...sbHeaders, Prefer: 'return=minimal' }, body: JSON.stringify({ data: fresh, updated_at: new Date().toISOString() }) });
+  if (!w.ok) throw new Error(`인사이트 저장 실패 ${w.status}`);
+  const reds = r.added.filter((x) => x.level === 'red');
+  if (reds.length) await sendPush(fresh, { kind: 'insight', key: D, date: D, title: '🔴 설비 · 품질 인사이트', summary: reds.length === 1 ? reds[0].title : `${reds[0].title} 외 ${reds.length - 1}건` }, '#/notice?t=auto');
+}
+
 async function main() {
   const now = env.NOW ? new Date(env.NOW) : new Date();   // NOW: 시험용 시각 (보통은 비움)
   let data = await readState();
   const cfg = data.reportCfg || {};
   const kinds = due(data, cfg, now);
-  if (!kinds.length) { log('이번 시각에 보낼 보고서가 없습니다'); return; }
   const NF = loadNotionFinal(), TPL = loadTemplates();
+  /* 인사이트: 일일 보고 시각(설정)에 매일, 또는 수동 실행에서 kind에 insight를 고른 경우 */
+  const kstHour = (now.getUTCHours() + 9) % 24, hour = cfg.hour == null ? 7 : +cfg.hour;
+  const wantIns = FORCE ? /insight/.test(env.KIND || '') : ((cfg.insights || {}).enabled !== false && kstHour === hour && String((data.insights || {}).lastD || '') < Core.kstDate(-1, now));
+  if (wantIns) { try { await runInsights(data, cfg, NF, TPL, now); data = await readState(); } catch (e) { console.error('[daily-report] 인사이트 실패:', e.message); process.exitCode = 1; } }
+  if (!kinds.length) { log('이번 시각에 보낼 보고서가 없습니다'); return; }
   let fail = 0;
   for (const kind of kinds) {
     try { const r = await sendOne(kind, data, cfg, NF, TPL, now); if (!r.ok) fail++; }
