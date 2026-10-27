@@ -10724,6 +10724,7 @@ try{
     ap(remote.pushSubs);ap(local.pushSubs);
     if(remote.pushSubs||local.pushSubs)out.pushSubs=P;
     /* 보고서 설정은 관리자만 바꾸므로 더 최근에 바꾼 쪽을 사용 */
+    var rr=remote.reportRun,lr=local.reportRun;if(rr||lr)out.reportRun=(!rr?lr:(!lr?rr:(String(lr.at||'')>String(rr.at||'')?lr:rr)));
     var ra=remote.reportCfg,la=local.reportCfg;if(ra||la)out.reportCfg=(!ra?la:(!la?ra:(String(la.updatedAt||'')>String(ra.updatedAt||'')?la:ra)));
    }
   }catch(e){console.warn('[보고서 병합]',e)}
@@ -10821,6 +10822,29 @@ function reportsHTML(){
 }
 function shiftMonth(d,n){var y=+d.slice(0,4),m=+d.slice(5,7)+n;while(m<1){m+=12;y--}while(m>12){m-=12;y++}return y+'-'+(m<10?'0':'')+m+'-'+d.slice(8,10)}
 
+/* ---------- 발송 상태 · 점검: 왜 메일이 안 왔는지 한눈에 ---------- */
+function kt(iso){var d=new Date(iso);return isNaN(d)?String(iso||''):d.toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'numeric',day:'numeric',weekday:'short',hour:'2-digit',minute:'2-digit'})}
+function kd(n){var d=new Date(Date.now()+9*3600e3+n*864e5);return d.toISOString().slice(0,10)}
+function statusHTML(c){
+ var on=(c.recipients||[]).filter(function(r){return r&&r.on!==false&&/@/.test(r.email||'')}).length;
+ var today=kd(0),yd=kd(-1),dow=new Date(today+'T00:00:00Z').getUTCDay(),days=c.days||[1,2,3,4,5,6],hour=c.hour==null?7:+c.hour;
+ var R=(DB.data.dailyReports||{})[yd],S=R&&R.sent,run=DB.data.reportRun,items=[];
+ var ok=function(t){items.push('<li class="ok">✔ '+t+'</li>')},bad=function(t){items.push('<li class="bad">✖ '+t+'</li>')},info=function(t){items.push('<li>• '+t+'</li>')};
+ c.enabled?ok('매일 자동 발송 켜짐 · '+(hour<12?'오전 ':'오후 ')+((hour%12)||12)+'시 · '+days.map(function(d){return DOW[d]}).join('')+'요일'):bad('<b>매일 자동 발송이 꺼져 있습니다</b> — 아래 「매일 자동 발송 켜기」를 체크하고 설정 저장');
+ if(days.indexOf(dow)<0)info('오늘('+DOW[dow]+'요일)은 발송 요일이 아닙니다');
+ on?ok('메일 수신자 '+on+'명'):bad('<b>메일 수신자가 없습니다</b> — 오른쪽 「메일 수신자」에 추가');
+ if(S&&S.at)ok('어제('+yd+') 일일 보고 <b>발송됨</b> '+esc(kt(S.at))+' · 메일 '+(S.mail||0)+'명');
+ else if(S&&S.error)bad('어제('+yd+') 일일 보고 메일 <b>실패 '+(S.tries||1)+'번</b> — '+esc(S.error)+((S.tries||0)>=3?' <button class="btn btn-o btn-sm" onclick="yumRA.retry(\''+yd+'\')">다시 보내기 허용</button>':''));
+ else if(R)info('어제('+yd+') 일일 보고는 만들어졌지만 아직 메일 발송 기록이 없습니다');
+ else info('어제('+yd+') 일일 보고가 아직 만들어지지 않았습니다 — 자동 실행은 정한 시각부터 6시간 동안 매시간 시도합니다');
+ if(run){var t=kt(run.at),h=run.has||{};
+  (run.ok?ok:bad)('마지막 자동 실행 '+esc(t)+(run.err?' — 오류: '+esc(run.err):''));
+  var miss=[['smtpHost','SMTP_HOST'],['smtpUser','SMTP_USER'],['smtpPass','SMTP_PASS']].filter(function(x){return !h[x[0]]}).map(function(x){return x[1]});
+  if(miss.length)bad('GitHub Secrets에 메일 설정이 없습니다: <b>'+miss.join(', ')+'</b>');
+  if(run.log&&run.log.length)items.push('<li class="lg"><details><summary>실행 기록 보기</summary><pre>'+esc(run.log.join('\n'))+'</pre></details></li>');
+ }else info('GitHub 자동 실행 기록이 아직 없습니다 — 새 daily-report.mjs를 올린 뒤 첫 실행(정한 시각부터 6시간 안)에 여기에 표시됩니다. 시각이 지났는데도 계속 없으면 GitHub → Actions 탭에서 daily-report가 꺼져 있지 않은지 확인하세요.');
+ return '<div class="panel rp-diag" style="margin-bottom:14px"><h3 class="rp-h">발송 상태 · 점검</h3><ul>'+items.join('')+'</ul></div>';
+}
 /* ---------- 보고서 자동화 관리 (관리자 1명) ---------- */
 function adminHTML(){
  var u=me();
@@ -10835,6 +10859,7 @@ function adminHTML(){
  var chk=function(id,on,label){return '<label class="rp-chk"><input type="checkbox" id="'+id+'"'+(on?' checked':'')+'> '+label+'</label>'};
  var h='<div class="hrow pg-theme-dash"><div><h1 class="pgt">보고서 자동화 관리</h1><div class="pgt-sub">관리자 '+esc(u.name)+' 님만 볼 수 있는 화면입니다 · 실제 발송은 GitHub Actions가 매시간 확인해 아래 시각에 보냅니다.</div></div>'+
   '<div class="od-tools"><a class="btn btn-o btn-sm" href="#/reports">보고서함</a><button class="btn btn-p btn-sm" onclick="yumRA.save()">설정 저장</button></div></div>';
+ h+=statusHTML(c);
  h+='<div class="rp-2"><div class="panel"><h3 class="rp-h">발송 설정</h3>'+
   '<label class="rp-sw"><input type="checkbox" id="ra-en"'+(c.enabled?' checked':'')+'> <b>매일 자동 발송 켜기</b></label>'+
   '<div class="rp-row"><span>발송 시각</span><select id="ra-hour">'+Array.from({length:24},function(_,i){return '<option value="'+i+'"'+(+c.hour===i?' selected':'')+'>'+(i<12?'오전 ':'오후 ')+((i%12)||12)+'시</option>'}).join('')+'</select><span class="rp-sub">(한국 시간, 전날 데이터로 보고)</span></div>'+
@@ -10876,6 +10901,9 @@ function collect(){
  c.updatedAt=new Date().toISOString();return c;
 }
 window.yumRA={
+ retry:function(k){var R=(DB.data.dailyReports||{})[k];if(!R||!R.sent)return;R.sent.tries=0;R.generatedAt=new Date().toISOString();try{DB.save()}catch(e){}
+  try{if(window.SupaSync&&SupaSync.on()){clearTimeout(SupaSync.pushT);SupaSync.pushNow(DB.data)}}catch(e){}
+  try{U.toast('다음 정각 자동 실행(발송 시각부터 6시간 안)에 다시 보냅니다. 바로 보내려면 GitHub에서 「지금 보내기」를 실행하세요.','ok')}catch(e){}App.render()},
  claim:function(){if(!canClaim())return;var c=cfg(),u=me();c.ownerId=u.id;c.ownerName=u.name;c.updatedAt=new Date().toISOString();save();U.toast('이제 '+u.name+' 님만 보고서 자동화를 관리합니다.','ok');rerender()},
  save:function(){if(!isOwner())return;var c=collect();var bad=c.recipients.filter(function(r){return r.email&&!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(r.email)});if(bad.length){U.toast('메일 주소 형식을 확인해 주세요: '+bad[0].email,'bad');return}save();U.toast('보고서 설정을 저장했습니다.'+(c.enabled?' 매일 '+c.hour+'시에 발송합니다.':' (자동 발송 꺼짐)'),'ok');rerender()},
  addR:function(){if(!isOwner())return;collect();cfg().recipients.push({name:'',email:'',on:true});rerender()},
@@ -10931,6 +10959,7 @@ try{var st=document.createElement('style');st.textContent=
  '.rp-grid{display:grid;grid-template-columns:260px minmax(0,1fr);gap:14px;margin-top:14px;align-items:start}'+
  '.rp-list{padding:8px!important;max-height:78vh;overflow:auto}.rp-li{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:10px;color:var(--ink);text-decoration:none}.rp-li:hover{background:#F6F7FB}.rp-li.on{background:linear-gradient(135deg,#13254B,#2A4C99);color:#fff}.rp-li span{font-size:12px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.rp-li small{font-size:11px;opacity:.7}'+
  '.rp-paper{background:var(--bg,#F5F6FA);border-radius:16px;padding:16px;overflow-x:auto}'+
+ '.rp-diag ul{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:13.5px}.rp-diag li.ok{color:#1F7A3E}.rp-diag li.bad{color:#B4372C}.rp-diag li.bad b,.rp-diag li.ok b{font-weight:800}.rp-diag pre{white-space:pre-wrap;font-size:11.5px;background:#F6F8FB;border:1px solid #E3E7EF;border-radius:8px;padding:8px;margin:6px 0 0;color:#2B3647}.rp-diag summary{cursor:pointer;color:#5B6576;font-size:12.5px}'+
  '.rp-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.rp-h{font-size:15px;font-weight:800;color:var(--navy);margin:0 0 12px}'+
  '.rp-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0;font-size:13.5px}.rp-row>span:first-child{width:96px;font-weight:700;color:var(--muted);flex:0 0 auto}.rp-row input:not([type=checkbox]),.rp-row select{flex:1;min-width:140px;width:auto}'+
  '.rp-chk{display:inline-flex;gap:6px;align-items:center;margin:0 12px 6px 0;font-size:13.5px}.rp-chk input,.rp-day input,.rp-sw input,.rp-rr input[type=checkbox]{width:auto}'+
@@ -12343,11 +12372,12 @@ console.log('[확장 모듈 50] 일지 칸 글씨 맞춤 로드 완료');
 (function(){
 if(window.__YUM_PROCDASH__)return;window.__YUM_PROCDASH__=1;
 var DEF={
- mix:{title:'배합 공정 분석',main:'FRM-012',codes:['FRM-012','FRM-008','FRM-014'],work:'FRM-014'},
- juice:{title:'착즙 공정 분석',main:'FRM-009',codes:['FRM-009','FRM-010','FRM-006','FRM-007','FRM-015','FRM-028'],work:'FRM-028'},
+ mix:{title:'배합 공정 분석',main:'FRM-012',codes:['FRM-012','FRM-008','FRM-014','FRM-042','FRM-043'],work:'FRM-014'},
+ juice:{title:'착즙 공정 분석',main:'FRM-009',codes:['FRM-009','FRM-010','FRM-006','FRM-007','FRM-015','FRM-028','FRM-041'],work:'FRM-028'},
+ sterx:{title:'멸균 일지 요약 (HACCP [1]~[13] · 멸균유 생산작업일보 · 멸균실 CIP · 위생 점검)',main:'FRM-021',codes:['FRM-021','FRM-029','FRM-030','FRM-031','FRM-032','FRM-033','FRM-034','FRM-035','FRM-036','FRM-037','FRM-038','FRM-039','FRM-040','FRM-011','FRM-017','FRM-018','FRM-022']},
  pack:{title:'포장 공정 분석 (두유포장 A~F호기 · DE)',main:'FRM-023',codes:['FRM-045','FRM-023','FRM-046','FRM-049','FRM-047','FRM-050','FRM-051','FRM-048','FRM-052','FRM-053','FRM-054','FRM-059','FRM-025','FRM-063','FRM-058','FRM-055','FRM-024','FRM-056','FRM-062','FRM-057','FRM-026','FRM-027','FRM-060','FRM-061']}};
 var C={blue:'#2F6FD6',teal:'#12A39A',red:'#D64545',amber:'#E0A030',violet:'#7B5CD6',green:'#1F9D6B',gray:'#8B95A7',navy:'#1F3B7A'};
-var st={mix:{},juice:{},pack:{}};
+var st={mix:{},juice:{},pack:{},sterx:{}};
 
 /* ---------- 공통 도우미 ---------- */
 function esc(x){return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
@@ -12646,6 +12676,64 @@ function packView(D,days){var R=packDay(D),T=days.map(packDay),h='';
  if(R.dev.length)ins.push('CCP · 공정 기준 이탈 <b>'+R.dev.length+'건</b> — '+R.dev.slice(0,3).map(function(x){return esc(x.item)+' '+fmt(x.val,1)}).join(', ')+'.');
  if(R.badN)ins.push('점검 불량(X) <b>'+R.badN+'건</b>'+(R.xs.length?' — HACCP: '+R.xs.slice(0,3).map(function(x){return esc(x.item)}).join(', '):'')+'.');
  return h+insights(ins)}
+/* ---------- 공통: 일지 한 장 요약 (작성 여부 · 불량(X) 항목 · 기준 이탈 · 메모) ---------- */
+function formSum(code,D){var d=byDate(code)[D];if(!d)return null;var bad=[];
+ fields(code).forEach(function(x){var val=v(d,x.k);if(BAD.test(val))bad.push(String(x.row||x.col||x.lab||x.k).replace(/\s+/g,' ').replace(/^(개 인 위 생|작 업 장 위 생·안전|개인위생|작업장 위생·안전)\s*/,'').trim().slice(0,28))});
+ return {d:d,bad:bad,dev:devs(code,d),notes:notes(code,d)}}
+window.yumFormSum=function(code,D){try{return formSum(code,D)}catch(e){return null}};
+function fname(code){var f=form(code);return f?f.name.replace(/\s*\(상온제품가공[^)]*\)/,''):code}
+function dlink(x,t){return x&&x.d?'<a class="link" href="#/doc/'+x.d.id+'">'+t+'</a>':t}
+
+/* ---------- 배합: CIP 및 살균 작업 일보 (기존 · 신규 배합실) ---------- */
+var RN={};
+function routeName(code,pre,y){var k=code+':'+y;if(RN[k]!==undefined)return RN[k];var f=form(code),nm='';
+ try{(f.wtpl.blocks||[]).forEach(function(b){(b.rows||[]).forEach(function(r){var i=-1;r.forEach(function(c,j){if(String(c.tpl||'').indexOf('{pk:'+pre+'_'+y+'_kind:알칼리')===0)i=j});
+  if(i<0)return;var off=code==='FRM-042'?3:2;var c=r[i-off];if(c)nm=String(c.x||'').replace(/\s+/g,' ').trim()})})}catch(e){}
+ return RN[k]=nm}
+function cipList(code,pre,c0,room,D){var d=byDate(code)[D];if(!d)return [];var out=[],F=fields(code);
+ for(var y=6;y<=45;y++){var g=function(o){return v(d,pre+'_'+y+'_'+(c0+o))};var kind=v(d,pre+'_'+y+'_kind');
+  if(!(g(0)||g(1)||g(2)||kind))continue;
+  var nm=routeName(code,pre,y)||(y+'행');
+  var a=mins(g(0)),b=mins(g(1)),tp=num(g(2)),ok=[g(9),g(10)].filter(Boolean);
+  out.push({room:room,nm:nm,kind:kind,a:a,b:b,min:a!=null&&b!=null?(b-a+1440)%1440:null,tp:tp,who:g(3),ok:ok,bad:ok.some(function(x){return /부적합/.test(x)})||(tp!=null&&(tp<70||tp>80)),d:d})}
+ return out}
+function mixCip(D){var L=cipList('FRM-042','cB',11,'기존 배합실',D).concat(cipList('FRM-043','cA',9,'신규 배합실',D));
+ var al=L.filter(function(x){return /알칼리/.test(x.kind)}).length,fu=L.filter(function(x){return /FULL/.test(x.kind)}).length,bd=L.filter(function(x){return x.bad});
+ var body=L.length?'<div class="pd-mini">CIP '+L.length+'건 · 알칼리 <b>'+al+'</b> · FULL <b>'+fu+'</b>'+(bd.length?' · <b class="bad">확인 필요 '+bd.length+'건</b>':' · 이상 없음 👍')+'</div>'+
+  table(['배합실','설비','CIP 종류','시작 ~ 종료','세제온도','작업자','적합 여부'],L.map(function(x){return [x.room,'<b>'+esc(x.nm)+'</b>',x.kind?'<span class="pd-tag" style="background:'+(/FULL/.test(x.kind)?'#FFC9DC':'#BFE6FF')+'">'+esc(x.kind)+'</span>':'',(x.a!=null?hm(x.a):'?')+' ~ '+(x.b!=null?hm(x.b):'?')+(x.min!=null?' ('+x.min+'분)':''),x.tp!=null?(x.tp<70||x.tp>80?'<b class="bad">'+fmt(x.tp,1)+'℃</b>':fmt(x.tp,1)+'℃'):'',esc(x.who),x.ok.map(function(o){return /부적합/.test(o)?'<b class="bad">'+esc(o)+'</b>':esc(o)}).join(' · ')]})):empty('이 날 배합실 CIP 일보 없음');
+ return card('🧼 배합실 CIP 실시 현황','[일반제품] CIP 및 살균 작업 일보 (기존 · 신규 배합실) · 세제온도 기준 70~80℃',body,1)}
+
+/* ---------- 착즙: 두유액 CCP-1P · 2B 일보 ---------- */
+function juiceCcp(D){var d=byDate('FRM-041')[D];if(!d)return card('🛡 두유액 CCP-1P · 2B','여과 · 살균 모니터링',empty('이 날 CCP 일보 없음'),1);
+ var S=[];for(var i=1;i<=8;i++){var t=v(d,'ccp_mt_'+i),tp=nv(d,'ccp_temp_'+i),fl=nv(d,'ccp_flow_'+i),ox=v(d,'ccp_ox_'+i),w=v(d,'ccp_who_'+i);if(t||tp!=null||fl!=null||ox)S.push({t:t,tp:tp,fl:fl,ox:ox,w:w})}
+ var j=[v(d,'ccp_j1'),v(d,'ccp_j2')],X=S.filter(function(x){return BAD.test(x.ox)}),T=S.map(function(x){return x.tp}).filter(function(x){return x!=null}),Fl=S.map(function(x){return x.fl}).filter(function(x){return x!=null});
+ var body='<div class="pd-mini">여과(CCP-1P) 생산 전 <b'+(/부적합/.test(j[0])?' class="bad"':'')+'>'+esc(j[0]||'-')+'</b> · 생산 후 <b'+(/부적합/.test(j[1])?' class="bad"':'')+'>'+esc(j[1]||'-')+'</b>'+
+  ' · 살균(CCP-2B) 모니터링 '+S.length+'회'+(T.length?' · 온도 '+fmt(Math.min.apply(null,T),1)+'~'+fmt(Math.max.apply(null,T),1):'')+(Fl.length?' · 유량 '+fmt(Math.min.apply(null,Fl),0)+'~'+fmt(Math.max.apply(null,Fl),0):'')+(X.length?' · <b class="bad">X '+X.length+'회</b>':'')+'</div>'+
+  table(['시각','온도','유량','O/X','확인'],S.map(function(x){return [esc(x.t),fmt(x.tp,1),fmt(x.fl,0),BAD.test(x.ox)?'<b class="bad">'+esc(x.ox)+'</b>':esc(x.ox),esc(x.w)]}));
+ return card('🛡 두유액 CCP-1P · 2B',dlink({d:d},'일지 열기'),body,1)}
+
+/* ---------- 멸균: 일지 요약 (멸균 대시보드 아래) ---------- */
+function sterxView(D,days){var cfg=DEF.sterx,h='';
+ var rows=cfg.codes.map(function(c){return {c:c,s:formSum(c,D)}});
+ var w=rows.filter(function(r){return r.s}),bad=0,dev=0;w.forEach(function(r){bad+=r.s.bad.length;dev+=r.s.dev.length});
+ var hac=rows.filter(function(r){return /^FRM-0(21|29|3\d|40)$/.test(r.c)}),hw=hac.filter(function(r){return r.s}).length;
+ var m=byDate('FRM-011')[D],bt=0,items=[],mq=null,mx=0;
+ if(m){for(var r=10;r<=24;r++){if([2,3,4,5,6,7,8].some(function(c){return v(m,'g2_'+r+'_'+c)}))bt++}
+  [[5,6],[7,8],[9,10]].forEach(function(p,i){for(var r=3;r<=5;r++){var it=v(m,'g2_'+r+'_'+p[0]),q=nv(m,'g2_'+r+'_'+p[1]);if(it||q!=null)items.push((i+1)+'호기 '+(it||'')+(q!=null?' '+fmt(q,1)+'B':''));if(q!=null)mq=(mq||0)+q}});
+  fields('FRM-011').forEach(function(x){if(BAD.test(v(m,x.k)))mx++})}
+ h+='<div class="pd-ks6">'+kpi('🛡','HACCP 일보',hw,'/ '+hac.length+'종','[1]~[13] 중 이 날 작성',C.teal)+
+  kpi('⚠','불량(X) · 부적합',bad,'건','멸균 일지 전체',bad?C.red:C.green)+kpi('📏','기준 이탈',dev,'건','양식에 적힌 기준과 비교',dev?C.red:C.green)+
+  kpi('🥛','멸균유 배치',m?bt:'-','배치',m?(mq!=null?'생산량 '+fmt(mq,1)+' Batch':'제품생산작업일보 (멸균유 전용)'):'멸균유 생산작업일보 없음',C.blue)+
+  kpi('🧼','멸균실 CIP',byDate('FRM-017')[D]?'작성':'-','',fname('FRM-017'),C.violet)+kpi('🧽','위생 점검',byDate('FRM-018')[D]?'작성':'-','',(formSum('FRM-018',D)||{bad:[]}).bad.length?'X '+formSum('FRM-018',D).bad.length+'건':'위생·안전관리 점검표 (1팀)',C.amber)+'</div>';
+ h+=card('📋 멸균 일지별 점검 결과','이 날 저장된 일지 · 불량(X) · 기준 이탈',table(['일지','작성','불량(X) · 부적합','기준 이탈'],rows.map(function(r){var x=r.s;return [esc(fname(r.c)),x?dlink(x,'✓ 열기'):'<span class="pd-mu">미작성</span>',x?(x.bad.length?'<b class="bad">'+x.bad.length+'</b> '+esc(x.bad.slice(0,3).join(', ')):'0'):'',x?(x.dev.length?'<b class="bad">'+x.dev.length+'</b> '+esc(x.dev.slice(0,2).map(function(o){return o.item+' '+fmt(o.val,1)}).join(', ')):'0'):'']})),1);
+ if(m)h+=card('🥛 제품생산작업일보 (멸균유 전용)',dlink({d:m},'일지 열기'),'<div class="pd-mini">배치 <b>'+bt+'</b>'+(mq!=null?' · 생산량 <b>'+fmt(mq,1)+'</b> Batch':'')+' · 점검 X <b'+(mx?' class="bad"':'')+'>'+mx+'</b></div>'+(items.length?'<ul class="pd-notes">'+items.map(function(t){return '<li>'+esc(t)+'</li>'}).join('')+'</ul>':'')+(v(m,'g2_note')?'<div class="pd-mini">특이사항: '+esc(v(m,'g2_note'))+'</div>':''),1);
+ var ds=[],ns=[];w.forEach(function(r){ds=ds.concat(r.s.dev);ns=ns.concat(r.s.notes)});
+ h+=devNotes(ds,ns);
+ var T=days.map(function(d){var b=0,e=0,n=0;cfg.codes.forEach(function(c){var x=formSum(c,d);if(x){n++;b+=x.bad.length;e+=x.dev.length}});return {n:n,b:b,e:e}});
+ h+=trendBlock(days,[['작성한 멸균 일지(종)',T.map(function(t){return t.n||null}),'종',C.teal],['불량(X) · 부적합',T.map(function(t){return t.n?t.b:null}),'건',C.red],['기준 이탈',T.map(function(t){return t.n?t.e:null}),'건',C.amber]]);
+ var ins=[];ins.push('HACCP 일보 '+hw+'/'+hac.length+'종이 작성되었습니다.');if(bad)ins.push('불량(X) · 부적합 <b>'+bad+'건</b> — '+w.filter(function(r){return r.s.bad.length}).map(function(r){return esc(fname(r.c))+' '+r.s.bad.length}).slice(0,4).join(', ')+'.');if(dev)ins.push('기준 이탈 <b>'+dev+'건</b>.');if(m)ins.push('멸균유 배치 '+bt+'건'+(mq!=null?', 생산량 '+fmt(mq,1)+' Batch':'')+'.');
+ return h+insights(ins)}
+
 function trendBlock(days,list){return card('📊 최근 14일 추이','저장된 일지 기준 · 빈 날 = 기록 없음','<div class="pd-trs">'+list.map(function(x){return '<div><div class="pd-trt">'+esc(x[0])+'</div>'+trend(days,x[1],x[2],x[3])+'</div>'}).join('')+'</div>',1)}
 function devNotes(dev,nts){var sn={};nts=nts.filter(function(n){var k=String(n.t).replace(/\s/g,'');if(sn[k])return false;sn[k]=1;return true});return '<div class="pd-row">'+card('⚠ 기준 이탈','양식에 적힌 기준과 비교',dev.length?table(['일지','항목','값','기준'],dev.map(function(x){return [x.f,esc(x.item),'<b class="bad">'+fmt(x.val,2)+'</b>',esc(x.spec)]})):'<div class="pd-ok">기준 이탈 없음 👍</div>')+
  card('📝 현장 메모','특이사항 · 비고 · 사유',nts.length?'<ul class="pd-notes">'+nts.slice(0,12).map(function(n){return '<li><span>'+esc(n.where||n.f)+'</span>'+esc(n.t)+'</li>'}).join('')+'</ul>':empty('메모 없음'))+'</div>'}
@@ -12663,9 +12751,9 @@ function render(box){var k=box.getAttribute('data-k'),cfg=DEF[k];if(!cfg)return;
   (mainF?'<a class="btn btn-o btn-sm" href="#/doc-new?form='+mainF.id+'">일지 작성</a>':'')+'<button class="btn btn-ghost btn-sm" onclick="yumProcDash.print()">🖨 인쇄 · PDF</button></div></div>'+
   '<div class="pd-srcs">'+src+'</div>';
  if(!D)h+=empty('배합 · 착즙 일지를 저장하면 여기에 날짜별 분석이 나타납니다.');
- else h+=(k==='mix'?mixView(D,days):k==='pack'?packView(D,days):juiceView(D,days));
+ else h+=(k==='mix'?mixView(D,days)+mixCip(D):k==='pack'?packView(D,days):k==='sterx'?sterxView(D,days):juiceView(D,days)+juiceCcp(D));
  box.innerHTML=h+'</div>';box.setAttribute('data-r',DB.data.docs.length+':'+D)}
-var CSS='.pd{--b:#E3E7EF;color:#1A2233}.pd-hd{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px}.pd-hd h2{margin:0;font-size:22px;font-weight:800}.pd-sub{color:#6B7685;font-size:12.5px;margin-top:4px}.pd-act{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.pd-act select{padding:6px 10px;border:1px solid var(--b);border-radius:8px;font-weight:700;background:#fff}'+
+var CSS='.pd-tag{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:700;color:#24324a}.pd{--b:#E3E7EF;color:#1A2233}.pd-hd{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:10px}.pd-hd h2{margin:0;font-size:22px;font-weight:800}.pd-sub{color:#6B7685;font-size:12.5px;margin-top:4px}.pd-act{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.pd-act select{padding:6px 10px;border:1px solid var(--b);border-radius:8px;font-weight:700;background:#fff}'+
  '.pd-srcs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px}.pd-src{font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--b);color:#8B95A7;text-decoration:none;background:#fff}.pd-src.on{color:#1B7F4E;border-color:#BFE6CF;background:#EFFAF3;font-weight:700}.pd-src em{font-style:normal;color:#B26B00;font-weight:700}'+
  '.pd-ks6{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:12px}@media(max-width:1100px){.pd-ks6{grid-template-columns:repeat(3,1fr)}}@media(max-width:640px){.pd-ks6{grid-template-columns:repeat(2,1fr)}}'+
  '.pd-k{background:#fff;border:1px solid var(--b);border-top:4px solid var(--c);border-radius:12px;padding:10px 12px}.pd-kl{font-size:12px;color:#5B6478;font-weight:700}.pd-kv{font-size:26px;font-weight:900;margin-top:2px;color:#111a2c}.pd-kv small{font-size:13px;color:#6B7685;margin-left:3px;font-weight:700}.pd-ks{font-size:11.5px;color:#6B7685;margin-top:2px;line-height:1.4}'+
@@ -12690,7 +12778,8 @@ window.yumProcDash={pick:function(k,d){st[k].date=d;var b=document.getElementByI
 /* 생산계획 > 배합 · 착즙 탭을 「운영 중」으로 */
 function hook(){var P=window.ProcPages;if(!P||P.__pd)return;P.__pd=1;
  ['mix','juice','pack'].forEach(function(k){if(P.list[k]){P.list[k].live=1;P.list[k].desc=k==='mix'?'제품생산작업일보 · 설탕 용해 · 근무일보 — 배치 · Brix · 탱크 · 점검 O/X · OT':k==='pack'?'B호기 생산작업일보 · HACCP CCP-3B · A3 Check List · DE생산 · 용량 점검 — 생산량 · 가동률 · 정지 · 기준 이탈':'착즙공정일보 · 원액 · 검은콩 · CIP · 근무일보 — 대두 · 부산물 · 시간별 작업 · T.S · OT'}});
- var ov=P.view;P.view=function(k){var h=ov.apply(this,arguments);if(k==='mix'||k==='juice'||k==='pack'){h=h.replace('<div id="ster-dash"></div>','<div id="pd-dash" data-k="'+k+'"></div>');setTimeout(paint,0)}return h}}
+ var ov=P.view;P.view=function(k){var h=ov.apply(this,arguments);if(k==='mix'||k==='juice'||k==='pack'){h=h.replace('<div id="ster-dash"></div>','<div id="pd-dash" data-k="'+k+'"></div>');setTimeout(paint,0)}
+  else if(k==='ster'&&h.indexOf('<div id="ster-dash"></div>')>=0){h=h.replace('<div id="ster-dash"></div>','<div id="ster-dash"></div><div id="pd-dash" data-k="sterx" style="margin-top:22px"></div>');setTimeout(paint,0)}return h}}
 hook();setTimeout(hook,300);window.addEventListener('load',hook);
 new MutationObserver(function(){var b=document.getElementById('pd-dash');if(b&&!b.getAttribute('data-sig'))paint()}).observe(document.documentElement,{childList:true,subtree:true});
 setInterval(function(){if(document.getElementById('pd-dash'))paint()},5000);
@@ -12926,6 +13015,11 @@ function view(){
   card('',C.juice,'❖ 착즙','#/juice','착즙 대시보드',jR?'<div class="ov-ms">'+mini('대두 사용량',fmt(jR.use),'kg')+mini('부산물',fmt(jR.byRate,1),'%')+mini('원액 생산',fmt(jR.raw),'kg')+mini('기준 이탈',fmt(jR.dev.length),'건',jR.dev.length>0)+'</div><div class="ov-spt">최근 7일 대두 사용량</div>'+spark(days,jT,C.juice,'kg'):'<div class="ov-empty">이 날까지 저장된 착즙 일지가 없습니다</div>',jD?md(jD)+'('+dw(jD)+') 일지':'')+
   card('',C.ster,'♨ 멸균','#/ster','멸균 대시보드',sR?'<div class="ov-ms">'+mini('가동 호기',sR.hogi,'대')+mini('적산량',sR.q>=10000?fmt(sR.q/10000,1):fmt(sR.q),sR.q>=10000?'만':'')+mini('가동 시간',fmt(sR.run,1),'h')+mini('정지 기록',fmt(sR.stops),'건',sR.stops>0)+'</div><div class="ov-spt">최근 7일 적산량</div>'+spark(days,sT,C.ster,''):'<div class="ov-empty">이 날까지 저장된 멸균 일지가 없습니다</div>',sD?md(sD)+'('+dw(sD)+') 일지':'')+
   card('',C.pack,'📦 포장','#/pack','포장 대시보드',pR?'<div class="ov-ms">'+mini('생산량 (전 호기)',fmt(pR.allEa),'개')+mini('B호기 가동률',fmt(pR.rate,1),'%')+mini('정지',fmt(pR.stopN||0),'회',(pR.stopN||0)>0)+mini('이탈 · 불량',fmt(pR.dev.length+pR.badN),'건',pR.dev.length+pR.badN>0)+'</div><div class="ov-spt">최근 7일 생산량</div>'+spark(days,pT,C.pack,'개'):'<div class="ov-empty">이 날까지 저장된 포장 일지가 없습니다</div>',pD?md(pD)+'('+dw(pD)+') 일지':'')+'</div>';
+ /* 위생 · 안전 점검 (공통 일지) */
+ try{var HY=[['FRM-044','가공2팀 위생·안전 점검표'],['FRM-018','가공1팀 위생·안전 점검표'],['FRM-022','일일 작업 체크리스트'],['FRM-013','가공팀 업무일지']].map(function(x){var dd=null;for(var q=0;q<7&&window.yumFormSum;q++){var dq=new Date(Date.now()+9*3600e3-q*864e5).toISOString().slice(0,10),r=yumFormSum(x[0],dq);if(r){dd=dq;return {c:x[0],t:x[1],s:r,dd:dq}}}return {c:x[0],t:x[1],s:null}});
+  var hb=0;HY.forEach(function(x){if(x.s)hb+=x.s.bad.length});
+  h+='<div class="ov-g1">'+card('','#2E8B57','🧽 위생 · 안전 점검','#/docs?tab=all&cat=공통','문서 보기','<div class="ov-hy">'+HY.map(function(x){return '<div class="ov-hyi'+(x.s&&x.s.bad.length?' bad':'')+'"><b>'+esc(x.t)+(x.dd?' <small style="font-weight:500;color:#8B95A7">'+md(x.dd)+'</small>':'')+'</b>'+(x.s?'<span>'+(x.s.bad.length?'X '+x.s.bad.length+'건 — '+esc(x.s.bad.slice(0,3).join(', ')):'✓ 작성 · 이상 없음')+'</span>':'<span class="mu">최근 7일 기록 없음</span>')+'</div>'}).join('')+'</div>','최근 기록 기준'+(hb?' · 부적합 '+hb+'건':''))+'</div>';
+ }catch(e){}
  /* 지연 */
  var divs=DIVS.map(function(dv){var a=dDay.filter(function(r){return r.div===dv});return '<div class="ov-dv" style="--c:'+DIVC[dv]+'"><b>'+dv+'</b><small>'+DIVSUB[dv]+'</small><span>'+(a.length?a.length+'건 · '+hrs(sum(a)):'지연 없음')+'</span></div>'}).join('');
  var tr='<div class="ov-tr">'+days.map(function(d){var tot=sum(dl.filter(function(r){return r.d===d}));return '<div class="ov-tc" title="'+md(d)+' '+hrs(tot)+'"><span class="ov-tb">'+DIVS.map(function(dv){var m=sum(dl.filter(function(r){return r.d===d&&r.div===dv}));return m?'<i style="flex:'+m+';background:'+DIVC[dv]+'"></i>':''}).join('')+'</span><em>'+(tot?Math.round(tot/6)/10+'h':'')+'</em><small'+(dw(d)==='일'?' class="sun"':'')+'>'+md(d)+'</small></div>'}).join('')+'</div>';
@@ -12941,7 +13035,7 @@ function view(){
  h+='<div class="ov-g2">'+card('ov-wide',C.delay,'⏱ 생산 지연','#/ndash','지연·정비 기록',dBody,md(D)+' '+dDay.length+'건 · '+hrs(sum(dDay)))+card('',C.maint,'🔧 설비 정비','#/oplogs','지연·정비 기록표',mBody,md(D)+' '+mDay.length+'건')+'</div>';
  return h+'</div>';
 }
-var CSS='.ov{color:#13233f}.ov-hd{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;background:linear-gradient(120deg,#0E1C3D,#1F3B7A 60%,#2F5BD3);color:#fff;border-radius:18px;padding:18px 22px;margin:4px 0 14px}'+
+var CSS='.ov-g1{margin:0 0 14px}.ov-hy{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px}.ov-hyi{border:1px solid #E3E7EF;border-radius:10px;padding:9px 12px;display:flex;flex-direction:column;gap:3px;font-size:13px}.ov-hyi span{color:#1F7A3E;font-size:12.5px}.ov-hyi span.mu{color:#8B95A7}.ov-hyi.bad{border-color:#F2C1BB;background:#FFF6F5}.ov-hyi.bad span{color:#B4372C;font-weight:700}.ov{color:#13233f}.ov-hd{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;background:linear-gradient(120deg,#0E1C3D,#1F3B7A 60%,#2F5BD3);color:#fff;border-radius:18px;padding:18px 22px;margin:4px 0 14px}'+
  '.ov-en{font-size:12px;letter-spacing:.14em;color:#C9A25B;font-weight:800}.ov-hd h2{margin:4px 0 4px;font-size:24px;font-weight:900}.ov-sub{font-size:12.5px;opacity:.85}.ov-act{display:flex;gap:8px;align-items:center}.ov-act select{padding:7px 10px;border-radius:9px;border:0;font-weight:700;color:#13233f;background:#fff}.ov-act .btn{background:#fff}'+
  '.ov-ks6{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:10px;margin-bottom:14px}@media(max-width:1200px){.ov-ks6{grid-template-columns:repeat(3,1fr)}}@media(max-width:640px){.ov-ks6{grid-template-columns:repeat(2,1fr)}}'+
  '.ov-k{background:#fff;border:1px solid #E3E7EF;border-top:5px solid var(--c);border-radius:14px;padding:11px 13px}.ov-kl{font-size:12px;color:#6b7a90;font-weight:800}.ov-kv{font-size:27px;font-weight:900;margin-top:2px;white-space:nowrap}.ov-kv small{font-size:13px;color:#6b7a90;margin-left:2px}.ov-ks{font-size:11.5px;color:#6b7a90;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'+
