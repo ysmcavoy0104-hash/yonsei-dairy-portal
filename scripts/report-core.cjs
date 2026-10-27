@@ -824,6 +824,6 @@
   AI.insight = AI_INSIGHT;
   var AI_SYSTEM = AI.daily;
 
-  return { insights: insights, mergeInsights: mergeInsights, AI_INSIGHT: AI_INSIGHT, build: build, report: report, period: period, records: records, analyze: analyze, introspect: introspect, specOf: specOf,
+  return { insights: insights, mergeInsights: mergeInsights, AI_INSIGHT: AI_INSIGHT, build: build, report: report, period: period, records: records, analyze: analyze, introspect: introspect, specOf: specOf, teamOf: teamOf,
     kstDate: kstDate, addDays: addDays, isoWeek: isoWeek, AI: AI, AI_SYSTEM: AI_SYSTEM, DIVS: DIVS };
 });
