@@ -7226,148 +7226,185 @@ function offColor(cnt,target){
  return {bg:'#EAF2EC',fg:'#1B7F4E'};
 }
 
-var CSS='.ws-grid{border-collapse:collapse;font-size:11px;width:100%}'+
- '.ws-grid th,.ws-grid td{border:1px solid #D7DCE3;text-align:center;padding:3px 2px}'+
- '.ws-grid thead th{background:#1D4E89;color:#fff;font-weight:800}'+
- '.ws-grid td.ws-name{font-weight:700;text-align:left;padding-left:8px;white-space:nowrap;background:#F7F9FB}'+
- '.ws-grid td.ws-sun{color:#C0392B}'+
- '.ws-grid input.ws-in{width:100%;border:0;background:#FFF7B0;text-align:center;font-size:11px;padding:3px 0;box-sizing:border-box}'+
- '.ws-grid td.ws-tot{font-weight:800}'+
- '.ws-dayrow td{vertical-align:top;font-size:11.5px;padding:6px 8px;text-align:left}'+
- '.ws-dayrow td.ws-dcnt{text-align:center;font-weight:800}';
+var CSS='.wsx{--wp:#5B3FC4;--wpd:#2E1F73;--wpl:#EFEBFC;--wl:#E3E7EE;--wsat:#2F6FD6;--wsun:#D64545}'+
+ '.wsx-hero{position:relative;overflow:hidden;border-radius:16px;padding:20px 22px;margin-bottom:16px;color:#fff;background:linear-gradient(120deg,#2E1F73 0%,#5B3FC4 55%,#8C6CF0 100%);box-shadow:0 10px 28px -14px rgba(46,31,115,.6)}'+
+ '.wsx-hero:after{content:"";position:absolute;right:-60px;top:-80px;width:260px;height:260px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.18),rgba(255,255,255,0) 70%)}'+
+ '.wsx-top{display:flex;align-items:center;gap:14px;flex-wrap:wrap;position:relative;z-index:1}'+
+ '.wsx-eb{font-size:11px;letter-spacing:.18em;font-weight:800;opacity:.75}.wsx-h{font-size:22px;font-weight:800;margin:2px 0 3px}.wsx-d{font-size:12.5px;opacity:.82;max-width:560px;line-height:1.5}'+
+ '.wsx-mon{margin-left:auto;display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:4px}'+
+ '.wsx-mon button{width:32px;height:32px;border-radius:50%;border:0;background:transparent;color:#fff;font-size:14px;cursor:pointer}.wsx-mon button:hover{background:rgba(255,255,255,.2)}'+
+ '.wsx-mon b{font-size:16px;padding:0 10px;min-width:118px;text-align:center}'+
+ '.wsx-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:16px;position:relative;z-index:1}'+
+ '.wsx-k{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:12px;padding:10px 13px;min-width:0}'+
+ '.wsx-k .l{font-size:11.5px;opacity:.8;font-weight:700}.wsx-k .v{font-size:21px;font-weight:800;margin-top:2px;display:flex;align-items:baseline;gap:4px;flex-wrap:wrap}.wsx-k .v small{font-size:11.5px;font-weight:600;opacity:.8}'+
+ '.wsx-k input{width:52px;font:inherit;font-size:19px;font-weight:800;color:#fff;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.35);border-radius:8px;text-align:center;padding:1px 2px}'+
+ '.wsx-k .a{margin-top:4px;font-size:11px;opacity:.85}.wsx-k .a button{border:0;background:#fff;color:var(--wpd);font-weight:800;font-size:11px;border-radius:999px;padding:3px 9px;cursor:pointer}'+
+ '.wsx-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;position:relative;z-index:1}.wsx-chip{display:inline-flex;align-items:center;gap:4px;background:#fff;color:var(--wpd);border-radius:999px;padding:3px 5px 3px 10px;font-size:11.5px;font-weight:700}'+
+ '.wsx-chip button{border:0;background:transparent;color:var(--wp);cursor:pointer;font-weight:800;padding:0 4px}'+
+ '.wsx-card{background:#fff;border:1px solid var(--wl);border-radius:14px;padding:16px 18px;margin-bottom:14px;box-shadow:0 1px 2px rgba(16,24,40,.04)}'+
+ '.wsx-ch{display:flex;align-items:flex-start;gap:11px;margin-bottom:12px;flex-wrap:wrap}.wsx-n{flex:none;width:28px;height:28px;border-radius:9px;background:var(--wpl);color:var(--wp);font-weight:800;font-size:14px;display:flex;align-items:center;justify-content:center}'+
+ '.wsx-ch>div:nth-child(2){flex:1;min-width:0}.wsx-ct{font-weight:800;font-size:15px;color:#1B2335}.wsx-cs{font-size:12px;color:#6B7685;margin-top:1px}.wsx-cr{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap}'+
+ '.wsx-wd{display:grid;grid-template-columns:repeat(7,minmax(0,92px));gap:8px}'+
+ '.wsx-wt{border:1px solid var(--wl);border-radius:12px;padding:8px 6px 7px;text-align:center;background:#FAFBFD}'+
+ '.wsx-wt .dl{font-size:12px;font-weight:800;color:#4A5568}.wsx-wt.sat .dl{color:var(--wsat)}.wsx-wt.sun .dl{color:var(--wsun)}'+
+ '.wsx-wt input{width:100%;max-width:64px;margin:5px auto 3px;display:block;font-size:20px;font-weight:800;text-align:center;border:1px solid transparent;background:#fff;border-radius:8px;padding:3px 0;color:#1B2335;box-shadow:inset 0 0 0 1px var(--wl)}'+
+ '.wsx-wt input:focus{outline:none;box-shadow:inset 0 0 0 2px var(--wp)}.wsx-wt .sub{font-size:10.5px;color:#8792A2}'+
+ '.wsx-more{margin-top:12px;border:0;background:transparent;color:var(--wp);font-weight:800;font-size:12.5px;cursor:pointer;padding:4px 0}'+
+ '.wsx-lg{display:flex;gap:6px;align-items:center;font-size:11.5px;color:#6B7685;flex-wrap:wrap}.wsx-lg i{display:inline-block;width:18px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:3px;font-style:normal}'+
+ '.wsx-tw{overflow-x:auto;border:1px solid var(--wl);border-radius:12px}'+
+ '.ws-grid{border-collapse:separate;border-spacing:0;font-size:11.5px;width:100%;min-width:900px}'+
+ '.ws-grid th,.ws-grid td{border-right:1px solid #EEF1F5;border-bottom:1px solid #EEF1F5;text-align:center;padding:0;height:27px}'+
+ '.ws-grid thead th{background:#F6F7FB;color:#4A5568;font-weight:800;font-size:11px;padding:5px 0 4px;line-height:1.15;position:sticky;top:0}'+
+ '.ws-grid thead th .w{display:block;font-size:9.5px;font-weight:700;color:#9AA3B2}'+
+ '.ws-grid .sat{background:#F3F7FE}.ws-grid .sun{background:#FEF4F4}.ws-grid thead .sat{background:#E8F0FD;color:var(--wsat)}.ws-grid thead .sun{background:#FCE8E8;color:var(--wsun)}'+
+ '.ws-grid thead .tdy{box-shadow:inset 0 -3px 0 var(--wp);color:var(--wp)}'+
+ '.ws-grid .ws-name{position:sticky;left:0;z-index:1;background:#fff;text-align:left;padding:0 10px;font-weight:700;white-space:nowrap;min-width:92px;color:#1B2335}'+
+ '.ws-grid thead .ws-name{z-index:2;background:#F6F7FB}.ws-grid tr:hover td{background-image:linear-gradient(rgba(91,63,196,.05),rgba(91,63,196,.05))}'+
+ '.ws-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px;vertical-align:1px}.ws-tm{font-size:10px;color:#9AA3B2;font-weight:600;margin-left:4px}'+
+ '.ws-grid input.ws-in{width:100%;height:26px;border:0;background:transparent;text-align:center;font-size:12px;font-weight:800;color:#fff;padding:0;box-sizing:border-box;cursor:pointer}'+
+ '.ws-grid input.ws-in:focus{outline:2px solid var(--wp);outline-offset:-2px;background:#fff;color:#1B2335}'+
+ '.ws-grid td[data-p="1"]{background:#5B3FC4}.ws-grid td[data-p="2"]{background:#8C6CF0}.ws-grid td[data-p="3"]{background:#B9A6F6}.ws-grid td.pp{background:#D9CFFA}.ws-grid td.pp input.ws-in{color:#3B2A8F}'+
+ '.ws-grid td.ws-tot{font-weight:800;min-width:54px;padding:0 6px}.ws-pill{display:inline-block;min-width:30px;padding:2px 8px;border-radius:999px;font-weight:800}'+
+ '.ws-off{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;background:#5B3FC4;color:#fff;font-weight:800;font-size:10.5px}.ws-off.x{background:#A796E8}'+
+ '.wsx-cta{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:4px 0 22px;padding:14px 18px;border-radius:14px;background:linear-gradient(90deg,#F4F1FF,#FBFAFF);border:1px dashed #C9BCF5}'+
+ '.wsx-cta .go{border:0;cursor:pointer;color:#fff;font-weight:800;font-size:14.5px;padding:11px 22px;border-radius:11px;background:linear-gradient(120deg,#2E1F73,#5B3FC4 60%,#8C6CF0);box-shadow:0 8px 18px -8px rgba(91,63,196,.7)}'+
+ '.wsx-cta .go:hover{filter:brightness(1.08)}.wsx-cta .t{font-size:12.5px;color:#5A6474;line-height:1.5}'+
+ '.wsx-sec{display:flex;align-items:center;gap:10px;margin:6px 0 12px}.wsx-sec h2{margin:0;font-size:18px;font-weight:800;color:#1B2335}.wsx-sec:after{content:"";flex:1;height:1px;background:var(--wl)}'+
+ '.wsx-sum{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.wsx-sb{border-radius:10px;padding:7px 12px;font-size:12px;font-weight:700;background:#F4F6F9;color:#4A5568}.wsx-sb b{font-size:15px;margin-left:4px}'+
+ '.wsx-sb.ok{background:#E9F7EF;color:#1B7F4E}.wsx-sb.bad{background:#FDECEC;color:#C0392B}'+
+ '.wsx-cal{display:grid;grid-template-columns:repeat(7,minmax(118px,1fr));gap:8px;min-width:880px}'+
+ '.wsx-cw{overflow-x:auto}.wsx-ch7{font-size:11.5px;font-weight:800;color:#6B7685;text-align:center;padding:2px 0}.wsx-ch7.sat{color:var(--wsat)}.wsx-ch7.sun{color:var(--wsun)}'+
+ '.wsx-day{border:1px solid var(--wl);border-radius:11px;padding:8px 9px;min-height:92px;background:#fff;display:flex;flex-direction:column;gap:5px}'+
+ '.wsx-day.sat{background:#F8FBFF}.wsx-day.sun{background:#FFF8F8}.wsx-day.short{border-color:#F1B5B5;box-shadow:inset 0 0 0 1px #F1B5B5}.wsx-day.tdy{border-color:var(--wp);box-shadow:inset 0 0 0 1px var(--wp)}'+
+ '.wsx-day .h{display:flex;align-items:center;gap:5px}.wsx-day .dn{font-weight:800;font-size:14px;color:#1B2335}.wsx-day.sat .dn{color:var(--wsat)}.wsx-day.sun .dn{color:var(--wsun)}'+
+ '.wsx-day .hl{font-size:10px;font-weight:800;color:var(--wsun);background:#FDECEC;border-radius:5px;padding:1px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;align-self:flex-start;max-width:100%}'+
+ '.wsx-day .st{margin-left:auto;font-size:11px;font-weight:800;color:#1B7F4E}.wsx-day.short .st{color:#C0392B}'+
+ '.wsx-bar{height:5px;border-radius:9px;background:#EEF1F5;overflow:hidden}.wsx-bar i{display:block;height:100%;background:linear-gradient(90deg,#3FB57A,#1B7F4E);border-radius:9px}.wsx-day.short .wsx-bar i{background:linear-gradient(90deg,#F08080,#C0392B)}'+
+ '.wsx-off{display:flex;flex-wrap:wrap;gap:3px}.wsx-off span{font-size:10.5px;font-weight:700;background:var(--wpl);color:#3B2A8F;border-radius:5px;padding:1px 5px}.wsx-off .no{background:transparent;color:#A0A8B5;font-weight:600;padding:0}'+
+ '.wsx-empty{text-align:center;padding:28px 12px;color:#6B7685;font-size:13px}.wsx-empty .ic{font-size:30px;margin-bottom:6px;opacity:.7}'+
+ '@media(max-width:760px){.wsx-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.wsx-wd{grid-template-columns:repeat(4,minmax(0,1fr))}.wsx-mon{margin-left:0}}';
+var TCOL={배합:'#2F6FD6',착즙:'#1B9A5C',지원:'#D98A1C'};
+function todayD(){var t=new Date(),ym=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0');return ym===CUR_YM?t.getDate():0}
+function holMap(){var m={};(M(CUR_YM).holidays||[]).forEach(function(h){m[h.d]=(m[h.d]?m[h.d]+', ':'')+h.label});return m}
+function dcls(d){var wd=dowOf(CUR_YM,d),H=holMap();return (wd===6||H[d])?'sun':(wd===5?'sat':'')}
+function dayHead(extra){var N=daysInMonth(CUR_YM),T=todayD(),H=holMap();
+ return '<thead><tr><th class="ws-name">이름</th>'+Array.from({length:N},function(_,i){var d=i+1,c=dcls(d);
+  return '<th class="'+c+(d===T?' tdy':'')+'"'+(H[d]?' title="'+esc(H[d])+'"':'')+'>'+d+'<span class="w">'+WD[dowOf(CUR_YM,d)]+'</span></th>'}).join('')+(extra||'')+'</tr></thead>'}
+function nameCell(n,idx){var t=TEAM3[n];return '<td class="ws-name"><span class="ws-dot" style="background:'+(TCOL[t]||'#999')+'"></span>'+(idx!=null?(idx+1)+'. ':'')+esc(n)+'<span class="ws-tm">'+t+'</span></td>'}
+function pcls(v){return v==null||v===''?'':(+v<=3?'" data-p="'+(+v):'pp')}
 
 /* ---------- 1) 희망휴무 입력표 ---------- */
 function wishTableHtml(){
  var o=M(CUR_YM);var N=daysInMonth(CUR_YM);
- var head='<tr><th style="min-width:70px">이름</th>'+Array.from({length:N},function(_,i){var d=i+1,wd=dowOf(CUR_YM,d);
-  return '<th'+((wd===5||wd===6)?' style="color:#FFD1D1"':'')+'>'+d+'</th>'}).join('')+'</tr>';
- var rows=ROSTER.map(function(n){
-  var cells=Array.from({length:N},function(_,i){var d=i+1,wd=dowOf(CUR_YM,d);
-   var v=(o.wishes[n]||{})[d];
-   return '<td class="'+((wd===5||wd===6)?'ws-sun':'')+'"><input class="ws-in" data-n="'+esc(n)+'" data-d="'+d+'" maxlength="2" value="'+(v!=null?v:'')+'" onchange="WorkSched.pickWish(this)"></td>';
+ var rows=ROSTER.map(function(n){var w=o.wishes[n]||{},k=0;
+  var cells=Array.from({length:N},function(_,i){var d=i+1,v=w[d];if(v!=null)k++;
+   return '<td class="'+dcls(d)+' '+pcls(v)+'"><input class="ws-in" data-n="'+esc(n)+'" data-d="'+d+'" maxlength="2" inputmode="numeric" value="'+(v!=null?v:'')+'" oninput="WorkSched.paint(this)" onchange="WorkSched.pickWish(this)"></td>';
   }).join('');
-  return '<tr><td class="ws-name">'+esc(n)+'</td>'+cells+'</tr>';
+  return '<tr>'+nameCell(n)+cells+'<td class="ws-tot"><span class="ws-pill" data-cnt="'+esc(n)+'" style="background:'+(k?'#EFEBFC':'#F4F6F9')+';color:'+(k?'#5B3FC4':'#A0A8B5')+'">'+k+'</span></td></tr>';
  }).join('');
- return '<div style="overflow-x:auto"><table class="ws-grid">'+head+rows+'</table></div>';
+ return '<div class="wsx-tw"><table class="ws-grid">'+dayHead('<th style="min-width:54px">신청</th>')+'<tbody>'+rows+'</tbody></table></div>';
 }
+function paint(el){var td=el.parentNode,v=(el.value||'').trim();td.removeAttribute('data-p');td.classList.remove('pp');
+ if(/^[0-9]{1,2}$/.test(v)){if(+v<=3)td.setAttribute('data-p',+v);else td.classList.add('pp')}
+ var tr=td.parentNode,k=[].filter.call(tr.querySelectorAll('input.ws-in'),function(x){return /^[0-9]{1,2}$/.test((x.value||'').trim())}).length,p=tr.querySelector('.ws-pill');
+ if(p){p.textContent=k;p.style.background=k?'#EFEBFC':'#F4F6F9';p.style.color=k?'#5B3FC4':'#A0A8B5'}}
 
 /* ---------- 2) 요일별 필요인원 입력 ---------- */
 function reqInputsHtml(){
  var o=M(CUR_YM);
- var basic='<div style="display:flex;gap:10px;flex-wrap:wrap">'+WD.map(function(lbl,wd){
-  return '<label style="font-size:12.5px;display:flex;flex-direction:column;gap:3px;align-items:center">'+
-   '<span style="font-weight:700'+((wd===5||wd===6)?';color:#C0392B':'')+'">'+lbl+'</span>'+
-   '<input type="number" min="0" max="'+ROSTER.length+'" value="'+(o.weekdayReq[wd]!=null?o.weekdayReq[wd]:16)+'" onchange="WorkSched.setReq('+wd+',this.value)" style="width:56px;border:1px solid var(--line,#DDE2E8);border-radius:7px;padding:5px;text-align:center">'+
-  '</label>';
+ var basic='<div class="wsx-wd">'+WD.map(function(lbl,wd){var r=o.weekdayReq[wd]!=null?o.weekdayReq[wd]:16;
+  return '<label class="wsx-wt'+(wd===5?' sat':wd===6?' sun':'')+'"><div class="dl">'+lbl+'요일</div>'+
+   '<input type="number" min="0" max="'+ROSTER.length+'" value="'+r+'" onchange="WorkSched.setReq('+wd+',this.value);var s=this.nextElementSibling;if(s)s.textContent=\'휴무 가능 \'+Math.max(0,'+ROSTER.length+'-(+this.value||0))+\'명\'">'+
+   '<div class="sub">휴무 가능 '+Math.max(0,ROSTER.length-r)+'명</div></label>';
  }).join('')+'</div>';
- var toggle='<div style="margin-top:12px"><button class="btn btn-o btn-sm" onclick="WorkSched.toggleDetail()">'+(SHOW_DETAIL?'▲ 팀별 인원 숨기기':'▼ 더보기 — 배합·착즙·지원 인원 나눠서 입력')+'</button></div>';
- var detail=SHOW_DETAIL?teamReqInputsHtml():'';
- return basic+toggle+detail;
+ var toggle='<button class="wsx-more" onclick="WorkSched.toggleDetail()">'+(SHOW_DETAIL?'▲ 팀별 인원 숨기기':'▼ 배합 · 착즙 · 지원 팀별로 나눠서 입력')+'</button>';
+ return basic+toggle+(SHOW_DETAIL?teamReqInputsHtml():'');
 }
 function teamReqInputsHtml(){
  var o=M(CUR_YM);
- var head='<tr><th style="min-width:90px">구분</th>'+WD.map(function(l,wd){return '<th'+((wd===5||wd===6)?' style="color:#FFD1D1"':'')+'>'+l+'</th>'}).join('')+'</tr>';
+ var head='<thead><tr><th class="ws-name">구분</th>'+WD.map(function(l,wd){return '<th class="'+(wd===5?'sat':wd===6?'sun':'')+'">'+l+'</th>'}).join('')+'</tr></thead>';
  var rows=TEAMS.map(function(t){
-  return '<tr><td class="ws-name">'+t+' ('+TEAM_SIZE[t]+'명)</td>'+WD.map(function(_,wd){
-   return '<td><input type="number" min="0" max="'+TEAM_SIZE[t]+'" value="'+teamReqVal(o,wd,t)+'" onchange="WorkSched.setTeamReq('+wd+',\''+t+'\',this.value)" style="width:48px;border:1px solid var(--line,#DDE2E8);border-radius:6px;padding:4px;text-align:center"></td>';
+  return '<tr><td class="ws-name"><span class="ws-dot" style="background:'+TCOL[t]+'"></span>'+t+' <span class="ws-tm">'+TEAM_SIZE[t]+'명</span></td>'+WD.map(function(_,wd){
+   return '<td><input type="number" min="0" max="'+TEAM_SIZE[t]+'" value="'+teamReqVal(o,wd,t)+'" onchange="WorkSched.setTeamReq('+wd+',\''+t+'\',this.value)" style="width:52px;border:1px solid #E3E7EE;border-radius:7px;padding:3px;text-align:center;font-weight:700;margin:3px 0"></td>';
   }).join('')+'</tr>';
  }).join('');
- return '<div style="margin-top:10px;overflow-x:auto"><table class="ws-grid" style="max-width:640px">'+head+rows+'</table>'+
-  '<div style="font-size:11.5px;color:var(--muted);margin-top:6px">※ 4층(우정균, 김진명) 2명은 별도 구분 없이 지원 인원에 포함해 관리합니다. 팀별 합이 전체 필요인원과 다를 수 있으며, 편성 시 전체 인원 수와 각 팀별 한도를 모두 만족하도록 배정합니다.</div></div>';
+ return '<div style="margin-top:8px"><div class="wsx-tw" style="max-width:640px"><table class="ws-grid" style="min-width:0">'+head+'<tbody>'+rows+'</tbody></table></div>'+
+  '<div style="font-size:11.5px;color:#6B7685;margin-top:6px">※ 4층(우정균, 김진명) 2명은 지원 인원에 포함됩니다. 편성 시 전체 인원과 팀별 한도를 모두 만족하도록 배정합니다.</div></div>';
 }
 
-/* ---------- 3) 결과: 날짜별 근무현황 + 휴무자 명단 ---------- */
+/* ---------- 3) 결과: 날짜별 근무현황 (달력) ---------- */
+function emptyHtml(){return '<div class="wsx-empty"><div class="ic">🗓️</div>아직 근무계획표가 없습니다.<br>위에서 필요인원과 희망휴무를 입력한 뒤 <b>근무계획표 만들기</b>를 눌러 주세요.</div>'}
 function dayResultHtml(){
- var o=M(CUR_YM);if(!o.result)return '<div class="empty" style="padding:14px;color:var(--muted);font-size:13px">아직 근무계획표가 없습니다. 위에서 희망휴무와 요일별 필요인원을 입력한 뒤 "근무계획표 만들기"를 눌러 주세요.</div>';
- var N=o.result.N;
- var rows=Array.from({length:N},function(_,i){
-  var d=i+1,wd=dowOf(CUR_YM,d);var req=o.weekdayReq[wd]!=null?o.weekdayReq[wd]:16;
-  var offs=o.result.offByDay[d]||[];var work=ROSTER.length-offs.length;
-  return '<tr class="ws-dayrow"><td class="ws-dcnt" style="width:54px'+((wd===5||wd===6)?';color:#C0392B':'')+'">'+d+'일('+WD[wd]+')</td>'+
-   '<td class="ws-dcnt" style="width:70px">필요 '+req+'명</td>'+
-   '<td class="ws-dcnt" style="width:70px;color:'+(work<req?'#C0392B':'#1B7F4E')+'">근무 '+work+'명</td>'+
-   '<td class="ws-dcnt" style="width:70px">휴무 '+offs.length+'명</td>'+
-   '<td><b>휴무자</b> '+(offs.length?offs.map(esc).join(', '):'<span style="color:var(--muted)">없음</span>')+'</td></tr>';
- }).join('');
- return '<div style="overflow-x:auto"><table class="ws-grid"><thead><tr><th>날짜</th><th>필요인원</th><th>근무인원</th><th>휴무인원</th><th style="text-align:left;padding-left:8px">휴무자 명단</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+ var o=M(CUR_YM);if(!o.result)return emptyHtml();
+ var N=o.result.N,H=holMap(),T=todayD(),short=0,offSum=0;
+ var first=dowOf(CUR_YM,1),cells=[];
+ WD.forEach(function(l,wd){cells.push('<div class="wsx-ch7'+(wd===5?' sat':wd===6?' sun':'')+'">'+l+'</div>')});
+ for(var i=0;i<first;i++)cells.push('<div></div>');
+ for(var d=1;d<=N;d++){var wd=dowOf(CUR_YM,d),req=o.weekdayReq[wd]!=null?o.weekdayReq[wd]:16;
+  var offs=o.result.offByDay[d]||[],work=ROSTER.length-offs.length,sh=work<req;if(sh)short++;offSum+=offs.length;
+  cells.push('<div class="wsx-day '+dcls(d)+(sh?' short':'')+(d===T?' tdy':'')+'"><div class="h"><span class="dn">'+d+'</span>'+
+   '<span class="st">근무 '+work+'/'+req+'</span></div>'+(H[d]?'<span class="hl" title="'+esc(H[d])+'">🎌 '+esc(H[d])+'</span>':'')+'<div class="wsx-bar"><i style="width:'+Math.min(100,req?Math.round(work/req*100):100)+'%"></i></div>'+
+   '<div class="wsx-off">'+(offs.length?offs.map(function(n){return '<span>'+esc(n)+'</span>'}).join(''):'<span class="no">휴무자 없음</span>')+'</div></div>');
+ }
+ var sum='<div class="wsx-sum"><div class="wsx-sb">총 휴무 배정<b>'+offSum+'</b>건</div><div class="wsx-sb">1인 평균<b>'+(offSum/ROSTER.length).toFixed(1)+'</b>일</div>'+
+  '<div class="wsx-sb '+(short?'bad':'ok')+'">'+(short?'필요인원 미달<b>'+short+'</b>일':'모든 날 필요인원 충족')+'</div></div>';
+ return sum+'<div class="wsx-cw"><div class="wsx-cal">'+cells.join('')+'</div></div>';
 }
 
 /* ---------- 4) 휴일체크표 (확정본) ---------- */
 function checkTableHtml(){
- var o=M(CUR_YM);if(!o.result)return '';
+ var o=M(CUR_YM);if(!o.result)return emptyHtml();
  var N=o.result.N;
- var head='<tr><th style="min-width:70px">이름</th>'+Array.from({length:N},function(_,i){var d=i+1,wd=dowOf(CUR_YM,d);
-  return '<th'+((wd===5||wd===6)?' style="color:#FFD1D1"':'')+'>'+d+'</th>'}).join('')+'<th style="min-width:60px">휴일 총합</th></tr>';
  var rows=ROSTER.map(function(n,idx){
-  var offDays=(o.result.offByPerson[n]||[]);var set={};offDays.forEach(function(d){set[d]=1});
-  var cnt=offDays.length;var col=offColor(cnt,o.target);
-  var cells=Array.from({length:N},function(_,i){var d=i+1,wd=dowOf(CUR_YM,d);
-   var mark=set[d]?((o.wishes[n]||{})[d]!=null?(o.wishes[n]||{})[d]:'●'):'';
-   return '<td class="'+((wd===5||wd===6)?'ws-sun':'')+'">'+mark+'</td>';
+  var set={};(o.result.offByPerson[n]||[]).forEach(function(d){set[d]=1});
+  var cnt=(o.result.offByPerson[n]||[]).length,col=offColor(cnt,o.target);
+  var cells=Array.from({length:N},function(_,i){var d=i+1,w=(o.wishes[n]||{})[d];
+   return '<td class="'+dcls(d)+'">'+(set[d]?'<span class="ws-off'+(w!=null&&+w>1?' x':'')+'">'+(w!=null?w:'●')+'</span>':'')+'</td>';
   }).join('');
-  return '<tr><td class="ws-name">'+(idx+1)+'. '+esc(n)+'</td>'+cells+'<td class="ws-tot" style="background:'+col.bg+';color:'+col.fg+'">'+cnt+'</td></tr>';
+  return '<tr>'+nameCell(n,idx)+cells+'<td class="ws-tot"><span class="ws-pill" style="background:'+col.bg+';color:'+col.fg+'">'+cnt+'</span></td></tr>';
  }).join('');
- return '<div style="overflow-x:auto"><table class="ws-grid">'+head+rows+'</table></div>';
+ return '<div class="wsx-tw"><table class="ws-grid">'+dayHead('<th style="min-width:60px">휴일 총합</th>')+'<tbody>'+rows+'</tbody></table></div>';
 }
-
-function rerenderStats(){
- var box=$('#ws-check');if(box)box.innerHTML=checkTableHtml();
-}
+function rerenderStats(){var box=$('#ws-check');if(box)box.innerHTML=checkTableHtml()}
 
 /* ---------- 화면 ---------- */
 function holidayChipsHtml(){
- var o=M(CUR_YM);var hs=o.holidays||[];
- if(!hs.length)return '<div style="font-size:11.5px;color:var(--muted);margin-top:6px">등록된 지정휴일이 없습니다. 공휴일이나 회사 지정 휴일(예: 노조 창립기념일)을 추가하면 월 목표 휴무일수에 자동으로 더해집니다.</div>';
- return '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">'+hs.map(function(h,i){
-  return '<span style="display:inline-flex;align-items:center;gap:5px;background:#F0EAF8;color:#6A3DA0;border-radius:14px;padding:4px 6px 4px 10px;font-size:11.5px;font-weight:700">'+h.d+'일 · '+esc(h.label)+
-   '<button onclick="WorkSched.removeHoliday('+i+')" title="삭제" style="border:0;background:transparent;color:#6A3DA0;cursor:pointer;font-weight:800;padding:0 3px">×</button></span>';
- }).join('')+'</div>';
+ var hs=M(CUR_YM).holidays||[];if(!hs.length)return '';
+ return '<div class="wsx-chips">'+hs.map(function(h,i){
+  return '<span class="wsx-chip">🎌 '+h.d+'일 · '+esc(h.label)+'<button onclick="WorkSched.removeHoliday('+i+')" title="삭제">×</button></span>'}).join('')+'</div>';
 }
+function card(n,t,s,body,right){return '<div class="wsx-card"><div class="wsx-ch"><div class="wsx-n">'+n+'</div><div><div class="wsx-ct">'+t+'</div><div class="wsx-cs">'+s+'</div></div>'+(right?'<div class="wsx-cr">'+right+'</div>':'')+'</div>'+body+'</div>'}
 function innerView(){
- var o=M(CUR_YM);var N=daysInMonth(CUR_YM);
- return '<style>'+CSS+'</style>'+
-  '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap">'+
-  '<button class="btn btn-o btn-sm" onclick="WorkSched.gotoMonth(-1)">◀</button>'+
-  '<div style="font-size:17px;font-weight:800">'+CUR_YM.split('-')[0]+'년 '+(+CUR_YM.split('-')[1])+'월</div>'+
-  '<button class="btn btn-o btn-sm" onclick="WorkSched.gotoMonth(1)">▶</button>'+
-  '<label style="margin-left:auto;font-size:12.5px;display:flex;align-items:center;gap:6px"><b>월 목표 휴무일수</b>'+
-  '<input type="number" min="0" max="31" value="'+o.target+'" onchange="WorkSched.setTarget(this.value)" style="width:56px;border:1px solid var(--line,#DDE2E8);border-radius:7px;padding:5px;text-align:center"> 일'+
-  (o.targetAuto?'<span style="color:var(--muted);font-weight:400">(자동: 주말+지정휴일)</span>':'<span style="color:var(--muted);font-weight:400">(수동 지정)</span>')+'</label>'+
-  '<button class="btn btn-o btn-sm" onclick="WorkSched.openAddHoliday()">+ 지정휴일 추가</button>'+
-  '</div>'+
-  '<div style="margin-bottom:14px">'+holidayChipsHtml()+'</div>'+
-  '<div class="panel" style="padding:16px 18px;margin-bottom:16px">'+
-  '<div style="font-weight:800;margin-bottom:8px;font-size:14px">① 요일별 필요인원 (생산계획표 기준으로 입력)</div>'+
-  reqInputsHtml()+'</div>'+
-  '<div class="panel" style="padding:16px 18px;margin-bottom:16px">'+
-  '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
-  '<div style="font-weight:800;font-size:14px">② 희망휴무 입력표 — 원하는 날짜 칸에 우선순위 숫자(1,2,3…)를 입력</div>'+
-  '<div style="font-size:11.5px;color:var(--muted)">인원이 부족한 날은 숫자가 큰(우선순위 낮은) 순서부터 자동 제외됩니다</div></div>'+
-  wishTableHtml()+'</div>'+
-  '<div style="margin-bottom:18px"><button class="btn btn-p" onclick="WorkSched.solve()">근무계획표 만들기</button>'+
-  (o.result?'<span style="margin-left:10px;font-size:12px;color:var(--muted)">마지막 생성: '+new Date(o.result.at).toLocaleString('ko-KR')+'</span>':'')+'</div>'+
-  '<div style="margin:22px 0 10px"><h2 style="margin:0;font-size:18px;font-weight:800;color:var(--navy)">📋 근무계획표</h2>'+
-  '<div style="color:var(--muted);font-size:12.5px;margin-top:2px">휴일체크와 요일별 필요인원을 반영해 자동으로 편성된 근무계획표입니다.</div></div>'+
-  '<div class="panel" style="padding:16px 18px;margin-bottom:16px">'+
-  '<div style="font-weight:800;margin-bottom:8px;font-size:14px">③ 날짜별 근무 현황 · 휴무자 명단</div>'+
-  dayResultHtml()+'</div>'+
-  '<div class="panel" style="padding:16px 18px">'+
-  '<div style="font-weight:800;margin-bottom:8px;font-size:14px">④ 휴일체크표 (확정) — 숫자는 승인된 희망순위, 휴일 총합은 목표 대비 비율로 색이 진해집니다</div>'+
-  '<div id="ws-check">'+checkTableHtml()+'</div></div>';
+ var o=M(CUR_YM),p=CUR_YM.split('-');
+ var wn=0,wp=0;ROSTER.forEach(function(n){var k=Object.keys(o.wishes[n]||{}).length;wn+=k;if(k)wp++});
+ var hero='<div class="wsx-hero"><div class="wsx-top"><div><div class="wsx-eb">WORK SCHEDULE</div><div class="wsx-h">근무스케쥴 · 근무편성</div>'+
+  '<div class="wsx-d">요일별 필요인원과 희망휴무(우선순위)를 넣으면 근무를 자동으로 편성하고, 월 목표 휴무일수 대비 현황을 한눈에 보여 줍니다.</div></div>'+
+  '<div class="wsx-mon"><button onclick="WorkSched.gotoMonth(-1)" title="이전 달">◀</button><b>'+p[0]+'년 '+(+p[1])+'월</b><button onclick="WorkSched.gotoMonth(1)" title="다음 달">▶</button></div></div>'+
+  '<div class="wsx-kpis">'+
+  '<div class="wsx-k"><div class="l">편성 인원</div><div class="v">'+ROSTER.length+'<small>명</small></div><div class="a">배합 '+TEAM_SIZE.배합+' · 착즙 '+TEAM_SIZE.착즙+' · 지원 '+TEAM_SIZE.지원+'</div></div>'+
+  '<div class="wsx-k"><div class="l">월 목표 휴무일수</div><div class="v"><input type="number" min="0" max="31" value="'+o.target+'" onchange="WorkSched.setTarget(this.value)"><small>일</small></div><div class="a">'+(o.targetAuto?'자동: 주말 + 지정휴일':'수동 지정')+'</div></div>'+
+  '<div class="wsx-k"><div class="l">지정휴일</div><div class="v">'+(o.holidays||[]).length+'<small>일</small></div><div class="a"><button onclick="WorkSched.openAddHoliday()">+ 지정휴일 추가</button></div></div>'+
+  '<div class="wsx-k"><div class="l">희망휴무 신청</div><div class="v">'+wn+'<small>건 · '+wp+'명</small></div><div class="a">'+(o.result?'✔ 편성 완료 · '+new Date(o.result.at).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'아직 편성 전')+'</div></div>'+
+  '</div>'+holidayChipsHtml()+'</div>';
+ var lg='<div class="wsx-lg"><span><i style="background:#5B3FC4"></i>1순위</span><span><i style="background:#8C6CF0"></i>2순위</span><span><i style="background:#B9A6F6"></i>3순위</span><span><i style="background:#D9CFFA"></i>4순위~</span></div>';
+ var lg2='<div class="wsx-lg"><span><i style="background:#EAF2EC"></i>~40%</span><span><i style="background:#FDE9C8"></i>40%~</span><span><i style="background:#F6D186"></i>65%~</span><span><i style="background:#F2994A"></i>85%~</span><span><i style="background:#E53935"></i>목표 도달</span></div>';
+ return '<style>'+CSS+'</style>'+hero+
+  card(1,'요일별 필요인원','생산계획표 기준으로 요일마다 꼭 근무해야 하는 인원을 입력합니다.',reqInputsHtml())+
+  card(2,'희망휴무 입력','쉬고 싶은 날짜 칸에 우선순위 숫자(1, 2, 3…)를 입력하세요. 인원이 부족한 날은 숫자가 큰 순서부터 제외됩니다.',wishTableHtml(),lg)+
+  '<div class="wsx-cta"><button class="go" onclick="WorkSched.solve()">⚡ 근무계획표 만들기</button><div class="t">'+
+  (o.result?'마지막 편성: <b>'+new Date(o.result.at).toLocaleString('ko-KR')+'</b><br>입력을 바꿨다면 다시 눌러 새로 편성하세요.':'필요인원과 희망휴무를 모두 넣었으면 눌러 주세요.<br>결과는 아래 달력과 휴일체크표에 바로 표시됩니다.')+'</div></div>'+
+  '<div class="wsx-sec"><h2>📋 근무계획표</h2></div>'+
+  card(3,'날짜별 근무 현황','날짜마다 근무 인원 / 필요 인원과 휴무자를 보여 줍니다. 빨간 칸은 필요인원이 모자란 날입니다.',dayResultHtml())+
+  card(4,'휴일체크표 (확정)','칸의 숫자는 승인된 희망 순위, 오른쪽 총합은 목표 휴무일수 대비 비율로 색이 진해집니다.','<div id="ws-check">'+checkTableHtml()+'</div>',lg2);
 }
 
 function view(){
  if(!CUR_YM)CUR_YM=curYM();
  M(CUR_YM);
- setTimeout(function(){},0);
- return '<div class="panel" style="padding:22px 24px;border-left:4px solid #8E44AD">'+
-  '<h2 style="margin:0 0 4px;font-size:22px;font-weight:800">근무스케쥴</h2>'+
-  '<div style="color:var(--muted);font-size:13px;margin-bottom:14px">희망휴무(우선순위)와 요일별 필요인원을 입력하면 자동으로 근무를 편성하고, 월 목표 휴무일수 대비 현황을 한눈에 보여줍니다.</div>'+
-  '<div id="ws-root">'+innerView()+'</div>'+
-  '</div>';
+ return '<div class="wsx"><div id="ws-root">'+innerView()+'</div></div>';
 }
 
-window.WorkSched={view:view,pickWish:pickWish,setTarget:setTarget,setReq:setReq,setTeamReq:setTeamReq,toggleDetail:toggleDetail,gotoMonth:gotoMonth,solve:solve,openAddHoliday:openAddHoliday,addHoliday:addHoliday,removeHoliday:removeHoliday};
+window.WorkSched={view:view,paint:paint,pickWish:pickWish,setTarget:setTarget,setReq:setReq,setTeamReq:setTeamReq,toggleDetail:toggleDetail,gotoMonth:gotoMonth,solve:solve,openAddHoliday:openAddHoliday,addHoliday:addHoliday,removeHoliday:removeHoliday};
 })();
 </script>
 <script id="weekplanjs">
