@@ -136,8 +136,8 @@ function due(data, cfg, now) {
   const today = Core.kstDate(0, now);
   const dow = new Date(today + 'T00:00:00Z').getUTCDay();
   const hour = cfg.hour == null ? 7 : +cfg.hour;
-  /* GitHub 예약 실행은 늦거나 건너뛸 때가 있어, 정한 시각부터 6시간 안에는 아직 안 보낸 보고를 이어서 보냄 */
-  const inWin = (h) => kstHour >= h && kstHour < h + 6;
+  /* GitHub 예약 실행은 몇 시간씩 늦거나 건너뛸 때가 많아(예: 01:28 → 06:14 → 그다음 없음), 정한 시각 이후 그날 안에는 아직 안 보낸 보고를 이어서 보냄 */
+  const inWin = (h) => kstHour >= h;
   const done = (s) => !!(s && (s.at || (s.tries || 0) >= 3));   /* 보냈거나, 메일 실패가 3번 쌓였으면 그날은 그만 */
   const out = [];
   const KIND = (env.KIND || '').toLowerCase();
@@ -150,7 +150,7 @@ function due(data, cfg, now) {
     const target = Core.kstDate(-1, now);
     if (inWin(hour) && days.indexOf(dow) >= 0 && !done(data.dailyReports?.[target]?.sent)) out.push('daily');
     else if (done(data.dailyReports?.[target]?.sent)) log(`일일: ${target} 보고는 이미 처리됨`, JSON.stringify(data.dailyReports[target].sent));
-    else log(`일일: 보낼 때가 아님 (지금 ${kstHour}시 · ${'일월화수목금토'[dow]}요일, 설정 ${hour}시~${hour + 5}시)`);
+    else log(`일일: 보낼 때가 아님 (지금 ${kstHour}시 · ${'일월화수목금토'[dow]}요일, 설정 ${hour}시 이후 · 발송 요일 ${days.map((d) => '일월화수목금토'[d]).join('')})`);
   } else log('일일 보고 자동 발송이 꺼져 있습니다');
   const W = cfg.weekly || {}, Mo = cfg.monthly || {};
   if (W.enabled !== false && (cfg.enabled || W.enabled)) {
@@ -291,10 +291,10 @@ async function main() {
   const NF = loadNotionFinal(), TPL = loadTemplates();
   /* 인사이트: 일일 보고 시각(설정)에 매일, 또는 수동 실행에서 kind에 insight를 고른 경우 */
   const kstHour = (now.getUTCHours() + 9) % 24, hour = cfg.hour == null ? 7 : +cfg.hour;
-  const wantIns = FORCE ? /insight/.test(env.KIND || '') : ((cfg.insights || {}).enabled !== false && kstHour === hour && String((data.insights || {}).lastD || '') < Core.kstDate(-1, now));
+  const wantIns = FORCE ? /insight/.test(env.KIND || '') : ((cfg.insights || {}).enabled !== false && kstHour >= hour && String((data.insights || {}).lastD || '') < Core.kstDate(-1, now));
   if (wantIns) { try { await runInsights(data, cfg, NF, TPL, now); data = await readState(); } catch (e) { console.error('[daily-report] 인사이트 실패:', e.message); process.exitCode = 1; } }
   /* 업계 안전 뉴스: 하루 한 번 (보고서 발송 시각) 또는 수동 실행 kind=news */
-  const wantNews = FORCE ? /news/.test(env.KIND || '') : (kstHour === hour && String((data.safetyNews || {}).updatedAt || '').slice(0, 10) < Core.kstDate(0, now));
+  const wantNews = FORCE ? /news/.test(env.KIND || '') : (kstHour >= hour && String((data.safetyNews || {}).updatedAt || '').slice(0, 10) < Core.kstDate(0, now));
   if (wantNews) { try { await runNews(cfg, now); data = await readState(); } catch (e) { console.error('[daily-report] 안전 뉴스 실패:', e.message); } }
   if (!kinds.length) { log('이번 시각에 보낼 보고서가 없습니다'); return; }
   let fail = 0;
@@ -313,7 +313,7 @@ async function saveRun(now, err) {
     if (DRY) return;
     const data = await readState(), cfg = data.reportCfg || {};
     const kstHour = (now.getUTCHours() + 9) % 24, hour = cfg.hour == null ? 7 : +cfg.hour;
-    const inWin = kstHour >= hour && kstHour < hour + 6;
+    const inWin = kstHour >= hour && kstHour < hour + 3;
     if (!inWin && !err && !FORCE && !RUNLOG.some((l) => /완료|실패/.test(l))) return;
     data.reportRun = { at: new Date().toISOString(), ok: !err && !process.exitCode, force: FORCE, kstHour, err: err ? String(err).slice(0, 300) : '',
       log: RUNLOG.slice(-14), has: { smtpHost: !!env.SMTP_HOST, smtpUser: !!env.SMTP_USER, smtpPass: !!env.SMTP_PASS, mailFrom: !!env.MAIL_FROM, ai: !!(env.ANTHROPIC_API_KEY || env.OPENAI_API_KEY), vapid: !!env.VAPID_PRIVATE_KEY, portalUrl: !!env.PORTAL_URL } };
