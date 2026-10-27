@@ -20,7 +20,8 @@ if (env.SMTP_HOST) env.SMTP_HOST = env.SMTP_HOST.replace(/^[a-z]+:\/\//i, '').re
 const FORCE = process.argv.includes('--force') || env.FORCE === 'true';
 const DRY = process.argv.includes('--dry-run') || env.DRY_RUN === 'true';
 
-function log(...a) { console.log('[daily-report]', ...a); }
+const RUNLOG = [];
+function log(...a) { console.log('[daily-report]', ...a); RUNLOG.push(a.map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).join(' ').slice(0, 300)); }
 function need(k) { if (!env[k]) throw new Error(`GitHub Secret ${k} 이(가) 없습니다.`); return env[k]; }
 
 const SB = need('SUPABASE_URL').replace(/\/$/, '');
@@ -305,4 +306,19 @@ async function main() {
   if (fail) process.exitCode = 1;
 }
 
-main().catch((e) => { console.error('[daily-report] 실패:', e.message); process.exit(1); });
+/* 실행 결과를 포털 데이터(reportRun)에 남김 — 포털 「보고서 자동화 관리 → 발송 상태 · 점검」에서 확인
+   (비밀 값은 넣지 않고 「있음/없음」만) · 저장 횟수를 줄이려고 발송 시각부터 6시간 안 · 보낸 것이 있거나 실패했을 때만 */
+async function saveRun(now, err) {
+  try {
+    if (DRY) return;
+    const data = await readState(), cfg = data.reportCfg || {};
+    const kstHour = (now.getUTCHours() + 9) % 24, hour = cfg.hour == null ? 7 : +cfg.hour;
+    const inWin = kstHour >= hour && kstHour < hour + 6;
+    if (!inWin && !err && !FORCE && !RUNLOG.some((l) => /완료|실패/.test(l))) return;
+    data.reportRun = { at: new Date().toISOString(), ok: !err && !process.exitCode, force: FORCE, kstHour, err: err ? String(err).slice(0, 300) : '',
+      log: RUNLOG.slice(-14), has: { smtpHost: !!env.SMTP_HOST, smtpUser: !!env.SMTP_USER, smtpPass: !!env.SMTP_PASS, mailFrom: !!env.MAIL_FROM, ai: !!(env.ANTHROPIC_API_KEY || env.OPENAI_API_KEY), vapid: !!env.VAPID_PRIVATE_KEY, portalUrl: !!env.PORTAL_URL } };
+    await fetch(`${SB}/rest/v1/app_state?id=eq.1`, { method: 'PATCH', headers: { ...sbHeaders, Prefer: 'return=minimal' }, body: JSON.stringify({ data, updated_at: new Date().toISOString() }) });
+  } catch (e) { console.error('[daily-report] 실행 기록 저장 실패:', e.message); }
+}
+const NOW0 = env.NOW ? new Date(env.NOW) : new Date();
+main().then(() => saveRun(NOW0, '')).catch(async (e) => { console.error('[daily-report] 실패:', e.message); await saveRun(NOW0, e.message); process.exit(1); });
