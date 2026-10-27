@@ -151,6 +151,13 @@
       });
       prevTs.push({ occ: occ, ncol: (b.w || []).length });
     });
+    /* 한 칸에 값 두 개(압력/온도 등)를 적는 줄은 값마다 기준을 따로 (HACCP B호기 CCP-3B) */
+    if (code === 'FRM-025') {
+      var S2 = { 12: [{ lo: 3, hi: 6, u: 'bar', txt: '3~6bar' }, { lo: null, hi: 21, u: '℃', txt: '21℃ 이하' }], 13: [null, { lo: 108, hi: 130, u: '℃', txt: '108~130℃' }],
+        15: [{ lo: 350, hi: 370, u: '℃', txt: '350~370℃' }, { lo: 350, hi: 370, u: '℃', txt: '350~370℃' }], 16: [{ lo: 80, hi: null, u: '℃', txt: '80℃ 이상' }, { lo: 200, hi: null, u: 'pa', txt: '200pa 이상' }],
+        20: [null, { lo: 100, hi: null, u: '%', txt: '조도 100% 이상' }], 21: [null, null] };
+      out.forEach(function (x) { var m = String(x.k).match(/^p25_(\d+)_\d+_([12])$/); if (m && S2[m[1]]) x.spec = S2[m[1]][+m[2] - 1] || null; });
+    }
     FCACHE[ck] = out;
     return out;
   }
@@ -277,7 +284,8 @@
     var sp = function (x) { return String(x || '').replace(/\s+/g, ''); };
     var oxF = F('FRM-012').filter(function (x) { return x.kind === 'ox'; }), sF = F('FRM-008');
     var M12 = latest('FRM-012'), M8 = latest('FRM-008'), M9 = latest('FRM-009'), M10 = latest('FRM-010');
-    var mix = {}, juice = {};
+    var M23 = latest('FRM-023'), CK = [latest('FRM-024'), latest('FRM-025'), latest('FRM-026'), latest('FRM-055'), latest('FRM-056'), latest('FRM-057'), latest('FRM-058'), latest('FRM-059'), latest('FRM-062'), latest('FRM-063')];
+    var mix = {}, juice = {}, pack = {};
     Object.keys(M12).forEach(function (D) { var d = M12[D], nb = 0, b1 = [], q = [], x = 0;
       for (var r = 10; r <= 24; r++) { var row = [1, 2, 3, 6, 8, 9, 10, 11, 13, 15].map(function (c) { return g(d, 'g2_' + r + '_' + c); }); if (row.some(Boolean)) { nb++; b1.push(n(d, 'g2_' + r + '_8')); } }
       for (var h = 1; h <= 5; h++) for (var rr = 3; rr <= 6; rr++) q.push(n(d, 'g2_' + rr + '_' + (2 * h + 1)));
@@ -291,8 +299,37 @@
     Object.keys(M10).forEach(function (D) { var o = M10[D], raw = n(o, 'g3_12_15'); if (raw == null) raw = tot([n(o, 'g3_12_12'), n(o, 'g3_12_13'), n(o, 'g3_12_14')]);
       var ts = []; for (var r = 10; r <= 22; r++) ts.push(n(o, 'g3_' + r + '_6'));
       var j = juice[D] = juice[D] || {}; j.raw = raw; j.ts = mean(ts); });
+    /* 포장 (두유포장 B호기 생산작업일보 · Check List · HACCP CCP-3B · DE생산) */
+    Object.keys(M23).forEach(function (D) { var d = M23[D], ea = n(d, 'p23_37_7'), box = n(d, 'p23_37_4');
+      if (ea == null) ea = tot([32, 33, 34, 35, 36].map(function (r) { return n(d, 'p23_' + r + '_7'); }));
+      if (box == null) box = tot([32, 33, 34, 35, 36].map(function (r) { return n(d, 'p23_' + r + '_4'); }));
+      var sn = n(d, 'p23_32_12_3'), sm = n(d, 'p23_32_12_4');
+      if (sn == null) { sn = 0; for (var r = 7; r <= 11; r++) if (g(d, 'p23_' + r + '_0')) sn++; }
+      pack[D] = { ea: ea, box: box, rate: n(d, 'p23_32_12_5'), stopN: sn, stopMin: sm, ln: { B: ea } }; });
+    /* A · C · E호기 생산작업일보 생산량을 더해 전 호기 합계로 (가동률 · 정지는 B호기 기준 그대로) */
+    /* [호기, 양식, 입력칸 앞글자, 품명 열, Box 열, 개 열, 품명 첫 줄, 끝 줄, 합계 줄(없으면 null)] */
+    [['A', 'FRM-045', 'p45', 0, 3, 8, 32, 35, 36], ['C', 'FRM-046', 'p46', 0, 4, 7, 32, 36, 37], ['D', 'FRM-049', 'p49', 0, 4, 7, 31, 36, null], ['E', 'FRM-047', 'p47', 0, 3, 8, 32, 35, 36], ['F', 'FRM-050', 'p50', 0, 4, 7, 36, 39, null]].forEach(function (L) {
+      var M = latest(L[1]), P = L[2];
+      Object.keys(M).forEach(function (D) { var d = M[D], rr = [], q;
+        for (q = L[6]; q <= L[7]; q++) rr.push(q);
+        var ea = L[8] ? n(d, P + '_' + L[8] + '_' + L[5]) : null, box = L[8] ? n(d, P + '_' + L[8] + '_' + L[4]) : null;
+        if (ea == null) ea = tot(rr.map(function (r) { return n(d, P + '_' + r + '_' + L[5]); }));
+        if (box == null) box = tot(rr.map(function (r) { return n(d, P + '_' + r + '_' + L[4]); }));
+        var o = pack[D] = pack[D] || {}; o.ln = o.ln || {}; o.ln[L[0]] = ea;
+        if (ea != null) o.ea = (o.ea || 0) + ea; if (box != null) o.box = (o.box || 0) + box; }); });
+    /* 밀봉 공정 중간검사 & 불량팩: 그날 문서 모두(호기마다 한 장)의 불량 합계 */
+    (function () { var f = forms['FRM-048']; if (!f) return;
+      ((data && data.docs) || []).forEach(function (d) { if (!d || d.deleted || d.formId !== f.id || !d.data) return; var D = docDate(d); if (D < from || D > to) return;
+        function rs(y) { var t = n(d, 'p48_' + y + '_29'); if (t != null) return t; var a = []; for (var x = 2; x <= 28; x++) a.push(n(d, 'p48_' + y + '_' + x)); return tot(a); }
+        var ft = rs(18); if (ft == null) { var a = []; for (var y = 7; y <= 16; y++) a.push(rs(y)); ft = tot(a); }
+        if (ft != null) { var o = pack[D] = pack[D] || {}; o.waste = (o.waste || 0) + ft; } }); })();
+    CK.forEach(function (M) { Object.keys(M).forEach(function (D) { var gr = (M[D].data && M[D].data.grid) || {}, x = 0;
+      Object.keys(gr).forEach(function (k) { if (/^(x|×|불량|부적합|NG)$/i.test(String(gr[k]).trim())) x++; });
+      var o = pack[D] = pack[D] || {}; o.bad = (o.bad || 0) + x; }); });
     function S(o, k, f) { var a = Object.keys(o).map(function (D) { return o[D][k]; }); return f === 'avg' ? mean(a) : tot(a); }
-    return { mix: mix, juice: juice,
+    return { mix: mix, juice: juice, pack: pack,
+      packSum: { days: Object.keys(pack).length, ea: S(pack, 'ea'), box: S(pack, 'box'), rate: S(pack, 'rate', 'avg'), stopN: S(pack, 'stopN'), stopMin: S(pack, 'stopMin'), bad: S(pack, 'bad'), waste: S(pack, 'waste'),
+        ln: ['A', 'B', 'C', 'D', 'E', 'F'].map(function (h) { return [h, tot(Object.keys(pack).map(function (D) { return (pack[D].ln || {})[h]; }))]; }).filter(function (x) { return x[1] != null; }) },
       mixSum: { days: Object.keys(mix).length, nb: S(mix, 'nb'), q: S(mix, 'q'), b1: S(mix, 'b1', 'avg'), sug: S(mix, 'sug'), x: S(mix, 'x') },
       juiceSum: { days: Object.keys(juice).length, use: S(juice, 'use'), by: S(juice, 'by'), prodH: S(juice, 'prodH'), stopH: S(juice, 'stopH'), raw: S(juice, 'raw'), ts: S(juice, 'ts', 'avg') } };
   }
@@ -520,8 +557,9 @@
         (J.stops.length ? '<div style="font-weight:800;font-size:13px;margin:14px 0 6px;color:' + C.navy + '">정지 기록 ' + J.stops.length + '건</div>' + table(['날짜', '호기', '정지 → 재가동', '사유'], J.stops.slice(0, 10).map(function (s) { return [md(s.d), esc(s.hogi), esc(s.start) + ' → ' + esc(s.end) + (s.min ? ' <b>(' + hrs(s.min) + ')</b>' : ''), esc(clip(s.why, 40))]; })) : ''));
     }
     /* 배합 · 착즙 공정 */
-    var PM = M.PR && M.PR.mixSum, PJ = M.PR && M.PR.juiceSum;
-    if (PM && (PM.days || PJ.days)) {
+    var PM = M.PR && M.PR.mixSum, PJ = M.PR && M.PR.juiceSum, PK = M.PR && M.PR.packSum;
+    if (PM && (PM.days || PJ.days || PK.days)) {
+      var hasM = !!(PM.nb || PM.sug || PM.q || PM.x), hasJ = !!(PJ.use || PJ.raw || PJ.prodH || PJ.by), hasK = !!(PK.ea || PK.rate || PK.stopN || PK.bad);
       var f1 = function (x, dg) { return x == null ? '-' : (Math.round(x * Math.pow(10, dg || 0)) / Math.pow(10, dg || 0)).toLocaleString('ko-KR'); };
       var many = kind !== 'daily', per = function (x, dg) { return many && x != null ? ' <span style="color:' + C.mute + '">(일 평균 ' + f1(x, dg) + ')</span>' : ''; };
       var mixT = table(['배합', kind === 'daily' ? '값' : '합계 · 평균'], [
@@ -530,10 +568,21 @@
       var juiceT = table(['착즙', kind === 'daily' ? '값' : '합계 · 평균'], [
         ['대두 사용량', '<b>' + f1(PJ.use) + '</b> kg' + per(PJ.days ? PJ.use / PJ.days : null)], ['부산물', f1(PJ.by) + ' kg' + (PJ.use && PJ.by != null ? ' (' + f1(PJ.by / PJ.use * 100, 1) + '%)' : '')],
         ['분리액 생산 · 중단', f1(PJ.prodH) + '시간 · ' + f1(PJ.stopH) + '시간'], ['원액 생산', f1(PJ.raw) + ' kg'], ['원액 T.S 평균', f1(PJ.ts, 2) + ' <span style="color:' + C.mute + '">(10±0.2)</span>']]);
+      var packT = table(['포장 (A~F호기)', kind === 'daily' ? '값' : '합계 · 평균'], [
+        ['생산량 (전 호기)', '<b>' + f1(PK.ea) + '</b> 개' + (PK.box != null ? ' · ' + f1(PK.box) + ' Box' : '') + per(PK.days ? PK.ea / PK.days : null)]].concat(PK.ln && PK.ln.length ? [['호기별 생산량', PK.ln.map(function (x) { return x[0] + '호기 ' + f1(x[1]); }).join(' · ')]] : []).concat(PK.waste != null ? [['밀봉 불량팩', '<b>' + f1(PK.waste) + '</b> 개']] : []).concat([['B호기 가동률', PK.rate != null ? f1(PK.rate, 1) + '%' + (kind === 'daily' ? '' : ' (평균)') : '-'],
+        ['정지', f1(PK.stopN) + '회' + (PK.stopMin != null ? ' · ' + f1(PK.stopMin) + '분' : '')], ['점검 불량(X)', PK.bad ? '<b style="color:' + C.red + '">' + PK.bad + '건</b>' : '0건']]));
       var pser = '';
-      if (many) { var dd = M.daily.map(function (o) { var w = dowN(o.d), mx = M.PR.mix[o.d] || {}, jx = M.PR.juice[o.d] || {}; return { lab: kind === 'weekly' ? md(o.d) + ' ' + dowOf(o.d) : String(+o.d.slice(8)), we: w === 0 || w === 6, nb: mx.nb || 0, use: jx.use ? Math.round(jx.use / 1000 * 10) / 10 : 0 }; });
-        pser = two(card('⚗ 날짜별 배합 배치', vbars(dd, ['nb'], ['#7B5CD6'], { h: 80, top: function (t) { return t || ''; } })), card('❖ 날짜별 대두 사용량(톤)', vbars(dd, ['use'], [C.amber], { h: 80, top: function (t) { return t || ''; } }))); }
-      h += card('⚗ 배합 · ❖ 착즙 공정', two(mixT, juiceT), '제품생산작업일보 · 설탕 용해 · 착즙공정일보 · 원액생산작업일보 기준') + pser;
+      if (many) { var dd = M.daily.map(function (o) { var w = dowN(o.d), mx = M.PR.mix[o.d] || {}, jx = M.PR.juice[o.d] || {}, px = M.PR.pack[o.d] || {}; return { lab: kind === 'weekly' ? md(o.d) + ' ' + dowOf(o.d) : String(+o.d.slice(8)), we: w === 0 || w === 6, nb: mx.nb || 0, use: jx.use ? Math.round(jx.use / 1000 * 10) / 10 : 0, ea: px.ea ? Math.round(px.ea / 1000 * 10) / 10 : 0 }; });
+        var cs = [];
+        if (hasM) cs.push(card('⚗ 날짜별 배합 배치', vbars(dd, ['nb'], ['#7B5CD6'], { h: 80, top: function (t) { return t || ''; } })));
+        if (hasJ) cs.push(card('❖ 날짜별 대두 사용량(톤)', vbars(dd, ['use'], [C.amber], { h: 80, top: function (t) { return t || ''; } })));
+        if (hasK) cs.push(card('📦 날짜별 포장 생산량(천 개)', vbars(dd, ['ea'], ['#3062D8'], { h: 80, top: function (t) { return t || ''; } })));
+        for (var ci = 0; ci < cs.length; ci += 2) pser += cs[ci + 1] ? two(cs[ci], cs[ci + 1]) : cs[ci]; }
+      /* 그 기간에 일지가 있는 공정만 */
+      var parts = [], names = [];
+      if (hasM) { parts.push(mixT); names.push('⚗ 배합'); } if (hasJ) { parts.push(juiceT); names.push('❖ 착즙'); } if (hasK) { parts.push(packT); names.push('📦 포장'); }
+      var body = ''; for (var pi = 0; pi < parts.length; pi += 2) body += (pi ? '<div style="height:10px"></div>' : '') + two(parts[pi], parts[pi + 1] || '');
+      if (parts.length) h += card(names.join(' · ') + ' 공정', body, '저장된 일지 기준') + pser;
     }
     /* 인원 · OT */
     if (J.heads.length || J.ot.total) {
