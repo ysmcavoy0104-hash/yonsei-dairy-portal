@@ -1507,8 +1507,8 @@ docView(id){
  return `<div class="hrow"><div><div class="crumb">문서관리 / ${esc(f.name||'문서')} / ${d.docNo}</div><h1 class="pgt">${esc(d.title)}</h1>
   <div class="pgt-sub">${statusBadge(d.status)} · 작성 ${esc(userName(d.authorId))} (${deptName(d.dept)}) · 작성 ${fmtDT(d.createdAt)} · 수정 ${fmtDT(d.updatedAt)} · v${d.version}</div></div>
   <div style="display:flex;gap:8px;flex-wrap:wrap">
-   ${(d.authorId===me.id||me.role==='admin'||me.role==='superadmin')?`<button class="btn btn-o btn-sm" onclick="Doc.inlineEdit('${d.id}')">수정하기</button>`:''}
-   ${d.status!=='saved'&&(d.authorId===me.id||me.role==='admin'||me.role==='superadmin')?`<button class="btn btn-p btn-sm" onclick="Doc.finalize('${d.id}')">저장하기</button>`:''}
+   ${(['temp','saved','draft'].includes(d.status)||d.authorId===me.id||me.role==='admin'||me.role==='superadmin')?`<button class="btn btn-o btn-sm" onclick="Doc.inlineEdit('${d.id}')">수정하기</button>`:''}
+   ${d.status!=='saved'&&(['temp','draft'].includes(d.status)||d.authorId===me.id||me.role==='admin'||me.role==='superadmin')?`<button class="btn btn-p btn-sm" onclick="Doc.finalize('${d.id}')">저장하기</button>`:''}
    ${d.authorId===me.id&&d.status==='rejected'?`<button class="btn btn-b btn-sm" onclick="Doc.submit('${d.id}')">재상신</button>`:''}
    ${window.yumDelBtn?window.yumDelBtn(d):''}
    
@@ -3146,7 +3146,7 @@ Views.journalsTeam=function(team){
     <td>${esc(d.title||'')}</td><td>${userName(d.authorId)}</td><td>${fmtD((d.createdAt||'').slice(0,10))}</td>
     <td class="c">${statusBadge(d.status)}</td>
     <td class="c"><span class="jbtns"><button class="btn btn-ghost btn-sm" onclick="Doc.open('${d.id}')">열람</button>
-      ${d.authorId===(Auth.user()||{}).id&&['temp','saved','draft'].indexOf(d.status)>=0?`<button class="btn btn-b btn-sm" onclick="Doc.edit('${d.id}')">${d.status==='temp'?'불러오기':'수정'}</button>`:''}
+      ${['temp','saved','draft'].indexOf(d.status)>=0?`<button class="btn btn-b btn-sm" onclick="Doc.edit('${d.id}')">${d.status==='temp'?'불러오기':'수정'}</button>`:''}
       <button class="btn btn-ghost btn-sm" onclick="window.yumPrint('${d.id}')">인쇄</button>
       </span></td></tr>`).join('');
   const nt=agg().rs.slice(0,6).map(r=>`<div class="mini-row"><span class="chip">${r.d.slice(2).replace(/-/g,'.')}</span>
@@ -4691,7 +4691,7 @@ function rowOf(d,opts){
  var urg=d.urgent?'<span class="ap-urg">긴급</span>':'';
  var act=canApprove(d)
   ?'<button class="btn btn-b btn-sm" onclick="APPR_OPEN(\''+d.id+'\')">결재</button>'
-  :(['temp','saved','draft'].indexOf(d.status)>=0&&d.authorId===(Auth.user()||{}).id?'<button class="btn btn-b btn-sm" onclick="Doc.edit(\''+d.id+'\')">'+(d.status==='temp'?'불러오기':'수정')+'</button>':'<button class="btn btn-ghost btn-sm" onclick="APPR_OPEN(\''+d.id+'\')">열람</button>');
+  :(['temp','saved','draft'].indexOf(d.status)>=0&&Auth.user()?'<button class="btn btn-b btn-sm" onclick="Doc.edit(\''+d.id+'\')">'+(d.status==='temp'?'불러오기':'수정')+'</button>':'<button class="btn btn-ghost btn-sm" onclick="APPR_OPEN(\''+d.id+'\')">열람</button>');
  return '<tr><td style="white-space:nowrap">'+fmtD(String(d.createdAt||'').slice(0,10))+'</td>'+
   '<td style="white-space:nowrap">'+esc(f.name||'-')+'</td>'+
   '<td class="c">'+urg+'</td>'+
@@ -8171,7 +8171,7 @@ window.yumRowAct=function(d,tab){
  }
  var u=me(),own=u&&d.authorId===u.id;
  return '<button class="btn btn-ghost btn-sm" onclick="Doc.open(\''+d.id+'\')">열람</button>'+
-  (own&&['temp','saved','draft'].indexOf(d.status)>=0?'<button class="btn btn-b btn-sm" onclick="Doc.edit(\''+d.id+'\')">'+(d.status==='temp'?'불러오기':'수정')+'</button>':'')+
+  (u&&['temp','saved','draft'].indexOf(d.status)>=0?'<button class="btn btn-b btn-sm" onclick="Doc.edit(\''+d.id+'\')">'+(d.status==='temp'?'불러오기':'수정')+'</button>':'')+
   (canDel(d)?' <button class="btn btn-d btn-sm" onclick="Doc.trash(\''+d.id+'\')">삭제</button>':'');
 };
 function flush(){try{if(window.SupaSync&&SupaSync.on()){clearTimeout(SupaSync.pushT);SupaSync.pushNow(DB.data)}}catch(e){}}
@@ -8240,7 +8240,7 @@ Doc.preview=function(id){
 };
 Doc.finalize=function(id){
  var d=(DB.data.docs||[]).filter(function(x){return x.id===id})[0],u=me();if(!d||!u)return;
- if(!(d.authorId===u.id||isAdm()))return;
+  if(!(d.authorId===u.id||isAdm()||['temp','saved','draft'].indexOf(d.status)>=0))return;
  var now=new Date().toISOString();
  d.status='saved';d.updatedAt=now;d.savedAt=now;d.version=(d.version||1)+1;
   try{addAudit(d,u.name,'저장','임시저장 → 저장완료')}catch(e){}
@@ -8255,7 +8255,7 @@ Doc.inlineEdit=function(id){
  var d=(DB.data.docs||[]).filter(function(x){return x.id===id})[0],u=me();
  var f=d&&(DB.data.forms||[]).filter(function(x){return x.id===d.formId})[0];
  var box=document.getElementById('docpaper');
- if(!d||!f||!box||!u||!(d.authorId===u.id||isAdm())){Doc.edit(id);return}
+ if(!d||!f||!box||!u||!(d.authorId===u.id||isAdm()||['temp','saved','draft'].indexOf(d.status)>=0)){Doc.edit(id);return}
  window.__EDITING=1;window.__CURDOC=d;window.__yumDocId=d.id;window.__yumFormId=f.id;window.__yumTouched=false;
  window.__SIGN=Object.assign({},d.signs||{});window.__CURFORM=f;
  try{if(window.Attach)Attach.reset(d.attachments||[])}catch(e){}
