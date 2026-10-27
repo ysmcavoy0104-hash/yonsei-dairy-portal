@@ -370,7 +370,7 @@ h1.pgt{font-size:24px;font-weight:800;letter-spacing:-.02em;color:var(--navy)}
       <span>연세우유 <b style="font-weight:600;opacity:.75">상온제품생산부문</b></span>
     </a>
     <div class="menu">
-      <a href="#dash" onclick="lnavGo('#/dash');return false" style="font-weight:700;color:#ffffff">대시보드</a>
+      <a href="#dash" onclick="lnavGo('#/overview');return false" style="font-weight:700;color:#ffffff">대시보드</a>
       <a href="#notice" onclick="lnavGo('#/notice');return false" style="font-weight:700;color:#ffffff">공지사항</a>
       
       <a href="#planconv" onclick="lnavGo('#/planconv');return false" style="font-weight:700;color:#ffffff">생산계획</a>
@@ -600,7 +600,7 @@ h1.pgt{font-size:24px;font-weight:800;letter-spacing:-.02em;color:var(--navy)}
  <div class="h2-wrap">
   <div class="rv2"><div class="h2-eb">Six Workspaces</div><h2 class="h2-t">여섯 개의 업무 영역, 하나의 포털</h2><p class="h2-l">포털 안에서 영역마다 고유한 색으로 구분됩니다. 원하는 영역을 눌러 바로 들어가세요.</p></div>
   <div class="ha-g">
-   <a class="ha-c rv2" href="#dash" onclick="lnavGo('#/dash');return false" style="--c:#3062D8;--cd:#12245A;--cr:48,98,216"><span class="ha-n">01 · Dashboard</span><span class="ha-ic">▦</span><h3>대시보드</h3><p>오늘 해야 할 일과 팀별 일지 현황, 부서별 지연·정비 지표를 한 화면에서 확인합니다.</p><ul><li>지연·정비 기록 · 작성</li><li>지연·정비 기록표</li><li>일일 보고서함</li></ul><span class="ha-go">대시보드 열기</span></a>
+   <a class="ha-c rv2" href="#dash" onclick="lnavGo('#/overview');return false" style="--c:#3062D8;--cd:#12245A;--cr:48,98,216"><span class="ha-n">01 · Dashboard</span><span class="ha-ic">▦</span><h3>대시보드</h3><p>오늘 해야 할 일과 팀별 일지 현황, 부서별 지연·정비 지표를 한 화면에서 확인합니다.</p><ul><li>지연·정비 기록 · 작성</li><li>지연·정비 기록표</li><li>일일 보고서함</li></ul><span class="ha-go">대시보드 열기</span></a>
    <a class="ha-c rv2" href="#planconv" onclick="lnavGo('#/planconv');return false" style="--c:#0F8F7C;--cd:#0A3F3A;--cr:15,143,124"><span class="ha-n">02 · Production</span><span class="ha-ic">⚙</span><h3>생산계획</h3><p>생산계획 PDF를 올리면 품목별 공정 규격과 원유 수유 · 사일로(S1~S5) 배정이 자동으로 만들어집니다.</p><ul><li>계획표 자동 변환</li><li>사일로 자동 배정</li><li>배합 · 착즙 · 멸균 · 포장</li></ul><span class="ha-go">생산계획 열기</span></a>
    <a class="ha-c rv2" href="#weekplan" onclick="lnavGo('#/weekplan');return false" style="--c:#6D50D9;--cd:#2B1F66;--cr:109,80,217"><span class="ha-n">03 · Workforce</span><span class="ha-ic">◷</span><h3>근무</h3><p>근무편성과 주간 근무계획표를 함께 관리하고, 휴무 인원까지 한눈에 확인합니다.</p><ul><li>근무스케쥴</li><li>주간근무계획표</li><li>인쇄 · PDF</li></ul><span class="ha-go">근무 열기</span></a>
    <a class="ha-c rv2" href="#docs" onclick="lnavGo('#/docs');return false" style="--c:#C27A2C;--cd:#53300F;--cr:194,122,44"><span class="ha-n">04 · Documents</span><span class="ha-ic">✎</span><h3>일지 · 결재</h3><p>원본 양식을 그대로 옮긴 <span data-forms>20여</span>종의 전자 일지를 팀별 폴더로 정리하고, 결재선으로 검증합니다.</p><ul><li>팀별 일지 폴더</li><li>전자결재</li><li>원본 양식 그대로 인쇄</li></ul><span class="ha-go">일지 · 결재 열기</span></a>
@@ -678,7 +678,7 @@ h1.pgt{font-size:24px;font-weight:800;letter-spacing:-.02em;color:var(--navy)}
  <div class="h2-wrap">
   <div class="g">
    <div><div class="bl"><svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><defs><linearGradient id="ymbF" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22417F"/><stop offset="1" stop-color="#0A142B"/></linearGradient><linearGradient id="ymgF" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F1DDAE"/><stop offset="1" stop-color="#B08A3E"/></linearGradient></defs><rect width="32" height="32" rx="9" fill="url(#ymbF)"/><rect x=".7" y=".7" width="30.6" height="30.6" rx="8.3" fill="none" stroke="url(#ymgF)" stroke-opacity=".75" stroke-width="1.4"/><path d="M16 6.2c3.7 4.7 6.7 8.5 6.7 11.9a6.7 6.7 0 0 1-13.4 0c0-3.4 3-7.2 6.7-11.9z" fill="#fff"/><path d="M10.2 18.7c1.95-1.25 3.85-1.25 5.8 0s3.85 1.25 5.8 0" fill="none" stroke="url(#ymgF)" stroke-width="1.7" stroke-linecap="round"/><path d="M12.6 15.6c.3-1.3 1-2.6 1.9-3.9" fill="none" stroke="#C9D6F2" stroke-width="1.1" stroke-linecap="round" opacity=".9"/></svg>연세우유 상온제품생산부문</div><p class="ab">상온제품 생산의 계획 · 기록 · 결재 · 보고를 하나로 잇는 부문 통합 업무포털입니다. 사내 구성원 전용으로 운영됩니다.</p></div>
-   <div><h4>Workspaces</h4><a href="#dash" onclick="lnavGo('#/dash');return false">대시보드</a><a href="#planconv" onclick="lnavGo('#/planconv');return false">생산계획</a><a href="#weekplan" onclick="lnavGo('#/weekplan');return false">근무</a><a href="#docs" onclick="lnavGo('#/docs');return false">일지 · 결재</a></div>
+   <div><h4>Workspaces</h4><a href="#dash" onclick="lnavGo('#/overview');return false">대시보드</a><a href="#planconv" onclick="lnavGo('#/planconv');return false">생산계획</a><a href="#weekplan" onclick="lnavGo('#/weekplan');return false">근무</a><a href="#docs" onclick="lnavGo('#/docs');return false">일지 · 결재</a></div>
    <div><h4>Resources</h4><a href="https://www.notion.so/" id="lnav-notion2" target="_blank" rel="noopener">지연 · 정비 기록</a><a href="#" id="lnav-notebooklm2" onclick="NB.open();return false">NotebookLM</a><a href="#reports" onclick="lnavGo('#/reports');return false">일일 보고서함</a><a href="#ai" onclick="lnavGo('#/ai');return false">AI 업무도우미</a></div>
    <div><h4>Contact</h4><a href="tel:01030697708">시스템 관리 · 임성주<br>010-3069-7708</a></div>
   </div>
@@ -11559,7 +11559,7 @@ function events(p,c){
  });
  (DB.data.notices||[]).forEach(function(n){
   if(!n||!n.id||p.notices[n.id])return;
-  yumNotify(users().filter(function(v){return v.status==='active'}).map(function(v){return v.id}),{title:(n.urgent?'🚨 긴급 공지':'📢 새 공지'),body:n.title||'',url:'#/notice',tag:'notice-'+n.id},'notice');
+  yumNotify(users().filter(function(v){return v.status==='active'}).map(function(v){return v.id}),{title:(n.urgent?'🚨 긴급 공지':'📢 새 공지'),body:n.title||'',url:'#/notice?t=notice',tag:'notice-'+n.id},'notice');
  });
 }
 var _save=DB.save.bind(DB);
@@ -11890,11 +11890,11 @@ function stripHTML(){
 }
 var _nv=Views.notice;
 Views.notice=function(){
- var q=qs(),t=q.t||'all';
+ var q=qs(),t=q.t||'auto';   /* 공지사항을 열면 자동 인사이트가 먼저 */
  try{yumInsight.run()}catch(e){}
  var base='';try{base=_nv.apply(this,arguments)}catch(e){base=''}
  var reds=items().filter(function(x){return x.level==='red'&&x.status!=='done'&&x.status!=='hidden'}).length;
- var tabs='<div class="in-tabs">'+[['all','전체'],['notice','📢 부서 공지'],['auto','🤖 자동 인사이트'+(reds?'<i>'+reds+'</i>':'')]].map(function(o){return '<a class="'+(t===o[0]?'on':'')+'" href="#/notice'+(o[0]==='all'?'':'?t='+o[0])+'">'+o[1]+'</a>'}).join('')+'</div>';
+ var tabs='<div class="in-tabs">'+[['auto','🤖 자동 인사이트'+(reds?'<i>'+reds+'</i>':'')],['notice','📢 부서 공지'],['all','전체']].map(function(o){return '<a class="'+(t===o[0]?'on':'')+'" href="#/notice'+(o[0]==='auto'?'':'?t='+o[0])+'">'+o[1]+'</a>'}).join('')+'</div>';
  var i=base.indexOf('<div class="panel"'),head=i>0?base.slice(0,i):'',rows=i>0?base.slice(i):base;
  head=head.replace('사내 공지와 Notion 공지가 함께 표시됩니다','사람이 쓰는 부서 공지와, 일지 데이터로 자동 작성되는 설비 · 품질 인사이트를 한곳에서 봅니다');
  if(t==='auto')return head+tabs+autoHTML(q);
@@ -12650,6 +12650,122 @@ function fixSearch(){var g=document.getElementById('gsearch');if(!g)return;
 document.addEventListener('input',function(e){if(e.target&&e.target.id==='gsearch'&&e.isTrusted)e.target.__typed=true},true);
 fixSearch();window.addEventListener('load',fixSearch);setInterval(fixSearch,700);
 console.log('[확장 모듈 53] 메뉴 정리 · 팀 대시보드 카드 로드 완료');
+})();
+</script>
+
+<script>
+/* ============ 확장 모듈 54 — 대시보드 전체보기 (#/overview) ============
+   대시보드 메뉴를 열면 가장 먼저 보이는 한 장짜리 요약:
+   배합 · 착즙 · 멸균 요약 + 생산 지연 · 설비 정비 대시보드 (기준일 하루 + 최근 7일 흐름)
+   데이터: 포털에 저장된 일지, 지연·정비 기록(포털 입력 + 노션에서 옮긴 기록)                       */
+(function(){
+if(window.__YUM_OVERVIEW__)return;window.__YUM_OVERVIEW__=1;
+var ROUTE='#/overview';
+function esc(x){return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function $i(id){return document.getElementById(id)}
+function me(){try{return Auth.user()}catch(e){return null}}
+function fmt(x,dg){if(x==null||isNaN(x))return '-';var r=Math.pow(10,dg||0);return (Math.round(x*r)/r).toLocaleString('ko-KR')}
+function hrs(m){m=Math.round(m||0);if(!m)return '0분';var h=Math.floor(m/60),mm=m%60;return (h?h+'시간 ':'')+(mm?mm+'분':'').trim()}
+function addDays(s,n){var d=new Date(s+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
+function dw(s){return '일월화수목금토'[new Date(s+'T00:00:00Z').getUTCDay()]}
+function md(s){return (+s.slice(5,7))+'/'+(+s.slice(8,10))}
+function today(){var d=new Date(Date.now()+9*3600e3);return d.toISOString().slice(0,10)}
+var C={mix:'#7B5CD6',juice:'#D98A1F',ster:'#0F8F7C',delay:'#D64545',maint:'#3F6FB5',ink:'#13233f',mute:'#6b7a90'};
+var DIVC={'가공2팀':'#7B5CD6','가공1팀':'#0F8F7C','포장팀':'#3062D8'},DIVS=['가공2팀','가공1팀','포장팀'],DIVSUB={'가공2팀':'배합 · 착즙','가공1팀':'멸균','포장팀':'포장'};
+var st={date:''};
+
+function recs(){try{return YumReportCore.records(DB.data,window.__YUM_NOTION_FINAL__)}catch(e){return []}}
+function docDates(codes){var ids={},m={};(DB.data.forms||[]).forEach(function(f){if(codes.indexOf(f.code)>=0)ids[f.id]=1});
+ (DB.data.docs||[]).forEach(function(d){if(!ids[d.formId]||!d.data)return;var k=String(d.data.pdate||d.savedAt||d.updatedAt||'').slice(0,10);if(/^\d{4}-\d\d-\d\d$/.test(k))m[k]=1});return m}
+var MIX=['FRM-012','FRM-008','FRM-014'],JUICE=['FRM-009','FRM-010','FRM-006','FRM-007','FRM-015','FRM-028'],STER=['FRM-016','FRM-017','FRM-019','FRM-020','FRM-021'];
+function lastOn(m,D){var k=Object.keys(m).filter(function(x){return x<=D}).sort();return k.length?k[k.length-1]:''}
+var SC={};
+function sterDay(D){if(SC[D]&&SC[D].n===(DB.data.docs||[]).length)return SC[D].v;var v=null;
+ try{var M=YumReportCore.analyze(DB.data,window.__YUM_NOTION_FINAL__,YumReportCore.period('daily',D),{});var S=M.J.ster||{},q=0,run=0,b=0;Object.keys(S).forEach(function(h){q+=S[h].qty||0;run+=S[h].run||0;b+=S[h].batch||0});v={hogi:Object.keys(S).length,q:q,run:run,batch:b,stops:(M.J.stops||[]).length,devs:(M.J.devs||[]).length,S:S}}catch(e){}
+ SC[D]={n:(DB.data.docs||[]).length,v:v};return v}
+
+/* ---------- 작은 그림 ---------- */
+function spark(days,vals,color,unit){var mx=Math.max.apply(null,vals.map(function(x){return x||0}).concat([1]));
+ return '<div class="ov-sp">'+days.map(function(d,i){var x=vals[i];return '<span title="'+md(d)+' '+(x==null?'기록 없음':fmt(x,1)+(unit||''))+'"><i style="height:'+(x?Math.max(6,x/mx*100):0)+'%;background:'+(i===days.length-1?color:color+'88')+'"></i><em>'+(+d.slice(8))+'</em></span>'}).join('')+'</div>'}
+function bars(rows,color,unit){if(!rows.length)return '<div class="ov-empty">기록 없음</div>';var mx=Math.max.apply(null,rows.map(function(r){return r[1]}))||1;
+ return '<div class="ov-bars">'+rows.map(function(r){return '<div class="ov-br"><span class="l" title="'+esc(r[0])+'">'+esc(r[0]||'(미기재)')+'</span><span class="b"><i style="width:'+Math.max(3,r[1]/mx*100)+'%;background:'+(r[3]||color)+'"></i></span><span class="v">'+esc(r[2])+'</span></div>'}).join('')+'</div>'}
+function top(list,key,val,n){var m={};list.forEach(function(r){var k=key(r);if(!k)return;m[k]=(m[k]||0)+(val?val(r):1)});return Object.keys(m).map(function(k){return [k,m[k]]}).sort(function(a,b){return b[1]-a[1]}).slice(0,n||5)}
+function kpi(ic,l,v,sub,c){return '<div class="ov-k" style="--c:'+c+'"><div class="ov-kl">'+ic+' '+esc(l)+'</div><div class="ov-kv">'+v+'</div><div class="ov-ks">'+(sub||'&nbsp;')+'</div></div>'}
+function card(cls,c,title,link,linkT,body,sub){return '<section class="ov-c '+cls+'" style="--c:'+c+'"><div class="ov-ch"><b>'+title+'</b>'+(sub?'<small>'+sub+'</small>':'')+'<a href="'+link+'">'+linkT+' →</a></div>'+body+'</section>'}
+function mini(l,v,u,bad){return '<div class="ov-m"><span>'+esc(l)+'</span><b'+(bad?' class="bad"':'')+'>'+v+'<small>'+(u||'')+'</small></b></div>'}
+
+/* ---------- 화면 ---------- */
+function view(){
+ var R=recs(),mx=docDates(MIX),jx=docDates(JUICE),sx=docDates(STER),all={};
+ R.forEach(function(r){if(r.d)all[String(r.d).slice(0,10)]=1});[mx,jx,sx].forEach(function(m){Object.keys(m).forEach(function(k){all[k]=1})});
+ var T=today(),dates=Object.keys(all).filter(function(d){return d<=T}).sort().reverse().slice(0,60);
+ if(!st.date||dates.indexOf(st.date)<0)st.date=dates[0]||T;var D=st.date,days=[];for(var i=6;i>=0;i--)days.push(addDays(D,-i));var D0=days[0];
+ var dl=R.filter(function(r){return r.kind==='delay'}),ml=R.filter(function(r){return r.kind==='maint'});
+ var dDay=dl.filter(function(r){return r.d===D}),dWk=dl.filter(function(r){return r.d>=D0&&r.d<=D}),mDay=ml.filter(function(r){return r.d===D}),mWk=ml.filter(function(r){return r.d>=D0&&r.d<=D});
+ var sum=function(a){return a.reduce(function(p,r){return p+(+r.min||0)},0)};
+ /* 공정 요약 */
+ var PD=window.yumProcDash,mD=lastOn(mx,D),jD=lastOn(jx,D),sD=lastOn(sx,D);
+ var mR=mD&&PD?PD.day('mix',mD):null,jR=jD&&PD?PD.day('juice',jD):null,sR=sD?sterDay(sD):null;
+ var mT=days.map(function(d){return mx[d]&&PD?PD.day('mix',d).nb:null}),jT=days.map(function(d){return jx[d]&&PD?PD.day('juice',d).use:null}),sT=days.map(function(d){var v=sx[d]?sterDay(d):null;return v?v.q:null});
+ var h='<div class="ov">';
+ h+='<div class="ov-hd"><div><div class="ov-en">DASHBOARD OVERVIEW</div><h2>대시보드 전체보기</h2><div class="ov-sub">'+md(D)+'('+dw(D)+') 기준 · 최근 7일('+md(D0)+'~'+md(D)+') 흐름 · 저장된 일지와 지연·정비 기록으로 자동 집계</div></div>'+
+  '<div class="ov-act"><select onchange="yumOverview.pick(this.value)">'+dates.map(function(d){return '<option value="'+d+'"'+(d===D?' selected':'')+'>'+d+' ('+dw(d)+')</option>'}).join('')+'</select><a class="btn btn-o btn-sm" href="#/dash">팀별 현황 →</a></div></div>';
+ /* 한 줄 요약 */
+ h+='<div class="ov-ks6">'+
+  kpi('⏱','생산 지연',dDay.length+'<small>건</small>',hrs(sum(dDay))+' · 7일 '+dWk.length+'건',C.delay)+
+  kpi('🔧','설비 정비',mDay.length+'<small>건</small>','7일 '+mWk.length+'건',C.maint)+
+  kpi('⚗','배합 배치',mR?fmt(mR.nb)+'<small>배치</small>':'-',mR?'평균 Brix '+fmt(mR.b1,2)+(mD!==D?' · '+md(mD):''):'일지 없음',C.mix)+
+  kpi('❖','대두 사용량',jR&&jR.use!=null?fmt(jR.use)+'<small>kg</small>':'-',jR?'부산물 '+fmt(jR.byRate,1)+'%'+(jD!==D?' · '+md(jD):''):'일지 없음',C.juice)+
+  kpi('♨','멸균 적산량',sR?(sR.q>=10000?fmt(sR.q/10000,1)+'<small>만</small>':fmt(sR.q)):'-',sR?'가동 '+sR.hogi+'대 · 정지 '+sR.stops+'건'+(sD!==D?' · '+md(sD):''):'일지 없음',C.ster)+
+  kpi('⚠','기준 이탈',fmt((mR?mR.dev.length:0)+(jR?jR.dev.length:0)+(sR?sR.devs:0))+'<small>건</small>','배합 '+(mR?mR.dev.length:0)+' · 착즙 '+(jR?jR.dev.length:0)+' · 멸균 '+(sR?sR.devs:0),'#B4503C')+'</div>';
+ /* 공정 3종 */
+ h+='<div class="ov-g3">'+
+  card('',C.mix,'⚗ 배합','#/mix','배합 대시보드',mR?'<div class="ov-ms">'+mini('배치',fmt(mR.nb),'배치')+mini('평균 최종 Brix',fmt(mR.b1,2))+mini('설탕 투입',fmt(mR.sug),'kg')+mini('점검 X',fmt(mR.x.length),'건',mR.x.length>0)+'</div><div class="ov-spt">최근 7일 배치 수</div>'+spark(days,mT,C.mix,'배치'):'<div class="ov-empty">이 날까지 저장된 배합 일지가 없습니다</div>',mD?md(mD)+'('+dw(mD)+') 일지':'')+
+  card('',C.juice,'❖ 착즙','#/juice','착즙 대시보드',jR?'<div class="ov-ms">'+mini('대두 사용량',fmt(jR.use),'kg')+mini('부산물',fmt(jR.byRate,1),'%')+mini('원액 생산',fmt(jR.raw),'kg')+mini('기준 이탈',fmt(jR.dev.length),'건',jR.dev.length>0)+'</div><div class="ov-spt">최근 7일 대두 사용량</div>'+spark(days,jT,C.juice,'kg'):'<div class="ov-empty">이 날까지 저장된 착즙 일지가 없습니다</div>',jD?md(jD)+'('+dw(jD)+') 일지':'')+
+  card('',C.ster,'♨ 멸균','#/ster','멸균 대시보드',sR?'<div class="ov-ms">'+mini('가동 호기',sR.hogi,'대')+mini('적산량',sR.q>=10000?fmt(sR.q/10000,1):fmt(sR.q),sR.q>=10000?'만':'')+mini('가동 시간',fmt(sR.run,1),'h')+mini('정지 기록',fmt(sR.stops),'건',sR.stops>0)+'</div><div class="ov-spt">최근 7일 적산량</div>'+spark(days,sT,C.ster,''):'<div class="ov-empty">이 날까지 저장된 멸균 일지가 없습니다</div>',sD?md(sD)+'('+dw(sD)+') 일지':'')+'</div>';
+ /* 지연 */
+ var divs=DIVS.map(function(dv){var a=dDay.filter(function(r){return r.div===dv});return '<div class="ov-dv" style="--c:'+DIVC[dv]+'"><b>'+dv+'</b><small>'+DIVSUB[dv]+'</small><span>'+(a.length?a.length+'건 · '+hrs(sum(a)):'지연 없음')+'</span></div>'}).join('');
+ var tr='<div class="ov-tr">'+days.map(function(d){var tot=sum(dl.filter(function(r){return r.d===d}));return '<div class="ov-tc" title="'+md(d)+' '+hrs(tot)+'"><span class="ov-tb">'+DIVS.map(function(dv){var m=sum(dl.filter(function(r){return r.d===d&&r.div===dv}));return m?'<i style="flex:'+m+';background:'+DIVC[dv]+'"></i>':''}).join('')+'</span><em>'+(tot?Math.round(tot/6)/10+'h':'')+'</em><small'+(dw(d)==='일'?' class="sun"':'')+'>'+md(d)+'</small></div>'}).join('')+'</div>';
+ var big=dWk.filter(function(r){return (+r.min||0)>=120}).sort(function(a,b){return b.min-a.min}).slice(0,5);
+ var dBody='<div class="ov-dvs">'+divs+'</div><div class="ov-2"><div><div class="ov-spt">최근 7일 지연 시간 (부서별)</div>'+tr+'</div><div><div class="ov-spt">지연 원인 TOP 5 (7일, 시간)</div>'+bars(top(dWk,function(r){return r.reason},function(r){return +r.min||0},5).map(function(x){return [x[0],x[1],hrs(x[1])]}),C.delay)+'</div></div>'+
+  '<div class="ov-2"><div><div class="ov-spt">지연이 많은 호기 (7일)</div>'+bars(top(dWk,function(r){return ((r.team||'')+' '+(r.hogi||'')).trim()},function(r){return +r.min||0},5).map(function(x){return [x[0],x[1],hrs(x[1])]}),'#E07A5F')+'</div>'+
+  '<div><div class="ov-spt">2시간 이상 지연 (7일)</div>'+(big.length?'<ul class="ov-list">'+big.map(function(r){return '<li><b>'+md(r.d)+'</b> '+esc(((r.team||'')+' '+(r.hogi||'')).trim())+' · '+esc(r.reason||'')+' <em>'+hrs(r.min)+'</em></li>'}).join('')+'</ul>':'<div class="ov-ok">해당 지연 없음 👍</div>')+'</div></div>';
+ /* 정비 */
+ var mBody='<div class="ov-ms">'+mini('오늘 정비',mDay.length,'건')+mini('7일 정비',mWk.length,'건')+mini('정비 설비',top(mWk,function(r){return r.asset},null,99).length,'곳')+'</div>'+
+  '<div class="ov-spt">정비 종류 (7일)</div>'+bars(top(mWk,function(r){return r.mtype||'기타'},null,5).map(function(x){return [x[0],x[1],x[1]+'건']}),C.maint)+
+  '<div class="ov-spt">정비가 잦은 설비 (7일)</div>'+bars(top(mWk,function(r){return r.asset},null,5).map(function(x){return [x[0],x[1],x[1]+'건']}),'#6B8BC4')+
+  '<div class="ov-spt">최근 정비</div>'+(mWk.length?'<ul class="ov-list">'+mWk.slice().sort(function(a,b){return String(b.d).localeCompare(String(a.d))}).slice(0,5).map(function(r){return '<li><b>'+md(r.d)+'</b> '+esc(r.asset||'')+' · '+esc(String(r.content||'').slice(0,40))+'</li>'}).join('')+'</ul>':'<div class="ov-empty">기록 없음</div>');
+ h+='<div class="ov-g2">'+card('ov-wide',C.delay,'⏱ 생산 지연','#/ndash','지연·정비 기록',dBody,md(D)+' '+dDay.length+'건 · '+hrs(sum(dDay)))+card('',C.maint,'🔧 설비 정비','#/oplogs','지연·정비 기록표',mBody,md(D)+' '+mDay.length+'건')+'</div>';
+ return h+'</div>';
+}
+var CSS='.ov{color:#13233f}.ov-hd{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;background:linear-gradient(120deg,#0E1C3D,#1F3B7A 60%,#2F5BD3);color:#fff;border-radius:18px;padding:18px 22px;margin:4px 0 14px}'+
+ '.ov-en{font-size:12px;letter-spacing:.14em;color:#C9A25B;font-weight:800}.ov-hd h2{margin:4px 0 4px;font-size:24px;font-weight:900}.ov-sub{font-size:12.5px;opacity:.85}.ov-act{display:flex;gap:8px;align-items:center}.ov-act select{padding:7px 10px;border-radius:9px;border:0;font-weight:700;color:#13233f;background:#fff}.ov-act .btn{background:#fff}'+
+ '.ov-ks6{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:14px}@media(max-width:1200px){.ov-ks6{grid-template-columns:repeat(3,1fr)}}@media(max-width:640px){.ov-ks6{grid-template-columns:repeat(2,1fr)}}'+
+ '.ov-k{background:#fff;border:1px solid #E3E7EF;border-top:5px solid var(--c);border-radius:14px;padding:11px 13px}.ov-kl{font-size:12px;color:#6b7a90;font-weight:800}.ov-kv{font-size:27px;font-weight:900;margin-top:2px;white-space:nowrap}.ov-kv small{font-size:13px;color:#6b7a90;margin-left:2px}.ov-ks{font-size:11.5px;color:#6b7a90;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'+
+ '.ov-g3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:14px}.ov-g2{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:14px}@media(max-width:1000px){.ov-g3,.ov-g2{grid-template-columns:1fr}}'+
+ '.ov-c{background:linear-gradient(180deg,color-mix(in srgb,var(--c) 7%,#fff),#fff 120px);border:1.5px solid color-mix(in srgb,var(--c) 30%,#fff);border-top:6px solid var(--c);border-radius:16px;padding:13px 15px;min-width:0}'+
+ '.ov-ch{display:flex;align-items:baseline;gap:8px;margin-bottom:10px}.ov-ch b{font-size:16px;font-weight:900;color:color-mix(in srgb,var(--c) 75%,#000)}.ov-ch small{font-size:11.5px;color:#6b7a90}.ov-ch a{margin-left:auto;font-size:12.5px;font-weight:800;color:var(--c);text-decoration:none;white-space:nowrap}.ov-ch a:hover{text-decoration:underline}'+
+ '.ov-ms{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:6px;margin-bottom:10px}.ov-g3 .ov-ms{grid-template-columns:repeat(4,minmax(0,1fr))}.ov-g3 .ov-m b{font-size:16px}.ov-m{background:#fff;border:1px solid #EEF1F5;border-radius:10px;padding:7px 9px}.ov-m span{display:block;font-size:11px;color:#6b7a90;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ov-m b{font-size:18px;font-weight:900;white-space:nowrap}.ov-m b.bad{color:#D64545}.ov-m small{font-size:11px;color:#6b7a90;margin-left:2px}'+
+ '.ov-spt{font-size:11.5px;font-weight:800;color:#5B6478;margin:8px 0 5px}.ov-sp{display:flex;gap:4px;align-items:flex-end;height:64px}.ov-sp span{flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center}.ov-sp i{display:block;width:100%;border-radius:4px 4px 0 0}.ov-sp em{font-style:normal;font-size:10px;color:#8B95A7;margin-top:2px}'+
+ '.ov-empty{font-size:12.5px;color:#8B95A7;text-align:center;padding:14px;border:1px dashed #DDE2EA;border-radius:10px;background:#fff}.ov-ok{font-size:12.5px;color:#1B7F4E;font-weight:700;padding:8px 0}'+
+ '.ov-dvs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px}.ov-dv{background:#fff;border:1px solid #EEF1F5;border-left:5px solid var(--c);border-radius:10px;padding:8px 10px}.ov-dv b{font-size:13.5px}.ov-dv small{font-size:11px;color:#6b7a90;margin-left:4px}.ov-dv span{display:block;font-size:15px;font-weight:900;margin-top:2px}'+
+ '.ov-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:700px){.ov-2{grid-template-columns:1fr}}'+
+ '.ov-tr{display:flex;gap:6px;align-items:flex-end;height:110px}.ov-tc{flex:1;display:flex;flex-direction:column;align-items:center;height:100%;justify-content:flex-end}.ov-tb{width:100%;display:flex;flex-direction:column-reverse;border-radius:5px 5px 0 0;overflow:hidden;background:#F4F6FA}.ov-tc em{font-style:normal;font-size:10px;color:#5B6478}.ov-tc small{font-size:10px;color:#8B95A7}.ov-tc small.sun{color:#D64545}'+
+ '.ov-bars{display:grid;gap:5px}.ov-br{display:grid;grid-template-columns:96px 1fr 70px;gap:6px;align-items:center;font-size:12px}.ov-br .l{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}.ov-br .b{height:12px;background:#F1F3F7;border-radius:6px;overflow:hidden}.ov-br .b i{display:block;height:100%;border-radius:6px}.ov-br .v{color:#5B6478;text-align:right;white-space:nowrap}'+
+ '.ov-list{margin:0;padding:0;list-style:none;display:grid;gap:4px;font-size:12px}.ov-list li{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ov-list b{color:#13233f;margin-right:4px}.ov-list em{font-style:normal;color:#D64545;font-weight:800}';
+/* 지연 막대 높이: 7일 중 가장 많은 날 기준 */
+function fixTrend(){var bs=document.querySelectorAll('.ov-tr .ov-tc');var v=[].map.call(bs,function(c){return [].reduce.call(c.querySelectorAll('.ov-tb i'),function(p,i){return p+(+i.style.flex||parseFloat(i.style.flexGrow)||0)},0)});var mx=Math.max.apply(null,v.concat([1]));
+ [].forEach.call(bs,function(c,i){var b=c.querySelector('.ov-tb');b.style.height=(v[i]?Math.max(4,v[i]/mx*82):0)+'%'})}
+function css(){if($i('ov-css'))return;var s=document.createElement('style');s.id='ov-css';s.textContent=CSS;document.head.appendChild(s)}
+window.yumOverview={pick:function(d){st.date=d;App.render()}};
+
+/* 라우팅 · 메뉴: 대시보드 메뉴 맨 앞 */
+var _r=App.render;
+App.render=function(){var p=(location.hash||'').split('?')[0];if(p===ROUTE){if(!me())return _r.apply(this,arguments);this.baseRoute=ROUTE;var M=$i('main');css();
+ try{M.innerHTML=view();fixTrend()}catch(e){console.error(e);M.innerHTML='<div class="panel">화면 오류: '+esc(e.message)+'</div>'}try{this.buildSidebar();this.refreshChrome()}catch(e){}try{window.scrollTo(0,0)}catch(e){}return}return _r.apply(this,arguments)};
+var _nav=App.navItems;
+App.navItems=function(){var a=_nav.apply(this,arguments);try{if(!a.some(function(n){return n&&n.k===ROUTE})){var i=-1;a.forEach(function(n,k){if(n&&n.k==='#/dash'&&i<0)i=k});if(i>=0){a.splice(i,0,{k:ROUTE,t:'대시보드 전체보기',i:'◉'});a.forEach(function(n){if(n&&n.k==='#/dash')n.t='팀별 현황'})}}}catch(e){}return a};
+console.log('[확장 모듈 54] 대시보드 전체보기 로드 완료');
 })();
 </script>
 
