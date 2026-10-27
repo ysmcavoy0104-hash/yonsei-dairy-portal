@@ -10511,7 +10511,7 @@ console.log('[확장 모듈 34] 지연·정비 기록 (노션 이전 '+notionRec
   AI.insight = AI_INSIGHT;
   var AI_SYSTEM = AI.daily;
 
-  return { insights: insights, mergeInsights: mergeInsights, AI_INSIGHT: AI_INSIGHT, build: build, report: report, period: period, records: records, analyze: analyze, introspect: introspect, specOf: specOf,
+  return { insights: insights, mergeInsights: mergeInsights, AI_INSIGHT: AI_INSIGHT, build: build, report: report, period: period, records: records, analyze: analyze, introspect: introspect, specOf: specOf, teamOf: teamOf,
     kstDate: kstDate, addDays: addDays, isoWeek: isoWeek, AI: AI, AI_SYSTEM: AI_SYSTEM, DIVS: DIVS };
 });
 
@@ -12961,6 +12961,106 @@ App.render=function(){var p=(location.hash||'').split('?')[0];if(p===ROUTE){if(!
 var _nav=App.navItems;
 App.navItems=function(){var a=_nav.apply(this,arguments);try{if(!a.some(function(n){return n&&n.k===ROUTE})){var i=-1;a.forEach(function(n,k){if(n&&n.k==='#/dash'&&i<0)i=k});if(i>=0){a.splice(i,0,{k:ROUTE,t:'대시보드 전체보기',i:'◉'});a.forEach(function(n){if(n&&n.k==='#/dash')n.t='팀별 현황'})}}}catch(e){}return a};
 console.log('[확장 모듈 54] 대시보드 전체보기 로드 완료');
+})();
+</script>
+
+<script>
+/* ============ 확장 모듈 55 — 문서관리 팀별 · 일자별 분류 + 폴더 이동 동기화 보강 ============
+   1. 문서관리(전체 문서 · 임시저장 · 저장완료 · 휴지통): 배합 · 착즙 · 멸균 · 포장 · 공통 칩으로 걸러 보고,
+      팀별 묶음 안에서 일지 날짜(작성일)별로 다시 묶어 보여 줍니다. 날짜 줄을 누르면 접고 펼 수 있습니다.
+      팀 구분은 보고서와 같은 기준(양식의 팀 · 폴더 이동으로 바뀐 팀 · 양식 이름)
+   2. 폴더 이동 · 폴더 만들기/이름 변경/삭제가 서버 동기화 때 되돌아가던 문제:
+      예전에는 서버에서 받은 양식 목록 · 폴더 목록이 통째로 덮어써서, 이동 직후(올리기 전) 다른 사람의 저장을 받거나
+      다른 PC가 예전 목록으로 저장하면 이동이 취소되었습니다.
+      → 바뀔 때마다 시각을 적어 두고(양식 jmovedAt · 폴더 updatedAt · 삭제 기록 jfDel), 합칠 때 더 최근 것을 씁니다.   */
+(function(){
+if(window.__YUM_DOCSORT__)return;window.__YUM_DOCSORT__=1;
+var CATS=[['all','전체','▦','#3C4A5E'],['배합팀','배합','⚗','#7B5CD6'],['착즙팀','착즙','❖','#D98A1F'],['멸균팀','멸균','♨','#12A39A'],['포장팀','포장','▣','#3062D8'],['공통','공통 · 기타','◇','#8A94A8']];
+function esc2(x){return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+var FM=null,FMk='';
+function formMap(){var fs=DB.data.forms||[],k=fs.length+':'+fs.map(function(f){return f.jteam||''}).join('');if(FM&&FMk===k)return FM;FM={};fs.forEach(function(f){FM[f.id]=f});FMk=k;return FM}
+function teamOfDoc(d){var f=formMap()[d.formId]||{id:d.formId,name:d.title||''},t='공통';
+ try{if(window.YumReportCore&&YumReportCore.teamOf)t=YumReportCore.teamOf(f);else if(window.yumJFTeamOf)t=yumJFTeamOf(f)}catch(e){}
+ return CATS.some(function(c){return c[0]===t})?t:'공통'}
+function dayOf(d){return String((d.data&&d.data.pdate)||d.createdAt||'').slice(0,10)}
+function dow(s){var t=new Date(s+'T00:00:00');return isNaN(t)?'':'일월화수목금토'[t.getDay()]}
+function q(){var m=/\?(.*)$/.exec(location.hash||'');return new URLSearchParams(m?m[1]:'')}
+function catNow(){var c=q().get('cat');if(c)return c;try{return sessionStorage.getItem('yum_dscat')||'all'}catch(e){return 'all'}}
+
+Views.docs=function(tab){
+ tab=tab||'all';var cat=catNow();if(!CATS.some(function(c){return c[0]===cat}))cat='all';
+ try{sessionStorage.setItem('yum_dscat',cat)}catch(e){}
+ var SV=['saved','draft'];
+ function inTab(d,k){return k==='all'||k==='trash'?true:k==='temp'?d.status==='temp':SV.indexOf(d.status)>=0}
+ var tabs=[['all','전체 문서'],['temp','임시저장'],['saved','저장완료'],['trash','🗑 휴지통']];
+ var src=function(k){return (k==='trash'?window.yumTrashList():DB.data.docs).filter(function(d){return inTab(d,k)})};
+ var list=src(tab).slice();
+ var cnt={};list.forEach(function(d){var t=teamOfDoc(d);d.__t=t;cnt[t]=(cnt[t]||0)+1});
+ var shown=cat==='all'?list:list.filter(function(d){return d.__t===cat});
+ var href=function(t,c){return "App.go('#/docs?tab="+t+"&cat="+encodeURIComponent(c)+"')"};
+ var h='<div class="hrow"><div><h1 class="pgt">문서관리</h1><div class="pgt-sub">임시저장 = 작성 중인 문서(수정 가능, 대시보드 미반영) · 저장완료 = 저장이 끝난 문서(대시보드에 실시간 반영) · 팀별 → 일자별로 묶어 보여 줍니다</div></div>'+
+  '<div style="display:flex;gap:8px">'+(tab==='trash'&&window.yumTrashList().length?'<button class="btn btn-d" onclick="Doc.emptyTrash()">휴지통 비우기</button>':'')+'<button class="btn btn-p" onclick="App.go(\'#/doc-new\')">+ 문서 작성</button></div></div>';
+ if(tab==='trash')h+='<div class="panel" style="margin-bottom:12px;padding:12px 16px;font-size:13px;color:var(--muted)">삭제한 문서가 보관되는 곳입니다. 대시보드·문서함에는 나타나지 않으며, <b>복구하기</b>로 원래 위치로 되돌리거나 <b>완전삭제</b>로 영구히 지울 수 있습니다(완전삭제는 되돌릴 수 없습니다).</div>';
+ h+='<div class="tabs">'+tabs.map(function(t){return '<button class="'+(t[0]===tab?'on':'')+'" onclick="'+href(t[0],cat)+'">'+t[1]+' <span style="font-size:11px;color:var(--faint)">'+src(t[0]).length+'</span></button>'}).join('')+'</div>';
+ h+='<div class="ds-cats">'+CATS.map(function(c){var n=c[0]==='all'?list.length:(cnt[c[0]]||0);if(c[0]==='공통'&&!n)return '';
+  return '<button class="ds-cat'+(c[0]===cat?' on':'')+'" style="--c:'+c[3]+'" onclick="'+href(tab,c[0])+'"><span class="ic">'+c[2]+'</span>'+c[1]+' <b>'+n+'</b></button>'}).join('')+'</div>';
+ if(!shown.length)return h+'<div class="panel"><div class="empty"><b>문서가 없습니다</b>'+(cat!=='all'?'다른 팀을 고르거나 ':'')+'상단 탭을 변경하거나 새 문서를 작성해 보세요</div></div>';
+ var head='<thead><tr><th>문서번호</th><th>문서명</th><th>종류</th><th>작성자</th><th>부서</th><th>작성일</th><th class="c">상태</th><th class="c">버전</th><th class="c"></th></tr></thead>';
+ var row=function(d){var f=formMap()[d.formId]||{};return '<tr class="ds-r"><td style="white-space:nowrap">'+esc2(d.docNo)+'</td><td><a href="#/doc/'+d.id+'" class="link" style="font-weight:600">'+esc2(d.title)+'</a></td>'+
+  '<td>'+esc2(f.name||'-')+'</td><td>'+userName(d.authorId)+'</td><td>'+deptName(d.dept)+'</td><td style="white-space:nowrap">'+fmtD(String(d.createdAt||'').slice(0,10))+'</td>'+
+  '<td class="c">'+statusBadge(d.status)+'</td><td class="c">v'+(d.version||1)+'</td><td class="c" style="white-space:nowrap">'+window.yumRowAct(d,tab)+'</td></tr>'};
+ CATS.slice(1).forEach(function(c){
+  var L=shown.filter(function(d){return d.__t===c[0]});if(!L.length)return;
+  var by={};L.forEach(function(d){var k=dayOf(d)||'날짜 없음';(by[k]=by[k]||[]).push(d)});
+  var days=Object.keys(by).sort().reverse();
+  var temp=L.filter(function(d){return d.status==='temp'}).length;
+  h+='<div class="panel ds-team" style="--c:'+c[3]+'"><div class="ds-th"><span class="ic">'+c[2]+'</span><b>'+c[1]+'</b><span class="n">'+L.length+'건</span>'+
+   (tab==='all'&&temp?'<span class="ds-tmp">임시저장 '+temp+' · 저장완료 '+(L.length-temp)+'</span>':'')+'<span class="ds-sp"></span><span class="ds-dn">'+days.length+'일</span></div>'+
+   '<div style="overflow-x:auto"><table class="t ds-t">'+head+'<tbody>'+days.map(function(k){var R=by[k].sort(function(a,b){return String(b.createdAt).localeCompare(String(a.createdAt))});
+    return '<tr class="ds-day" onclick="yumDS.tg(this)"><td colspan="9"><span class="ar">▾</span> 📅 '+(k==='날짜 없음'?k:k.replace(/-/g,'.')+' ('+dow(k)+')')+' <span class="n">'+R.length+'건</span></td></tr>'+R.map(row).join('')}).join('')+'</tbody></table></div></div>'});
+ return h};
+
+window.yumDS={tg:function(tr){var o=!tr.classList.contains('off');tr.classList.toggle('off',o);var n=tr.nextElementSibling;while(n&&!n.classList.contains('ds-day')){n.style.display=o?'none':'';n=n.nextElementSibling}}};
+
+var CSS='.ds-cats{display:flex;flex-wrap:wrap;gap:7px;margin:4px 0 14px}.ds-cat{display:inline-flex;align-items:center;gap:6px;border:1.5px solid color-mix(in srgb,var(--c) 35%,#fff);background:#fff;color:var(--c);border-radius:999px;padding:6px 14px;font-size:13px;font-weight:700;cursor:pointer}'+
+ '.ds-cat b{font-size:11.5px;opacity:.75}.ds-cat:hover{background:color-mix(in srgb,var(--c) 8%,#fff)}.ds-cat.on{background:var(--c);border-color:var(--c);color:#fff}.ds-cat .ic{font-size:14px}'+
+ '.ds-team{padding:0;margin-bottom:14px;border-top:4px solid var(--c);overflow:hidden}.ds-th{display:flex;align-items:center;gap:8px;padding:12px 16px;background:color-mix(in srgb,var(--c) 7%,#fff);border-bottom:1px solid var(--line,#E3E7EF)}'+
+ '.ds-th .ic{font-size:17px;color:var(--c)}.ds-th b{font-size:15.5px;color:var(--c)}.ds-th .n{font-size:12.5px;font-weight:700;color:#5B6576}.ds-tmp{font-size:12px;color:#7A8494;margin-left:6px}.ds-sp{flex:1}.ds-dn{font-size:12px;color:#7A8494}'+
+ '.ds-t{margin:0}.ds-day td{background:#F6F8FB;font-weight:700;font-size:13px;color:#2B3647;cursor:pointer;user-select:none;padding:7px 14px!important;border-top:1px solid #E3E7EF}.ds-day .n{font-weight:600;color:#7A8494;font-size:12px;margin-left:4px}'+
+ '.ds-day .ar{display:inline-block;transition:transform .15s;color:var(--c)}.ds-day.off .ar{transform:rotate(-90deg)}.ds-day:hover td{background:#EEF2F8}';
+function css(){if(document.getElementById('ds-css'))return;var s=document.createElement('style');s.id='ds-css';s.textContent=CSS;document.head.appendChild(s)}
+css();document.addEventListener('DOMContentLoaded',css);
+
+/* ---------- 2. 폴더 이동 · 폴더 변경 동기화 보강 ---------- */
+var snap=null;
+function now(){return new Date().toISOString()}
+function sig(){var F={},J={};if(typeof DB==='undefined'||!DB.data)return null;
+ (DB.data.forms||[]).forEach(function(f){F[f.id]=(f.jteam||'')+'|'+(f.jfolder||'')});
+ (DB.data.jfolders||[]).forEach(function(x){J[x.id]=[x.name,x.order,x.team].join('|')});return {F:F,J:J}}
+function stamp(){var s=sig();if(!s)return;var t=now();
+ if(snap){(DB.data.forms||[]).forEach(function(f){if(snap.F[f.id]!==undefined&&snap.F[f.id]!==s.F[f.id])f.jmovedAt=t});
+  (DB.data.jfolders||[]).forEach(function(x){if(snap.J[x.id]!==s.J[x.id])x.updatedAt=t});
+  Object.keys(snap.J).forEach(function(id){if(s.J[id]===undefined){(DB.data.jfDel||(DB.data.jfDel={}))[id]=t}})}
+ snap=s}
+try{var _save=DB.save;DB.save=function(){try{stamp()}catch(e){}return _save.apply(this,arguments)}}catch(e){}
+try{var _ad=SupaSync.adopt;SupaSync.adopt=function(){var r=_ad.apply(this,arguments);try{snap=sig()}catch(e){}return r}}catch(e){}
+setTimeout(function(){if(!snap)snap=sig()},0);
+try{var _ms=SupaSync.mergeState.bind(SupaSync);
+ SupaSync.mergeState=function(remote,local,lw){var out=_ms(remote,local,lw);
+  try{if(remote&&local&&out){
+   /* 양식의 팀 · 폴더: 더 최근에 옮긴 쪽 */
+   var R={},Lc={};(remote.forms||[]).forEach(function(f){if(f&&f.id)R[f.id]=f});(local.forms||[]).forEach(function(f){if(f&&f.id)Lc[f.id]=f});
+   (out.forms||[]).forEach(function(f){if(!f||!f.id)return;var a=R[f.id],b=Lc[f.id];if(!a||!b)return;
+    var w=String(b.jmovedAt||'')>String(a.jmovedAt||'')?b:String(a.jmovedAt||'')>String(b.jmovedAt||'')?a:null;if(!w||w===f)return;
+    f.jteam=w.jteam;f.jfolder=w.jfolder;f.jmovedAt=w.jmovedAt;if(!w.jteam)delete f.jteam});
+   /* 폴더 목록: 합치고(id 기준, 더 최근 것) 삭제 기록은 반영 */
+   var del=Object.assign({},remote.jfDel||{});Object.keys(local.jfDel||{}).forEach(function(k){if(String(local.jfDel[k])>String(del[k]||''))del[k]=local.jfDel[k]});
+   var m={};(remote.jfolders||[]).concat(local.jfolders||[]).forEach(function(x){if(!x||!x.id)return;var c=m[x.id],tx=String(x.updatedAt||x.createdAt||''),tc=c?String(c.updatedAt||c.createdAt||''):'';if(!c||tx>tc)m[x.id]=x});
+   if(remote.jfolders||local.jfolders)out.jfolders=Object.keys(m).map(function(k){return m[k]}).filter(function(x){var d=del[x.id];return !d||String(x.updatedAt||x.createdAt||'')>String(d)});
+   if(Object.keys(del).length)out.jfDel=del;
+  }}catch(e){console.warn('[폴더 병합]',e)}
+  return out}}catch(e){}
+console.log('[확장 모듈 55] 문서관리 팀별 · 일자별 분류 + 폴더 이동 동기화 로드 완료');
 })();
 </script>
 
