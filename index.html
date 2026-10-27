@@ -2168,9 +2168,17 @@ Auth.changePw=async function(){const me=Auth.user();const cur=document.getElemen
  if(await sha256(me.empNo+'::'+cur)!==me.pwHash)return U.toast('현재 비밀번호가 일치하지 않습니다.','bad');
  if(!nw)return U.toast('새 비밀번호를 입력해 주세요.','bad');
  if(nw!==nw2)return U.toast('새 비밀번호가 일치하지 않습니다.','bad');
- me.pwHash=await sha256(me.empNo+'::'+nw);me.pwChangedAt=new Date().toISOString();me.pwDefault=false;DB.save();
- if(window.SupaSync&&SupaSync.on()){try{await SupaSync.c().auth.updateUser({password:await SupaSync.authPw(me.empNo,nw)})}catch(e){}}
- U.toast('비밀번호가 변경되었습니다.','ok');};
+ if(nw==='Pass123!')return U.toast('기본 비밀번호와 다른 비밀번호를 입력해 주세요.','bad');
+ /* 서버(로그인 서버) 비밀번호를 먼저 바꾸고, 성공했을 때만 포털 비밀번호도 바꿈 — 한쪽만 바뀌어 예전 비밀번호로 되돌아가던 문제 방지 */
+ if(window.SupaSync&&SupaSync.on()){var se='';try{var c=SupaSync.c(),ss=null;try{ss=await c.auth.getSession()}catch(e){}
+   if(!(ss&&ss.data&&ss.data.session)){var em=me.authEmail||me.email||await SupaSync.resolveEmail(me.empNo);await SupaSync.ensureSession(me.empNo,cur,em,false)}
+   var ur=await c.auth.updateUser({password:await SupaSync.authPw(me.empNo,nw)});if(ur&&ur.error)se=ur.error.message||'변경 실패'}catch(e){se=(e&&e.message)||String(e)}
+  if(se)return U.toast('서버 비밀번호 변경에 실패해 바꾸지 않았습니다 ('+se+'). 잠시 후 다시 시도해 주세요.','bad')}
+ me.pwHash=await sha256(me.empNo+'::'+nw);me.pwChangedAt=new Date().toISOString();me.pwDefault=false;me.fails=0;me.lockedUntil=null;DB.save();
+ try{if(window.SupaSync&&SupaSync.on()){clearTimeout(SupaSync.pushT);await SupaSync.pushNow(DB.data)}}catch(e){}
+ ['pc-cur','pc-new','pc-new2'].forEach(function(k){var e=document.getElementById(k);if(e)e.value=''});
+ U.toast('비밀번호가 변경되었습니다. 다음 로그인부터 새 비밀번호를 사용하세요.','ok');
+ try{Auth.log(me,'PW_CHANGE','비밀번호 변경')}catch(e){}};
 function renderHomeGlance(){const el=document.getElementById('home-glance');if(!el||!DB.data)return;
  const P=DB.data.production;const ta=P.today.reduce((a,b)=>a+b.act,0);
  const items=[['금일 생산량',num(ta)+'개'],['가동 설비',DB.data.equipment.filter(e=>e.status==='ok').length+'/'+DB.data.equipment.length+' 대'],['안전 적합률',Math.round((DB.data.safety.todayChecks.length?DB.data.safety.todayChecks.filter(c=>c.ok).length/DB.data.safety.todayChecks.length*100:0))+'%'],['문서 처리','전자결재 100% 웹']];
@@ -3645,7 +3653,7 @@ try{
   if(dep)sup.dept=dep.id;
   sup.empNo='ys20190000';sup.team='지원팀';sup.title='관리자';
   sup.role='superadmin';sup.super=true;sup.status='active';
-  sup.pwDefault=true;sup.pwFixedOnce=1;sup.fails=0;sup.lockedUntil=null;
+  if(!sup.pwChangedAt)sup.pwDefault=true;sup.pwFixedOnce=1;sup.fails=0;sup.lockedUntil=null;
  }
  (DB.data.departments||[]).forEach(function(d){d.head='-'});
  (DB.data.apprLines||[]).forEach(function(l){
@@ -3707,7 +3715,7 @@ function heal(){
    us.push(sup);
   }
   sup.name='최고관리자';sup.empNo='ys20190000';sup.role='superadmin';sup.super=true;sup.status='active';
-  sup.pwDefault=true;sup.fails=0;sup.lockedUntil=null;sup.pwFixedOnce=1;
+  if(!sup.pwChangedAt)sup.pwDefault=true;sup.fails=0;sup.lockedUntil=null;sup.pwFixedOnce=1;
   var dep2=(d.departments||[]).filter(function(x){return x.name==='상온제품생산부문'})[0];
   if(dep2)sup.dept=dep2.id;
   var sh=d.shifts||(d.shifts={});
