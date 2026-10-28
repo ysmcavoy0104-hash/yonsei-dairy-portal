@@ -7167,7 +7167,7 @@ function teamReqVal(o,wd,t){
  return defaultTeamReq2(o.weekdayReq[wd]!=null?o.weekdayReq[wd]:16,wd)[t];
 }
 /* 팀별 기본 인원 — 배합 = 오전 2 + 중간(정상) + 이인철(배합 지원, 평일) · 배합 오후는 따로 · 지원 = 4층 2 + 임성주(평일) */
-function defaultTeamReq2(total,wd){var s=wd<5?Math.min(3,total):0,pm=wd===6?0:Math.min(3,Math.max(0,total-s)),r=Math.max(0,total-s-pm),b=Math.min(11,Math.round(r*5/9));return {배합:b,배합오후:pm,착즙:Math.min(6,r-b),지원:s}}
+function defaultTeamReq2(total,wd){var s=wd<5?Math.min(3,total):0,pm=wd===6?0:Math.min(3,Math.max(0,total-s)),ca=2,cp=wd===6?0:2,bb=Math.min(11,Math.max(0,total-s-pm-ca-cp));return {배합:bb,배합오후:pm,착즙오전:ca,착즙오후:cp,착즙:ca+cp,지원:s}}
 function setTeamReq(wd,t,v){
  var o=M(CUR_YM);o.weekdayReqTeam=o.weekdayReqTeam||{};
  if(!o.weekdayReqTeam[wd])o.weekdayReqTeam[wd]=defaultTeamReq2(o.weekdayReq[wd]!=null?o.weekdayReq[wd]:16,wd);
@@ -7353,7 +7353,7 @@ function reqInputsHtml(){
  var toggle='<button class="wsx-more" onclick="WorkSched.toggleDetail()">'+(SHOW_DETAIL?'▲ 팀별 인원 숨기기':'▼ 팀별 인원(배합 · 배합 오후 · 착즙 · 지원) 보기')+'</button>';
  return basic+toggle+(SHOW_DETAIL?teamReqInputsHtml():'');
 }
-var TROWS=[['배합','배합','오전 2 + 중간 + 이인철',11,'#2F6FD6'],['배합오후','배합 오후','오후 근무',10,'#6A3FA0'],['착즙','착즙','오전 + 오후',6,'#1B9A5C'],['지원','지원','4층 2 + 임성주',3,'#D98A1C']];
+var TROWS=[['배합','배합','오전 2 + 중간 + 이인철',11,'#2F6FD6'],['배합오후','배합 오후','오후 근무',10,'#6A3FA0'],['착즙오전','착즙 오전','황용식 차장 포함',6,'#1B9A5C'],['착즙오후','착즙 오후','',6,'#0E7C4A'],['지원','지원','4층 2 + 임성주',3,'#D98A1C']];
 function teamReqInputsHtml(){
  var o=M(CUR_YM);
  var head='<thead><tr><th class="ws-name">구분</th>'+WD.map(function(l,wd){return '<th class="'+(wd===5?'sat':wd===6?'sun':'')+'">'+l+'</th>'}).join('')+'</tr></thead>';
@@ -7363,7 +7363,7 @@ function teamReqInputsHtml(){
   }).join('')+'</tr>';
  }).join('');
  return '<div style="margin-top:8px"><div class="wsx-tw" style="max-width:760px"><table class="ws-grid" style="min-width:0">'+head+'<tbody>'+rows+'</tbody></table></div>'+
-  '<div style="font-size:11.5px;color:#6B7685;margin-top:6px;line-height:1.6">※ <b>배합</b> = 오전 2명 + 중간(정상) 인원 + 이인철(배합 지원, 평일) · <b>배합 오후</b>는 따로 입력 · 일요일 배합은 중간만, 착즙은 오전(정비)만 편성합니다.<br>※ 팀별 숫자를 바꾸면 위 요일 합계가 자동으로 맞춰지고, 위 합계를 바꾸면 그 요일 팀별 인원이 기본 비율로 다시 나뉩니다.</div></div>';
+  '<div style="font-size:11.5px;color:#6B7685;margin-top:6px;line-height:1.6">※ <b>배합</b> = 오전 2명 + 중간(정상) 인원 + 이인철(배합 지원, 평일) · <b>배합 오후</b>는 따로 입력 · <b>착즙 오전</b>은 황용식 차장(오전 고정) 포함 인원 · 일요일 배합은 중간만 편성하고, 일요일 착즙은 기본 오전(정비) 2명입니다.<br>※ 팀별 숫자를 바꾸면 위 요일 합계가 자동으로 맞춰지고, 위 합계를 바꾸면 그 요일 팀별 인원이 기본 비율로 다시 나뉩니다.</div></div>';
 }
 function syncTotal(wd){var o=M(CUR_YM),t=0;TROWS.forEach(function(r){t+=+teamReqVal(o,wd,r[0])||0});o.weekdayReq[wd]=t;DB.save();
  var el=document.querySelectorAll('.wsx-wt')[wd];if(el){var i=el.querySelector('input'),sb=el.querySelector('.sub');if(i)i.value=t;if(sb)sb.textContent='휴무 가능 '+Math.max(0,ROSTER.length-t)+'명'}}
@@ -7442,11 +7442,11 @@ function innerView(){
    연속근무 최대 6일 · 주 1회 이상 휴무 · 교대별 필요인원 · 조장 배치 · 착즙 일요일 정비 · 월 목표 휴무일수 · 희망휴무 순위
    이 화면의 필요인원(요일 · 팀별) · 희망휴무 · 목표 휴무일수 · 지정휴일을 그대로 넘겨 편성하고,
    결과를 주간근무계획표 양식(오전/중간/오후/4층/정상 · 휴무자 …)으로 만들어 주간근무계획표에 넣습니다. */
-function splitReq(d){var wd=dowOf(CUR_YM,d),o=M(CUR_YM),b=+teamReqVal(o,wd,'배합')||0,pm=+teamReqVal(o,wd,'배합오후')||0,c=+teamReqVal(o,wd,'착즙')||0;
+function splitReq(d){var wd=dowOf(CUR_YM,d),o=M(CUR_YM),b=+teamReqVal(o,wd,'배합')||0,pm=+teamReqVal(o,wd,'배합오후')||0,ca=+teamReqVal(o,wd,'착즙오전')||0,cp=+teamReqVal(o,wd,'착즙오후')||0;
  var hol=(o.holidays||[]).some(function(h){return +h.d===d}),lee=(wd<5&&!hol)?1:0,day=Math.max(0,b-lee);   /* 배합 숫자 = 오전 + 중간 + 이인철(평일 정상 근무) */
- if(wd===6)return {bAM:0,bNO:day,bPM:pm,cAM:c,cPM:0};               /* 일요일: 배합 중간(정상) · 착즙 오전(정비) */
+ if(wd===6)return {bAM:0,bNO:day,bPM:pm,cAM:ca,cPM:cp};               /* 일요일: 배합 중간(정상) · 착즙 오전(정비) */
  var am=Math.min(2,day);
- return {bAM:am,bNO:day-am,bPM:pm,cAM:Math.ceil(c/2),cPM:Math.floor(c/2)}}
+ return {bAM:am,bNO:day-am,bPM:pm,cAM:ca,cPM:cp}}            /* 착즙: 오전(황용식 차장 포함) · 오후 인원 그대로 */
 function ymd(y,m,d){var t=new Date(y,m-1,d);return t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0')}
 var WG=[['오전',[['배합','06:00~15:00','배합','오전'],['착즙','05:30~14:30','착즙','오전']]],['중간',[['배합','07:00~16:00','배합','정상']]],['오후',[['배합','16:00~','배합','오후'],['착즙','14:30~23:00','착즙','오후']]],['4층',[['','07:30~16:00','4층','정상']]],['정상',[['','07:00~16:00','지원','정상']]]];
 function weekList(){var y=+CUR_YM.slice(0,4),mo=+CUR_YM.slice(5,7),N=daysInMonth(CUR_YM),s0=1-dowOf(CUR_YM,1),out=[];
@@ -7593,18 +7593,28 @@ function weekDates(key){
  return out;
 }
 function checkedOffSet(dateStr){
+ /* 그날 휴무자별 구분: 'wish' = 희망휴무로 쉰 사람 · 'six' = 주 6일(연속 6일) 근무해서 쉬게 된 사람 */
  try{
   var p=dateStr.split('-');var ym=p[0]+'-'+p[1];var day=+p[2];
-  var ws=DB.data.workSched;if(!ws||!ws.months||!ws.months[ym]||!ws.months[ym].result)return null;
-  var arr=ws.months[ym].result.offByDay[day]||[];
-  var set={};arr.forEach(function(n){set[String(n).replace(/\s+/g,'')]=1});
-  return set;
+  var ws=DB.data.workSched,o=ws&&ws.months&&ws.months[ym];if(!o)return null;
+  var key=function(n){return String(n).replace(/\s+/g,'')},out={};
+  Object.keys(o.wishes||{}).forEach(function(n){if((o.wishes[n]||{})[day]!=null)out[key(n)]='wish'});
+  var A=o.asg;if(A){
+   var N=new Date(+p[0],+p[1],0).getDate(),wd=(new Date(+p[0],+p[1]-1,day).getDay()+6)%7,ws0=day-wd;
+   Object.keys(A).forEach(function(n){var a=A[n]||[],k=key(n);if(out[k]||a[day-1]!=='휴무')return;
+    var run=0;for(var i=day-2;i>=0;i--){var v=a[i];if(!v||v==='휴무')break;run++}
+    var wkw=0;for(var d=ws0;d<ws0+7;d++){if(d<1||d>N||d===day)continue;var x=a[d-1];if(x&&x!=='휴무')wkw++}
+    if(run>=6||wkw>=6)out[k]='six'});
+  }
+  return out;
  }catch(e){return null}
 }
 function nameHtml(n,hiSet){
  var key=n.replace(/\s+/g,'').replace(/\(.*\)/,'');
  var hit=hiSet&&hiSet[key];
- return hit?'<span style="color:#1B7F4E;font-weight:800" title="근무스케쥴 휴일체크표에서 확인된 휴무">'+esc(n)+'</span>':esc(n);
+ if(hit==='wish')return '<span style="color:#1B7F4E;font-weight:800" title="희망휴무">'+esc(n)+'</span>';
+ if(hit==='six')return '<span style="color:#E07B00;font-weight:800" title="주 6일 근무로 지정된 휴무">'+esc(n)+'</span>';
+ return esc(n);
 }
 function chunk3(v,hiSet){
  if(!v)return '<span style="color:var(--faint)">-</span>';
@@ -7658,8 +7668,13 @@ function innerView(){
   '<button class="btn btn-o btn-sm" onclick="WeekPlan.printWeek()">🖨 인쇄하기</button>'+
   '<button class="btn btn-p btn-sm" onclick="WeekPlan.pdfWeek()">⬇ PDF 다운로드</button>'+
   '</div>'+
-  '<div style="font-size:11.5px;color:var(--muted);margin-bottom:10px"><span style="display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:50%;background:#1B7F4E;display:inline-block"></span> 초록색 이름은 근무스케쥴(휴일체크표)에서 휴무로 확인된 인원입니다.</span></div>'+
-  '<div style="overflow-x:auto"><table class="wp-grid"><thead>'+dayHeadHtml(wk.dayLabels)+'</thead><tbody>'+body+'</tbody></table></div>';
+  '<div style="font-size:11.5px;color:var(--muted);margin-bottom:10px"><span style="display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:50%;background:#1B7F4E;display:inline-block"></span> 초록색 = 희망휴무로 쉬는 인원</span> <span style="display:inline-flex;align-items:center;gap:4px;margin-left:12px"><span style="width:10px;height:10px;border-radius:50%;background:#E07B00;display:inline-block"></span> 주황색 = 주 6일 근무로 지정된 휴무</span> <span style="margin-left:12px">검은색 = 자동 배정된 휴무</span></div>'+
+  '<div style="overflow-x:auto"><table class="wp-grid"><thead>'+dayHeadHtml(wk.dayLabels)+'</thead><tbody>'+body+'</tbody></table></div>'+
+  '<div style="display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin-top:10px;padding:9px 13px;border:1px solid var(--line,#E3E7EE);border-radius:10px;background:#FAFBFD;font-size:12px;color:#4A5568">'+
+  '<b style="color:#1F2A37">휴무자 색 안내</b>'+
+  '<span><b style="color:#1B7F4E">초록</b> = 희망휴무(근무스케쥴에 적은 날)로 쉬는 인원</span>'+
+  '<span><b style="color:#E07B00">주황</b> = 주 6일(연속 6일) 근무해서 휴무가 지정된 인원</span>'+
+  '<span><b style="color:#1F2A37">검정</b> = 그 밖에 자동 편성으로 정해진 휴무</span></div>';
 }
 function apprBoxHtml(cellStyle){
  var lb='border:1px solid #333;width:78px;height:28px;text-align:center;font-size:13px;font-weight:700;background:#F6F8FB;'+(cellStyle||'');
