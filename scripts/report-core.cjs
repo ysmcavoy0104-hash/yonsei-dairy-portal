@@ -83,9 +83,13 @@
     (NF.delay || []).forEach(function (r) { out.push({ div: r[1] === '멸균팀' ? '가공1팀' : '가공2팀', kind: 'delay', src: 'notion', d: r[0], team: r[1], hogi: r[2], product: r[3], reason: r[4], start: r[5], end: r[6], min: r[7], detail: r[8] }); });
     (NF.delay1 || []).forEach(function (r) { out.push({ div: '가공1팀', kind: 'delay', src: 'notion', d: r[0], team: r[1], hogi: r[2], product: r[3], reason: r[4], start: r[5], end: r[6], min: r[7], detail: r[8] }); });
     (NF.maint || []).forEach(function (r) { out.push({ div: '가공2팀', kind: 'maint', src: 'notion', d: r[0], asset: r[1], content: r[2], mtype: r[3], person: r[4], etc: r[5] }); });
+    /* 포털에서 고친 노션 기록(수정본) 반영 + 지연 사유 이름 정정 */
+    var ED = (data && data.opEdits) || {}, ids = [];
+    (NF.delay || []).forEach(function (r) { ids.push('N-' + r[10]); }); (NF.delay1 || []).forEach(function (r) { ids.push('N-' + r[10]); }); (NF.maint || []).forEach(function (r) { ids.push('N-' + r[7]); });
+    out = out.map(function (o, i) { var e = ED[ids[i]]; if (e && e.f) { o = Object.assign({}, o, e.f); if (o.min !== '' && o.min != null) o.min = +o.min; } if (o.reason && /^\s*탈피실\s*PLC\s*기판\s*오류\s*$/.test(o.reason)) o.reason = 'E/V 108 OCR 교체'; return o; });
     ((data && data.opLogs) || []).forEach(function (o) {
       if (!o || !o.d || o.deleted) return;
-      if (o.kind === 'delay') out.push({ div: o.div || '가공2팀', kind: 'delay', src: 'web', d: o.d, team: o.team || '', hogi: o.hogi || '', product: o.product || '', reason: o.reason || '', start: o.start || '', end: o.end || '', min: (o.totalMin !== '' && o.totalMin != null) ? +o.totalMin : rmins(o.start, o.end), detail: o.detail || '' });
+      if (o.kind === 'delay') out.push({ div: o.div || '가공2팀', kind: 'delay', src: 'web', d: o.d, team: o.team || '', hogi: o.hogi || '', product: o.product || '', reason: /^\s*탈피실\s*PLC\s*기판\s*오류\s*$/.test(o.reason || '') ? 'E/V 108 OCR 교체' : (o.reason || ''), start: o.start || '', end: o.end || '', min: (o.totalMin !== '' && o.totalMin != null) ? +o.totalMin : rmins(o.start, o.end), detail: o.detail || '' });
       else out.push({ div: o.div || '가공2팀', kind: 'maint', src: 'web', d: o.d, asset: o.asset || '', content: o.content || '', mtype: o.mtype || '', person: o.person || '', etc: o.etc || '' });
     });
     return out;
