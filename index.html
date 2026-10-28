@@ -7547,6 +7547,7 @@ function plan(){
  try{if(window.WeekPlan&&WeekPlan._D)WeekPlan._D()}catch(e){}
  var key=buildWeeks(asg,staff,{s:wk.s,key:wk.key,only:ds});
  var wks=((o.result&&o.result.weeks)||[]).filter(function(k){return k!==key});wks.push(key);wks.sort();
+ var NOW=new Date().toISOString();o._u=NOW;S0._u=NOW;   /* 서버 병합용 수정 시각 */
  o.result={offByDay:offByDay,offByPerson:offByPerson,N:N,at:Date.now(),sh:sh,viol:V,unmet:UM,weeks:wks,lock:L0,planned:o.planned,wk:wk.lab};
  var nx=weekList().findIndex(function(x,i){return i>wi&&(weekState(x)===''||weekState(x)==='part')});o.selWeek=nx>=0?nx:wi;
  DB.save();try{if(window.SupaSync&&SupaSync.on()){clearTimeout(SupaSync.pushT);SupaSync.pushNow(DB.data)}}catch(e){}
@@ -7565,6 +7566,7 @@ function recalc(ym,key,s,days){
     if(p.st==='배합'){var i=['오전','정상','오후'].indexOf(v);if(i>=0)c.b[i]++}if(v==='배합지원')c.b[1]++;if(p.st==='착즙'){var j=['오전','오후'].indexOf(v);if(j>=0)c.c[j]++}});sh[d]=c}
   if(key&&days&&days.length)buildWeeks(o.asg,staff,{s:s,key:key,only:days});
   var wks=((o.result&&o.result.weeks)||[]).slice();if(key&&wks.indexOf(key)<0){wks.push(key);wks.sort()}
+  o._u=new Date().toISOString();try{Y._S(ym)._u=o._u}catch(e){}
   o.result=Object.assign({},o.result||{},{offByDay:offByDay,offByPerson:offByPerson,N:N,sh:sh,planned:o.planned,lock:L,at:Date.now(),wk:'직접 수정',weeks:wks,viol:[],unmet:[],manual:true});
   try{var S0=Y._S(ym);S0.res=Object.assign({},S0.res||{},{assign:o.asg,viol:[],unmet:[],lock:L})}catch(e){}
  }finally{CUR_YM=keep}
@@ -7585,7 +7587,7 @@ function view(){
  return '<div class="wsx"><div id="ws-root">'+innerView()+'</div></div>';
 }
 
-window.WorkSched={view:view,paint:paint,goResult:goResult,plan:plan,openWeek:openWeek,selWeek:selWeek,syncTotal:syncTotal,resetTeam:resetTeam,recalc:recalc,toggleMaint:toggleMaint,pickWish:pickWish,setTarget:setTarget,setReq:setReq,setTeamReq:setTeamReq,toggleDetail:toggleDetail,gotoMonth:gotoMonth,solve:solve,openAddHoliday:openAddHoliday,addHoliday:addHoliday,removeHoliday:removeHoliday};
+window.WorkSched={view:view,paint:paint,goResult:goResult,plan:plan,openWeek:openWeek,selWeek:selWeek,syncTotal:syncTotal,resetTeam:resetTeam,recalc:recalc,toggleMaint:toggleMaint,cur:function(){return CUR_YM},pickWish:pickWish,setTarget:setTarget,setReq:setReq,setTeamReq:setTeamReq,toggleDetail:toggleDetail,gotoMonth:gotoMonth,solve:solve,openAddHoliday:openAddHoliday,addHoliday:addHoliday,removeHoliday:removeHoliday};
 })();
 </script>
 <script id="weekplanjs">
@@ -13746,7 +13748,7 @@ function silo(f){
   if(e.value!==v){e.value=v;fire(e);n++}
   e.dataset.auto='1';e.title=pdOf(p)+' 일보의 금일 재고량에서 자동 입력 (직접 고칠 수 있음)';e.style.boxShadow='inset 0 0 0 2px #7FB3E8';
  });
- if(n){try{U.toast('전일 재고량을 '+pdOf(p)+' 착즙공정일보의 금일 재고량으로 채웠습니다.','ok')}catch(e){}}
+ if(n)setTimeout(calc9,50);if(n){try{U.toast('전일 재고량을 '+pdOf(p)+' 착즙공정일보의 금일 재고량으로 채웠습니다.','ok')}catch(e){}}
 }
 document.addEventListener('input',function(e){var t=e.target;if(!e.isTrusted||!t||!t.dataset)return;
  if(t.dataset.auto==='1'){delete t.dataset.auto;t.title='';t.style.boxShadow=''}},true);
@@ -13779,6 +13781,25 @@ function adjInit(){var p=paper();if(!p||p.dataset.adjInit)return;p.dataset.adjIn
  for(var r=10;r<=24;r++){var c=el('g2_'+r+'_7');if(c){c.placeholder='';c.title='숫자 입력 후 물(W) · 분리(분) 선택 — 초기 Brix = 최종 Brix 이면 → 자동'}}}
 
 /* ---------- 연결 ---------- */
+/* ---------- 1-2) 착즙공정일보 SILO · 부산물 · 반할두 자동 계산 (탈피일보 엑셀 수식과 같음) ----------
+   금일 재고 = 전일 재고 + 금일 입고 − 금일 사용 (SILO1 · SILO2) · 합계 = SILO1 + SILO2
+   부산물 = 합계 사용량 × 대두피 0.0898 · 콩눈 0.03142 · 잡곡 0.0016 · 이물 0.002 · 기타(수분) 0.01518
+   반할두 금일 생산량 · 금일 사용량 = 합계 사용량 × 0.9   (엑셀처럼 정수로 반올림) */
+var SRC9=/^g4_(5|6)_(1|2|3)$/;
+function n9(v){v=String(v==null?'':v).replace(/,/g,'').trim();return v!==''&&!isNaN(+v)?+v:null}
+function put9(k,v){var e=el(k);if(!e)return;var s=v==null?'':String(Math.round(v));if(e.value===s)return;e.value=s;e.dataset.calc='1';e.title='자동 계산 (엑셀 수식과 같음)';e.style.boxShadow='inset 0 0 0 2px #9BD3B5';fire(e)}
+function calc9(){var f=formOf();if(!f||f.code!=='FRM-009')return;
+ var g=function(k){var e=el(k);return e?n9(e.value):null},any=function(a){return a.some(function(x){return x!=null})};
+ [5,6].forEach(function(r){var a=g('g4_'+r+'_1'),b=g('g4_'+r+'_2'),c=g('g4_'+r+'_3');if(any([a,b,c]))put9('g4_'+r+'_4',(a||0)+(b||0)-(c||0))});
+ [1,2,3,4].forEach(function(c){var x=g('g4_5_'+c),y=g('g4_6_'+c);if(any([x,y]))put9('g4_7_'+c,(x||0)+(y||0))});
+ var use=g('g4_7_3');if(use==null)return;
+ [['g4_5_8',0.0898],['g4_5_9',0.03142],['g4_5_10',0.0016],['g4_5_11',0.002],['g4_5_12',0.01518],['g4_10_2',0.9],['g4_10_3',0.9]].forEach(function(q){put9(q[0],use*q[1])});
+}
+document.addEventListener('input',function(e){var t=e.target;if(!t||!t.getAttribute)return;var k=t.getAttribute('data-gk')||'';
+ if(e.isTrusted&&t.dataset.calc==='1'&&!SRC9.test(k)){delete t.dataset.calc;t.title='';t.style.boxShadow=''}   /* 계산 칸을 직접 고치면 그 값 유지 */
+ if(SRC9.test(k)){clearTimeout(window.__c9t);window.__c9t=setTimeout(calc9,120)}},true);
+window.yumCalc9=calc9;
+
 function tick(){var p=paper();if(!p||!editable())return;var f=formOf();if(!f)return;
  if(f.code==='FRM-009')silo(f);else if(f.code==='FRM-012')adjInit()}
 var T=null;new MutationObserver(function(){clearTimeout(T);T=setTimeout(tick,250)}).observe(document.documentElement,{childList:true,subtree:true});
@@ -13914,6 +13935,47 @@ var CSS='.wslk-note{margin:0 0 12px;padding:9px 13px;border-radius:10px;backgrou
 function css(){if(document.getElementById('wslk-css'))return;var s=document.createElement('style');s.id='wslk-css';s.textContent=CSS;document.head.appendChild(s)}
 css();document.addEventListener('DOMContentLoaded',css);
 console.log('[확장 모듈 61] 근무 메뉴 권한(최고관리자만 수정 · 직원은 희망휴무만) 로드 완료');
+})();
+</script>
+
+<script>
+/* ============ 확장 모듈 62 — 근무 데이터 서버 병합 ============
+   근무스케쥴(workSched) · 주간근무계획표(weeklyPlans) · 근무편성(schedules)이 통째로 저장되어,
+   다른 사람이 아무거나 저장하면 그 기기의 예전 근무표가 서버의 새 근무표를 덮어쓰던 문제 →
+   주(week) · 달(month) 단위로 「마지막으로 고친 쪽」을 고르고, 희망휴무는 사람별로 합침                */
+(function(){
+if(window.__YUM_WSYNC__)return;window.__YUM_WSYNC__=1;
+var S=window.SupaSync;if(!S||!S.mergeState)return;
+function now(){return new Date().toISOString()}
+function ts(x){return String(x||'')}
+function wStamp(W){if(!W)return '';return [ts(W._u),ts(W.edited&&W.edited.at),ts(W.auto&&W.auto.at)].sort().pop()}
+function cp(o){return o?JSON.parse(JSON.stringify(o)):o}
+function mergeWP(R,L){R=R||{};L=L||{};var o={};Object.keys(R).concat(Object.keys(L)).forEach(function(k){if(o[k])return;var r=R[k],l=L[k];o[k]=!r?l:!l?r:(wStamp(l)>wStamp(r)?l:r)});return o}
+function mergeMonth(r,l){if(!r)return l;if(!l)return r;var base=cp(ts(l._u)>ts(r._u)?l:r),ru=r.wishesU||{},lu=l.wishesU||{},w={},wu={};
+ Object.keys(r.wishes||{}).concat(Object.keys(l.wishes||{})).forEach(function(n){if(n in w)return;var useL=ts(lu[n])>ts(ru[n])||(ts(lu[n])===ts(ru[n])&&base===l);
+  var src=useL?l:r,alt=useL?r:l;w[n]=cp((src.wishes||{})[n]||(alt.wishes||{})[n]||{});wu[n]=useL?lu[n]:ru[n]});
+ base.wishes=w;base.wishesU=wu;return base}
+function mergeWS(R,L){if(!R)return L;if(!L)return R;var out=cp(R),RM=R.months||{},LM=L.months||{},m={};
+ Object.keys(RM).concat(Object.keys(LM)).forEach(function(k){if(k in m)return;m[k]=mergeMonth(RM[k],LM[k])});out.months=m;return out}
+function mergeSch(R,L,base){if(!R)return L;if(!L)return R;var out=cp(base||R);Object.keys(R).concat(Object.keys(L)).forEach(function(k){if(!/^Y\d{4}-\d{2}$/.test(k))return;var r=R[k],l=L[k];out[k]=!r?l:!l?r:(ts(l._u)>ts(r._u)?l:r)});return out}
+var _ms=S.mergeState;
+S.mergeState=function(remote,local,lw){var out=_ms.apply(this,arguments);
+ try{remote=remote||{};local=local||{};
+  if(remote.weeklyPlans||local.weeklyPlans)out.weeklyPlans=mergeWP(remote.weeklyPlans,local.weeklyPlans);
+  if(remote.workSched||local.workSched)out.workSched=mergeWS(remote.workSched,local.workSched);
+  if(remote.schedules||local.schedules)out.schedules=mergeSch(remote.schedules,local.schedules,lw?local.schedules:remote.schedules);
+ }catch(e){console.warn('[근무 병합]',e)}
+ return out};
+/* 고칠 때마다 수정 시각 남기기 */
+function stampM(ym){try{var o=DB.data.workSched&&DB.data.workSched.months&&DB.data.workSched.months[ym];if(o)o._u=now()}catch(e){}}
+function wrap(obj,name,fn){if(!obj||typeof obj[name]!=='function'||obj[name].__ws)return;var f=obj[name],g=function(){var r=f.apply(this,arguments);try{fn.apply(this,arguments)}catch(e){}return r};g.__ws=1;Object.keys(f).forEach(function(k){g[k]=f[k]});obj[name]=g}
+function cur(){try{return WorkSched.cur()}catch(e){return null}}
+function hook(){var W=window.WorkSched;if(!W)return;
+ ['setTarget','setReq','setTeamReq','addHoliday','removeHoliday','toggleMaint','resetTeam','syncTotal'].forEach(function(k){wrap(W,k,function(){var u=null;try{u=Auth.user()}catch(e){}if(!u||u.role!=='superadmin')return;var ym=cur();if(ym){stampM(ym);try{DB.save()}catch(e){}}})});
+ wrap(W,'pickWish',function(el){var ym=cur(),n=el&&el.dataset&&el.dataset.n;if(!ym||!n)return;var o=DB.data.workSched.months[ym];if(!o)return;o.wishesU=o.wishesU||{};o.wishesU[n]=now();try{DB.save()}catch(e){}});
+ var P=window.WeekPlan;wrap(P,'edSave',function(){})}
+hook();document.addEventListener('DOMContentLoaded',hook);setTimeout(hook,1200);setTimeout(hook,3000);
+console.log('[확장 모듈 62] 근무 데이터 서버 병합 로드 완료');
 })();
 </script>
 
