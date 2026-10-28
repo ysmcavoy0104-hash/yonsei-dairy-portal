@@ -8075,7 +8075,7 @@ window.yumFill=function(data){
 };
 
 /* ---------- 3. 입력 자동 백업 ---------- */
-function bufKey(){var u=me();if(!u)return null;return 'yumbuf:'+u.id+':'+(window.__yumDocId||('new:'+(($1('#nf-form')||{}).value||window.__yumFormId||'')))}
+function bufKey(){var u=me();if(!u)return null;return 'yumbuf:dev:'+(window.__yumDocId||('new:'+(($1('#nf-form')||{}).value||window.__yumFormId||'')))}
 function saveBuf(){
  try{
   if(!window.yumFormBusy())return;var k=bufKey();if(!k)return;
@@ -8084,9 +8084,13 @@ function saveBuf(){
   setState('입력 내용 자동 백업됨 '+hm());
  }catch(e){}
 }
-function readBuf(){try{var k=bufKey();if(!k)return null;var b=JSON.parse(localStorage.getItem(k)||'null');if(b&&Date.now()-b.at<12*3600*1000)return b}catch(e){}return null}
+function bufSuf(k){return k.slice(k.indexOf(':',7)+1)}
+function readBuf(){try{var k=bufKey();if(!k)return null;var suf=bufSuf(k),best=null;
+ for(var i=0;i<localStorage.length;i++){var kk=localStorage.key(i);if(!kk||kk.indexOf('yumbuf:')!==0||bufSuf(kk)!==suf)continue;
+  var b=JSON.parse(localStorage.getItem(kk)||'null');if(b&&Date.now()-b.at<12*3600*1000&&(!best||b.at>best.at))best=b}
+ return best}catch(e){}return null}
 function clearBuf(docId,formId){
- try{var u=me();if(!u)return;localStorage.removeItem('yumbuf:'+u.id+':'+docId);localStorage.removeItem('yumbuf:'+u.id+':new:'+formId)}catch(e){}
+ try{var ks=[];for(var i=0;i<localStorage.length;i++){var kk=localStorage.key(i);if(kk&&kk.indexOf('yumbuf:')===0){var sf=bufSuf(kk);if(sf===String(docId)||sf==='new:'+formId)ks.push(kk)}}ks.forEach(function(k){localStorage.removeItem(k)})}catch(e){}
 }
 var bufT=null;
 document.addEventListener('input',function(e){
@@ -13309,6 +13313,75 @@ S.afterLogin=async function(u,pw){
  }}catch(e){}
  return _al(u,pw)};
 console.log('[확장 모듈 57] 서버 동기화 실패 보강 로드 완료');
+})();
+</script>
+
+<script>
+/* ============ 확장 모듈 58 — 작성 중 계정이 바뀌어도 이어서 수정 ============
+   · 일지를 쓰다가 로그아웃(다른 아이디로 바꾸기)하면, 쓰던 내용을 작성자 이름으로 자동 임시저장한 뒤 로그아웃
+     → 다음 사람이 [임시 저장 문서함]에서 바로 불러와 이어서 쓰고 저장할 수 있음 (수정한 사람은 문서 이력에 남음)
+   · 입력 자동 백업은 사람이 아니라 「이 기기」 기준으로 보관 → 저장 전에 계정이 바뀌어도 다음 사람이 그대로 복구
+   · 로그인하면 이 기기에서 작성 중이던 일지가 있는지 알려 주고 [이어서 작성] 버튼으로 바로 열기               */
+(function(){
+if(window.__YUM_ACCTSW__)return;window.__YUM_ACCTSW__=1;
+var HK='yum_handover';
+function me(){try{return Auth.user()}catch(e){return null}}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function hasInput(){try{var d=FormRender.collect(),n=0;
+ (function walk(v,k){if(n)return;if(v==null)return;if(typeof v==='object'){for(var x in v)walk(v[x],x);return}
+  var s=String(v).trim();if(s&&!/^(pdate|dY|dM|dD|dow)$/.test(k||'')&&s!=='false')n++})(d,'');return n>0}catch(e){return false}}
+function getH(){try{return JSON.parse(localStorage.getItem(HK)||'[]').filter(function(h){return Date.now()-h.at<24*3600e3})}catch(e){return []}}
+function putH(a){try{localStorage.setItem(HK,JSON.stringify(a.slice(0,20)))}catch(e){}}
+function sleep(ms){return new Promise(function(r){setTimeout(r,ms)})}
+
+/* 1) 로그아웃 직전 자동 임시저장 */
+var _lo=Auth.logout;
+Auth.logout=function(silent){
+ var self=this,args=arguments;
+ if(silent||window.__yumSwBusy)return _lo.apply(self,args);
+ var busy=false;try{busy=window.yumFormBusy&&window.yumFormBusy()}catch(e){}
+ var cur=window.__yumDocId,need=busy&&(window.__yumTouched||(!cur&&hasInput()));
+ if(!need)return _lo.apply(self,args);
+ window.__yumSwBusy=1;
+ (async function(){
+  var u=me(),id=null;
+  try{var st=(DB.data.docs||[]).filter(function(d){return d.id===cur})[0];
+   Doc.persist(st&&(st.status==='saved'||st.status==='draft')?'saved':'temp');id=window.__yumDocId}catch(e){console.warn('[계정 전환 자동저장]',e)}
+  if(id){var h=getH().filter(function(x){return x.id!==id});var d=(DB.data.docs||[]).filter(function(x){return x.id===id})[0];
+   h.unshift({id:id,by:u&&u.name||'',at:Date.now(),t:d&&d.title||''});putH(h);
+   try{U.toast('작성 중이던 일지를 임시저장했습니다. 다음 사람이 이어서 작성할 수 있습니다.','ok')}catch(e){}}
+  try{if(window.SupaSync&&SupaSync.on()){clearTimeout(SupaSync.pushT);await Promise.race([SupaSync.pushNow(DB.data),sleep(5000)])}}catch(e){}
+  window.__yumFormHash='';window.__yumInline='';
+  try{_lo.apply(self,args)}finally{window.__yumSwBusy=0}
+ })();
+};
+
+/* 2) 로그인 후: 이 기기에서 작성 중이던 일지 알림 */
+function pending(){
+ var out=[],forms={};(DB.data.forms||[]).forEach(function(f){forms[f.id]=f});
+ getH().forEach(function(h){var d=(DB.data.docs||[]).filter(function(x){return x.id===h.id})[0];
+  if(d&&d.status==='temp')out.push({k:'doc',id:d.id,t:d.title||'',by:h.by,at:h.at,st:d.status})});
+ try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(!k||k.indexOf('yumbuf:')!==0)continue;
+  var suf=k.slice(k.indexOf(':',7)+1),b=JSON.parse(localStorage.getItem(k)||'null');if(!b||Date.now()-b.at>12*3600e3)continue;
+  if(suf.indexOf('new:')===0){var f=forms[suf.slice(4)];if(f&&!out.some(function(o){return o.k==='new'&&o.id===f.id}))out.push({k:'new',id:f.id,t:'['+f.name+'] 저장 전 작성 내용',at:b.at})}
+  else{var d=(DB.data.docs||[]).filter(function(x){return x.id===suf})[0];
+   if(d&&b.at>Date.parse(d.updatedAt||0)){var ex=out.filter(function(o){return o.id===d.id})[0];if(ex){ex.buf=1;ex.at=Math.max(ex.at,b.at)}else out.push({k:'doc',id:d.id,t:d.title||'',at:b.at,st:d.status,buf:1})}}}}catch(e){}
+ return out.sort(function(a,b){return b.at-a.at});
+}
+window.yumHandoverOpen=function(k,id){try{U.closeModal()}catch(e){}if(k==='new')App.go('#/doc-new?form='+id);else Doc.edit(id)};
+function notice(){
+ var u=me();if(!u)return;var L=pending();if(!L.length)return;
+ var row=function(o){return '<div style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line,#E3E7EE);border-radius:10px;margin-bottom:7px">'+
+  '<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(o.t)+'</div>'+
+  '<div style="font-size:11.5px;color:var(--muted,#6B7685)">'+(o.by?esc(o.by)+'님 작성 · ':'')+new Date(o.at).toLocaleString('ko-KR')+(o.k==='new'?' · 아직 저장 안 됨':o.buf?' · 저장 뒤 더 입력한 내용 있음':o.st==='temp'?' · 임시저장':'')+'</div></div>'+
+  '<button class="btn btn-p btn-sm" onclick="yumHandoverOpen(\''+o.k+'\',\''+esc(o.id)+'\')">이어서 작성</button></div>'};
+ U.modal('이 기기에서 작성 중이던 일지',
+  '<div style="font-size:13px;line-height:1.6;margin-bottom:10px;color:var(--muted,#6B7685)">이전 사용자가 이 기기에서 쓰던 일지입니다. 열어서 이어서 작성하고 저장할 수 있습니다. (작성자는 그대로, 수정한 사람은 문서 이력에 남습니다)</div>'+L.slice(0,6).map(row).join(''),
+  {size:'sm',okText:'닫기'});
+}
+var _op=App.openPortal;
+App.openPortal=function(){var r=_op.apply(this,arguments);setTimeout(notice,900);return r};
+console.log('[확장 모듈 58] 작성 중 계정 전환 이어서 수정 로드 완료');
 })();
 </script>
 
