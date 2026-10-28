@@ -7849,16 +7849,24 @@ function printSheetHtml(wk){
   '<div style="font-size:13px;margin:12px 0 10px;clear:both">기간 : '+esc(wk.range)+'</div>'+
   '<table class="wp-grid"><thead>'+dayHeadHtml(wk.dayLabels)+'</thead><tbody>'+body+'</tbody></table>';
 }
+var PCSS='.wpp .wp-grid{font-size:13px;table-layout:fixed}.wpp .wp-grid th:first-child{width:96px}.wpp .wp-grid th,.wpp .wp-grid td{padding:4px 3px!important;line-height:1.3!important}.wpp .wp-off3 div{display:inline}.wpp .wp-off3 div:not(:last-child)::after{content:", "}';
+/* 표 폭 W를 바꿔 가며 높이를 재고, 용지(aw×ah)에 가장 크게 들어가는 폭과 배율을 고름 */
+function bestFit(el,aw,ah){var best={s:0,W:1100};for(var W=900;W<=2200;W+=10){el.style.width=W+'px';var h=el.scrollHeight,w=el.scrollWidth;var s=Math.min(aw/w,ah/h);if(s>best.s)best={s:s,W:W}}var W2=Math.floor(aw/best.s);el.style.width=W2+'px';var s2=Math.min(aw/el.scrollWidth,ah/el.scrollHeight);if(s2>=best.s*0.98)best={s:s2,W:W2};else el.style.width=best.W+'px';return best}
+window.__wpBestFit=bestFit;
 function printWeek(){
  var wk=D()[CUR];if(!wk){alert('인쇄할 근무계획표가 없습니다.');return}
  var w=window.open('','_blank');if(!w){alert('팝업이 차단되었습니다. 팝업을 허용해 주세요.');return}
  w.document.write('<html><head><meta charset="utf-8"><title>'+esc(wk.range)+' 주간근무계획표</title>'+
-  '<style>html,body{margin:0;padding:0}body{font-family:\'Noto Sans KR\',sans-serif;display:flex;justify-content:center}@page{size:A4 landscape;margin:8mm}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}#pr-wrap{padding:16px;box-sizing:border-box;transform-origin:top center}</style>'+
-  '</head><body><div id="pr-wrap">'+printSheetHtml(wk)+'</div>'+
-  '<script>(function(){function mm2px(m){return m*96/25.4}function fit(){var el=document.getElementById(\'pr-wrap\');if(!el)return;el.style.zoom=\'\';el.style.transform=\'\';var availW=mm2px(297-16),availH=mm2px(210-16);var bw=el.scrollWidth,bh=el.scrollHeight;var s=Math.min(availW/bw,availH/bh,1);if(s<1){if(\'zoom\' in el.style){el.style.zoom=s}else{el.style.transform=\'scale(\'+s+\')\';el.style.width=(100/s)+\'%\'}}}window.__fitPrint=fit;})();<\/script>'+
+  '<style>html,body{margin:0;padding:0;background:#fff}body{font-family:\'Noto Sans KR\',\'Malgun Gothic\',sans-serif}@page{size:A4 landscape;margin:6mm}*{-webkit-print-color-adjust:exact;print-color-adjust:exact;box-sizing:border-box}#pr-wrap{padding:0;transform-origin:top left}'+PCSS+'</style>'+
+  '</head><body><div id="pr-wrap" class="wpp">'+printSheetHtml(wk)+'</div>'+
+  '<script>(function(){function mm2px(m){return m*96/25.4}'+
+  'function fit(){var el=document.getElementById(\'pr-wrap\');if(!el)return;el.style.zoom=\'\';el.style.transform=\'\';'+
+  'var aw=mm2px(297-12)-2,ah=mm2px(210-12)-2,best={s:0,W:1100};for(var W=900;W<=2200;W+=10){el.style.width=W+\'px\';var h=el.scrollHeight,ww=el.scrollWidth,s=Math.min(aw/ww,ah/h);if(s>best.s)best={s:s,W:W}}'+
+  'el.style.width=best.W+\'px\';var W2=Math.floor(aw/best.s);el.style.width=W2+\'px\';var s2=Math.min(aw/el.scrollWidth,ah/el.scrollHeight);if(s2>=best.s*0.98)best={s:s2,W:W2};else el.style.width=best.W+\'px\';var s=best.s*0.995;if(\'zoom\' in el.style){el.style.zoom=s}else{el.style.transform=\'scale(\'+s+\')\'}}'+
+  'window.__fitPrint=fit;})();<\/script>'+
   '</body></html>');
  w.document.close();
- setTimeout(function(){try{w.__fitPrint&&w.__fitPrint()}catch(e){}w.focus();w.print()},500);
+ setTimeout(function(){try{w.__fitPrint&&w.__fitPrint()}catch(e){}w.focus();w.print()},600);
 }
 function pdfLib(u){return new Promise(function(ok,no){var s=document.createElement('script');s.src=u;s.onload=ok;s.onerror=function(){no(new Error('라이브러리 로드 실패'))};document.head.appendChild(s)})}
 function pdfWeek(){
@@ -7869,13 +7877,13 @@ function pdfWeek(){
  U.toast('PDF를 생성하는 중입니다…');
  Promise.all(need).then(function(){
   var holder=document.createElement('div');
-  holder.style.cssText='position:fixed;left:-99999px;top:0;background:#fff;padding:16px;width:1280px';
-  holder.innerHTML=printSheetHtml(wk);
-  document.body.appendChild(holder);
+  holder.className='wpp';holder.style.cssText='position:fixed;left:-99999px;top:0;background:#fff;padding:0;width:1280px';
+  holder.innerHTML='<style>'+PCSS+'</style>'+printSheetHtml(wk);
+  document.body.appendChild(holder);bestFit(holder,297-12,210-12);   /* A4 가로 비율에 가장 크게 들어가는 폭 */
   return window.html2canvas(holder,{scale:2,backgroundColor:'#ffffff'}).then(function(cv){
    document.body.removeChild(holder);
    var doc=new window.jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
-   var PW=297,PH=210,M=6;
+   var PW=297,PH=210,M=5;
    var w=PW-2*M,h=w*cv.height/cv.width;
    if(h>PH-2*M){h=PH-2*M;w=h*cv.width/cv.height}
    doc.addImage(cv.toDataURL('image/png'),'PNG',M,M,w,h);
