@@ -7806,23 +7806,56 @@ function edPrev(n,i){var dates=weekDates(EDIT.key);if(i>0)return EDIT.vals[n][i-
  var p=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0'),o=DB.data.workSched&&DB.data.workSched.months&&DB.data.workSched.months[p];return o&&o.asg&&o.asg[n]?(o.asg[n][t.getDate()-1]||''):''}
 function edCellStyle(n,i){var v=EDIT.vals[n][i],pv=edPrev(n,i),bad=pv==='오후'&&v&&v!=='오후'&&v!=='휴무';
  var bg={오전:'#EAF1FB',정상:'#F3F6FA',오후:'#FFF3E3',휴무:'#E9F7EF',배합지원:'#E3EDFF'}[v]||'#fff';return 'background:'+bg+(bad?';box-shadow:inset 0 0 0 2px #C0392B':'')}
+/* 주간근무계획표 모양 그대로 수정: 칸마다 이름 × (빼면 휴무) · ＋ 선택 (그 칸으로 옮김) · 휴무자는 어느 칸에도 없는 사람 */
+var EROWS=[['오전','배합','배합','오전','06:00~15:00'],['오전','착즙','착즙','오전','05:30~14:30'],['중간','배합','배합','정상','07:00~16:00'],['오후','배합','배합','오후','16:00~'],['오후','착즙','착즙','오후','14:30~23:00'],['4층','','4층','정상','07:30~16:00'],['정상','','지원','정상','07:00~16:00']];
+var SUPN=['장영빈','이연우'];
+function edInRow(p,r,v){if(r[2]==='배합'&&r[3]==='정상'&&v==='배합지원')return true;return p.st===r[2]&&v===r[3]}
+function edMaintDay(ds){try{var o=DB.data.workSched.months[ds.slice(0,7)];var m=(o&&o.maintWd)||{6:1};return !!m[(new Date(ds+'T00:00:00').getDay()+6)%7]}catch(e){return false}}
+function edChip(p,i,v){var pv=edPrev(p.n,i),bad=pv==='오후'&&v&&v!=='오후'&&v!=='휴무',sup=v==='배합지원';
+ var on=EDIT.sel&&EDIT.sel.n===p.n&&EDIT.sel.i===i;return '<span class="wpe-chip'+(bad?' bad':'')+(sup?' sup':'')+(on?' sel':'')+'" title="'+(bad?'전날 오후 근무 — 오전·중간 불가':sup?'착즙 인원 배합 지원':'눌러서 같은 날 다른 사람과 맞바꾸기')+'"><u onclick="WeekPlan.edPick(\''+esc(p.n)+'\','+i+')">'+esc(p.n)+(p.lead?'<i>★</i>':'')+'</u><b onclick="WeekPlan.edSet(\''+esc(p.n)+'\','+i+',\'휴무\')" title="빼기 (휴무)">×</b></span>'}
+function edAddSel(r,i,staff){var opts=staff.filter(function(p){var v=EDIT.vals[p.n][i];if(edInRow(p,r,v))return false;if(r[2]==='배합'&&r[3]==='정상'&&p.st==='착즙'&&SUPN.indexOf(EK(p.n))>=0)return true;return p.st===r[2]});
+ if(!opts.length)return '';var lab=function(v){return v==='정상'?'중간/정상':v==='배합지원'?'배합지원':(v||'미정')};
+ return '<select class="wpe-add" onchange="if(this.value)WeekPlan.edPut(this.value,'+i+',\''+r[2]+'\',\''+r[3]+'\')"><option value="">＋</option>'+opts.map(function(p){return '<option value="'+esc(p.n)+'">'+esc(p.n)+' ('+lab(EDIT.vals[p.n][i])+')</option>'}).join('')+'</select>'}
+function editInner(wk){
+ var dates=weekDates(EDIT.key),staff=edStaff(),h='';
+ var groups=[];EROWS.forEach(function(r){var g=groups[groups.length-1];if(!g||g.l!==r[0])groups.push(g={l:r[0],rows:[]});g.rows.push(r)});
+ groups.forEach(function(g){g.rows.forEach(function(r,ri){
+  h+='<tr>'+(ri===0?'<td class="wp-lab" rowspan="'+g.rows.length+'">'+esc(g.l)+'</td>':'')+'<td class="wp-lab" style="font-weight:700">'+esc(r[1])+'</td>'+
+   dates.map(function(ds,i){var ppl=staff.filter(function(p){return edInRow(p,r,EDIT.vals[p.n][i])});var mt=edMaintDay(ds)&&r[2]!=='4층'&&r[2]!=='지원';
+    return '<td class="wpe-cell"><div class="wpe-t">'+(ppl.length?(mt?'07:00~16:00':r[4]):'-')+'</div><div class="wpe-ns">'+ppl.map(function(p){return edChip(p,i,EDIT.vals[p.n][i])}).join('')+'</div>'+edAddSel(r,i,staff)+'</td>'}).join('')+'</tr>'})});
+ /* 휴무자: 어느 칸에도 없는 사람 */
+ h+='<tr class="wp-off"><td class="wp-lab" colspan="2">휴무자</td>'+dates.map(function(ds,i){var off=staff.filter(function(p){var v=EDIT.vals[p.n][i];return !v||v==='휴무'});
+   var work=staff.filter(function(p){var v=EDIT.vals[p.n][i];return v&&v!=='휴무'});
+   return '<td class="wpe-cell"><div class="wpe-ns">'+off.map(function(p){var on=EDIT.sel&&EDIT.sel.n===p.n&&EDIT.sel.i===i;return '<span class="wpe-chip off'+(on?' sel':'')+'" title="눌러서 같은 날 근무자와 맞바꾸기"><u onclick="WeekPlan.edPick(\''+esc(p.n)+'\','+i+')">'+esc(p.n)+'</u></span>'}).join('')+'</div>'+
+    (work.length?'<select class="wpe-add" onchange="if(this.value)WeekPlan.edSet(this.value,'+i+',\'휴무\')"><option value="">＋ 휴무로</option>'+work.map(function(p){return '<option value="'+esc(p.n)+'">'+esc(p.n)+'</option>'}).join('')+'</select>':'')+'</td>'}).join('')+'</tr>';
+ h+='<tr class="wp-off"><td class="wp-lab" colspan="2">1팀 지원</td>'+dates.map(function(ds,i){return '<td style="padding:3px"><input value="'+esc(EDIT.sup[i]||'')+'" placeholder="-" oninput="WeekPlan.edSup('+i+',this.value)" style="width:100%;box-sizing:border-box;border:1px solid #E9C98E;border-radius:6px;padding:3px;font-size:12px;text-align:center;background:#fff"></td>'}).join('')+'</tr>';
+ return '<table class="wp-grid" id="wpe-grid"><thead>'+dayHeadHtml(wk.dayLabels)+'</thead><tbody>'+h+'</tbody><tfoot id="wpe-foot">'+edFootHtml()+'</tfoot></table>';
+}
 function editGridHtml(wk){
- var dates=weekDates(EDIT.key),staff=edStaff(),last='';
- var rows=staff.map(function(p){var head=p.st!==last?'<tr><td colspan="10" style="background:#EEF2F7;font-weight:800;text-align:left;padding:5px 10px">'+esc(p.st==='4층'?'4층':p.st==='지원'?'정상(지원)':p.st)+'</td></tr>':'';last=p.st;
-  var off=EDIT.vals[p.n].filter(function(v){return v==='휴무'}).length;
-  return head+'<tr><td class="wp-lab" colspan="2" style="text-align:left;padding-left:10px">'+esc(p.n)+(p.lead?' <span style="color:#B7791F">★</span>':'')+'</td>'+dates.map(function(ds,i){
-   return '<td style="padding:3px;'+edCellStyle(p.n,i)+'" data-wpe="'+esc(p.n)+'|'+i+'"><select onchange="WeekPlan.edSet(\''+esc(p.n)+'\','+i+',this.value)" style="width:100%;border:1px solid #D7DCE3;border-radius:6px;padding:3px;font-size:12px;background:transparent">'+
-    edOpts(p).map(function(o){return '<option value="'+o[0]+'"'+(EDIT.vals[p.n][i]===o[0]?' selected':'')+'>'+o[1]+'</option>'}).join('')+'</select></td>'}).join('')+
-   '<td style="font-weight:800;color:#1B7F4E;white-space:nowrap">휴무 '+off+'</td></tr>'}).join('');
- return '<div style="margin:6px 0 10px;padding:10px 13px;border-radius:10px;background:#EEF4FF;color:#1D4E89;font-size:12.5px;line-height:1.6"><b>✎ 직접 수정 중</b> — 칸마다 근무를 고른 뒤 <b>저장하기</b>를 누르면 이 주간근무계획표와 근무스케쥴(휴무 개수 · 휴일체크표 · 날짜별 현황 · 1팀 지원 · 편성 점검)이 함께 바뀝니다. 아래 합계의 <b style="color:#C0392B">빨간 숫자</b>는 필요인원보다 모자란 교대, <b style="color:#C0392B">빨간 테두리</b>는 전날 오후 근무자를 오전·중간에 넣은 칸입니다.</div>'+
-  '<div style="overflow-x:auto"><table class="wp-grid" id="wpe-grid"><thead>'+dayHeadHtml(wk.dayLabels).replace('</tr>','<th style="min-width:64px">이 주</th></tr>')+'</thead><tbody>'+rows+'<tr><td class="wp-lab" colspan="2" style="text-align:left;padding-left:10px;background:#FFF8EE">1팀 지원</td>'+dates.map(function(ds,i){return '<td style="padding:3px;background:#FFF8EE"><input value="'+esc(EDIT.sup[i]||'')+'" placeholder="-" oninput="WeekPlan.edSup('+i+',this.value)" style="width:100%;box-sizing:border-box;border:1px solid #E9C98E;border-radius:6px;padding:3px;font-size:12px;text-align:center;background:#fff"></td>'}).join('')+'<td style="font-size:10.5px;color:#9A5B00">직접 입력</td></tr></tbody><tfoot id="wpe-foot">'+edFootHtml()+'</tfoot></table></div>'+
+ return '<style>.wpe-cell{vertical-align:top!important;padding:4px 3px!important}.wpe-t{font-size:11px;font-weight:800;color:#4A5568;margin-bottom:3px}.wpe-ns{display:flex;flex-wrap:wrap;gap:3px;justify-content:center;margin-bottom:3px}'+
+  '.wpe-chip{display:inline-flex;align-items:center;gap:2px;background:#EEF2F7;border-radius:6px;padding:2px 4px 2px 6px;font-size:12px;font-weight:700;white-space:nowrap}.wpe-chip i{font-style:normal;color:#B7791F;font-size:10px}'+
+  '.wpe-chip u{text-decoration:none;cursor:pointer}.wpe-chip.sel{background:#FFE8A3!important;box-shadow:0 0 0 2px #E0A100!important;color:#5C3D00!important}'+
+  '.wpe-chip b{cursor:pointer;color:#8792A2;padding:0 3px;font-size:13px}.wpe-chip b:hover{color:#C0392B}.wpe-chip.bad{box-shadow:inset 0 0 0 2px #C0392B;background:#FDECEC}.wpe-chip.sup{background:#E3EDFF;color:#2F6FD6}.wpe-chip.off{background:#E9F7EF;color:#1B7F4E;padding-right:6px}'+
+  '.wpe-add{width:100%;font-size:11px;border:1px dashed #C9D2DE;border-radius:6px;padding:2px;background:#fff;color:#5A6474}</style>'+
+  '<div style="margin:6px 0 10px;padding:10px 13px;border-radius:10px;background:#EEF4FF;color:#1D4E89;font-size:12.5px;line-height:1.6"><b>✎ 표에서 바로 수정 중</b> — <b>맞바꾸기</b>: 같은 날 이름 두 개를 차례로 누르면 두 사람 근무가 서로 바뀝니다(휴무자와도 가능). 이름 옆 <b>×</b>는 그날 휴무로 빼기, 칸 아래 <b>＋</b>에서 사람을 고르면 그 칸으로 옮깁니다(다른 칸에 있던 사람은 자동으로 빠짐). 휴무자 줄은 어느 칸에도 없는 사람입니다. 맨 아래 합계의 <b style="color:#C0392B">빨간 숫자</b>는 필요인원보다 모자란 교대, <b style="color:#C0392B">빨간 테두리</b> 이름은 전날 오후 근무자입니다. 다 고치면 <b>저장하기</b>를 누르세요.</div>'+
+  '<div style="overflow-x:auto" id="wpe-box">'+editInner(wk)+'</div>'+
   '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px"><button class="btn btn-o btn-sm" onclick="WeekPlan.edCancel()">취소</button><button class="btn btn-p btn-sm" onclick="WeekPlan.edSave()">💾 저장하기</button></div>';
 }
-function edSet(n,i,v){if(!EDIT)return;EDIT.vals[n][i]=v;
- var g=document.getElementById('wpe-grid');if(!g)return;
- edStaff().forEach(function(p){for(var k=0;k<7;k++){var td=g.querySelector('td[data-wpe="'+p.n+'|'+k+'"]');if(td)td.setAttribute('style','padding:3px;'+edCellStyle(p.n,k))}
-  var tr=g.querySelector('td[data-wpe="'+p.n+'|0"]');if(tr){var last=tr.parentNode.lastElementChild;if(last)last.textContent='휴무 '+EDIT.vals[p.n].filter(function(v){return v==='휴무'}).length}});
- var f=document.getElementById('wpe-foot');if(f)f.innerHTML=edFootHtml()}
+function edRedraw(){var b=document.getElementById('wpe-box');if(b&&EDIT){var y=window.scrollY;b.innerHTML=editInner(D()[EDIT.key]);window.scrollTo(0,y)}}
+/* 맞바꾸기: 같은 날 두 사람을 차례로 누르면 근무를 서로 바꿈 */
+function edOk(p,v){if(!v||v==='휴무')return true;if(p.st==='4층'||p.st==='지원')return v==='정상';if(p.st==='배합')return ['오전','정상','오후'].indexOf(v)>=0;if(p.st==='착즙')return ['오전','오후'].indexOf(v)>=0||(v==='배합지원'&&SUPN.indexOf(EK(p.n))>=0);return false}
+function edConv(p,v){if(p.st==='배합'&&v==='배합지원')return '정상';if(p.st==='착즙'&&v==='정상'&&SUPN.indexOf(EK(p.n))>=0)return '배합지원';return v}
+function edPick(n,i){if(!EDIT)return;var S=EDIT.sel;
+ if(!S||S.i!==i){EDIT.sel={n:n,i:i};edRedraw();return}
+ if(S.n===n){EDIT.sel=null;edRedraw();return}
+ var st=edStaff(),a=st.filter(function(x){return x.n===S.n})[0],b=st.filter(function(x){return x.n===n})[0];if(!a||!b)return;
+ var va=EDIT.vals[a.n][i],vb=EDIT.vals[b.n][i],na=edConv(a,vb),nb=edConv(b,va);
+ if(!edOk(a,na)||!edOk(b,nb)){try{U.toast(a.n+' ↔ '+b.n+' 맞바꿀 수 없습니다 (팀이 달라 그 근무에 들어갈 수 없음). ＋ 목록으로 옮겨 주세요.','bad')}catch(e){}EDIT.sel=null;edRedraw();return}
+ EDIT.vals[a.n][i]=na;EDIT.vals[b.n][i]=nb;EDIT.sel=null;edRedraw();
+ try{U.toast(a.n+' ↔ '+b.n+' 근무를 맞바꿨습니다.','ok')}catch(e){}}
+function edSet(n,i,v){if(!EDIT||!EDIT.vals[n])return;EDIT.vals[n][i]=v;edRedraw()}
+function edPut(n,i,st,v){if(!EDIT||!EDIT.vals[n])return;var p=edStaff().filter(function(x){return x.n===n})[0];if(!p)return;
+ EDIT.vals[n][i]=(st==='배합'&&v==='정상'&&p.st==='착즙')?'배합지원':v;edRedraw()}
 function edSup(i,v){if(!EDIT)return;EDIT.sup[i]=v;EDIT.supT[i]=1}
 function edStart(){var k=CUR;if(!D()[k])return;edInit(k);var box=$('#wp-root');if(box)box.innerHTML=innerView()}
 function edCancel(){EDIT=null;var box=$('#wp-root');if(box)box.innerHTML=innerView()}
@@ -7933,7 +7966,7 @@ function view(){
   '<div id="wp-root">'+(CUR?innerView():'<div class="empty">등록된 근무계획표가 없습니다.</div>')+'</div>'+
   '</div>';
 }
-window.WeekPlan={view:view,edStart:edStart,edCancel:edCancel,edSave:edSave,edSet:edSet,edSup:edSup,setKey:function(k){CUR=k},_D:D,gotoWeek:gotoWeek,printWeek:printWeek,pdfWeek:pdfWeek};
+window.WeekPlan={view:view,edStart:edStart,edCancel:edCancel,edSave:edSave,edSet:edSet,edPick:edPick,edPut:edPut,edSup:edSup,setKey:function(k){CUR=k},_D:D,gotoWeek:gotoWeek,printWeek:printWeek,pdfWeek:pdfWeek};
 })();
 </script>
 <script id="sterilji">
@@ -13945,7 +13978,7 @@ function deny(){try{U.toast('근무표 수정은 최고관리자만 할 수 있�
 function guard(obj,names){if(!obj)return;names.forEach(function(k){var f=obj[k];if(typeof f!=='function'||f.__lk)return;var g=function(){if(!sup()){deny();return}return f.apply(this,arguments)};g.__lk=1;obj[k]=g})}
 function wrapAll(){
  guard(window.WorkSched,['setTarget','setReq','setTeamReq','openAddHoliday','addHoliday','removeHoliday','plan','solve','toggleMaint','resetTeam','syncTotal','recalc']);
- guard(window.WeekPlan,['edStart','edSave','edSet','edSup']);
+ guard(window.WeekPlan,['edStart','edSave','edSet','edSup','edPut','edPick']);
  guard(window.YSched,['hol','person','req','cycle','set','tk','run','confirm','wipe','ex']);
 }
 wrapAll();document.addEventListener('DOMContentLoaded',wrapAll);setTimeout(wrapAll,1500);
