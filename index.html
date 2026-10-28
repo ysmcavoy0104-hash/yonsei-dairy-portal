@@ -6322,6 +6322,7 @@ function defExcl(n){if(n==='황용식')return [6];if(STMAP[n]==='4층'||STMAP[n]
 function base(){if(!DB||!DB.data)return null;if(!DB.data.schedules)DB.data.schedules={};
  if(!DB.data.schedules.staff)DB.data.schedules.staff=ROSTER.map(function(n){return {n:n,st:STMAP[n]||'배합',lead:false,ls:'오전,오후',active:true,fx:n==='황용식'?'오전':'',exclDow:defExcl(n),maxConsec:6,minWeekOff:1}});
  var f=DB.data.schedules;if(f.staff&&f.fx2!=='5'){f.fx2='5';f.staff.forEach(function(p){if(STMAP[p.n])p.st=STMAP[p.n];if(p.n==='황용식')p.fx='오전'})}
+ if(f.staff&&f.fx4!=='1'){f.fx4='1';var LDS=['윤인기','조성빈','조의석','정웅','표상욱'];f.staff.forEach(function(p){if(LDS.indexOf(String(p.n).replace(/\s+/g,''))>=0){p.lead=true;p.ls='오전,정상,오후'}})}
  if(f.staff&&f.fx3!=='1'){f.fx3='1';f.staff.forEach(function(p){if(p.exclDow==null)p.exclDow=defExcl(p.n);if(p.maxConsec==null)p.maxConsec=6;if(p.minWeekOff==null)p.minWeekOff=1})}
  return f.staff}
 function allStaff(){try{base()}catch(e){}return (DB.data.schedules&&DB.data.schedules.staff)||[]}
@@ -6360,15 +6361,30 @@ function solve(m){var S0=S(m),N=days(m),H=hset(m),st=allStaff().filter(function(
  wl.forEach(function(x){var p=byN[x.n];if(!p)return;if(p.fx&&!isFixG(p)){unmet.push({d:x.d,n:x.n,r:x.r,why:'고정근무자'});return}
   if(A[x.n][x.d-1]==='휴무')return;if(q[x.n]<=0){unmet.push({d:x.d,n:x.n,r:x.r,why:'휴무 '+T+'일 소진'});return}
   if(!isFixG(p)&&cap(x.d,p.st)<=0){unmet.push({d:x.d,n:x.n,r:x.r,why:'필요인원 부족'});return}
+  if(p.lead&&!leadOk(x.d,p)){unmet.push({d:x.d,n:x.n,r:x.r,why:'조장 배치(교대마다 조장 1명)'});return}
   A[x.n][x.d-1]='휴무';q[x.n]--});
  var flex=st.filter(function(p){return isFixG(p)||!p.fx});
  for(var guard=0;guard<2000;guard++){var P=null;flex.forEach(function(p){if(q[p.n]>0&&(!P||q[p.n]>q[P.n]))P=p});if(!P)break;
   var best=null,bk=null;PD.forEach(function(d){if(A[P.n][d-1]==='휴무')return;if(isFixG(P)&&H[d])return;
    var c=isFixG(P)?(1-st.filter(function(o){return o.st===P.st&&o.n!==P.n&&A[o.n][d-1]==='휴무'}).length):cap(d,P.st);
    var key=[c>0?0:1,weekHasOff(P.n,wk(d))?1:0,runAfter(P.n,d),-c,(d*7+pi[P.n]*5)%11];
-   if(c<=0)return;if(!bk||cmp(key,bk)<0){bk=key;best=d}});
+   if(c<=0)return;if(P.lead&&!leadOk(d,P))return;if(!bk||cmp(key,bk)<0){bk=key;best=d}});
   if(best==null){unmet.push({d:0,n:P.n,r:q[P.n],why:'필요인원 때문에 휴무 '+q[P.n]+'일 부족'});q[P.n]=0;continue}
   A[P.n][best-1]='휴무';q[P.n]--}
+ /* 조장: 휴무를 줘도 그날 필요한 교대 수만큼 조장이 남는지 */
+ function leadOk(d,p){var r=reqOf(S0,d,p.st,m),need=0;Object.keys(r).forEach(function(k){if((+r[k]||0)>0)need++});
+  return st.filter(function(o){return o.st===p.st&&o.lead&&o.n!==p.n&&A[o.n][d-1]!=='휴무'}).length>=need}
+ /* 조장 없는 교대가 있으면, 조장이 2명 이상인 교대의 조장과 조원을 맞바꿈 (오후 다음날 오전·중간 금지 지킴) */
+ function fixL(d,g,r){var keys=Object.keys(r).filter(function(k){return (+r[k]||0)>0}),pp=function(n){return d>1&&A[n][d-2]==='오후'},ok=function(n,s){return !((s==='오전'||s==='정상')&&pp(n))};
+  /* 오후 조장이 2명 이상이면 1명만 남기고 중간 · 오전 조원과 바꿈 (다음날 오전 · 중간 조장이 모자라지 않게) */
+  if((+r['오후']||0)>0)for(var t2=0;t2<4;t2++){var pmL=st.filter(function(p){return p.st===g&&p.lead&&A[p.n][d-1]==='오후'});if(pmL.length<2)break;var mv=false;
+   pmL.slice(1).forEach(function(x){if(mv||pp(x.n))return;['정상','오전'].forEach(function(k){if(mv||!((+r[k]||0)>0))return;var y=st.filter(function(p){return p.st===g&&!p.lead&&A[p.n][d-1]===k})[0];if(y){A[y.n][d-1]='오후';A[x.n][d-1]=k;mv=true}})});if(!mv)break}
+  for(var t=0;t<6;t++){var miss=keys.filter(function(k){return !st.some(function(p){return p.st===g&&p.lead&&A[p.n][d-1]===k})})[0];if(!miss)return;var done=false;
+   st.forEach(function(x){if(done||x.st!==g||!x.lead)return;var k2=A[x.n][d-1];if(k2===miss||keys.indexOf(k2)<0&&k2!=='정상'&&k2!=='오전'&&k2!=='오후')return;
+    var nl=st.filter(function(p){return p.st===g&&p.lead&&A[p.n][d-1]===k2}).length;if(nl<2||!ok(x.n,miss))return;
+    var y=st.filter(function(p){return p.st===g&&!p.lead&&A[p.n][d-1]===miss&&ok(p.n,k2)})[0];
+    if(y){A[y.n][d-1]=k2;A[x.n][d-1]=miss;done=true}else if(st.filter(function(p){return p.st===g&&A[p.n][d-1]===k2}).length>(+r[k2]||0)){A[x.n][d-1]=miss;done=true}});
+   if(!done)return}}
  function cmp(x,y){for(var i=0;i<x.length;i++){if(x[i]<y[i])return -1;if(x[i]>y[i])return 1}return 0}
  PD.forEach(function(d){G.forEach(function(g){var r=reqOf(S0,d,g,m),keys=g==='배합'?['오전','정상','오후']:['오전','오후'],got={},hasL={};
   keys.forEach(function(k){got[k]=0});
@@ -6387,8 +6403,8 @@ function solve(m){var S0=S(m),N=days(m),H=hset(m),st=allStaff().filter(function(
     else{var na=(d<N&&false)?0:0}
     var pa=(s==='정상'||pref(a)===s)?0:1,pb=(s==='정상'||pref(b)===s)?0:1;if(pa!==pb)return pa-pb;return cntS(a.n,s)-cntS(b.n,s)||pi[a.n]-pi[b.n]});
    var x=c[0];A[x.n][d-1]=s;got[s]++;if(x.lead)hasL[s]=1;av.splice(av.indexOf(x),1)});
-  if(dow(m,d)===0){av.forEach(function(p){A[p.n][d-1]='휴무'});return}
-  av.forEach(function(p){var s=prevPM(p)?'오후':(g==='배합'?'정상':pref(p));A[p.n][d-1]=s;got[s]++})})});
+  if(dow(m,d)===0){av.forEach(function(p){A[p.n][d-1]='휴무'});fixL(d,g,r);return}
+  av.forEach(function(p){var s=prevPM(p)?'오후':(g==='배합'?'정상':pref(p));A[p.n][d-1]=s;got[s]++});fixL(d,g,r)})});
  var cnt={};st.forEach(function(p){var c={오전:0,정상:0,오후:0,휴무:0,근무:0,wk:0,hol:0};for(var d=1;d<=N;d++){var v=A[p.n][d-1];if(v in c)c[v]++;if(v&&v!=='휴무')c[H[d]?'hol':'wk']++}cnt[p.n]=c});
  var V=[];
  PD.forEach(function(d){G.forEach(function(g){var r=reqOf(S0,d,g,m),got={오전:0,정상:0,오후:0};var leads=st.filter(function(p){return p.st===g&&p.lead}),hl={};
