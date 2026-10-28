@@ -7213,7 +7213,7 @@ function solve(){
  o.result={offByDay:offByDay,offByPerson:offByPerson,N:N,at:Date.now()};
  DB.save();
  var box=$('#ws-root');if(box)box.innerHTML=innerView();
- U.toast('근무계획표가 완성되었습니다.');
+ U.toast('근무계획표가 완성되었습니다. 아래 ③ 날짜별 근무 현황 · ④ 휴일체크표에서 확인하세요.','ok');
 }
 
 /* ---------- 색상 등급 (목표 휴무일수 대비 비율) ---------- */
@@ -7281,6 +7281,8 @@ var CSS='.wsx{--wp:#5B3FC4;--wpd:#2E1F73;--wpl:#EFEBFC;--wl:#E3E7EE;--wsat:#2F6F
  '.wsx-day .st{margin-left:auto;font-size:11px;font-weight:800;color:#1B7F4E}.wsx-day.short .st{color:#C0392B}'+
  '.wsx-bar{height:5px;border-radius:9px;background:#EEF1F5;overflow:hidden}.wsx-bar i{display:block;height:100%;background:linear-gradient(90deg,#3FB57A,#1B7F4E);border-radius:9px}.wsx-day.short .wsx-bar i{background:linear-gradient(90deg,#F08080,#C0392B)}'+
  '.wsx-off{display:flex;flex-wrap:wrap;gap:3px}.wsx-off span{font-size:10.5px;font-weight:700;background:var(--wpl);color:#3B2A8F;border-radius:5px;padding:1px 5px}.wsx-off .no{background:transparent;color:#A0A8B5;font-weight:600;padding:0}'+
+ '.wsx-done{font-size:12px;font-weight:800;color:#1B7F4E;background:#E9F7EF;border-radius:999px;padding:3px 10px}.wsx-flash{animation:wsxf 1.8s ease}@keyframes wsxf{0%,40%{box-shadow:0 0 0 3px #8C6CF0}100%{box-shadow:0 1px 2px rgba(16,24,40,.04)}}'+
+ '.wsx-warn{margin:0 0 12px;padding:10px 13px;border-radius:10px;background:#FFF6E5;border:1px solid #F5D49A;color:#7A5200;font-size:12.5px;line-height:1.6}'+
  '.wsx-empty{text-align:center;padding:28px 12px;color:#6B7685;font-size:13px}.wsx-empty .ic{font-size:30px;margin-bottom:6px;opacity:.7}'+
  '@media(max-width:760px){.wsx-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.wsx-wd{grid-template-columns:repeat(4,minmax(0,1fr))}.wsx-mon{margin-left:0}}';
 var TCOL={배합:'#2F6FD6',착즙:'#1B9A5C',지원:'#D98A1C'};
@@ -7347,7 +7349,7 @@ function dayResultHtml(){
    '<div class="wsx-off">'+(offs.length?offs.map(function(n){return '<span>'+esc(n)+'</span>'}).join(''):'<span class="no">휴무자 없음</span>')+'</div></div>');
  }
  var sum='<div class="wsx-sum"><div class="wsx-sb">총 휴무 배정<b>'+offSum+'</b>건</div><div class="wsx-sb">1인 평균<b>'+(offSum/ROSTER.length).toFixed(1)+'</b>일</div>'+
-  '<div class="wsx-sb '+(short?'bad':'ok')+'">'+(short?'필요인원 미달<b>'+short+'</b>일':'모든 날 필요인원 충족')+'</div></div>';
+  '<div class="wsx-sb '+(short?'bad':'ok')+'">'+(short?'필요인원 미달<b>'+short+'</b>일':'모든 날 필요인원 충족')+'</div></div>'+(offSum?'':'<div class="wsx-warn">⚠ 입력된 희망휴무가 없어 휴무자가 배정되지 않았습니다. 위 <b>② 희망휴무 입력</b> 표에서 직원별로 쉬고 싶은 날짜 칸에 순위(1, 2, 3…)를 넣은 뒤 <b>근무계획표 만들기</b>를 다시 눌러 주세요.</div>');
  return sum+'<div class="wsx-cw"><div class="wsx-cal">'+cells.join('')+'</div></div>';
 }
 
@@ -7391,20 +7393,22 @@ function innerView(){
  return '<style>'+CSS+'</style>'+hero+
   card(1,'요일별 필요인원','생산계획표 기준으로 요일마다 꼭 근무해야 하는 인원을 입력합니다.',reqInputsHtml())+
   card(2,'희망휴무 입력','쉬고 싶은 날짜 칸에 우선순위 숫자(1, 2, 3…)를 입력하세요. 인원이 부족한 날은 숫자가 큰 순서부터 제외됩니다.',wishTableHtml(),lg)+
-  '<div class="wsx-cta"><button class="go" onclick="WorkSched.solve()">⚡ 근무계획표 만들기</button><div class="t">'+
+  '<div class="wsx-cta"><button class="go" onclick="WorkSched.solve();WorkSched.goResult()">⚡ 근무계획표 만들기</button><div class="t">'+
   (o.result?'마지막 편성: <b>'+new Date(o.result.at).toLocaleString('ko-KR')+'</b><br>입력을 바꿨다면 다시 눌러 새로 편성하세요.':'필요인원과 희망휴무를 모두 넣었으면 눌러 주세요.<br>결과는 아래 달력과 휴일체크표에 바로 표시됩니다.')+'</div></div>'+
-  '<div class="wsx-sec"><h2>📋 근무계획표</h2></div>'+
+  '<div class="wsx-sec" id="ws-result"><h2>📋 근무계획표</h2>'+(o.result?'<span class="wsx-done">✔ '+new Date(o.result.at).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})+' 편성</span>':'')+'</div>'+
   card(3,'날짜별 근무 현황','날짜마다 근무 인원 / 필요 인원과 휴무자를 보여 줍니다. 빨간 칸은 필요인원이 모자란 날입니다.',dayResultHtml())+
   card(4,'휴일체크표 (확정)','칸의 숫자는 승인된 희망 순위, 오른쪽 총합은 목표 휴무일수 대비 비율로 색이 진해집니다.','<div id="ws-check">'+checkTableHtml()+'</div>',lg2);
 }
 
+function goResult(){setTimeout(function(){var e=document.getElementById('ws-result');if(!e)return;window.scrollTo({top:e.getBoundingClientRect().top+window.scrollY-130,behavior:'smooth'});
+ var c=document.querySelectorAll('.wsx-card');[c[2],c[3]].forEach(function(x){if(!x)return;x.classList.add('wsx-flash');setTimeout(function(){x.classList.remove('wsx-flash')},1800)})},80)}
 function view(){
  if(!CUR_YM)CUR_YM=curYM();
  M(CUR_YM);
  return '<div class="wsx"><div id="ws-root">'+innerView()+'</div></div>';
 }
 
-window.WorkSched={view:view,paint:paint,pickWish:pickWish,setTarget:setTarget,setReq:setReq,setTeamReq:setTeamReq,toggleDetail:toggleDetail,gotoMonth:gotoMonth,solve:solve,openAddHoliday:openAddHoliday,addHoliday:addHoliday,removeHoliday:removeHoliday};
+window.WorkSched={view:view,paint:paint,goResult:goResult,pickWish:pickWish,setTarget:setTarget,setReq:setReq,setTeamReq:setTeamReq,toggleDetail:toggleDetail,gotoMonth:gotoMonth,solve:solve,openAddHoliday:openAddHoliday,addHoliday:addHoliday,removeHoliday:removeHoliday};
 })();
 </script>
 <script id="weekplanjs">
