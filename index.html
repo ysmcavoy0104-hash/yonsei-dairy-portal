@@ -6371,6 +6371,10 @@ function solve(m){var S0=S(m),N=days(m),H=hset(m),st=allStaff().filter(function(
    if(c<=0)return;if(P.lead&&!leadOk(d,P))return;if(!bk||cmp(key,bk)<0){bk=key;best=d}});
   if(best==null){unmet.push({d:0,n:P.n,r:q[P.n],why:'필요인원 때문에 휴무 '+q[P.n]+'일 부족'});q[P.n]=0;continue}
   A[P.n][best-1]='휴무';q[P.n]--}
+ /* 착즙 → 배합 지원(중간 정상): 장영빈 · 이연우 */
+ function supOK(p,d){if(['장영빈','이연우'].indexOf(String(p.n).replace(/\s+/g,''))<0)return false;if(d>1&&A[p.n][d-2]==='오후')return false;
+  var rb=reqOf(S0,d,'배합',m),have=st.filter(function(o){return (o.st==='배합'&&A[o.n][d-1]==='정상')||A[o.n][d-1]==='배합지원'}).length;if((+rb['정상']||0)-have>0)return true;
+  var off=0;for(var i=0;i<N;i++)if(i!==d-1&&A[p.n][i]==='휴무')off++;return off>=T}
  /* 주말 휴무 공평: 같은 팀 평균보다 주말 휴무가 적으면 주말을 먼저, 많으면 평일을 먼저 */
  function isWE(d){var w=dow(m,d);return w===0||w===6}
  function weCnt(n){var c=0;for(var d=1;d<=N;d++)if(isWE(d)&&A[n][d-1]==='휴무')c++;return c}
@@ -6404,16 +6408,19 @@ function solve(m){var S0=S(m),N=days(m),H=hset(m),st=allStaff().filter(function(
   order.forEach(function(s){var c=av.filter(function(p){return !(prevPM(p)&&(s==='오전'||s==='정상'))});
    if(!c.length){unmet.push({d:d,n:g+' '+s,r:0,why:'배정 가능 인원 부족'});return}
    c.sort(function(a,b){var la=(!hasL[s]&&a.lead&&(a.ls||'').indexOf(s)>=0)?0:1,lb=(!hasL[s]&&b.lead&&(b.ls||'').indexOf(s)>=0)?0:1;if(la!==lb)return la-lb;
+    var rl=function(n){var c=0;for(var i=d-2;i>=0;i--){var v=A[n][i];if(!v||v==='휴무')break;c++}return c},oc=function(n){var c=0;for(var i=0;i<d-1;i++)if(A[n][i]==='휴무')c++;return c};
+    if(g==='착즙'){var ra=rl(a.n)>=6,rb=rl(b.n)>=6;if(ra!==rb)return ra?1:-1}
     if(s==='오후'){var qa=prevPM(a)?0:1,qb=prevPM(b)?0:1;if(qa!==qb)return qa-qb}
+    if(g==='착즙'){var oa=oc(a.n),ob=oc(b.n);if(oa!==ob)return ob-oa}
     else{var na=(d<N&&false)?0:0}
     var fa=cntS(a.n,s),fb=cntS(b.n,s);if(fa!==fb)return fa-fb;var pa=(s==='정상'||pref(a)===s)?0:1,pb=(s==='정상'||pref(b)===s)?0:1;if(pa!==pb)return pa-pb;return pi[a.n]-pi[b.n]});
    var x=c[0];A[x.n][d-1]=s;got[s]++;if(x.lead)hasL[s]=1;av.splice(av.indexOf(x),1)});
   if(dow(m,d)===0){av.forEach(function(p){A[p.n][d-1]='휴무'});fixL(d,g,r);return}
-  av.forEach(function(p){var s=prevPM(p)?'오후':(g==='배합'?'정상':(cntS(p.n,'오전')<=cntS(p.n,'오후')?'오전':'오후'));A[p.n][d-1]=s;got[s]++});fixL(d,g,r)})});
+  av.forEach(function(p){if(g==='착즙'){A[p.n][d-1]=supOK(p,d)?'배합지원':'휴무';return}var s=prevPM(p)?'오후':'정상';A[p.n][d-1]=s;got[s]++});fixL(d,g,r)})});
  var cnt={};st.forEach(function(p){var c={오전:0,정상:0,오후:0,휴무:0,근무:0,wk:0,hol:0};for(var d=1;d<=N;d++){var v=A[p.n][d-1];if(v in c)c[v]++;if(v&&v!=='휴무')c[H[d]?'hol':'wk']++}cnt[p.n]=c});
  var V=[];
  PD.forEach(function(d){G.forEach(function(g){var r=reqOf(S0,d,g,m),got={오전:0,정상:0,오후:0};var leads=st.filter(function(p){return p.st===g&&p.lead}),hl={};
-  st.forEach(function(p){if(p.st===g&&A[p.n][d-1]in got){got[A[p.n][d-1]]++;if(p.lead)hl[A[p.n][d-1]]=1}});
+  st.forEach(function(p){if(p.st===g&&A[p.n][d-1]in got){got[A[p.n][d-1]]++;if(p.lead)hl[A[p.n][d-1]]=1}});if(g==='배합')st.forEach(function(p){if(A[p.n][d-1]==='배합지원')got['정상']++});
   Object.keys(r).forEach(function(k){if(got[k]<(+r[k]||0))V.push({d:d,rule:'필요인원 부족',n:g+' '+k+' 필요'+r[k]+'/배치'+got[k]});
    if(leads.length&&(+r[k]||0)>0&&!hl[k])V.push({d:d,rule:'조장 미배치',n:g+' '+k})})})});
  st.forEach(function(p){var o=cnt[p.n].휴무;if(o!==T)V.push({d:0,rule:'휴무일수 불일치',n:p.n+' '+o+'/'+T+'일'});
@@ -7463,11 +7470,15 @@ function weekPickHtml(){var W=weekList(),si=selWeekIdx();
  return '<div class="wsx-wpk">'+W.map(function(w,i){var st=weekState(w);
   return '<button class="'+(i===si?'on ':'')+(st?'st-'+st:'')+'" onclick="WorkSched.selWeek('+i+')"'+(st==='lock'?' title="실제 근무 이력 기간"':'')+'><b>'+(i+1)+'주차</b><span>'+w.lab+'</span><i>'+({done:'✔ 편성됨',part:'일부 편성',lock:'🔒 이력'}[st]||'미편성')+'</i></button>'}).join('')+'</div>'}
 function buildWeeks(asg,staff,w){
+ /* 필요인원보다 모자란 인원 수 (배합 오전·중간·오후 + 착즙 오전·오후) → 「1팀 지원」 칸 */
+ var RQ={};try{RQ=(window.YSched&&YSched._S(CUR_YM).req)||{}}catch(e){}
+ var cnt=function(d,st,sh){return staff.filter(function(p){return (p.st===st&&(asg[p.n]||[])[d-1]===sh)||(st==='배합'&&sh==='정상'&&(asg[p.n]||[])[d-1]==='배합지원')}).length};
+ var short=function(d){var r=RQ[d]||{},k=0;[['배합','오전','bAM'],['배합','정상','bNO'],['배합','오후','bPM'],['착즙','오전','cAM'],['착즙','오후','cPM']].forEach(function(x){k+=Math.max(0,(+r[x[2]]||0)-cnt(d,x[0],x[1]))});return k};
  var y=+CUR_YM.slice(0,4),mo=+CUR_YM.slice(5,7),WP=(DB.data.weeklyPlans=DB.data.weeklyPlans||{});
  var ds=[0,1,2,3,4,5,6].map(function(i){return w.s+i}),key=w.key,W=WP[key],on={};w.only.forEach(function(d){on[d]=1});
  var dates=ds.map(function(d){return ymd(y,mo,d)});
  var mine=function(d){return !!on[d]};                          /* 이번에 편성한 날짜만 새로 씀 — 나머지 칸은 그대로 */
- var who=function(d,st,sh){return staff.filter(function(p){return p.st===st&&(asg[p.n]||[])[d-1]===sh}).map(function(p){return p.n}).join(',')};
+ var who=function(d,st,sh){return staff.filter(function(p){return (p.st===st&&(asg[p.n]||[])[d-1]===sh)||(st==='배합'&&sh==='정상'&&(asg[p.n]||[])[d-1]==='배합지원')}).map(function(p){return p.n}).join(',')};
  var oldG=function(lab,sub,i,k){var g=W&&(W.groups||[]).filter(function(x){return x.label===lab})[0],r=g&&(g.rows||[]).filter(function(x){return (x.sub||'')===sub})[0];return r&&r[k]?(r[k][i]||''):''};
  var oldS=function(lab,i){var x=W&&(W.single||[]).filter(function(q){return q.label===lab})[0];return x&&x.values?(x.values[i]||''):''};
  var groups=WG.map(function(g){return {label:g[0],rows:g[1].map(function(r){var fixed=g[0]==='4층'||g[0]==='정상';
@@ -7476,7 +7487,7 @@ function buildWeeks(asg,staff,w){
  var single=[{label:'휴무자',values:ds.map(function(d,i){return mine(d)?staff.filter(function(p){return (asg[p.n]||[])[d-1]==='휴무'}).map(function(p){return p.n}).join(','):oldS('휴무자',i)})},
   {label:'배합 근무',values:ds.map(function(d,i){return oldS('배합 근무',i)||(mine(d)?'주간 교대 2':'')})},
   {label:'착즙 근무',values:ds.map(function(d,i){return oldS('착즙 근무',i)||(mine(d)?'주간 교대 2':'')})},
-  {label:'1팀 지원',values:ds.map(function(d,i){return oldS('1팀 지원',i)||(mine(d)?'-':'')})}];
+  {label:'1팀 지원',values:ds.map(function(d,i){if(!mine(d))return oldS('1팀 지원',i);var k=short(d);return k>0?k+'명':'-'})}];
  var lab=dates.map(function(x,i){return (+x.slice(8))+'('+WD[i]+')'}),md=function(x){return (+x.slice(5,7))+'월 '+(+x.slice(8))+'일'};
  WP[key]={range:md(dates[0])+' ~ '+md(dates[6]),dayLabels:lab,groups:groups,single:single,auto:{at:new Date().toISOString(),ym:CUR_YM}};
  return key}
@@ -7515,7 +7526,7 @@ function plan(){
  var offByDay={},offByPerson={},sh={};ROSTER.forEach(function(n){offByPerson[n]=[]});
  for(var d2=1;d2<=N;d2++){offByDay[d2]=[];var c={b:[0,0,0],c:[0,0]};if(!(d2<=L0||o.planned[d2])){sh[d2]=null;continue}
   staff.forEach(function(p){var v=(asg[p.n]||[])[d2-1];if(v==='휴무'){offByDay[d2].push(p.n);(offByPerson[p.n]=offByPerson[p.n]||[]).push(d2)}
-   if(p.st==='배합'){var i=['오전','정상','오후'].indexOf(v);if(i>=0)c.b[i]++}if(p.st==='착즙'){var j=['오전','오후'].indexOf(v);if(j>=0)c.c[j]++}});sh[d2]=c}
+   if(p.st==='배합'){var i=['오전','정상','오후'].indexOf(v);if(i>=0)c.b[i]++}if(v==='배합지원')c.b[1]++;if(p.st==='착즙'){var j=['오전','오후'].indexOf(v);if(j>=0)c.c[j]++}});sh[d2]=c}
  try{if(window.WeekPlan&&WeekPlan._D)WeekPlan._D()}catch(e){}
  var key=buildWeeks(asg,staff,{s:wk.s,key:wk.key,only:ds});
  var wks=((o.result&&o.result.weeks)||[]).filter(function(k){return k!==key});wks.push(key);wks.sort();
@@ -7613,9 +7624,11 @@ function nameHtml(n,hiSet){
  var key=n.replace(/\s+/g,'').replace(/\(.*\)/,'');
  var hit=hiSet&&hiSet[key];
  if(hit==='wish')return '<span style="color:#1B7F4E;font-weight:800" title="희망휴무">'+esc(n)+'</span>';
+ if(hit==='sup')return '<span style="color:#2F6FD6;font-weight:800" title="착즙 인원 배합 지원(중간 정상)">'+esc(n)+'</span>';
  if(hit==='six')return '<span style="color:#E07B00;font-weight:800" title="주 6일 근무로 지정된 휴무">'+esc(n)+'</span>';
  return esc(n);
 }
+function supSet(dateStr){try{var p=dateStr.split('-'),o=DB.data.workSched.months[p[0]+'-'+p[1]],day=+p[2],out={};if(!o||!o.asg)return null;Object.keys(o.asg).forEach(function(n){if((o.asg[n]||[])[day-1]==='배합지원')out[String(n).replace(/\s+/g,'')]='sup'});return out}catch(e){return null}}
 function chunk3(v,hiSet){
  if(!v)return '<span style="color:var(--faint)">-</span>';
  var all=v.split(',').map(function(x){return x.trim()}).filter(Boolean);
@@ -7642,7 +7655,7 @@ function groupRowsHtml(g){
   var labCell = ri===0?('<td class="wp-lab" rowspan="'+(g.rows.length*2)+'">'+esc(g.label)+'</td>'):'';
   var subCell = '<td class="wp-lab" rowspan="2" style="font-weight:700">'+(r.sub?esc(r.sub):'')+'</td>';
   html += '<tr>'+labCell+subCell+r.time.map(function(v){return '<td class="wp-time">'+esc(v||'-')+'</td>'}).join('')+'</tr>';
-  html += '<tr>'+r.names.map(function(v){return '<td class="wp-names">'+chunk3(v)+'</td>'}).join('')+'</tr>';
+  var dts=weekDates(CUR);html += '<tr>'+r.names.map(function(v,di){return '<td class="wp-names">'+chunk3(v,dts[di]?supSet(dts[di]):null)+'</td>'}).join('')+'</tr>';
  });
  return html;
 }
@@ -7668,13 +7681,14 @@ function innerView(){
   '<button class="btn btn-o btn-sm" onclick="WeekPlan.printWeek()">🖨 인쇄하기</button>'+
   '<button class="btn btn-p btn-sm" onclick="WeekPlan.pdfWeek()">⬇ PDF 다운로드</button>'+
   '</div>'+
-  '<div style="font-size:11.5px;color:var(--muted);margin-bottom:10px"><span style="display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:50%;background:#1B7F4E;display:inline-block"></span> 초록색 = 희망휴무로 쉬는 인원</span> <span style="display:inline-flex;align-items:center;gap:4px;margin-left:12px"><span style="width:10px;height:10px;border-radius:50%;background:#E07B00;display:inline-block"></span> 주황색 = 주 6일 근무로 지정된 휴무</span> <span style="margin-left:12px">검은색 = 자동 배정된 휴무</span></div>'+
+  '<div style="font-size:11.5px;color:var(--muted);margin-bottom:10px"><span style="display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:50%;background:#1B7F4E;display:inline-block"></span> 초록색 = 희망휴무로 쉬는 인원</span> <span style="display:inline-flex;align-items:center;gap:4px;margin-left:12px"><span style="width:10px;height:10px;border-radius:50%;background:#E07B00;display:inline-block"></span> 주황색 = 주 6일 근무로 지정된 휴무</span> <span style="margin-left:12px">검은색 = 자동 배정된 휴무</span> <span style="margin-left:12px"><b style="color:#2F6FD6">파란색</b> = 착즙 인원 배합 지원(중간)</span></div>'+
   '<div style="overflow-x:auto"><table class="wp-grid"><thead>'+dayHeadHtml(wk.dayLabels)+'</thead><tbody>'+body+'</tbody></table></div>'+
   '<div style="display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin-top:10px;padding:9px 13px;border:1px solid var(--line,#E3E7EE);border-radius:10px;background:#FAFBFD;font-size:12px;color:#4A5568">'+
   '<b style="color:#1F2A37">휴무자 색 안내</b>'+
   '<span><b style="color:#1B7F4E">초록</b> = 희망휴무(근무스케쥴에 적은 날)로 쉬는 인원</span>'+
   '<span><b style="color:#E07B00">주황</b> = 주 6일(연속 6일) 근무해서 휴무가 지정된 인원</span>'+
-  '<span><b style="color:#1F2A37">검정</b> = 그 밖에 자동 편성으로 정해진 휴무</span></div>';
+  '<span><b style="color:#1F2A37">검정</b> = 그 밖에 자동 편성으로 정해진 휴무</span>'+
+  '<span><b style="color:#2F6FD6">파랑</b>(중간 칸) = 착즙 인원(장영빈 · 이연우)이 배합 지원으로 중간 근무</span></div>';
 }
 function apprBoxHtml(cellStyle){
  var lb='border:1px solid #333;width:78px;height:28px;text-align:center;font-size:13px;font-weight:700;background:#F6F8FB;'+(cellStyle||'');
