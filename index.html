@@ -13651,7 +13651,9 @@ window.yumOX={
 function bar(){
  var p=paper(),L=sels(),old=document.getElementById('oxbulk');
  if(!p||L.length<MIN){if(old)old.remove();return}
- if(old&&old.nextElementSibling===p)return;if(old)old.remove();
+ /* 「화면 크기」 줄(#zbar)은 양식 바로 위에 있어야 해서, 이 줄은 그 위에 둠 — 서로 자리를 뺏으며 계속 다시 그리던(화면 흔들림) 문제 */
+ var at=p.previousElementSibling&&p.previousElementSibling.id==='zbar'?p.previousElementSibling:p;
+ if(old&&old.nextElementSibling===at)return;if(old)old.remove();
  var cs=COLS[formCode()]||[];
  var h='<div id="oxbulk" class="oxbulk"><span class="t">✔ O/X 한꺼번에</span>'+
   '<button type="button" class="btn btn-p btn-sm" onclick="yumOX.all()">전체 ○</button>'+
@@ -13659,7 +13661,7 @@ function bar(){
   cs.map(function(c){return '<button type="button" class="btn btn-o btn-sm" onclick="yumOX.col(\''+c[0]+'\')">'+c[1]+' ○</button>'}).join('')+
   '<button type="button" class="btn btn-ghost btn-sm" onclick="yumOX.clear()">모두 지우기</button>'+
   '<span class="h">부적합은 그 칸에서 X 선택</span></div>';
- p.insertAdjacentHTML('beforebegin',h);
+ at.insertAdjacentHTML('beforebegin',h);
 }
 var t=null;new MutationObserver(function(){clearTimeout(t);t=setTimeout(bar,150)}).observe(document.documentElement,{childList:true,subtree:true});
 var CSS='.oxbulk{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin:0 auto 10px;padding:9px 12px;border:1px solid #CFE3D4;background:#F2FAF4;border-radius:10px;max-width:100%}'+
@@ -14119,6 +14121,33 @@ var CSS='.ws-grid td.vac{background:#F3E1F8!important}.ws-grid td.vac input{colo
  '.ws-off.vac{background:#8E24AA!important;color:#fff!important}.wsvac-btn{border:1px solid #8E24AA;background:#fff;color:#6A1B9A;border-radius:999px;padding:4px 11px;font-weight:800;font-size:12px;cursor:pointer;margin-left:6px}'+
  '.wsvac-btn.on{background:#8E24AA;color:#fff}#ws-root.wsvac-on .ws-in{cursor:pointer}';
 var st=document.createElement('style');st.textContent=CSS;document.head.appendChild(st);
+})();
+</script>
+
+<script>
+/* ============ 확장 모듈 63 — 입력 중 화면 보호 (서버 동기화가 화면을 다시 그리지 않게) ============
+   다른 사람이 저장하면 몇 초마다 받아오면서 화면 전체를 다시 그려, 작성 중인 칸이 지워지고 맨 위로 올라가던 문제
+   (지연·정비 기록 작성, 근무 화면, 설정 화면 등 일지 외 모든 입력 화면)
+   → 이 화면에서 무언가 입력했거나 입력칸에 커서가 있으면 받아온 데이터만 저장하고 화면은 그대로 둠
+     (다른 메뉴로 갔다 오거나, 저장 · 새로고침 등 직접 다시 그릴 때 최신 내용으로 보임) */
+(function(){
+if(window.__YUM_BGSAFE__)return;window.__YUM_BGSAFE__=1;
+var S=window.SupaSync,BG=0,DIRTY={},WAIT=false;
+function hash(){return (location.hash||'').split('?')[0]}
+function field(el){return !!el&&el.closest&&el.closest('#main')&&/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)&&!/^(button|submit|reset)$/.test(el.type||'')&&!el.readOnly}
+function editing(){return !!DIRTY[location.hash]||field(document.activeElement)}
+['input','change'].forEach(function(t){document.addEventListener(t,function(e){if(e.isTrusted&&field(e.target))DIRTY[location.hash]=1},true)});
+window.addEventListener('hashchange',function(){DIRTY={}});
+if(S&&S.adopt){var _ad=S.adopt;S.adopt=function(){BG=Date.now();return _ad.apply(this,arguments)}}
+var _fb=window.yumFormBusy;
+window.yumFormBusy=function(){
+ try{if(_fb&&_fb())return true}catch(e){}
+ if(Date.now()-BG<1500&&editing()){WAIT=true;return true}
+ return false};
+/* 직접 다시 그릴 때(저장 · 메뉴 이동)는 입력 표시 초기화 */
+var _r=App.render;
+App.render=function(){if(!(Date.now()-BG<1500&&editing())){DIRTY={};WAIT=false}return _r.apply(this,arguments)};
+console.log('[확장 모듈 63] 입력 중 화면 보호 로드 완료');
 })();
 </script>
 
