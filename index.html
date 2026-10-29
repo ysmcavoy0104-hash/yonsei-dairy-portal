@@ -10462,7 +10462,11 @@ console.log('[확장 모듈 34] 지연·정비 기록 (노션 이전 '+notionRec
   function proc(data, from, to, templates) {
     var forms = {}; ((data && data.forms) || []).forEach(function (f) { if (f.code) forms[f.code] = f; });
     function latest(code) { var f = forms[code], m = {}; if (!f) return m;
-      ((data && data.docs) || []).forEach(function (d) { if (!d || d.deleted || d.formId !== f.id || !d.data) return; var k = docDate(d); if (k < from || k > to) return; if (!m[k] || String(d.updatedAt || '') > String(m[k].updatedAt || '')) m[k] = d; });
+      var L = {}; ((data && data.docs) || []).forEach(function (d) { if (!d || d.deleted || d.formId !== f.id || !d.data) return; var k = docDate(d); if (k < from || k > to) return; (L[k] = L[k] || []).push(d); });
+      /* 같은 날 여러 장이면 칸마다 적힌 값을 합침 (같은 칸은 나중에 저장한 값) */
+      Object.keys(L).forEach(function (k) { var a = L[k].sort(function (x, y) { return String(x.updatedAt || '').localeCompare(String(y.updatedAt || '')); }), last = a[a.length - 1];
+        if (a.length === 1) { m[k] = last; return; } var gg = {}; a.forEach(function (d) { var G0 = (d.data && d.data.grid) || {}; Object.keys(G0).forEach(function (q) { var val = G0[q]; if (val != null && String(val).trim() !== '') gg[q] = val; }); });
+        m[k] = Object.assign({}, last, { data: Object.assign({}, last.data, { grid: gg }) }); });
       return m; }
     function F(code) { var f = forms[code]; if (!f) return []; var wt = (templates && templates[code]) || f.wtpl; return wt ? introspect(code, wt) : []; }
     function g(d, k) { var x = ((d && d.data && d.data.grid) || {})[k]; return x == null ? '' : String(x).trim(); }
@@ -10482,7 +10486,7 @@ console.log('[확장 모듈 34] 지연·정비 기록 (노션 이전 '+notionRec
     Object.keys(M8).forEach(function (D) { var s = M8[D]; (juice[D] = juice[D] || {}).sug = tot(sF.filter(function (f) { return /설탕투입/.test(sp(f.col)); }).map(function (f) { return n(s, f.k); })); });
     Object.keys(M9).forEach(function (D) { var d = M9[D], use = n(d, 'g4_7_3'); if (use == null) use = tot([n(d, 'g4_5_3'), n(d, 'g4_6_3')]);
       var by = tot(['g4_5_8', 'g4_5_9', 'g4_5_10', 'g4_5_11', 'g4_5_12'].map(function (k) { return n(d, k); })), ph = 0, stop = 0;
-      for (var l = 1; l <= 4; l++) for (var h = 0; h <= 24; h++) { var c = g(d, 'ax' + l + '_' + h).toLowerCase(); if (c === 'b') ph++; else if (/^[chj]$/.test(c)) stop++; }
+      for (var l = 1; l <= 4; l++) for (var h = 0; h <= 24; h++) { var c = g(d, 'ax' + l + '_' + h).toLowerCase().replace(/[ㅁㅠㅊㅇㄷㄹㅎㅗㅓ]/g, function (q) { return { 'ㅁ': 'a', 'ㅠ': 'b', 'ㅊ': 'c', 'ㅇ': 'd', 'ㄷ': 'e', 'ㄹ': 'f', 'ㅎ': 'g', 'ㅗ': 'h', 'ㅓ': 'j' }[q]; }); c = c.replace(/[^a-j]/g, '').slice(0, 1); if (c === 'b') ph++; else if (/^[chj]$/.test(c)) stop++; }
       juice[D] = Object.assign(juice[D] || {}, { use: use, by: by, rate: use && by != null ? by / use * 100 : null, prodH: ph, stopH: stop }); });
     Object.keys(M10).forEach(function (D) { var o = M10[D], raw = n(o, 'g3_12_15'); if (raw == null) raw = tot([n(o, 'g3_12_12'), n(o, 'g3_12_13'), n(o, 'g3_12_14')]);
       var ts = []; for (var r = 10; r <= 22; r++) ts.push(n(o, 'g3_' + r + '_6'));
@@ -12879,8 +12883,11 @@ function dateOf(d){return String((d.data&&d.data.pdate)||d.savedAt||d.updatedAt|
 var DC={};
 function byDate(code){var f=form(code);if(!f)return {};var sig=f.id+':'+(DB.data.docs||[]).length+':'+((DB.data.docs||[])[0]||{}).updatedAt;
  if(DC[code]&&DC[code].sig===sig)return DC[code].m;var m={};
- (DB.data.docs||[]).forEach(function(d){if(d.formId!==f.id||!d.data)return;var k=dateOf(d);if(!/^\d{4}-\d\d-\d\d$/.test(k))return;
-  if(!m[k]||String(d.updatedAt||'')>String(m[k].updatedAt||''))m[k]=d});
+ /* 같은 날 여러 장(오전 · 오후 근무조 등)이면 칸마다 적힌 값을 모두 합쳐서 읽음 — 같은 칸은 나중에 저장한 값 */
+ var L={};(DB.data.docs||[]).forEach(function(d){if(d.formId!==f.id||!d.data||d.deleted)return;var k=dateOf(d);if(!/^\d{4}-\d\d-\d\d$/.test(k))return;(L[k]=L[k]||[]).push(d)});
+ Object.keys(L).forEach(function(k){var a=L[k].sort(function(x,y){return String(x.updatedAt||'').localeCompare(String(y.updatedAt||''))}),last=a[a.length-1];
+  if(a.length===1){m[k]=last;return}var g={};a.forEach(function(d){var G0=(d.data&&d.data.grid)||{};Object.keys(G0).forEach(function(q){var val=G0[q];if(val!=null&&String(val).trim()!=='')g[q]=val})});
+  m[k]=Object.assign({},last,{data:Object.assign({},last.data,{grid:g}),__n:a.length})});
  DC[code]={sig:sig,m:m};return m}
 function G(d){return (d&&d.data&&d.data.grid)||{}}
 function v(d,k){var x=G(d)[k];return x==null?'':String(x).trim()}
@@ -13008,11 +13015,14 @@ function mixView(D,days){var R=mixDay(D),T=days.map(mixDay),h='';
  return h+insights(ins)}
 
 /* ---------- 착즙 ---------- */
+/* 작업 현황 기호: 한글 자판 상태로 친 글자(ㅁ ㅠ ㅊ ㅇ ㄷ ㄹ ㅎ ㅗ ㅓ)도 a~j로 읽음 */
+var AXK={'ㅁ':'a','ㅠ':'b','ㅊ':'c','ㅇ':'d','ㄷ':'e','ㄹ':'f','ㅎ':'g','ㅗ':'h','ㅓ':'j'};
+function axc(x){return String(x||'').toLowerCase().replace(/[ㅁㅠㅊㅇㄷㄹㅎㅗㅓ]/g,function(c){return AXK[c]})}
 var CODE={a:['메인드럼 히터 가동',C.amber],b:['분리액 생산',C.teal],c:['배합요청 일시 중단',C.red],d:['생산 종료',C.gray],e:['생산 재시작',C.green],f:['호기 변경',C.violet],g:['탈피실 자동운전',C.blue],h:['일시 생산 중단',C.red],j:['멸균요청 일시 중단','#B4503C']};
 function juiceDay(D){var s=byDate('FRM-008')[D],d=byDate('FRM-009')[D],o=byDate('FRM-010')[D],b6=byDate('FRM-006')[D],b7=byDate('FRM-007')[D],cp=byDate('FRM-015')[D],w=work('FRM-028',byDate('FRM-028')[D]);
  var R={d:d,o:o,w:w,lines:[],dev:[],notes:[]};
  if(d){
-  for(var n=1;n<=4;n++){var hrs=[];for(var hh=0;hh<=24;hh++)hrs.push(v(d,'ax'+n+'_'+hh).toLowerCase());
+  for(var n=1;n<=4;n++){var hrs=[];for(var hh=0;hh<=24;hh++)hrs.push(axc(v(d,'ax'+n+'_'+hh)));
    var info={n:n,bk:v(d,'bk'+n),wt:v(d,'wt'+n),ms:v(d,'ms'+n),nm:v(d,'nm'+n),hrs:hrs};if(hrs.some(Boolean)||info.nm||info.bk)R.lines.push(info)}
   R.silo=['SILO1','SILO2','합계'].map(function(s,i){var r=5+i;return {s:s,prev:nv(d,'g4_'+r+'_1'),inn:nv(d,'g4_'+r+'_2'),use:nv(d,'g4_'+r+'_3'),stock:nv(d,'g4_'+r+'_4'),org:v(d,'g4_'+r+'_5')}});
   R.use=R.silo[2].use!=null?R.silo[2].use:sum([R.silo[0].use,R.silo[1].use]);
@@ -13021,7 +13031,7 @@ function juiceDay(D){var s=byDate('FRM-008')[D],d=byDate('FRM-009')[D],o=byDate(
   R.heat=[nv(d,'g4_8_10'),nv(d,'g4_9_15')];
   R.heat.forEach(function(x,i){if(x!=null&&(x<120||x>140))R.dev.push({f:'FRM-009',item:'히터 온도 '+(i?'오후':'오전'),val:x,spec:'120~140℃'})});
   R.note=v(d,'jt_note');R.notes=notes('FRM-009',d);R.dev=R.dev.concat(devs('FRM-009',d));
-  var cnt={};R.lines.forEach(function(l){l.hrs.forEach(function(c){if(c)cnt[c]=(cnt[c]||0)+1})});R.cnt=cnt;
+  var cnt={};R.lines.forEach(function(l){l.hrs.forEach(function(c){var k=String(c||'').replace(/[^a-j]/g,'').slice(0,1);if(k)cnt[k]=(cnt[k]||0)+1})});R.cnt=cnt;
  }
  if(o){R.ts=[];for(var r=10;r<=22;r++){var t=mins(v(o,'g3_'+r+'_0')),a={t:t,lab:v(o,'g3_'+r+'_0'),ts1:nv(o,'g3_'+r+'_1'),ph1:nv(o,'g3_'+r+'_3'),ts2:nv(o,'g3_'+r+'_6'),ph2:nv(o,'g3_'+r+'_7'),tmp:nv(o,'g3_'+r+'_8')};if([a.ts1,a.ph1,a.ts2,a.ph2,a.tmp].some(function(x){return x!=null}))R.ts.push(a)}
   R.raw=nv(o,'g3_12_15');if(R.raw==null)R.raw=sum([nv(o,'g3_12_12'),nv(o,'g3_12_13'),nv(o,'g3_12_14')]);
@@ -14356,14 +14366,28 @@ var SHEETCSS='.as-sheet{font-family:"Malgun Gothic","맑은 고딕",sans-serif;c
  '.tag{display:inline-block;font-size:10px;padding:0 5px;border-radius:3px;color:#fff;margin-right:2px}.tag.d{background:#C0392B}.tag.x{background:#8E1F7A}.tag.m{background:#5B6B82}.rep{font-size:10px;color:#fff;background:#E08A1E;border-radius:3px;padding:0 4px}'+
  '.as-ok{padding:6px 8px;color:#1B7F4E;font-weight:800;background:#EEF8F1;border-radius:4px}.as-none{padding:5px 8px;color:#777}.as-miss{margin-top:5px;padding:5px 8px;background:#FFF8E6;border:1px solid #F1D49A;border-radius:4px;font-size:11px}'+
  '.as-op{margin-top:6px}.as-lines i{display:block;height:22px;border-bottom:1px solid #999}.as-ft{margin-top:8px;font-size:9.5px;color:#666}';
-var CSS='.as-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:4px 0 6px}.as-tabs{display:flex;gap:6px;flex-wrap:wrap}.as-tabs button{border:1px solid #CBD5E1;background:#fff;border-radius:999px;padding:7px 14px;font-weight:800;cursor:pointer;color:var(--tc)}.as-tabs button small{color:#64748B;font-weight:700}.as-tabs button.on{background:var(--tc);color:#fff;border-color:var(--tc)}.as-tabs button.on small{color:#fff}'+
+var CSS='.asb{display:flex;gap:14px;align-items:center;justify-content:space-between;flex-wrap:wrap;border:1px solid #E3E7EF;border-left:5px solid var(--tc);background:#fff;border-radius:12px;padding:12px 16px;margin:4px 0 18px;box-shadow:0 1px 3px rgba(15,23,42,.06)}.asb-t{font-weight:800;font-size:15px}.asb-t small{font-weight:700;color:#64748B;font-size:12.5px;margin-left:6px}'+
+ '.asb-cs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 4px}.asb-c{font-size:12px;border:1px solid #E2E8F0;border-radius:999px;padding:2px 9px;color:#475569;background:#F8FAFC}.asb-c b{color:#0F172A}.asb-c.bad{border-color:#F3B4B4;background:#FDF0F0;color:#B42318}.asb-c.bad b{color:#B42318}.asb-s{font-size:11.5px;color:#94A3B8}'+
+ '.asb-b{display:flex;gap:6px}.asb-b button{border:1px solid var(--tc);border-radius:9px;padding:8px 14px;font-weight:800;cursor:pointer;background:#fff;color:var(--tc)}.asb-b .asb-p{background:var(--tc);color:#fff}'+
+ '.as-bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:4px 0 6px}.as-tabs{display:flex;gap:6px;flex-wrap:wrap}.as-tabs button{border:1px solid #CBD5E1;background:#fff;border-radius:999px;padding:7px 14px;font-weight:800;cursor:pointer;color:var(--tc)}.as-tabs button small{color:#64748B;font-weight:700}.as-tabs button.on{background:var(--tc);color:#fff;border-color:var(--tc)}.as-tabs button.on small{color:#fff}'+
  '.as-dt{display:flex;gap:4px;align-items:center}.as-dt button,.as-dt input{border:1px solid #CBD5E1;background:#fff;border-radius:8px;padding:6px 10px;font-weight:700;cursor:pointer}.as-pr{margin-left:auto;border:0;background:#1F3B7A;color:#fff;border-radius:9px;padding:9px 16px;font-weight:800;cursor:pointer}'+
  '.as-help{font-size:12.5px;color:#64748B;margin-bottom:10px}.as-paper{background:#fff;box-shadow:0 2px 14px -4px rgba(15,23,42,.25);border-radius:6px;padding:22px 26px;max-width:860px;margin:0 auto 30px}'+SHEETCSS+
  '@media (max-width:640px){.as-paper{padding:12px}.as-top{flex-direction:column}.as-pr{margin-left:0}}';
 function print(){var w=window.open('','_blank');if(!w){try{U.toast('팝업이 막혀 인쇄 창을 열 수 없습니다.','bad')}catch(e){}return}
  w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>결재 검토 요약표 '+esc(ST.team)+' '+esc(ST.D)+'</title><style>@page{size:A4 portrait;margin:11mm 11mm}body{margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}'+SHEETCSS+'.as-sheet{font-size:10.5px}.as-h{font-size:19px}</style></head><body>'+build(ST.team,ST.D)+'<script>setTimeout(function(){print()},300)<\/script></body></html>');w.document.close()}
-window.ApprSum={team:function(t){ST.team=t;rerender()},date:function(d){if(/^\d{4}-\d\d-\d\d$/.test(d)){ST.D=d;rerender()}},day:function(n){ST.D=addD(ST.D||today(),n);rerender()},print:print,_build:build,
+window.ApprSum={printFor:function(t,d){ST.team=t;ST.D=d;print()},team:function(t){ST.team=t;rerender()},date:function(d){if(/^\d{4}-\d\d-\d\d$/.test(d)){ST.D=d;rerender()}},day:function(n){ST.D=addD(ST.D||today(),n);rerender()},print:print,_build:build,
  open:function(team,D){if(team)ST.team=team;if(D)ST.D=D;location.hash=ROUTE}};
+/* 팀 일지함 맨 위: 이 팀의 결재 검토 요약표 바로가기 · 바로 인쇄 */
+function counts(team,D){var A=docsOf(team,D).map(analyze),o={n:A.length,dev:0,bad:0,note:0,pend:0};A.forEach(function(a){o.dev+=a.dev.length;o.bad+=a.bad.length;o.note+=a.notes.length;if(!/completed|approved/.test(a.d.status||''))o.pend++});
+ var dl=opRecs(team,D).filter(function(r){return r.kind==='delay'});o.dl=dl.length;o.dmin=Math.round(dl.reduce(function(s,r){return s+(+r.min||0)},0));return o}
+function teamBox(team){if(TEAMS.indexOf(team)<0)return '';var D=docsOf(team,today()).length?today():latestDate(team),c=counts(team,D),col=TC[team];
+ var chip=function(t,n,bad){return '<span class="asb-c'+(bad&&parseInt(n,10)>0?' bad':'')+'">'+t+' <b>'+n+'</b></span>'};
+ return '<div class="asb" style="--tc:'+col+'"><div class="asb-l"><div class="asb-t">📋 결재 검토 요약표 <small>'+esc(team)+' · '+md(D)+' ('+dw(D)+')</small></div>'+
+  '<div class="asb-cs">'+chip('일지',c.n+'건')+chip('기준 이탈',c.dev,1)+chip('부적합',c.bad,1)+chip('특이사항',c.note)+chip('지연',c.dl+'건'+(c.dl?' '+c.dmin+'분':''),1)+(c.pend?chip('결재 전',c.pend+'건'):'')+'</div>'+
+  '<div class="asb-s">결재 서류 맨 앞장에 넣을 한 장 요약 — 기준 이탈 · 부적합 · 특이사항 · 지연을 모아 보여 줍니다.</div></div>'+
+  '<div class="asb-b"><button class="asb-v" onclick="ApprSum.open(\''+team+'\',\''+D+'\')">요약표 보기</button><button class="asb-p" onclick="ApprSum.printFor(\''+team+'\',\''+D+'\')">🖨 바로 인쇄</button></div></div>'}
+try{var _jt=Views.journalsTeam;Views.journalsTeam=function(team){var h=_jt.apply(this,arguments);try{var bx=teamBox(team);if(!bx)return h;
+  var i=h.indexOf('<div class="jsec');if(i<0)i=h.indexOf('<div class="jgrid');return i>=0?h.slice(0,i)+bx+h.slice(i):bx+h}catch(e){return h}}}catch(e){}   /* 일지 양식 목록보다 앞(페이지 제목 바로 아래) */
 var _r=App.render;
 App.render=function(){var p=(location.hash||'').split('?')[0];if(p===ROUTE){if(!Auth.user())return _r.apply(this,arguments);this.baseRoute='#/approval';var M=document.getElementById('main');
   try{M.innerHTML=view()}catch(e){console.error(e);M.innerHTML='<div class="panel">화면 오류: '+esc(e.message)+'</div>'}
