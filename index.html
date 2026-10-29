@@ -6355,6 +6355,9 @@ function solve(m){var S0=S(m),N=days(m),H=hset(m),st=allStaff().filter(function(
  function runAfter(n,x){var run=0,mx=0;for(var d=1;d<=N;d++){if(A[n][d-1]==='휴무'||d===x)run=0;else{run++;if(d>L&&run>mx)mx=run}}return mx}
  function weekOffCount(n,w){var c=0;for(var d=L+1;d<=N;d++)if(wk(d)===w&&A[n][d-1]==='휴무')c++;return c}
  function weekHasOff(n,w){return weekOffCount(n,w)>0}
+ /* 주마다 이미 정해진 휴무(앞서 편성한 날 · 뒤쪽 주의 희망휴무 포함)가 적은 주부터 → 뒤에 희망휴무가 몰린 사람은 앞 주에서 덜 쉬고, 휴무가 주마다 고르게 */
+ function wkLoad(n,w){var c=0,len=0;for(var d=1;d<=N;d++)if(wk(d)===w){len++;if(A[n][d-1]==='휴무')c++}return len?Math.round(c*7/len*10)/10:0}
+ function adjOff(n,d){var k=0,j;for(j=d-1;j>=d-7;j--){if((j>=1?A[n][j-1]:hv(n,j))==='휴무')k++;else break}for(j=d+1;j<=N;j++){if(A[n][j-1]==='휴무')k++;else break}return k===0?1:(k+1<=2?0:2)}   /* 0 = 이어서 2일 휴무 · 1 = 따로 · 2 = 3일 이상 이어짐(피함) */
  function cap(d,g){return st.filter(function(p){return p.st===g&&A[p.n][d-1]!=='휴무'}).length-needOf(S0,d,g,m)}
  st.forEach(function(p){var f=fxOf(p),ed=p.exclDow||[];PD.forEach(function(d){if(ed.indexOf(dow(m,d))>=0){A[p.n][d-1]='휴무';return}if(f)A[p.n][d-1]=H[d]?'휴무':f})});
  var VC=S0.vac||{};st.forEach(function(p){var v=VC[p.n]||{};PD.forEach(function(d){if(v[d]||v[String(d)])A[p.n][d-1]='휴무'})});function vcn(n){var v=VC[n]||{},c=0;for(var d=1;d<=N;d++)if((v[d]||v[String(d)])&&A[n][d-1]==='휴무')c++;return c}
@@ -6371,7 +6374,7 @@ function solve(m){var S0=S(m),N=days(m),H=hset(m),st=allStaff().filter(function(
  for(var guard=0;guard<2000;guard++){var P=null;flex.forEach(function(p){if(q[p.n]>0&&(!P||q[p.n]>q[P.n]))P=p});if(!P)break;
   var best=null,bk=null;PD.forEach(function(d){if(A[P.n][d-1]==='휴무')return;if(isFixG(P)&&H[d])return;
    var c=isFixG(P)?(1-st.filter(function(o){return o.st===P.st&&o.n!==P.n&&A[o.n][d-1]==='휴무'}).length):cap(d,P.st);
-   var key=[c>0?0:1,runAfter(P.n,d)>6?1:0,weekHasOff(P.n,wk(d))?1:0,weK(P,d),runAfter(P.n,d),-c,(d*7+pi[P.n]*5)%11];
+   var key=[c>0?0:1,runAfter(P.n,d)>6?1:0,wkLoad(P.n,wk(d)),(dow(m,d)===0||(S0.maint&&S0.maint[d]))?0:1,(c>=2?adjOff(P.n,d):3),weK(P,d),runAfter(P.n,d),-c,(d*7+pi[P.n]*5)%11];
    if(c<=0)return;if(P.lead&&!leadOk(d,P))return;if(!bk||cmp(key,bk)<0){bk=key;best=d}});
   if(best==null){unmet.push({d:0,n:P.n,r:q[P.n],why:'필요인원 때문에 휴무 '+q[P.n]+'일 부족'});q[P.n]=0;continue}
   A[P.n][best-1]='휴무';q[P.n]--}
@@ -6427,10 +6430,14 @@ function solve(m){var S0=S(m),N=days(m),H=hset(m),st=allStaff().filter(function(
   var gc=JSON.parse(JSON.stringify(got));order=order.filter(function(k){if(gc[k]>0){gc[k]--;return false}return true});
   order.forEach(function(s){var c=av.filter(function(p){return !(prevPM(p)&&(s==='오전'||s==='정상'))});
    if(!c.length){if(g==='배합'&&supFill(d,s,got)){return}unmet.push({d:d,n:g+' '+s,r:0,why:'배정 가능 인원 부족'});return}
+   function lastWk(n){var w=wk(d);for(var i=d-1;i>=1&&wk(i)===w;i--){var v=A[n][i-1];if(v&&v!=='휴무')return v==='배합지원'?'정상':v}return ''}
+   function stay(n,s){var l=lastWk(n);return !l?1:(l===s?0:2)}
    c.sort(function(a,b){var la=(!hasL[s]&&a.lead&&(a.ls||'').indexOf(s)>=0)?0:1,lb=(!hasL[s]&&b.lead&&(b.ls||'').indexOf(s)>=0)?0:1;if(la!==lb)return la-lb;
     var rl=function(n){var c=0;for(var i=d-2;i>=0;i--){var v=A[n][i];if(!v||v==='휴무')break;c++}return c},oc=function(n){var c=0;for(var i=0;i<d-1;i++)if(A[n][i]==='휴무')c++;return c};
     if(g==='착즙'){var ra=rl(a.n)>=6,rb=rl(b.n)>=6;if(ra!==rb)return ra?1:-1}
     if(s==='오후'){var qa=prevPM(a)?0:1,qb=prevPM(b)?0:1;if(qa!==qb)return qa-qb}
+    if(g==='착즙'){var oa0=oc(a.n),ob0=oc(b.n);if(oa0!==ob0)return ob0-oa0}
+    var sa=stay(a.n,s),sb=stay(b.n,s);if(sa!==sb)return sa-sb;
     if(g==='착즙'){var oa=oc(a.n),ob=oc(b.n);if(oa!==ob)return ob-oa}
     else{var na=(d<N&&false)?0:0}
     var na=rpm(a.n,d),nb=rpm(b.n,d);if(na!==nb)return s==='오후'?na-nb:nb-na;var fa=cntS(a.n,s),fb=cntS(b.n,s);if(fa!==fb)return fa-fb;var pa=(s==='정상'||pref(a)===s)?0:1,pb=(s==='정상'||pref(b)===s)?0:1;if(pa!==pb)return pa-pb;return pi[a.n]-pi[b.n]});
@@ -7585,7 +7592,9 @@ function plan(){
  var nx=weekList().findIndex(function(x,i){return i>wi&&(weekState(x)===''||weekState(x)==='part')});o.selWeek=nx>=0?nx:wi;
  DB.save();try{if(window.SupaSync&&SupaSync.on()){clearTimeout(SupaSync.pushT);SupaSync.pushNow(DB.data)}}catch(e){}
  var box=$('#ws-root');if(box)box.innerHTML=innerView();
- U.toast((wi+1)+'주차('+wk.lab+') 근무 편성 완료 — 주간근무계획표에 넣었습니다.'+(V.length?' 규칙 확인 '+V.length+'건이 있습니다.':''),'ok');
+ var OVW=[];try{var lastD=ds[ds.length-1];staff.forEach(function(p){if(p.st==='4층'||p.st==='지원')return;var a=asg[p.n]||[],used=0,fut=0,W=o.wishes[p.n]||{};for(var d4=1;d4<=lastD;d4++)if(a[d4-1]==='휴무'&&W[d4]!=='하계')used++;Object.keys(W).forEach(function(k){if(+k>lastD&&W[k]!=='하계')fut++});var tg=+o.target||0;if(fut&&used+fut>tg)OVW.push(p.n+'(편성 '+used+'일 + 뒤 희망 '+fut+'일 > 목표 '+tg+'일)')})}catch(e){}
+ o.result.overWish=OVW;
+ U.toast((wi+1)+'주차('+wk.lab+') 근무 편성 완료 — 주간근무계획표에 넣었습니다.'+(V.length?' 규칙 확인 '+V.length+'건이 있습니다.':'')+(OVW.length?' ⚠ 뒤쪽 희망휴무까지 합치면 목표 휴무를 넘는 사람: '+OVW.join(', ')+' — 이미 편성한 주에서 휴무를 줄이거나 희망휴무를 조정해 주세요.':''),OVW.length?'bad':'ok');
 }
 /* 주간근무계획표에서 직접 고친 근무 → 이 달 결과(휴무 개수 · 날짜별 현황 · 휴일체크표) 다시 계산 + 그 주 계획표 다시 만들기 */
 function recalc(ym,key,s,days){
