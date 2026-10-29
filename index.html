@@ -7527,7 +7527,7 @@ function buildWeeks(asg,staff,w){
   {label:'착즙 근무',values:ds.map(function(d,i){return oldS('착즙 근무',i)||(mine(d)?'주간 교대 2':'')})},
   {label:'1팀 지원',values:ds.map(function(d,i){if(!mine(d))return oldS('1팀 지원',i);if(isMaint(d))return '-';var k=short(d);return k>0?k+'명':'-'})}];
  var lab=dates.map(function(x,i){return (+x.slice(8))+'('+WD[i]+')'}),md=function(x){return (+x.slice(5,7))+'월 '+(+x.slice(8))+'일'};
- WP[key]={range:md(dates[0])+' ~ '+md(dates[6]),dayLabels:lab,groups:groups,single:single,auto:{at:new Date().toISOString(),ym:CUR_YM}};if(W&&W.confirmed)WP[key].confirmed=W.confirmed;if(W&&W.edited)WP[key].edited=W.edited;   /* 확정 · 수정 기록 유지 */
+ WP[key]={range:md(dates[0])+' ~ '+md(dates[6]),dayLabels:lab,groups:groups,single:single,auto:{at:new Date().toISOString(),ym:CUR_YM}};if(W&&W.confirmed)WP[key].confirmed=W.confirmed;if(W&&W.edited)WP[key].edited=W.edited;if(W&&W.supMan&&Object.keys(W.supMan).length){WP[key].supMan=W.supMan;var sx2=single.filter(function(q){return q.label==='1팀 지원'})[0];Object.keys(W.supMan).forEach(function(i){sx2.values[+i]=W.supMan[i]})}   /* 직접 입력한 1팀 지원 유지 */   /* 확정 · 수정 기록 유지 */
  return key}
 function plan(){
  var Y=window.YSched;if(!Y||!Y._solve){solve();return}
@@ -7883,7 +7883,7 @@ function edSave(conf){
   try{WorkSched.recalc(ym,key,s0,byYm[ym].map(function(x){return x.d}))}catch(e){console.warn('[주간근무 수정] 연동 실패',e)}
  });
  /* 1팀 지원: 직접 입력한 칸은 그 값으로 (안 고친 칸은 부족 인원 자동 계산) */
- var W0=D()[key];if(W0){var sx=(W0.single||[]).filter(function(q){return q.label==='1팀 지원'})[0];if(!sx){sx={label:'1팀 지원',values:['','','','','','','']};(W0.single=W0.single||[]).push(sx)}Object.keys(EDIT.supT).forEach(function(i){sx.values[+i]=String(EDIT.sup[+i]||'').trim()||'-'})}
+ var W0=D()[key];if(W0){var sx=(W0.single||[]).filter(function(q){return q.label==='1팀 지원'})[0];if(!sx){sx={label:'1팀 지원',values:['','','','','','','']};(W0.single=W0.single||[]).push(sx)}var SM=W0.supMan=W0.supMan||{};Object.keys(EDIT.supT).forEach(function(i){var v=String(EDIT.sup[+i]||'').trim();if(v)SM[i]=v;else delete SM[i]});Object.keys(SM).forEach(function(i){sx.values[+i]=SM[i]})}   /* 직접 입력한 1팀 지원은 supMan에 남겨, 확정 · 다시 계산해도 유지 */
  var u=null;try{u=Auth.user()}catch(e){}var W=D()[key],NOW=new Date().toISOString();if(W){W.edited={at:NOW,by:u&&u.name||''};W._u=NOW;if(conf===true||wasConf)W.confirmed={at:NOW,by:u&&u.name||''}}
  DB.save();try{if(window.SupaSync&&SupaSync.on()){clearTimeout(SupaSync.pushT);SupaSync.pushNow(DB.data)}}catch(e){}
  EDIT=null;var box=$('#wp-root');if(box)box.innerHTML=innerView();
