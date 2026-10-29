@@ -6354,10 +6354,12 @@ function solve(m){var S0=S(m),N=days(m),H=hset(m),st=allStaff().filter(function(
  function offs(n){var c=0;for(var d=1;d<=N;d++)if(A[n][d-1]==='휴무')c++;return c}
  function runAfter(n,x){var run=0,mx=0;for(var d=1;d<=N;d++){if(A[n][d-1]==='휴무'||d===x)run=0;else{run++;if(d>L&&run>mx)mx=run}}return mx}
  function weekOffCount(n,w){var c=0;for(var d=L+1;d<=N;d++)if(wk(d)===w&&A[n][d-1]==='휴무')c++;return c}
+ var SUPN=['장영빈','이연우'];
  function weekHasOff(n,w){return weekOffCount(n,w)>0}
  /* 주마다 이미 정해진 휴무(앞서 편성한 날 · 뒤쪽 주의 희망휴무 포함)가 적은 주부터 → 뒤에 희망휴무가 몰린 사람은 앞 주에서 덜 쉬고, 휴무가 주마다 고르게 */
- function wkLoad(n,w){var c=0,len=0;for(var d=1;d<=N;d++)if(wk(d)===w){len++;if(A[n][d-1]==='휴무')c++}return len?Math.round(c*7/len*10)/10:0}
- function adjOff(n,d){var k=0,j;for(j=d-1;j>=d-7;j--){if((j>=1?A[n][j-1]:hv(n,j))==='휴무')k++;else break}for(j=d+1;j<=N;j++){if(A[n][j-1]==='휴무')k++;else break}return k===0?1:(k+1<=2?0:2)}   /* 0 = 이어서 2일 휴무 · 1 = 따로 · 2 = 3일 이상 이어짐(피함) */
+ function wkLoad(n,w){var c=0,len=0,Wn=(S0.wishes||{})[n]||{};for(var d=1;d<=N;d++)if(wk(d)===w){len++;if(A[n][d-1]==='휴무')c+=(Wn[d]!=null||Wn[String(d)]!=null)?1.5:1}return len?Math.round(c*7/len*10)/10:0}   /* 희망휴무가 있는 주는 조금 더 무겁게 → 그 주에는 자동 휴무를 덜 줌 */
+ function isW(n,j){var W=(S0.wishes||{})[n]||{};return j>=1&&(W[j]!=null||W[String(j)]!=null)}
+ function adjOff(n,d){var k=0,j,w=false;for(j=d-1;j>=d-7;j--){if((j>=1?A[n][j-1]:hv(n,j))==='휴무'){if(isW(n,j))w=true;k++}else break}for(j=d+1;j<=N;j++){if(A[n][j-1]==='휴무'){if(isW(n,j))w=true;k++}else break}if(w)return 2;return k===0?1:(k+1<=2?0:2)}   /* 자동 휴무끼리 이어서 2일(퐁당퐁당 대신) · 희망휴무 옆에는 붙이지 않음 · 3일 이상 몰림 피함 */
  function cap(d,g){return st.filter(function(p){return p.st===g&&A[p.n][d-1]!=='휴무'}).length-needOf(S0,d,g,m)}
  st.forEach(function(p){var f=fxOf(p),ed=p.exclDow||[];PD.forEach(function(d){if(ed.indexOf(dow(m,d))>=0){A[p.n][d-1]='휴무';return}if(f)A[p.n][d-1]=H[d]?'휴무':f})});
  var VC=S0.vac||{};st.forEach(function(p){var v=VC[p.n]||{};PD.forEach(function(d){if(v[d]||v[String(d)])A[p.n][d-1]='휴무'})});function vcn(n){var v=VC[n]||{},c=0;for(var d=1;d<=N;d++)if((v[d]||v[String(d)])&&A[n][d-1]==='휴무')c++;return c}
@@ -6373,14 +6375,14 @@ function solve(m){var S0=S(m),N=days(m),H=hset(m),st=allStaff().filter(function(
  var flex=st.filter(function(p){return !isFixG(p)&&!p.fx});
  for(var guard=0;guard<2000;guard++){var P=null;flex.forEach(function(p){if(q[p.n]>0&&(!P||q[p.n]>q[P.n]))P=p});if(!P)break;
   var best=null,bk=null;PD.forEach(function(d){if(A[P.n][d-1]==='휴무')return;if(isFixG(P)&&H[d])return;
-   var c=isFixG(P)?(1-st.filter(function(o){return o.st===P.st&&o.n!==P.n&&A[o.n][d-1]==='휴무'}).length):cap(d,P.st);
-   var key=[c>0?0:1,runAfter(P.n,d)>6?1:0,wkLoad(P.n,wk(d)),(dow(m,d)===0||(S0.maint&&S0.maint[d]))?0:1,(c>=2?adjOff(P.n,d):3),weK(P,d),runAfter(P.n,d),-c,(d*7+pi[P.n]*5)%11];
+   var c=isFixG(P)?(1-st.filter(function(o){return o.st===P.st&&o.n!==P.n&&A[o.n][d-1]==='휴무'}).length):cap(d,P.st);if(P.st==='착즙'&&SUPN.indexOf(String(P.n).replace(/\s+/g,''))>=0)c=Math.min(c,c+cap(d,'배합'));
+   var key=[c>0?0:1,runAfter(P.n,d)>6?1:0,wkLoad(P.n,wk(d)),((P.st!=='배합'||c>=3)&&(dow(m,d)===0||(S0.maint&&S0.maint[d])))?0:1,(c>=2?adjOff(P.n,d):3),weK(P,d),runAfter(P.n,d),-c,(d*7+pi[P.n]*5)%11];
    if(c<=0)return;if(P.lead&&!leadOk(d,P))return;if(!bk||cmp(key,bk)<0){bk=key;best=d}});
   if(best==null){unmet.push({d:0,n:P.n,r:q[P.n],why:'필요인원 때문에 휴무 '+q[P.n]+'일 부족'});q[P.n]=0;continue}
   A[P.n][best-1]='휴무';q[P.n]--}
  st.forEach(function(p){if(isFixG(p)||p.fx)return;var mc=+p.maxConsec||6,run=0,W=(S0.wishes||{})[p.n]||{};for(var k=-6;k<1;k++){var v0=hv(p.n,k);run=(v0&&v0!=='휴무')?run+1:0}
   for(var dd=1;dd<=N;dd++){var v1=A[p.n][dd-1];if(v1==='휴무'){run=0;continue}run++;if(run<=mc||dd<=L)continue;
-   var bd=null;for(var c=dd;c>=Math.max(L+1,dd-mc);c--){if(A[p.n][c-1]!=='')continue;if(cap(c,p.st)>0&&(!p.lead||leadOk(c,p))){bd=c;break}}if(bd==null)bd=dd;
+   var bd=null;for(var c=dd;c>=Math.max(L+1,dd-mc);c--){if(A[p.n][c-1]!=='')continue;if(cap(c,p.st)>0&&(!p.lead||leadOk(c,p))){bd=c;break}}if(bd==null){if(A[p.n][dd-1]===''&&cap(dd,p.st)>0)bd=dd;else continue}
    A[p.n][bd-1]='휴무';q[p.n]--;
    if(q[p.n]<0)for(var e=dd+1;e<=N;e++){if(A[p.n][e-1]==='휴무'&&W[e]==null&&W[String(e)]==null){A[p.n][e-1]='';q[p.n]++;break}}
    run=dd-bd}});
@@ -6432,11 +6434,14 @@ function solve(m){var S0=S(m),N=days(m),H=hset(m),st=allStaff().filter(function(
    if(!c.length){if(g==='배합'&&supFill(d,s,got)){return}unmet.push({d:d,n:g+' '+s,r:0,why:'배정 가능 인원 부족'});return}
    function lastWk(n){var w=wk(d);for(var i=d-1;i>=1&&wk(i)===w;i--){var v=A[n][i-1];if(v&&v!=='휴무')return v==='배합지원'?'정상':v}return ''}
    function stay(n,s){var l=lastWk(n);return !l?1:(l===s?0:2)}
+   function wwk(n){var W=(S0.wishes||{})[n]||{},w=wk(d),c=0;Object.keys(W).forEach(function(k){if(wk(+k)===w&&+k!==d)c++});return c}
+   var mtd=dow(m,d)===0||!!(S0.maint&&S0.maint[d]);
    c.sort(function(a,b){var la=(!hasL[s]&&a.lead&&(a.ls||'').indexOf(s)>=0)?0:1,lb=(!hasL[s]&&b.lead&&(b.ls||'').indexOf(s)>=0)?0:1;if(la!==lb)return la-lb;
     var rl=function(n){var c=0;for(var i=d-2;i>=0;i--){var v=A[n][i];if(!v||v==='휴무')break;c++}return c},oc=function(n){var c=0;for(var i=0;i<d-1;i++)if(A[n][i]==='휴무')c++;return c};
     if(g==='착즙'){var ra=rl(a.n)>=6,rb=rl(b.n)>=6;if(ra!==rb)return ra?1:-1}
     if(s==='오후'){var qa=prevPM(a)?0:1,qb=prevPM(b)?0:1;if(qa!==qb)return qa-qb}
     if(g==='착즙'){var oa0=oc(a.n),ob0=oc(b.n);if(oa0!==ob0)return ob0-oa0}
+    if(mtd){var xa=wwk(a.n),xb=wwk(b.n);if(xa!==xb)return xb-xa}
     var sa=stay(a.n,s),sb=stay(b.n,s);if(sa!==sb)return sa-sb;
     if(g==='착즙'){var oa=oc(a.n),ob=oc(b.n);if(oa!==ob)return ob-oa}
     else{var na=(d<N&&false)?0:0}
@@ -6444,6 +6449,16 @@ function solve(m){var S0=S(m),N=days(m),H=hset(m),st=allStaff().filter(function(
    var x=c[0];A[x.n][d-1]=s;got[s]++;if(x.lead)hasL[s]=1;av.splice(av.indexOf(x),1)});
   if(dow(m,d)===0||(S0.maint&&S0.maint[d])){av.forEach(function(p){A[p.n][d-1]='휴무'});fixL(d,g,r);return}
   av.forEach(function(p){if(g==='착즙'){A[p.n][d-1]=supOK(p,d)?'배합지원':'휴무';return}var s=prevPM(p)?'오후':'정상';A[p.n][d-1]=s;got[s]++});fixL(d,g,r)})});
+ (function(){var W0=S0.wishes||{};
+  function bcnt(d,k){var c=st.filter(function(o){return o.st==='배합'&&A[o.n][d-1]===k}).length;if(k==='정상')c+=st.filter(function(o){return A[o.n][d-1]==='배합지원'}).length;return c}
+  function runIf(n,d){var r=1,i;for(i=d-1;i>=1&&A[n][i-1]&&A[n][i-1]!=='휴무';i--)r++;for(i=d+1;i<=N&&A[n][i-1]&&A[n][i-1]!=='휴무';i++)r++;return r}
+  PD.forEach(function(d){var mt=dow(m,d)===0||(S0.maint&&S0.maint[d]);var r=reqOf(S0,d,'배합',m);
+   (mt?['정상']:['정상','오후']).forEach(function(k){for(var guard=0;guard<3&&bcnt(d,k)<(+r[k]||0);guard++){
+    var x=st.filter(function(o){var nm=String(o.n).replace(/\s+/g,'');return o.st==='착즙'&&SUPN.indexOf(nm)>=0&&A[o.n][d-1]==='휴무'&&!((W0[o.n]||{})[d]!=null)&&offs(o.n)>T&&!(d>1&&A[o.n][d-2]==='오후')&&runIf(o.n,d)<=(+o.maxConsec||6)})[0];
+    if(!x)break;
+    if(k==='정상'){A[x.n][d-1]='배합지원';continue}
+    var y=st.filter(function(o){return o.st==='배합'&&A[o.n][d-1]==='정상'&&!o.lead&&!(d<N&&(A[o.n][d]==='오전'||A[o.n][d]==='정상'))})[0];
+    if(!y)break;A[y.n][d-1]='오후';A[x.n][d-1]='배합지원'}})})})();
  var cnt={};st.forEach(function(p){var c={오전:0,정상:0,오후:0,휴무:0,근무:0,wk:0,hol:0};for(var d=1;d<=N;d++){var v=A[p.n][d-1];if(v in c)c[v]++;if(v&&v!=='휴무')c[H[d]?'hol':'wk']++}cnt[p.n]=c});
  var V=[];
  PD.forEach(function(d){G.forEach(function(g){var r=reqOf(S0,d,g,m),got={오전:0,정상:0,오후:0};var leads=st.filter(function(p){return p.st===g&&p.lead}),hl={};
@@ -7564,6 +7579,13 @@ function plan(){
  /* 앞 주에 편성해 둔 근무를 「이미 정해진 근무」로 넘겨 이어지게 (오후 다음날 · 연속근무 · 휴무일수) */
  var act=S0.act0?JSON.parse(JSON.stringify(S0.act0)):{};
  staff.forEach(function(p){for(var d=L0+1;d<ws;d++){var v=(prev[p.n]||[])[d-1];if(v){act[p.n]=act[p.n]||{};act[p.n][d]=v}}});
+ var K2=function(n){return String(n).replace(/\s+/g,'')};
+ staff.forEach(function(p){for(var d=L0+1;d<ws;d++){if(act[p.n]&&act[p.n][d])continue;var v='';
+  try{var dt=new Date(+CUR_YM.slice(0,4),+CUR_YM.slice(5,7)-1,d),mon=new Date(dt);mon.setDate(mon.getDate()-((mon.getDay()+6)%7));var wkk=ymd(mon.getFullYear(),mon.getMonth()+1,mon.getDate()),PW=(DB.data.weeklyPlans||{})[wkk],ci=Math.round((dt-mon)/864e5);
+   if(PW){(PW.groups||[]).forEach(function(g){(g.rows||[]).forEach(function(r){String((r.names||[])[ci]||'').split(',').forEach(function(x){if(K2(x.replace(/\(.*\)/,''))===K2(p.n))v={'오전':'오전','중간':'정상','오후':'오후','4층':'정상','정상':'정상'}[g.label]||v})})});
+    var off=(PW.single||[]).filter(function(q){return q.label==='휴무자'})[0];if(off&&String((off.values||[])[ci]||'').split(',').some(function(x){return K2(x.replace(/\(.*\)/,''))===K2(p.n)}))v='휴무'}}catch(e){}
+  if(!v&&(isMaint(d)||dowOf(CUR_YM,d)===0))v='휴무';
+  if(v){act[p.n]=act[p.n]||{};act[p.n][d]=v}}});
  S0.act=act;S0.lockUntil=ws-1;
  var res;try{res=Y._solve(CUR_YM)}finally{S0.act=S0.act0;S0.lockUntil=L0}
  /* 이번 주 날짜만 반영 */
