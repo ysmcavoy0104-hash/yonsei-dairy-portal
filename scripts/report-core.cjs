@@ -128,6 +128,7 @@
         if (c.lab) return ks;
         if (c.k) ks.push({ k: c.k, kind: c.tm ? 'tm' : c.ox ? 'ox' : c.sel ? 'sel' : 'in', lab: '' });
         if (c.tpl) { var re = /\{(in|tm|sel):([\w]+)[^}]*\}/g, m, last = 0; while ((m = re.exec(c.tpl))) { var lab = c.tpl.slice(last, m.index).replace(/\{[^}]*\}/g, ' ').replace(/[\/∕]/g, ' ').replace(/\s+/g, ' ').trim(); ks.push({ k: m[2], kind: m[1], lab: lab }); last = re.lastIndex; } }
+        if (c.tpl && /\{cv:/.test(c.tpl)) { var mc = c.tpl.match(/\{cv:(\w+):[^}]*:h\}/); if (mc) ks.push({ k: mc[1], kind: 'sel', lab: 'CIP 종류' }); }   /* CIP 종류(알칼리 · FULL) */
         return ks;
       }
       cells.forEach(function (info) {
@@ -186,12 +187,13 @@
   }
 
   /* ───────── 일지 → 팀 ───────── */
-  var TEAM0 = { f6: '착즙팀', f7: '착즙팀', f8: '배합팀', f9: '착즙팀', f10: '착즙팀', f11: '멸균팀', f12: '배합팀', f14: '배합팀', f15: '착즙팀', f28: '착즙팀' };
+  var TEAM0 = { f6: '착즙팀', f7: '착즙팀', f8: '착즙팀', f9: '착즙팀', f10: '착즙팀', f11: '멸균팀', f12: '배합팀', f14: '배합팀', f15: '착즙팀', f28: '착즙팀' };
   function teamOf(f) {
     if (!f) return '공통';
+    if (f.code === 'FRM-008' || f.id === 'f8' || /설탕\s*용해/.test(f.name || '')) return '착즙팀';   /* 설탕 용해 기록 일보 = 착즙팀 */
     if (f.jteam) return f.jteam; if (TEAM0[f.id]) return TEAM0[f.id]; if (f.team && TEAMS.indexOf(f.team) >= 0) return f.team;
     var n = f.name || '';
-    if (/착즙/.test(n)) return '착즙팀'; if (/배합|설탕/.test(n)) return '배합팀';
+    if (/착즙|설탕/.test(n)) return '착즙팀'; if (/배합/.test(n)) return '배합팀';
     if (/멸균|Aseptic|HACCP 일보/.test(n)) return '멸균팀'; if (/포장|B호기|DE생산|용량/.test(n)) return '포장팀';
     return '공통';
   }
@@ -295,11 +297,11 @@
       for (var h = 1; h <= 5; h++) for (var rr = 3; rr <= 6; rr++) q.push(n(d, 'g2_' + rr + '_' + (2 * h + 1)));
       oxF.forEach(function (f) { if (/^[xX×]$/.test(g(d, f.k))) x++; });
       mix[D] = { nb: nb, q: tot(q), b1: mean(b1), x: x }; });
-    Object.keys(M8).forEach(function (D) { var s = M8[D]; (mix[D] = mix[D] || {}).sug = tot(sF.filter(function (f) { return /설탕투입/.test(sp(f.col)); }).map(function (f) { return n(s, f.k); })); });
+    Object.keys(M8).forEach(function (D) { var s = M8[D]; (juice[D] = juice[D] || {}).sug = tot(sF.filter(function (f) { return /설탕투입/.test(sp(f.col)); }).map(function (f) { return n(s, f.k); })); });
     Object.keys(M9).forEach(function (D) { var d = M9[D], use = n(d, 'g4_7_3'); if (use == null) use = tot([n(d, 'g4_5_3'), n(d, 'g4_6_3')]);
       var by = tot(['g4_5_8', 'g4_5_9', 'g4_5_10', 'g4_5_11', 'g4_5_12'].map(function (k) { return n(d, k); })), ph = 0, stop = 0;
       for (var l = 1; l <= 4; l++) for (var h = 0; h <= 24; h++) { var c = g(d, 'ax' + l + '_' + h).toLowerCase(); if (c === 'b') ph++; else if (/^[chj]$/.test(c)) stop++; }
-      juice[D] = { use: use, by: by, rate: use && by != null ? by / use * 100 : null, prodH: ph, stopH: stop }; });
+      juice[D] = Object.assign(juice[D] || {}, { use: use, by: by, rate: use && by != null ? by / use * 100 : null, prodH: ph, stopH: stop }); });
     Object.keys(M10).forEach(function (D) { var o = M10[D], raw = n(o, 'g3_12_15'); if (raw == null) raw = tot([n(o, 'g3_12_12'), n(o, 'g3_12_13'), n(o, 'g3_12_14')]);
       var ts = []; for (var r = 10; r <= 22; r++) ts.push(n(o, 'g3_' + r + '_6'));
       var j = juice[D] = juice[D] || {}; j.raw = raw; j.ts = mean(ts); });
@@ -335,7 +337,7 @@
       packSum: { days: Object.keys(pack).length, ea: S(pack, 'ea'), box: S(pack, 'box'), rate: S(pack, 'rate', 'avg'), stopN: S(pack, 'stopN'), stopMin: S(pack, 'stopMin'), bad: S(pack, 'bad'), waste: S(pack, 'waste'),
         ln: ['A', 'B', 'C', 'D', 'E', 'F'].map(function (h) { return [h, tot(Object.keys(pack).map(function (D) { return (pack[D].ln || {})[h]; }))]; }).filter(function (x) { return x[1] != null; }) },
       mixSum: { days: Object.keys(mix).length, nb: S(mix, 'nb'), q: S(mix, 'q'), b1: S(mix, 'b1', 'avg'), sug: S(mix, 'sug'), x: S(mix, 'x') },
-      juiceSum: { days: Object.keys(juice).length, use: S(juice, 'use'), by: S(juice, 'by'), prodH: S(juice, 'prodH'), stopH: S(juice, 'stopH'), raw: S(juice, 'raw'), ts: S(juice, 'ts', 'avg') } };
+      juiceSum: { days: Object.keys(juice).length, sug: S(juice, 'sug'), use: S(juice, 'use'), by: S(juice, 'by'), prodH: S(juice, 'prodH'), stopH: S(juice, 'stopH'), raw: S(juice, 'raw'), ts: S(juice, 'ts', 'avg') } };
   }
   function analyze(data, NF, P, opts) {
     var all = records(data, NF);
@@ -563,15 +565,15 @@
     /* 배합 · 착즙 공정 */
     var PM = M.PR && M.PR.mixSum, PJ = M.PR && M.PR.juiceSum, PK = M.PR && M.PR.packSum;
     if (PM && (PM.days || PJ.days || PK.days)) {
-      var hasM = !!(PM.nb || PM.sug || PM.q || PM.x), hasJ = !!(PJ.use || PJ.raw || PJ.prodH || PJ.by), hasK = !!(PK.ea || PK.rate || PK.stopN || PK.bad);
+      var hasM = !!(PM.nb || PM.q || PM.x), hasJ = !!(PJ.use || PJ.raw || PJ.prodH || PJ.by || PJ.sug), hasK = !!(PK.ea || PK.rate || PK.stopN || PK.bad);
       var f1 = function (x, dg) { return x == null ? '-' : (Math.round(x * Math.pow(10, dg || 0)) / Math.pow(10, dg || 0)).toLocaleString('ko-KR'); };
       var many = kind !== 'daily', per = function (x, dg) { return many && x != null ? ' <span style="color:' + C.mute + '">(일 평균 ' + f1(x, dg) + ')</span>' : ''; };
       var mixT = table(['배합', kind === 'daily' ? '값' : '합계 · 평균'], [
         ['배치', '<b>' + f1(PM.nb) + '</b>배치' + per(PM.days ? PM.nb / PM.days : null, 1)], ['호기별 생산량', f1(PM.q, 1) + ' Batch'], ['평균 최종 Brix', f1(PM.b1, 2)],
-        ['설탕 투입', f1(PM.sug) + ' kg' + per(PM.days ? PM.sug / PM.days : null)], ['점검 X', PM.x ? '<b style="color:' + C.red + '">' + PM.x + '건</b>' : '0건']]);
+        ['점검 X', PM.x ? '<b style="color:' + C.red + '">' + PM.x + '건</b>' : '0건']]);
       var juiceT = table(['착즙', kind === 'daily' ? '값' : '합계 · 평균'], [
         ['대두 사용량', '<b>' + f1(PJ.use) + '</b> kg' + per(PJ.days ? PJ.use / PJ.days : null)], ['부산물', f1(PJ.by) + ' kg' + (PJ.use && PJ.by != null ? ' (' + f1(PJ.by / PJ.use * 100, 1) + '%)' : '')],
-        ['분리액 생산 · 중단', f1(PJ.prodH) + '시간 · ' + f1(PJ.stopH) + '시간'], ['원액 생산', f1(PJ.raw) + ' kg'], ['원액 T.S 평균', f1(PJ.ts, 2) + ' <span style="color:' + C.mute + '">(10±0.2)</span>']]);
+        ['분리액 생산 · 중단', f1(PJ.prodH) + '시간 · ' + f1(PJ.stopH) + '시간'], ['원액 생산', f1(PJ.raw) + ' kg'], ['원액 T.S 평균', f1(PJ.ts, 2) + ' <span style="color:' + C.mute + '">(10±0.2)</span>'], ['설탕 투입', f1(PJ.sug) + ' kg' + per(PJ.days && PJ.sug != null ? PJ.sug / PJ.days : null)]]);
       var packT = table(['포장 (A~F호기)', kind === 'daily' ? '값' : '합계 · 평균'], [
         ['생산량 (전 호기)', '<b>' + f1(PK.ea) + '</b> 개' + (PK.box != null ? ' · ' + f1(PK.box) + ' Box' : '') + per(PK.days ? PK.ea / PK.days : null)]].concat(PK.ln && PK.ln.length ? [['호기별 생산량', PK.ln.map(function (x) { return x[0] + '호기 ' + f1(x[1]); }).join(' · ')]] : []).concat(PK.waste != null ? [['밀봉 불량팩', '<b>' + f1(PK.waste) + '</b> 개']] : []).concat([['B호기 가동률', PK.rate != null ? f1(PK.rate, 1) + '%' + (kind === 'daily' ? '' : ' (평균)') : '-'],
         ['정지', f1(PK.stopN) + '회' + (PK.stopMin != null ? ' · ' + f1(PK.stopMin) + '분' : '')], ['점검 불량(X)', PK.bad ? '<b style="color:' + C.red + '">' + PK.bad + '건</b>' : '0건']]));
