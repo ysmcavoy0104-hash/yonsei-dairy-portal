@@ -280,7 +280,11 @@
   function proc(data, from, to, templates) {
     var forms = {}; ((data && data.forms) || []).forEach(function (f) { if (f.code) forms[f.code] = f; });
     function latest(code) { var f = forms[code], m = {}; if (!f) return m;
-      ((data && data.docs) || []).forEach(function (d) { if (!d || d.deleted || d.formId !== f.id || !d.data) return; var k = docDate(d); if (k < from || k > to) return; if (!m[k] || String(d.updatedAt || '') > String(m[k].updatedAt || '')) m[k] = d; });
+      var L = {}; ((data && data.docs) || []).forEach(function (d) { if (!d || d.deleted || d.formId !== f.id || !d.data) return; var k = docDate(d); if (k < from || k > to) return; (L[k] = L[k] || []).push(d); });
+      /* 같은 날 여러 장이면 칸마다 적힌 값을 합침 (같은 칸은 나중에 저장한 값) */
+      Object.keys(L).forEach(function (k) { var a = L[k].sort(function (x, y) { return String(x.updatedAt || '').localeCompare(String(y.updatedAt || '')); }), last = a[a.length - 1];
+        if (a.length === 1) { m[k] = last; return; } var gg = {}; a.forEach(function (d) { var G0 = (d.data && d.data.grid) || {}; Object.keys(G0).forEach(function (q) { var val = G0[q]; if (val != null && String(val).trim() !== '') gg[q] = val; }); });
+        m[k] = Object.assign({}, last, { data: Object.assign({}, last.data, { grid: gg }) }); });
       return m; }
     function F(code) { var f = forms[code]; if (!f) return []; var wt = (templates && templates[code]) || f.wtpl; return wt ? introspect(code, wt) : []; }
     function g(d, k) { var x = ((d && d.data && d.data.grid) || {})[k]; return x == null ? '' : String(x).trim(); }
@@ -300,7 +304,7 @@
     Object.keys(M8).forEach(function (D) { var s = M8[D]; (juice[D] = juice[D] || {}).sug = tot(sF.filter(function (f) { return /설탕투입/.test(sp(f.col)); }).map(function (f) { return n(s, f.k); })); });
     Object.keys(M9).forEach(function (D) { var d = M9[D], use = n(d, 'g4_7_3'); if (use == null) use = tot([n(d, 'g4_5_3'), n(d, 'g4_6_3')]);
       var by = tot(['g4_5_8', 'g4_5_9', 'g4_5_10', 'g4_5_11', 'g4_5_12'].map(function (k) { return n(d, k); })), ph = 0, stop = 0;
-      for (var l = 1; l <= 4; l++) for (var h = 0; h <= 24; h++) { var c = g(d, 'ax' + l + '_' + h).toLowerCase(); if (c === 'b') ph++; else if (/^[chj]$/.test(c)) stop++; }
+      for (var l = 1; l <= 4; l++) for (var h = 0; h <= 24; h++) { var c = g(d, 'ax' + l + '_' + h).toLowerCase().replace(/[ㅁㅠㅊㅇㄷㄹㅎㅗㅓ]/g, function (q) { return { 'ㅁ': 'a', 'ㅠ': 'b', 'ㅊ': 'c', 'ㅇ': 'd', 'ㄷ': 'e', 'ㄹ': 'f', 'ㅎ': 'g', 'ㅗ': 'h', 'ㅓ': 'j' }[q]; }); c = c.replace(/[^a-j]/g, '').slice(0, 1); if (c === 'b') ph++; else if (/^[chj]$/.test(c)) stop++; }
       juice[D] = Object.assign(juice[D] || {}, { use: use, by: by, rate: use && by != null ? by / use * 100 : null, prodH: ph, stopH: stop }); });
     Object.keys(M10).forEach(function (D) { var o = M10[D], raw = n(o, 'g3_12_15'); if (raw == null) raw = tot([n(o, 'g3_12_12'), n(o, 'g3_12_13'), n(o, 'g3_12_14')]);
       var ts = []; for (var r = 10; r <= 22; r++) ts.push(n(o, 'g3_' + r + '_6'));
