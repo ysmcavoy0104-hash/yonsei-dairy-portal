@@ -6956,7 +6956,7 @@ function cellItemHtml(it){
     바로 이번 제품명이 채워져 있어 빠르게 바로잡을 수 있다. */
  var nameEsc=((it.name||NAME_HINTS[it.code]||nm)||'').replace(/'/g,"\\'");
  return '<div class="pc-cell-item">'+
-  '<div class="pc-code">'+esc(it.code)+(it.batch?' <span class="pc-batch">&lt;'+esc(it.batch)+'&gt;</span>':'')+'</div>'+
+  '<div class="pc-code"><span class="pc-code-btn" title="배합비 보기" onclick="event.stopPropagation();window.PlanRecipe&&PlanRecipe.open(\''+esc(it.code)+'\',\''+esc(it.batch||'')+'\',\''+nameEsc+'\')">'+esc(it.code)+'</span>'+(it.batch?' <span class="pc-batch">&lt;'+esc(it.batch)+'&gt;</span>':'')+'</div>'+
   (it.time?'<div class="pc-time">'+esc(it.time)+'</div>':'')+
   (nm?'<div class="pc-name">'+esc(nm)+'</div>':'')+
   (missing?'<div class="pc-missing">⚠ 규격 미등록<button class="btn btn-o btn-sm" style="padding:1px 7px;font-size:10.5px" onclick="PlanConv.openAdd(\''+esc(it.code)+'\',\''+nameEsc+'\')">규격 추가</button></div>'
@@ -14223,12 +14223,12 @@ console.log('[확장 모듈 63] 입력 중 화면 보호 로드 완료');
 <script>
 /* 설탕 용해 기록 일보 → 항상 착즙팀 일지함 (배합팀 폴더에 들어 있으면 폴더에서 뺌) */
 (function(){
-function mv(){try{var f=(DB.data.forms||[]).filter(function(x){return x.code==='FRM-008'||x.id==='f8'})[0];if(!f)return;var ch=false;
+function mv(){try{var f=(DB.data.forms||[]).filter(function(x){return x.code==='FRM-008'||x.id==='f8'})[0];if(!f)return;var ch=false;if(DB.data.jplace)return;   /* 폴더 위치는 사용자가 지정한 대로(jplace) — 처음 한 번만 착즙팀 기본값 */
  if(f.jteam!=='착즙팀'){f.jteam='착즙팀';f.jmovedAt=new Date().toISOString();ch=true}
  var fo=(DB.data.jfolders||[]).filter(function(x){return x.id===f.jfolder})[0];if(f.jfolder&&(!fo||(fo.team&&fo.team!=='착즙팀'))){f.jfolder='';ch=true}
  if(f.team!=='착즙팀'){f.team='착즙팀';ch=true}
  if(ch)DB.save()}catch(e){}}   /* 열 때 · 서버에서 받을 때마다 확인: 설탕 용해 기록 일보는 항상 착즙팀 */
-mv();setTimeout(mv,1500);setTimeout(mv,5000);setInterval(mv,30000);
+mv();
 try{var _ad=SupaSync.adopt;SupaSync.adopt=function(){var r=_ad.apply(this,arguments);try{setTimeout(mv,0)}catch(e){}return r}}catch(e){}
 })();
 </script>
@@ -14530,6 +14530,468 @@ var CSS='.mp-top{display:flex;justify-content:space-between;gap:12px;align-items
  '@media (max-width:900px){.mp-grid.n2,.mp-grid.n3,.mp-grid.n4{grid-template-columns:1fr;grid-template-rows:none;height:auto}.mp-pane{height:80vh}}';
 var st=document.createElement('style');st.textContent=CSS;(document.head||document.documentElement).appendChild(st);
 console.log('[확장 모듈 66] 일지 화면 분할 로드 완료'+(EMB?' (칸 안)':''));
+})();
+</script>
+
+<script>
+/* 배합비 자료 (배합일보 · 계량일보 엑셀) — 생산계획표 품목코드를 누르면 그 품목의 배합비를 보여 준다 (보기 전용)
+   · 엑셀(.xlsx)은 브라우저 안에서 바로 읽는다 (외부 라이브러리 없음)
+   · 시트 이름 · 제품명에 들어 있는 품목코드(1xxxx)로 자동 연결, 없으면 이름이 비슷한 배합비를 골라 직접 연결
+   · 저장: DB.data.recipes = {files:{파일명:{at,n}}, list:[...]}, DB.data.recipeLink = {품목코드:[배합비 id,...]} */
+(function(){
+'use strict';
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function nz(s){return String(s==null?'':s).replace(/\s+/g,'')}
+
+/* ---------- xlsx 읽기 (zip → xml) ---------- */
+function u16(b,o){return b[o]|(b[o+1]<<8)}
+function u32(b,o){return (b[o]|(b[o+1]<<8)|(b[o+2]<<16)|(b[o+3]<<24))>>>0}
+async function inflate(data){
+ var ds=new DecompressionStream('deflate-raw');
+ var buf=await new Response(new Blob([data]).stream().pipeThrough(ds)).arrayBuffer();
+ return new Uint8Array(buf);
+}
+async function unzip(ab){
+ var b=new Uint8Array(ab),e=-1;
+ for(var i=b.length-22;i>=Math.max(0,b.length-70000);i--){if(u32(b,i)===0x06054b50){e=i;break}}
+ if(e<0)throw new Error('엑셀(.xlsx) 파일이 아닙니다');
+ var n=u16(b,e+10),p=u32(b,e+16),out={},td=new TextDecoder('utf-8');
+ for(var k=0;k<n;k++){
+  if(u32(b,p)!==0x02014b50)break;
+  var meth=u16(b,p+10),csz=u32(b,p+20),fl=u16(b,p+28),xl=u16(b,p+30),cl=u16(b,p+32),lo=u32(b,p+42);
+  var name=td.decode(b.subarray(p+46,p+46+fl));
+  out[name]={meth:meth,csz:csz,lo:lo};
+  p+=46+fl+xl+cl;
+ }
+ return {get:async function(name){
+  var f=out[name];if(!f)return null;
+  var o=f.lo,s=o+30+u16(b,o+26)+u16(b,o+28),d=b.subarray(s,s+f.csz);
+  var r=f.meth===0?d:await inflate(d);
+  return td.decode(r);
+ },names:Object.keys(out)};
+}
+function xml(s){return new DOMParser().parseFromString(s,'application/xml')}
+function tags(n,t){return Array.prototype.slice.call(n.getElementsByTagNameNS('*',t))}
+function colIdx(ref){var m=/^([A-Z]+)/.exec(ref||''),c=0;if(!m)return 0;for(var i=0;i<m[1].length;i++)c=c*26+(m[1].charCodeAt(i)-64);return c-1}
+async function readXlsx(ab){
+ var z=await unzip(ab);
+ var ss=[],sx=await z.get('xl/sharedStrings.xml');
+ if(sx)tags(xml(sx),'si').forEach(function(si){ss.push(tags(si,'t').map(function(t){return t.textContent}).join(''))});
+ var wb=xml(await z.get('xl/workbook.xml')),rels={},rx=await z.get('xl/_rels/workbook.xml.rels');
+ if(rx)tags(xml(rx),'Relationship').forEach(function(r){rels[r.getAttribute('Id')]=r.getAttribute('Target')});
+ var sheets=[];
+ for(const sh of tags(wb,'sheet')){
+  var rid=sh.getAttribute('r:id')||sh.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id');
+  var tg=rels[rid]||'';tg=tg.replace(/^\/?xl\//,'').replace(/^\//,'');
+  var tx=await z.get('xl/'+tg);if(!tx)continue;
+  var rows=[];
+  tags(xml(tx),'row').forEach(function(r){
+   var ri=+r.getAttribute('r')-1,row=[];
+   tags(r,'c').forEach(function(c){
+    var t=c.getAttribute('t'),v=tags(c,'v')[0],val=null;
+    if(t==='s'&&v)val=ss[+v.textContent];
+    else if(t==='inlineStr')val=tags(c,'t').map(function(x){return x.textContent}).join('');
+    else if(t==='str'||t==='e'){val=v?v.textContent:null;if(t==='e')val=null}
+    else if(t==='b')val=v?(v.textContent==='1'):null;
+    else if(v&&v.textContent!==''){var num=+v.textContent;val=isNaN(num)?v.textContent:num}
+    if(val!==null&&val!=='')row[colIdx(c.getAttribute('r'))]=val;
+   });
+   rows[ri]=row;
+  });
+  sheets.push({name:sh.getAttribute('name'),state:sh.getAttribute('state')||'',rows:rows});
+ }
+ return sheets;
+}
+
+/* ---------- 시트 → 배합비 ---------- */
+function codesOf(s){
+ var out=[],re=/(^|[^\d])(1\d{4})(?!\s*(?:kg|㎏|ℓ|l\b|g\b))((?:\s*,\s*\d(?!\d))*)/gi,m;
+ s=String(s||'');
+ while((m=re.exec(s))){
+  if(out.indexOf(m[2])<0)out.push(m[2]);
+  (m[3]||'').split(',').forEach(function(d){d=d.trim();if(/^\d$/.test(d)){var c=m[2].slice(0,4)+d;if(out.indexOf(c)<0)out.push(c)}});
+ }
+ return out;
+}
+function rnd(v){return typeof v==='number'?Math.round(v*100000)/100000:v}
+function parseSheet(sh){
+ var rows=sh.rows,hr=-1,cols={};
+ for(var i=0;i<Math.min(rows.length,40);i++){
+  var r=rows[i];if(!r)continue;
+  var all=r.map(nz).join('|');
+  if(all.indexOf('원료명')>=0&&all.indexOf('배합비')>=0){hr=i;break}
+ }
+ if(hr<0)return null;
+ rows[hr].forEach(function(v,c){
+  var t=nz(v).toLowerCase();
+  if(t==='분류')cols.grp=c;else if(t.indexOf('코드')===0)cols.code=c;else if(t==='원료명')cols.name=c;
+  else if(t.indexOf('제조회사')===0)cols.maker=c;else if(t.indexOf('배합비')===0)cols.pct=c;
+  else if(t.indexOf('1b투입량')===0)cols.kg=c;else if(t.indexOf('총투입량')===0)cols.tot=c;
+ });
+ if(cols.name==null||cols.pct==null)return null;
+ var kind=cols.grp!=null?'계량':'배합',name='',bat=null,sizeTxt='';
+ for(var j=0;j<hr;j++){var r2=rows[j]||[];
+  r2.forEach(function(v,c){var t=String(v);
+   if(/^\s*(제품명|자재명)\s*[:：]/.test(t))name=t.replace(/^\s*(제품명|자재명)\s*[:：]\s*/,'');
+   if(/\(\s*[\d,.]+\s*(kg|㎏)\s*\)/i.test(t)&&!/^\s*(제품명|자재명)/.test(t))sizeTxt=t.trim();
+   if(nz(t).indexOf('배치수')===0){for(var q=c+1;q<c+4;q++)if(typeof r2[q]==='number'){bat=r2[q];break}}
+  })}
+ name=name.replace(/\(\s*\)/g,'').replace(/\s+/g,' ').trim();
+ if(sizeTxt&&name.indexOf(sizeTxt)<0)name+=' '+sizeTxt;
+ var items=[],grp='',sums=[];
+ for(var k=hr+1;k<rows.length;k++){
+  var r3=rows[k];if(!r3)continue;
+  var txt=r3.map(nz).join('|');
+  if(txt.indexOf('작업자')>=0)break;
+  if(cols.grp!=null&&r3[cols.grp]!=null&&typeof r3[cols.grp]==='string')grp=nz(r3[cols.grp]);
+  var isSum=r3.some(function(v){return nz(v)==='합계'});
+  var nm=r3[cols.name],pct=r3[cols.pct],kg=cols.kg!=null?r3[cols.kg]:null;
+  if(isSum){
+   var nums=r3.filter(function(v,c){return typeof v==='number'&&c!==cols.code});
+   sums.push({grp:grp,pct:rnd(typeof pct==='number'?pct:nums[0]),kg:rnd(typeof kg==='number'?kg:nums[1])});
+   continue;
+  }
+  if(nm==null&&typeof pct!=='number')continue;
+  nm=String(nm==null?'':nm).replace(/\s*\n\s*/g,' ').replace(/\(\s*\)/g,'').replace(/\s{2,}/g,' ').trim();
+  items.push([grp,cols.code!=null&&r3[cols.code]!=null?String(r3[cols.code]):'',nm,cols.maker!=null&&r3[cols.maker]!=null?String(r3[cols.maker]).trim():'',rnd(pct),rnd(kg),cols.tot!=null?rnd(r3[cols.tot]):null]);
+ }
+ if(!items.length)return null;
+ /* 배치 기준량(kg) — 배합: 합계 1B투입량, 계량: 1B투입량 ÷ 배합비 */
+ var base=null;
+ if(kind==='배합'&&sums[0]&&typeof sums[0].kg==='number')base=Math.round(sums[0].kg);
+ if(!base){for(var x=0;x<items.length;x++){var it=items[x];if(typeof it[4]==='number'&&it[4]>0&&typeof it[5]==='number'){base=Math.round(it[5]/it[4]*100/100)*100;break}}}
+ return {kind:kind,sheet:sh.name,name:name||sh.name,codes:codesOf(sh.name+' '+name),base:base,bat:bat,items:items,sums:sums,hid:sh.state==='hidden'?1:0};
+}
+
+/* ---------- 저장 ---------- */
+function store(){
+ if(!DB.data.recipes||typeof DB.data.recipes!=='object')DB.data.recipes={files:{},list:[]};
+ var R=DB.data.recipes;if(!R.files)R.files={};if(!R.list)R.list=[];
+ if(!DB.data.recipeLink)DB.data.recipeLink={};
+ return R;
+}
+function byId(id){var L=store().list;for(var i=0;i<L.length;i++)if(L[i].id===id)return L[i];return null}
+async function handleFiles(files){
+ var st=document.getElementById('rcp-status');
+ var R=store(),done=[],fail=[];
+ for(const f of files){
+  try{
+   if(st)st.textContent='읽는 중… '+f.name;
+   var sheets=await readXlsx(await f.arrayBuffer());
+   var got=sheets.map(parseSheet).filter(Boolean);
+   if(!got.length){fail.push(f.name+' (배합비 표를 찾지 못함)');continue}
+   R.list=R.list.filter(function(x){return x.f!==f.name});
+   var used={};R.list.forEach(function(x){used[x.id]=1});
+   got.forEach(function(g){
+    var id=g.kind+'|'+g.sheet,n=2;while(used[id])id=g.kind+'|'+g.sheet+'#'+(n++);
+    used[id]=1;g.id=id;g.f=f.name;R.list.push(g);
+   });
+   R.files[f.name]={at:new Date().toISOString(),n:got.length,kind:got[0].kind};
+   done.push(f.name+' — '+got.length+'개');
+  }catch(e){fail.push(f.name+' ('+(e&&e.message||e)+')')}
+ }
+ DB.save();
+ if(st)st.textContent='';
+ if(window.U&&U.toast)U.toast(done.length?('배합비 등록: '+done.join(', ')):'등록된 배합비가 없습니다');
+ if(fail.length)alert('읽지 못한 파일\n'+fail.join('\n'));
+ refreshPanel();
+}
+
+/* ---------- 품목코드 → 배합비 찾기 ---------- */
+function bigr(s){s=nz(s).replace(/[()（）\[\]\-.,·&]/g,'').replace(/[\d,]+(kg|㎏|ℓ|l)?/gi,'').replace(/계량|정백당용액|정백당|최종|시생산|신규|\(신\)/g,'').toLowerCase();var o={};for(var i=0;i<s.length-1;i++)o[s.substr(i,2)]=1;return o}
+function sim(a,b){var A=bigr(a),B=bigr(b),na=Object.keys(A).length,nb=Object.keys(B).length;if(!na||!nb)return 0;var c=0;for(var k in A)if(B[k])c++;return 2*c/(na+nb)}
+function find(code){
+ var R=store(),L=DB.data.recipeLink[code]||[],out=[];
+ L.forEach(function(id){var r=byId(id);if(r&&out.indexOf(r)<0)out.push(r)});
+ R.list.forEach(function(r){if(r.codes&&r.codes.indexOf(String(code))>=0&&out.indexOf(r)<0)out.push(r)});
+ return out;
+}
+function suggest(name,lim){
+ if(!name)return [];
+ return store().list.map(function(r){return {r:r,s:Math.max(sim(name,r.name),sim(name,r.sheet))}})
+  .filter(function(x){return x.s>=0.3}).sort(function(a,b){return b.s-a.s}).slice(0,lim||8).map(function(x){return x.r});
+}
+function nameFor(code,hint){
+ var sp=(DB.data.planSpec||{})[code];
+ return hint||(sp&&sp.name)||'';
+}
+
+/* ---------- 화면 ---------- */
+function fmt(v,d){if(v==null||v==='')return '';if(typeof v!=='number')return esc(v);return v.toLocaleString('ko-KR',{maximumFractionDigits:d==null?3:d})}
+function tableHtml(r,batches){
+ var meter=r.kind==='계량',bt=+batches||0;
+ var h='<table class="rcp-tbl"><thead><tr>'+(meter?'<th>분류</th>':'')+'<th>코드</th><th style="text-align:left">원료명</th><th>제조회사</th><th>배합비(%)</th><th>1B 투입량(kg)</th>'+(bt?'<th>'+bt+'B 총량(kg)</th>':(meter&&r.items.some(function(x){return x[6]!=null})?'<th>총투입량(kg)</th>':''))+'</tr></thead><tbody>';
+ var last=null;
+ r.items.forEach(function(it){
+  var g=it[0]?it[0].replace(/자재$/,' 자재'):'';
+  var premix=!meter&&/계량/.test(it[2])&&!it[1];
+  h+='<tr'+(premix?' class="rcp-pre"':'')+'>'+(meter?'<td class="rcp-g">'+(g!==last?esc(g):'')+'</td>':'')+
+   '<td>'+esc(it[1])+'</td><td style="text-align:left">'+esc(it[2])+'</td><td>'+esc(it[3])+'</td>'+
+   '<td class="n">'+fmt(it[4],5)+'</td><td class="n"><b>'+fmt(it[5],3)+'</b></td>'+
+   (bt?'<td class="n">'+(typeof it[5]==='number'?fmt(it[5]*bt,2):'')+'</td>':(meter&&r.items.some(function(x){return x[6]!=null})?'<td class="n">'+fmt(it[6],2)+'</td>':''))+'</tr>';
+  last=g;
+ });
+ (r.sums||[]).forEach(function(s){
+  if(s.pct==null&&s.kg==null)return;
+  h+='<tr class="rcp-sum">'+(meter?'<td class="rcp-g">'+esc((s.grp||'').replace(/자재$/,' 자재'))+'</td>':'')+'<td></td><td style="text-align:left">합계</td><td></td><td class="n">'+fmt(s.pct,5)+'</td><td class="n">'+fmt(s.kg,3)+'</td>'+(bt?'<td class="n">'+(typeof s.kg==='number'?fmt(s.kg*bt,2):'')+'</td>':(meter&&r.items.some(function(x){return x[6]!=null})?'<td></td>':''))+'</tr>';
+ });
+ return h+'</tbody></table>';
+}
+var CUR={code:'',batch:'',name:'',sel:null,q:''};
+function recipeCard(r){
+ return '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;margin:2px 0 8px">'+
+  '<b style="font-size:15px">'+esc(r.name)+'</b>'+
+  '<span class="rcp-tag '+(r.kind==='배합'?'mx':'ms')+'">'+r.kind+'일보</span>'+
+  (r.base?'<span style="color:var(--muted);font-size:12.5px">1배치 '+r.base.toLocaleString()+'kg 기준</span>':'')+
+  (r.bat?'<span style="color:var(--muted);font-size:12.5px">계량 배치수 '+esc(r.bat)+'</span>':'')+
+  '<span style="color:var(--muted);font-size:11.5px">시트: '+esc(r.sheet)+' · '+esc(r.f)+'</span></div>';
+}
+function modalBody(){
+ var code=CUR.code,list=find(code),linked=DB.data.recipeLink[code]||[];
+ var bt=parseInt(String(CUR.batch||'').replace(/[^\d]/g,''),10)||0;
+ var h='';
+ if(!store().list.length){
+  return '<div style="padding:18px;text-align:center;color:var(--muted)">등록된 배합비 자료가 없습니다.<br>생산계획표 화면 아래 「📚 배합비 자료」에서 배합일보 · 계량일보 엑셀 파일을 먼저 올려 주세요.</div>';
+ }
+ if(list.length){
+  if(!CUR.sel||!byId(CUR.sel))CUR.sel=(list.filter(function(r){return r.kind==='배합'})[0]||list[0]).id;
+  h+='<div class="rcp-tabs">'+list.map(function(r){
+   var lk=linked.indexOf(r.id)>=0;
+   return '<button class="rcp-tab'+(r.id===CUR.sel?' on':'')+'" onclick="PlanRecipe.pick(\''+esc(r.id).replace(/'/g,"\\'")+'\')"><span class="rcp-tag '+(r.kind==='배합'?'mx':'ms')+'">'+r.kind+'</span> '+esc(r.sheet)+(r.base?' · '+(r.base/1000)+'톤':'')+(lk?' 🔗':'')+'</button>'}).join('')+'</div>';
+  var r=byId(CUR.sel);
+  if(list.indexOf(r)<0)h+='<div style="font-size:12px;color:#7A5AF8;font-weight:700;margin-bottom:4px">미리보기 — 아직 이 품목코드에 연결되지 않은 배합비입니다 <button class="btn btn-p btn-sm" style="padding:0 8px;font-size:11px" onclick="PlanRecipe.link(\''+esc(r.id).replace(/'/g,"\\'")+'\')">연결</button></div>';
+  h+=recipeCard(r)+(bt?'<label style="font-size:12.5px;display:inline-flex;gap:6px;align-items:center;margin-bottom:6px"><input type="checkbox" id="rcp-bt" '+(CUR.showBt!==false?'checked':'')+' onchange="PlanRecipe.toggleBt(this.checked)"> 생산계획 배치수('+bt+'B) 총량 같이 보기</label>':'')+
+   '<div style="overflow:auto">'+tableHtml(r,CUR.showBt!==false?bt:0)+'</div>';
+  if(linked.indexOf(r.id)>=0)h+='<div style="margin-top:8px;text-align:right"><button class="btn btn-o btn-sm" onclick="PlanRecipe.unlink(\''+esc(r.id).replace(/'/g,"\\'")+'\')">이 품목코드와 연결 해제</button></div>';
+  var kinds={};list.forEach(function(x){kinds[x.kind]=1});
+  if(!(kinds['배합']&&kinds['계량'])){
+   var miss=kinds['배합']?'계량':'배합',ref=list[0];
+   var cand=store().list.filter(function(x){return x.kind===miss&&(!ref.base||!x.base||x.base===ref.base)})
+    .map(function(x){return {r:x,s:Math.max(sim(ref.name,x.name),sim(ref.sheet,x.sheet))}}).filter(function(x){return x.s>=0.45})
+    .sort(function(a2,b2){return b2.s-a2.s}).slice(0,3).map(function(x){return x.r});
+   if(cand.length)h+='<div style="margin-top:12px;padding:8px 10px;border-radius:8px;background:#F4F1FE;border:1px solid #DDD3FD"><div style="font-size:12.5px;margin-bottom:4px">이 품목코드에 연결된 <b>'+miss+'일보</b>가 없습니다. 같은 제품으로 보이는 '+miss+'일보 — 맞으면 <b>연결</b>을 누르세요.</div>'+rowsHtml(cand)+'</div>';
+  }
+  h+='<details style="margin-top:12px"><summary style="cursor:pointer;font-size:12.5px;color:var(--muted)">다른 배합비도 이 품목코드에 연결하기</summary>'+searchHtml()+'</details>';
+ }else{
+  h+='<div style="padding:10px 12px;border-radius:8px;background:#FFF7E6;border:1px solid #F5D9A8;font-size:13px;margin-bottom:10px">품목코드 <b>'+esc(code)+'</b>가 적힌 배합비 시트를 찾지 못했습니다. 아래에서 맞는 배합비를 골라 <b>연결</b>하면 다음부터 바로 열립니다.</div>';
+  var sg=suggest(CUR.name);
+  if(sg.length)h+='<div style="font-size:12.5px;font-weight:700;margin:4px 0">이름이 비슷한 배합비'+(CUR.name?' — 「'+esc(CUR.name)+'」':'')+'</div>'+rowsHtml(sg);
+  h+=searchHtml();
+  if(CUR.sel&&byId(CUR.sel)){var r2=byId(CUR.sel);h+='<div style="margin-top:12px;border-top:1px solid var(--line,#E3E7EC);padding-top:10px">'+recipeCard(r2)+'<div style="overflow:auto">'+tableHtml(r2,0)+'</div></div>'}
+ }
+ return h;
+}
+function rowsHtml(arr){
+ if(!arr.length)return '<div style="color:var(--muted);font-size:12.5px;padding:6px">찾은 배합비가 없습니다.</div>';
+ return '<div class="rcp-list">'+arr.slice(0,40).map(function(r){
+  var idq=esc(r.id).replace(/'/g,"\\'");
+  return '<div class="rcp-li"><span class="rcp-tag '+(r.kind==='배합'?'mx':'ms')+'">'+r.kind+'</span> <span style="flex:1">'+esc(r.sheet)+(r.codes&&r.codes.length?' <small style="color:var(--muted)">('+esc(r.codes.join(', '))+')</small>':'')+'</span>'+
+   '<button class="btn btn-o btn-sm" onclick="PlanRecipe.preview(\''+idq+'\')">보기</button> <button class="btn btn-p btn-sm" onclick="PlanRecipe.link(\''+idq+'\')">연결</button></div>'}).join('')+'</div>';
+}
+function searchHtml(){
+ return '<div style="margin-top:10px"><input id="rcp-q" placeholder="배합비 이름으로 찾기 (예: 아몬드, 검은콩)" value="'+esc(CUR.q)+'" oninput="PlanRecipe.search(this.value)" style="width:100%;box-sizing:border-box"><div id="rcp-qres" style="margin-top:6px">'+(CUR.q?rowsHtml(searchList(CUR.q)):'')+'</div></div>';
+}
+function searchList(q){var t=nz(q).toLowerCase();if(!t)return [];return store().list.filter(function(r){return nz(r.sheet+' '+r.name+' '+(r.codes||[]).join(' ')).toLowerCase().indexOf(t)>=0})}
+function rerender(){
+ var mb=document.querySelector('#modal-box .mb');if(!mb)return;
+ var q=document.getElementById('rcp-q'),focus=q&&document.activeElement===q,pos=q?q.selectionStart:0,openD=mb.querySelector('details[open]');
+ mb.innerHTML=modalBody();
+ if(openD){var d=mb.querySelector('details');if(d)d.open=true}
+ if(focus){var q2=document.getElementById('rcp-q');if(q2){q2.focus();try{q2.setSelectionRange(pos,pos)}catch(e){}}}
+}
+function open(code,batch,name){
+ CUR={code:String(code||'').trim(),batch:batch||'',name:nameFor(code,name),sel:null,q:'',showBt:true};
+ U.modal('배합비 — 품목코드 '+CUR.code+(CUR.name?' · '+CUR.name:''),modalBody(),{size:'lg',foot:'<button class="btn btn-o btn-sm" onclick="U.closeModal()">닫기</button>'});
+}
+
+/* ---------- 생산계획표 화면 아래 「배합비 자료」 패널 ---------- */
+function panelHtml(){
+ var R=store(),fs=Object.keys(R.files),nb=R.list.filter(function(r){return r.kind==='배합'}).length,nm=R.list.length-nb;
+ var withCode=R.list.filter(function(r){return r.codes&&r.codes.length}).length,lk=Object.keys(DB.data.recipeLink||{}).length;
+ return '<div style="font-size:15px;font-weight:800;margin-bottom:4px">📚 배합비 자료</div>'+
+  '<div style="font-size:12.5px;color:var(--muted);margin-bottom:8px">배합일보 · 계량일보 엑셀(.xlsx)을 올리면 위 생산계획표에서 <b>품목코드를 눌러</b> 그 품목의 배합비를 볼 수 있습니다. 같은 이름의 파일을 다시 올리면 새 내용으로 바뀝니다.</div>'+
+  '<input type="file" id="rcp-file" accept=".xlsx" multiple> <span id="rcp-status" style="font-size:12.5px;color:var(--muted)"></span>'+
+  (fs.length?'<div style="margin-top:10px;font-size:12.5px">배합일보 <b>'+nb+'</b>개 · 계량일보 <b>'+nm+'</b>개 (품목코드가 적힌 시트 '+withCode+'개 · 직접 연결한 품목코드 '+lk+'개)</div>'+
+   '<div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">'+fs.map(function(f){var x=R.files[f];
+    return '<div style="font-size:12px;display:flex;gap:8px;align-items:center"><span class="rcp-tag '+(x.kind==='배합'?'mx':'ms')+'">'+esc(x.kind||'')+'</span><span>'+esc(f)+'</span><span style="color:var(--muted)">'+x.n+'개 · '+String(x.at||'').slice(0,10)+'</span><button class="btn btn-o btn-sm" style="padding:0 6px;font-size:11px" onclick="PlanRecipe.removeFile(\''+esc(f).replace(/'/g,"\\'")+'\')">삭제</button></div>'}).join('')+'</div>'+
+   '<div style="margin-top:8px"><input id="rcp-pq" placeholder="품목코드나 이름으로 배합비 찾아보기" style="width:min(360px,100%)" onkeydown="if(event.key===\'Enter\')PlanRecipe.lookup(this.value)"> <button class="btn btn-o btn-sm" onclick="PlanRecipe.lookup(document.getElementById(\'rcp-pq\').value)">찾기</button></div>'
+  :'<div style="margin-top:8px;font-size:12.5px;color:var(--muted)">아직 올린 배합비 파일이 없습니다.</div>');
+}
+function refreshPanel(){
+ var p=document.getElementById('rcp-panel');if(!p)return;
+ p.innerHTML=panelHtml();bind();
+}
+function bind(){var i=document.getElementById('rcp-file');if(i)i.onchange=function(){var fs=Array.prototype.slice.call(i.files||[]);if(fs.length)handleFiles(fs);i.value=''}}
+
+var CSS='<style id="rcp-css">'+
+ '#pc-result-wrap .pc-code-btn{cursor:pointer;text-decoration:underline dotted #0E7490;text-underline-offset:3px}#pc-result-wrap .pc-code-btn:hover{color:#0E7490;background:#E6F4F7;border-radius:3px}'+
+ '.rcp-tbl{border-collapse:collapse;width:100%;font-size:13px}.rcp-tbl th,.rcp-tbl td{border:1px solid #CBD2DB;padding:4px 8px;text-align:center;white-space:nowrap}'+
+ '.rcp-tbl th{background:#F2F4F7;font-weight:700}.rcp-tbl td.n{text-align:right;font-variant-numeric:tabular-nums}.rcp-tbl tr.rcp-sum td{background:#F7F9FB;font-weight:700}'+
+ '.rcp-tbl tr.rcp-pre td{background:#EEF6F8}.rcp-tbl td.rcp-g{font-weight:700;color:#0E7490}'+
+ '.rcp-tag{display:inline-block;padding:0 6px;border-radius:4px;font-size:11px;font-weight:700;color:#fff}.rcp-tag.mx{background:#0E7490}.rcp-tag.ms{background:#7A5AF8}'+
+ '.rcp-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}.rcp-tab{border:1px solid #CBD2DB;background:#fff;border-radius:8px;padding:4px 10px;font-size:12.5px;cursor:pointer;color:inherit}.rcp-tab.on{border-color:#0E7490;box-shadow:0 0 0 2px rgba(14,116,144,.18);font-weight:700}'+
+ '.rcp-list{display:flex;flex-direction:column;gap:4px;max-height:260px;overflow:auto}.rcp-li{display:flex;gap:6px;align-items:center;font-size:12.5px;padding:3px 4px;border-bottom:1px solid #EEF0F3}'+
+ '@media (prefers-color-scheme:dark){.rcp-tbl th{background:#232A33}.rcp-tbl tr.rcp-sum td{background:#1C2229}.rcp-tbl tr.rcp-pre td{background:#16303A}.rcp-tab{background:transparent}}'+
+ '</style>';
+document.head.insertAdjacentHTML('beforeend',CSS);
+
+/* 생산계획표 화면에 패널 덧붙이기 */
+if(window.PlanConv&&PlanConv.view){
+ var _v=PlanConv.view;
+ PlanConv.view=function(){
+  var h=_v.apply(this,arguments);
+  setTimeout(bind,0);
+  return h+'<div class="panel" id="rcp-panel" style="padding:18px 24px;margin-top:14px;border-left:4px solid #7A5AF8">'+panelHtml()+'</div>';
+ };
+}
+
+window.PlanRecipe={
+ open:open,
+ pick:function(id){CUR.sel=id;rerender()},
+ preview:function(id){CUR.sel=id;rerender();var mb=document.querySelector('#modal-box .mb');if(mb&&!find(CUR.code).length)mb.scrollTop=mb.scrollHeight},
+ toggleBt:function(v){CUR.showBt=v;rerender()},
+ search:function(q){CUR.q=q;var b=document.getElementById('rcp-qres');if(b)b.innerHTML=q?rowsHtml(searchList(q)):''},
+ link:function(id){store();var L=DB.data.recipeLink[CUR.code]||(DB.data.recipeLink[CUR.code]=[]);if(L.indexOf(id)<0)L.push(id);DB.save();CUR.sel=id;CUR.q='';rerender();if(U.toast)U.toast('품목코드 '+CUR.code+'에 배합비를 연결했습니다');refreshPanel()},
+ unlink:function(id){var L=DB.data.recipeLink[CUR.code]||[];var i=L.indexOf(id);if(i>=0)L.splice(i,1);if(!L.length)delete DB.data.recipeLink[CUR.code];DB.save();CUR.sel=null;rerender();refreshPanel()},
+ removeFile:function(f){U.confirm('「'+f+'」 배합비 자료를 지울까요?',function(){var R=store();R.list=R.list.filter(function(x){return x.f!==f});delete R.files[f];DB.save();refreshPanel()},'삭제')},
+ lookup:function(q){q=String(q||'').trim();if(!q)return;if(/^1\d{4}$/.test(q)){open(q,'','');return}
+  CUR={code:'',batch:'',name:q,sel:null,q:q,showBt:false};
+  U.modal('배합비 찾기 — '+q,'<div style="font-size:12.5px;color:var(--muted);margin-bottom:6px">이름으로 찾은 배합비입니다. 「보기」를 누르면 아래에 표가 나옵니다.</div><div id="rcp-lk">'+rowsHtml(searchList(q).length?searchList(q):suggest(q,20)).replace(/<button class="btn btn-p btn-sm"[^>]*>연결<\/button>/g,'')+'</div><div id="rcp-pv"></div>',{size:'lg',foot:'<button class="btn btn-o btn-sm" onclick="U.closeModal()">닫기</button>'});
+  PlanRecipe._lk=true;
+ },
+ _parse:parseSheet,_read:readXlsx,_codes:codesOf,_find:find
+};
+/* 이름 찾기 창의 「보기」 */
+var _pv=window.PlanRecipe.preview;
+window.PlanRecipe.preview=function(id){
+ var pv=document.getElementById('rcp-pv');
+ if(pv&&!CUR.code){var r=byId(id);if(r)pv.innerHTML='<div style="margin-top:12px;border-top:1px solid var(--line,#E3E7EC);padding-top:10px">'+recipeCard(r)+'<div style="overflow:auto">'+tableHtml(r,0)+'</div></div>';return}
+ _pv(id);
+};
+})();
+</script>
+
+<script>
+/* 일지 폴더 위치 = 사용자가 지정한 그대로 (자동으로 바뀌지 않게)
+   · 「폴더 이동」으로 옮긴 위치는 DB.data.jplace = {양식id:{t:팀, fo:폴더id, at:시각, by:이름}} 에 따로 저장
+     (양식 목록을 다시 등록 · 갱신하는 코드가 양식의 jteam · jfolder를 지워도 이 기록으로 되돌림)
+   · 화면 그리기 · 저장 · 서버에서 받기 전후마다 이 기록을 양식에 다시 입힘
+   · 서버 병합: 양식별로 더 나중에 옮긴 쪽
+   · 대시보드 · 보고서는 양식 코드로 일지를 읽기만 하고, 폴더 위치는 바꾸지 않음 */
+(function(){
+if(window.__YUM_JPLACE__)return;window.__YUM_JPLACE__=1;
+var ADOPTED=false;
+function P(){var d=DB.data;if(!d.jplace||typeof d.jplace!=='object')d.jplace={};return d.jplace}
+function seed(){
+ if(DB.data.jplace)return;
+ if(window.SupaSync&&SupaSync.on&&SupaSync.on()&&!ADOPTED)return;   /* 서버 내용을 받은 뒤에 현재 위치를 처음 기록 */
+ var p=P();
+ (DB.data.forms||[]).forEach(function(f){if(f&&f.id&&(f.jteam||f.jfolder))p[f.id]={t:f.jteam||'',fo:f.jfolder||'',at:'0'}});
+}
+function apply(){
+ try{
+  if(typeof DB==='undefined'||!DB.data)return false;
+  seed();var p=DB.data.jplace;if(!p)return false;var ch=false;
+  (DB.data.forms||[]).forEach(function(f){var x=f&&p[f.id];if(!x)return;
+   if(x.t){if(f.jteam!==x.t){f.jteam=x.t;ch=true}}else if(f.jteam){delete f.jteam;ch=true}
+   if((f.jfolder||'')!==(x.fo||'')){f.jfolder=x.fo||'';ch=true}
+   if(x.at&&x.at!=='0'&&f.jmovedAt!==x.at)f.jmovedAt=x.at;
+  });
+  return ch;
+ }catch(e){return false}
+}
+window.yumJPlace={apply:apply};
+function who(){try{var u=Auth.user();return u&&u.name||''}catch(e){return ''}}
+
+/* 사용자가 옮길 때만 기록 */
+function hookJF(){
+ var J=window.yumJF;if(!J||J.__jp)return !!J;J.__jp=1;
+ var _mv=J.moveTo;
+ J.moveTo=function(fid,dest){
+  var q=String(dest).split('::'),t=q[0],fo=q[1]||'';
+  var f=(DB.data.forms||[]).filter(function(x){return x.id===fid})[0];
+  if(f)P()[fid]={t:t,fo:fo,at:new Date().toISOString(),by:who()};
+  return _mv.apply(this,arguments);
+ };
+ var _rm=J.remove;
+ J.remove=function(id){
+  var r=_rm.apply(this,arguments);
+  /* 폴더 삭제 확인을 누른 뒤 → 그 폴더에 있던 양식은 같은 팀 미분류 */
+  setTimeout(function rmChk(n){
+   var gone=!(DB.data.jfolders||[]).some(function(x){return x.id===id});
+   if(gone){var p=P(),t=new Date().toISOString(),ch=false;Object.keys(p).forEach(function(k){if(p[k]&&p[k].fo===id){p[k]={t:p[k].t,fo:'',at:t,by:who()};ch=true}});if(ch)DB.save();return}
+   if((n||0)<60)setTimeout(function(){rmChk((n||0)+1)},1000);
+  },500);
+  return r;
+ };
+ return true;
+}
+if(!hookJF()){var iv=setInterval(function(){if(hookJF())clearInterval(iv)},500)}
+
+/* 저장 직전 · 그리기 직전 · 서버에서 받은 뒤 · 다른 탭에서 받은 뒤 다시 입힘 */
+try{var _sv=DB.save;DB.save=function(){apply();return _sv.apply(this,arguments)}}catch(e){}
+try{var _rd=App.render;App.render=function(){apply();return _rd.apply(this,arguments)}}catch(e){}
+try{var _ad=SupaSync.adopt;SupaSync.adopt=function(){var r=_ad.apply(this,arguments);ADOPTED=true;apply();return r}}catch(e){}
+try{var _rc=Sync.receive;Sync.receive=function(){var r;try{r=_rc.apply(this,arguments)}finally{apply()}return r}}catch(e){}
+try{var _l=DB.load;DB.load=function(){var r=_l.apply(this,arguments);apply();return r}}catch(e){}
+apply();setInterval(apply,2000);
+
+/* 서버 병합: 양식별로 더 나중에 옮긴 기록 (같으면 서버 쪽) */
+try{var _ms=SupaSync.mergeState.bind(SupaSync);
+ SupaSync.mergeState=function(remote,local,lw){
+  var out=_ms(remote,local,lw);
+  try{if(out&&(remote&&remote.jplace||local&&local.jplace)){
+   var m={},a=(remote&&remote.jplace)||{},b=(local&&local.jplace)||{};
+   Object.keys(a).forEach(function(k){m[k]=a[k]});
+   Object.keys(b).forEach(function(k){var x=b[k],c=m[k];if(!c||String(x&&x.at||'')>String(c.at||''))m[k]=x});
+   out.jplace=m;
+   (out.forms||[]).forEach(function(f){var x=f&&m[f.id];if(!x)return;if(x.t)f.jteam=x.t;else delete f.jteam;f.jfolder=x.fo||''});
+  }}catch(e){console.warn('[폴더 위치 병합]',e)}
+  return out}}catch(e){}
+console.log('[폴더 위치 고정] 사용자가 지정한 일지 폴더 위치 유지 로드 완료');
+})();
+</script>
+
+<script>
+/* 입력 · 스크롤 보호 (2차)
+   문제: 지연사유 · 정비 기록 등을 쓰다가 스크롤을 내리면 화면이 맨 위로 올라가고 쓰던 내용이 지워짐
+   원인: 다른 탭 · 창(또는 화면 분할)에서 저장 신호가 오거나 서버에서 새 내용을 받으면 화면 전체를 다시 그림
+         (커서가 입력칸 안에 있을 때만 막고 있었음 → 쓰다가 스크롤하려고 칸 밖을 누르면 다시 그려짐)
+   수정: 사용자가 누르지 않았는데 다시 그리는 경우(백그라운드)는
+         · 이 화면에서 무언가 입력했거나, 커서가 입력칸에 있거나, 창(모달)이 열려 있으면 → 다시 그리지 않음
+         · 그 밖에는 다시 그리되 스크롤 위치를 그대로 둠
+         · 메뉴 이동 · 버튼 누름 · Enter 등 직접 한 동작 뒤에는 원래대로 다시 그림 */
+(function(){
+if(window.__YUM_BGSAFE2__)return;window.__YUM_BGSAFE2__=1;
+var DIRTY={},UACT=0,HOLD=false;
+function key(){return location.hash||''}
+function field(el){return !!el&&el.closest&&el.closest('#main')&&/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)&&!/^(button|submit|reset|file)$/.test(el.type||'')&&!el.readOnly}
+['input','change'].forEach(function(t){document.addEventListener(t,function(e){if(e.isTrusted&&field(e.target))DIRTY[key()]=1},true)});
+/* 직접 한 동작: 버튼 · 링크 누름, Enter, 메뉴 이동 */
+document.addEventListener('click',function(e){if(!e.isTrusted)return;var t=e.target;if(t&&t.closest&&t.closest('button,a,[onclick],label,.btn,.chip,summary'))UACT=Date.now()},true);
+document.addEventListener('keydown',function(e){if(e.isTrusted&&e.key==='Enter'&&!(e.target&&e.target.tagName==='TEXTAREA'))UACT=Date.now()},true);
+window.addEventListener('hashchange',function(){DIRTY={};UACT=Date.now()});
+function userDriven(){return Date.now()-UACT<1500}
+function modalOn(){var m=document.getElementById('modal-root');return !!(m&&m.classList.contains('on'))}
+function busy(){return !!DIRTY[key()]||field(document.activeElement)||modalOn()}
+function onApp(){var a=document.getElementById('page-app');return !!(a&&a.classList.contains('on'))}
+var _r=App.render;
+App.render=function(){
+ if(userDriven()||!onApp()){DIRTY={};HOLD=false;return _r.apply(this,arguments)}
+ /* 백그라운드로 다시 그리는 경우 */
+ if(busy()){HOLD=true;try{App.refreshChrome&&App.refreshChrome()}catch(e){}return}
+ var M=document.getElementById('main'),y=window.scrollY,se=document.scrollingElement,sy=se?se.scrollTop:0,my=M?M.scrollTop:0;
+ var r=_r.apply(this,arguments);
+ try{window.scrollTo(0,y);if(se)se.scrollTop=sy;var M2=document.getElementById('main');if(M2)M2.scrollTop=my}catch(e){}
+ requestAnimationFrame(function(){try{if(Math.abs(window.scrollY-y)>2)window.scrollTo(0,y)}catch(e){}});
+ return r;
+};
+/* 다른 탭 · 창에서 저장했을 때: 입력 중이면 데이터만 받고 화면은 그대로 */
+try{var _ap=Sync.apply;Sync.apply=function(){
+ if(!userDriven()&&onApp()&&busy()){HOLD=true;try{App.refreshChrome()}catch(e){}return}
+ return _ap.apply(this,arguments)}}catch(e){}
+window.yumBgSafe={busy:busy,dirty:function(){return !!DIRTY[key()]}};
+console.log('[확장 모듈] 입력 · 스크롤 보호(2차) 로드 완료');
 })();
 </script>
 
