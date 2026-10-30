@@ -8027,7 +8027,7 @@ function view(){
   '<div id="wp-root">'+(CUR?innerView():'<div class="empty">등록된 근무계획표가 없습니다.</div>')+'</div>'+
   '</div>';
 }
-window.WeekPlan={view:view,edStart:edStart,edCancel:edCancel,edSave:edSave,edSet:edSet,confirmWeek:confirmWeek,unconfirmWeek:unconfirmWeek,edPick:edPick,edPut:edPut,edSup:edSup,setKey:function(k){CUR=k},goKey:function(k){EDIT=null;CUR=k;var box=$('#wp-root');if(box)box.innerHTML=innerView()},_D:D,gotoWeek:gotoWeek,printWeek:printWeek,pdfWeek:pdfWeek};
+window.WeekPlan={cur:function(){return CUR},view:view,edStart:edStart,edCancel:edCancel,edSave:edSave,edSet:edSet,confirmWeek:confirmWeek,unconfirmWeek:unconfirmWeek,edPick:edPick,edPut:edPut,edSup:edSup,setKey:function(k){CUR=k},goKey:function(k){EDIT=null;CUR=k;var box=$('#wp-root');if(box)box.innerHTML=innerView()},_D:D,gotoWeek:gotoWeek,printWeek:printWeek,pdfWeek:pdfWeek};
 })();
 </script>
 <script id="sterilji">
@@ -9261,12 +9261,34 @@ function num(n){return Number(n||0).toLocaleString('ko-KR')}
 function toast(m,k){try{U.toast(m,k||'')}catch(e){}}
 
 /* ---------- 기본 설정 ---------- */
+var DEF_MIN={S1:15000,S2:15000,S3:5000,S4:30000,S5:30000};
+function minOf(s){return s&&s.min!=null&&s.min!==''?+s.min:(DEF_MIN[s&&s.id]||0)}
+/* 배합비 자료에서 1B 원유 투입량 찾기 (배합일보 · PDF 규격서) */
+function recipeMilk(g){
+ if(!window.PlanRecipe||!PlanRecipe._find)return null;
+ var best=null;
+ g.codes.forEach(function(c){
+  var L=[];try{L=PlanRecipe._find(c.code)||[]}catch(e){}
+  L.filter(function(r){return r.kind==='배합'||r.kind==='규격'}).forEach(function(r){
+   var milk=(r.items||[]).filter(function(it){var n=String(it[2]||'');return /원유|살균유/.test(n)&&!/두유|대체|계량/.test(n)});
+   var kg=0;milk.forEach(function(it){var v=r.kind==='규격'?it[8]:it[5];if(typeof v==='number')kg+=v});
+   if(!(kg>0))return;
+   var d=g.size&&r.base?Math.abs(r.base-g.size*1.03):0;
+   var nm=milk.map(function(it){return it[2]}).join(' '),all=(r.items||[]).map(function(it){return it[2]}).join(' ')+' '+(r.name||'')+' '+(c.name||'')+' '+pname(c.code,c.name);
+   var o={perB:Math.round(kg*100)/100,name:r.name||r.sheet,kind:/살균유/.test(nm)&&!/원유/.test(nm)?'살균유':'원유',
+    type:/A2/i.test(nm)?'A2':/저지방|탈지/.test(nm)?'저지방':/서울/.test(nm)?'서울':'일반',
+    lf:/락토프리|락타아제|유당분해/.test(all),enz:/효소|락타아제/.test(all),d:d,rid:r.id,base:r.base};
+   if(!best||o.d<best.d)best=o;
+  });
+ });
+ return best;
+}
 var DEF_SILOS=[
- {id:'S1',cap:50000,on:true,reserve:false,allow:{normal:true,enzyme:true,lf:true,wonaek:false,past:true},note:'락토프리·효소 제품 (락토프리 전용)'},
- {id:'S2',cap:50000,on:true,reserve:false,allow:{normal:true,enzyme:true,lf:false,wonaek:true,past:true},note:'세브란스 원유·효소 가능 · 원액 생산 전용'},
- {id:'S3',cap:30000,on:true,reserve:false,allow:{normal:true,enzyme:false,lf:false,wonaek:false,past:true},note:''},
- {id:'S4',cap:100000,on:true,reserve:false,allow:{normal:true,enzyme:false,lf:false,wonaek:false,past:true},note:''},
- {id:'S5',cap:100000,on:true,reserve:true,allow:{normal:true,enzyme:false,lf:false,wonaek:false,past:true},note:'예비 — 다른 방법이 없을 때만 사용'}
+ {id:'S1',cap:50000,min:15000,on:true,reserve:false,allow:{normal:true,enzyme:true,lf:true,wonaek:false,past:true},note:'락토프리·효소 제품 (락토프리 전용)'},
+ {id:'S2',cap:50000,min:15000,on:true,reserve:false,allow:{normal:true,enzyme:true,lf:false,wonaek:true,past:true},note:'세브란스 원유·효소 가능 · 원액 생산 전용'},
+ {id:'S3',cap:30000,min:5000,on:true,reserve:false,allow:{normal:true,enzyme:false,lf:false,wonaek:false,past:true},note:''},
+ {id:'S4',cap:100000,min:30000,on:true,reserve:false,allow:{normal:true,enzyme:false,lf:false,wonaek:false,past:true},note:''},
+ {id:'S5',cap:100000,min:30000,on:true,reserve:true,allow:{normal:true,enzyme:false,lf:false,wonaek:false,past:true},note:'예비 — 다른 방법이 없을 때만 사용'}
 ];
 /* 이번 주(10/26~11/1) 수작업 계획에서 역산한 추정 비율 — 확인 필요 표시 */
 var EST_SEED={
@@ -9396,36 +9418,58 @@ function parse(file){
 
 /* ---------- 필요량 → 로트 ---------- */
 function needQty(raw){var c=cfg();var q=raw+(+c.margin||0),r=+c.round||1000;return Math.ceil(q/r)*r}
+/* 로트 수량: 일반 원유 = 필요량 + 여유 → 올림 / 락토프리 = 여유 없이 올림 / 원액 = 정량 */
+function lotQty(l){if(l.fixedQty)return l.fixedQty;var c=cfg(),r=+c.round||1000;if(l.cls!=='milk')return Math.round(l.raw);if(l.lf)return Math.ceil(l.raw/r)*r;return needQty(l.raw)}
+/* 원액 칸 글자에서 양 읽기: 10,000 · 10.000 · 10000 · 10,000kg */
+function amtOf(t){var m=String(t||'').match(/\d{1,3}(?:[,.]\d{3})+|\d{4,6}/g);if(!m)return null;var v=+m[m.length-1].replace(/[,.]/g,'');return v>=500?v:null}
 function buildLots(W){
  var lots={},warn=[],info=[];
  function add(key,o){if(!lots[key]){lots[key]=o;o.raw=0;o.products=[]}lots[key].raw+=o._raw;delete o._raw;
   o._p.forEach(function(p){if(lots[key].products.indexOf(p)<0)lots[key].products.push(p)})}
  (W.groups||[]).forEach(function(g){
   var sp=null,code=null;g.codes.some(function(c){var s=specOf(c.code,c.name);if(s&&(s.kind||s.wonaek)){sp=s;code=c.code;return true}return false});
-  if(!sp){g.codes.forEach(function(c){var s=specOf(c.code,c.name);if(s&&s.need)warn.push(dlabel(g.day)+' '+g.line+' · '+pname(c.code,c.name)+' — 효소반응 제품입니다. 원유 기준에서 원액/살균유 비율을 입력하세요.')});return}
+  var rm=recipeMilk(g),B0=buildLots;
+  if(!sp&&!rm){g.codes.forEach(function(c){var s=specOf(c.code,c.name);if(s&&s.need)warn.push(dlabel(g.day)+' '+g.line+' · '+pname(c.code,c.name)+' — 효소반응 제품입니다. 원유 기준에서 원액/살균유 비율을 입력하세요.')});return}
   var names=g.codes.map(function(c){return pname(c.code,c.name)});
+  if(rm&&g.n){
+   var lf1=!!((sp&&sp.lf)||rm.lf),enz1=!!((sp&&sp.enzyme)||rm.enz)&&!lf1,kind1=(sp&&sp.kind)||rm.kind,type1=rm.type!=='일반'?rm.type:((sp&&sp.type)||'일반');
+   var key1=[g.day,g.line,kind1,type1,lf1?'lf':'',enz1?'enz':''].join('|');
+   add(key1,{id:key1,cls:'milk',kind:kind1,type:type1,lf:lf1,enzyme:enz1,use:g.day,line:g.line,recvPref:(lf1||enz1)?'2일전':(kind1==='살균유'?'당일':((sp&&sp.recv)||'전일')),_raw:rm.perB*g.n,_p:names,fromRecipe:1,
+    calc:(lots[key1]&&lots[key1].calc?lots[key1].calc+' + ':'')+num(rm.perB)+' × '+g.n+'B'});
+   if(lots[key1])lots[key1].calc=(lots[key1].calc&&lots[key1].calc.indexOf(num(rm.perB)+' × '+g.n+'B')<0?lots[key1].calc+' + ':'')+num(rm.perB)+' × '+g.n+'B';
+  }else{
+  if(!sp){return}
   if(!g.L){warn.push(dlabel(g.day)+' '+g.line+' · '+names.join(', ')+' — 배치 수/용량을 읽지 못해 필요량을 계산하지 못했습니다.');return}
   if(sp.kind&&+sp.ratio>0){
    var lf=!!sp.lf,enz=!!sp.enzyme&&!lf,kind=sp.kind,type=sp.type||'일반';
    var key=[g.day,g.line,kind,type,lf?'lf':'',enz?'enz':''].join('|');
-   add(key,{id:key,cls:'milk',kind:kind,type:type,lf:lf,enzyme:enz,use:g.day,line:g.line,recvPref:kind==='살균유'?'당일':(sp.recv||'전일'),_raw:g.L*(+sp.ratio)/100,_p:names,est:!!sp.est});
+   add(key,{id:key,cls:'milk',kind:kind,type:type,lf:lf,enzyme:enz,use:g.day,line:g.line,recvPref:(lf||enz)?'2일전':(kind==='살균유'?'당일':(sp.recv||'전일')),_raw:g.L*(+sp.ratio)/100,_p:names,est:!!sp.est});
+   (B0.noRecipe=B0.noRecipe||[]).push(dlabel(g.day)+' '+names[0]+(names.length>1?' 외 '+(names.length-1):''));
   }
-  if(+sp.wonaek>0){
+  }
+  if(sp&&+sp.wonaek>0){
    var kw=sp.kw||'';var pd=null;
    (W.wonaek||[]).filter(function(w){return !w.ship&&w.day<g.day&&(!kw||w.text.indexOf(kw)>=0)}).forEach(function(w){if(!pd||w.day>pd)pd=w.day});
    var key2=['W',g.day,g.line].join('|');
-   add(key2,{id:key2,cls:'wonaek',kind:'원액',type:'원액',enzyme:!!(sp.wenz||sp.enzyme),use:g.day,line:g.line,prod:pd||dadd(g.day,-1),prodFound:!!pd,kw:kw,_raw:g.L*(+sp.wonaek)/100,_p:names,est:!!sp.est});
+   var wz=!!(sp.wenz||sp.enzyme);
+   if(wz&&pd&&pd>dadd(g.day,-2))warn.push(dlabel(g.day)+' '+g.line+' · '+names.join(', ')+' — 효소 원액은 27시간 이상 배양해야 합니다. 원액 생산일('+dlabel(pd)+')이 사용일 2일 전보다 늦습니다.');
+   add(key2,{id:key2,cls:'wonaek',kind:'원액',type:'원액',enzyme:wz,use:g.day,line:g.line,prod:pd||dadd(g.day,wz?-2:-1),prodFound:!!pd,kw:kw,_raw:g.L*(+sp.wonaek)/100,_p:names,est:!!sp.est});
   }
  });
  var seenShip={};
  (W.wonaek||[]).forEach(function(w){
+  if(w.ship&&!w.kg)w.kg=amtOf(w.text);
   if(w.ship&&w.kg){var k='X|'+w.day+'|'+w.kg;if(seenShip[k])return;seenShip[k]=1;
    lots[k]={id:k,cls:'ship',kind:'원액',type:'원액',use:w.day,line:'원액',prod:w.day,raw:w.kg,fixedQty:w.kg,products:['두유원액 '+num(w.kg)+'kg (당일출고)'],text:w.text}}
  });
  /* 원액 칸 표기 중 연결된 사용 제품이 없는 것 */
  (W.wonaek||[]).forEach(function(w){if(w.ship)return;var used=Object.keys(lots).some(function(k){var l=lots[k];return l.cls==='wonaek'&&l.prod===w.day&&l.prodFound&&(!l.kw||w.text.indexOf(l.kw)>=0)});
-  if(!used)info.push(dlabel(w.day)+' 원액생산 칸 「'+w.text+'」 — 이번 주 이 원액을 쓰는 제품을 찾지 못해 사이로를 배정하지 않았습니다.')});
- var arr=Object.keys(lots).map(function(k){var l=lots[k];l.qty=l.fixedQty||needQty(l.raw);return l});
+  if(used)return;var q=amtOf(w.text);
+  if(q){var k='Y|'+w.day+'|'+q+'|'+w.text;if(seenShip[k])return;seenShip[k]=1;
+   lots[k]={id:k,cls:'ship',extra:1,kind:'원액',type:'원액',use:w.day,line:'원액',prod:w.day,raw:q,fixedQty:q,products:[w.text],text:w.text};return}
+  info.push(dlabel(w.day)+' 원액생산 칸 「'+w.text+'」 — 양을 읽지 못하고, 이 원액을 쓰는 제품도 찾지 못해 사이로를 배정하지 않았습니다.')});
+ if(buildLots.noRecipe&&buildLots.noRecipe.length){info.push('배합비 자료에서 원유 투입량을 찾지 못해 「품목별 원유 기준」 비율(배치 수 × 배치 용량 × %)로 계산한 품목: '+buildLots.noRecipe.join(', ')+' — 배합비 자료를 올리면 「1B 원유 투입량 × B수」로 바뀝니다.');buildLots.noRecipe=[]}
+ var arr=Object.keys(lots).map(function(k){var l=lots[k];l.qty=lotQty(l);return l});
  return {lots:arr,warn:warn,info:info};
 }
 
@@ -9446,15 +9490,40 @@ function assign(W){
    if(!free(o.silo,a0,l.use))B.warn.push(lotTitle(l)+' — 직접 지정한 '+o.silo+'가 다른 원료와 기간이 겹칩니다.');
    var sd=c.silos.filter(function(s){return s.id===o.silo})[0];if(sd&&sd.cap<l.qty)B.warn.push(lotTitle(l)+' — '+o.silo+' 용량('+num(sd.cap)+')보다 많습니다.');
    put(l,o.silo,a0,l.use);l.manual=true;return}
-  var cand=c.silos.filter(function(s){return s.on&&s.allow&&s.allow[ak]&&s.cap>=l.qty}).sort(function(a,b){return (a.cap-b.cap)||(a.id<b.id?-1:1)});
+  var bycap=function(a,b){return (a.cap-b.cap)||(a.id<b.id?-1:1)};
+  var cand=c.silos.filter(function(s){return s.on&&s.allow&&s.allow[ak]&&s.cap>=l.qty&&l.qty>=minOf(s)}).sort(bycap);
+  if(!cand.length&&ak!=='normal'&&ak!=='past'){
+   /* 락토프리 · 효소 · 원액인데 양이 적어 전용 사이로(S1 · S2) 교반기에 안 닿음 → 교반 가능한 더 작은 사이로 */
+   var small=c.silos.filter(function(s){return s.on&&!s.reserve&&s.cap>=l.qty&&l.qty>=minOf(s)&&c.silos.some(function(x){return x.allow&&x.allow[ak]&&x.cap>s.cap})}).sort(bycap);
+   if(small.length){cand=small;l.smallNote=1}
+  }
+  var loose=c.silos.filter(function(s){return s.on&&s.allow&&s.allow[ak]&&s.cap>=l.qty&&cand.indexOf(s)<0}).sort(bycap);
+  if(ak==='wonaek'){
+   /* 원액: S2(원액 사이로) 우선 — 양이 적어도 S2, S2가 차 있을 때만 다른 사이로 */
+   cand=c.silos.filter(function(s){return s.on&&s.allow&&s.allow.wonaek&&s.cap>=l.qty}).sort(bycap);l.smallNote=0;
+   loose=c.silos.filter(function(s){return s.on&&!(s.allow&&s.allow.wonaek)&&s.cap>=l.qty}).sort(function(x,y){return ((l.qty<minOf(x))-(l.qty<minOf(y)))||bycap(x,y)});
+  }
   var normal=cand.filter(function(s){return !s.reserve}),res=cand.filter(function(s){return s.reserve});
-  var tries=[];
-  if(l.cls==='milk'){var pre=dadd(l.use,-1);
-   if(l.recvPref==='당일')tries=[[normal,l.use],[normal,pre],[res,l.use],[res,pre]];
-   else tries=[[normal,pre],[normal,l.use],[res,pre],[res,l.use]];}
-  else tries=[[normal,l.prod],[res,l.prod]];
-  for(var i=0;i<tries.length;i++){var list=tries[i][0],a=tries[i][1];
-   for(var j=0;j<list.length;j++){if(free(list[j].id,a,l.use)){put(l,list[j].id,a,l.use);return}}}
+  var normalL=loose.filter(function(s){return !s.reserve}),resL=loose.filter(function(s){return s.reserve});
+  var tries=[],ds;
+  if(l.cls==='milk'){var pre=dadd(l.use,-1),pre2=dadd(l.use,-2),pre3=dadd(l.use,-3);
+   if(l.recvPref==='2일전')ds=[pre2,pre3];else if(l.recvPref==='당일')ds=[l.use,pre];else ds=[pre,l.use];}
+  else ds=[l.prod];
+  [normal,normalL,res,resL].forEach(function(list){ds.forEach(function(d){tries.push([list,d])})});
+  /* 도저히 안 되면 당일수유까지 (효소 · 락토프리도) */
+  if(l.cls==='milk'&&l.recvPref==='2일전')[normal,normalL,res,resL].forEach(function(list){[dadd(l.use,-1),l.use].forEach(function(d){tries.push([list,d])})});
+  var onN=c.silos.filter(function(s){return s.on}).length;
+  function spare(sid,a,b){for(var d=a;d<=b;d=dadd(d,1)){var n=0;c.silos.forEach(function(s){if(!s.on)return;if(s.id===sid||occ[s.id].some(function(x){return x.a<=d&&x.b>=d}))n++});if(n>onN-1)return false}return true}
+  for(var pass=0;pass<2;pass++){
+   for(var i=0;i<tries.length;i++){var list=tries[i][0],a=tries[i][1];
+    for(var j=0;j<list.length;j++){if(free(list[j].id,a,l.use)&&(pass||spare(list[j].id,a,l.use))){put(l,list[j].id,a,l.use);
+     if(pass)B.warn.push(lotTitle(l)+' — '+dlabel(a)+'~'+dlabel(l.use)+' 동안 빈 사이로가 남지 않습니다. 배합사고 · 규격미달 · 지연 시 냉각이송할 사이로를 확인하세요.');
+     if(l.smallNote)B.warn.push(lotTitle(l)+' — 양이 적어 교반기를 고려해 '+list[j].id+'에 배정했습니다. (전용 사이로 최소량 미만)');
+     if(l.cls==='milk'&&l.qty<minOf(list[j]))B.warn.push(lotTitle(l)+' — '+list[j].id+' 교반 최소량('+num(minOf(list[j]))+'L)보다 적습니다. 교반 상태를 확인하세요.');
+     if(l.cls==='milk'&&l.recvPref==='2일전'&&a>dadd(l.use,-2))B.warn.push(lotTitle(l)+' — 사이로가 모자라 '+(a===l.use?'당일수유':dlabel(a)+' 수유')+'로 잡았습니다. 효소 반응(27시간 이상) 시간이 부족하니 확인하세요.');
+     if(l.cls!=='milk'&&!(list[j].allow&&list[j].allow.wonaek))B.warn.push(lotTitle(l)+' — S2(원액 사이로)가 차 있어 '+list[j].id+'에 배정했습니다.');
+     return}}}
+  }
   l.silo=null;l.recv=null;
   var why=!cand.length?('넣을 수 있는 사이로가 없습니다(용량·용도 조건)'):'그 기간에 비어 있는 사이로가 없습니다';
   B.warn.push(lotTitle(l)+' — '+why+'. 상자를 눌러 직접 지정하세요.');
@@ -9468,7 +9537,7 @@ function assign(W){
 }
 function lotTitle(l){return dlabel(l.use)+' '+l.line+' '+(l.cls==='milk'?(l.type!=='일반'?l.type+' ':'')+l.kind:(l.cls==='ship'?'당일원액':'원액'))+' '+num(l.qty)}
 function boxLines(l,at){
- if(l.cls==='ship')return ['당일원액 생산',(l.silo||'미배정')+' '+num(l.qty)];
+ if(l.cls==='ship')return [l.extra?String(l.text||'원액 생산').replace(/\s*\d{1,3}(?:[,.]\d{3})+\s*(kg|L)?|\s*\d{4,6}\s*(kg|L)?/gi,'').trim()||'원액 생산':'당일원액 생산',(l.silo||'미배정')+' '+num(l.qty)];
  if(l.cls==='wonaek'){var h=[(l.silo||'미배정')+' '+dlabel(l.prod)+' 원액',num(l.qty)];if(l.enzyme)h.push('효소 투입');if(at==='prod'&&l.kw)h.push(l.kw);return h}
  var t=(l.silo||'미배정')+' ';
  var same=l.recv===l.use;
@@ -9545,7 +9614,7 @@ function augment(){
 function panelHTML(p){
  var k=curKey();
  var h='<div class="sp-panel" id="sp-panel"><div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start"><div><h3>원유 수유 · 사이로 운영 계획</h3>'+
-  '<div class="sp-sub">생산계획표의 배치 수 × 배치 용량(L) × 품목별 원유 비율 + 여유량('+num(cfg().margin)+'L)으로 필요량을 계산하고, 용도·용량·기간이 맞는 사이로를 자동 배정합니다. 빨간 상자를 누르면 직접 바꿀 수 있습니다.</div></div>'+
+  '<div class="sp-sub">원유 수유량 = 배합비의 1B 원유 투입량 × B수 + 여유량('+num(cfg().margin)+') (락토프리는 여유 없이 · 원액은 정량 · 배합비 자료가 없으면 품목별 원유 기준 비율). 원액은 S2 우선. 락토프리 = S1 · 세브란스케어 효소 원액 = S2 고정, 효소 반응(27시간 이상)은 생산 2일 전 수유, 양이 적으면 교반기를 고려해 작은 사이로(S3), 매일 최소 1대는 빈 사이로로 남깁니다. 사이로가 도저히 모자라면 당일수유로 잡습니다. 빨간 상자를 누르면 직접 바꿀 수 있습니다.</div></div>'+
   '<div class="sp-tools" style="margin:0"><button class="btn btn-o btn-sm" onclick="SiloPlan.silos()">⚙ 사이로 설정</button><button class="btn btn-o btn-sm" onclick="SiloPlan.specs()">🥛 품목별 원유 기준</button>'+(p?'<button class="btn btn-o btn-sm" onclick="SiloPlan.print()">🖨 사이로 계획 인쇄</button>'+(Object.keys(p.W.ov||{}).length?'<button class="btn btn-ghost btn-sm" onclick="SiloPlan.resetAll()">↺ 직접 수정 모두 되돌리기</button>':''):'')+'</div></div>';
  if(!p){
   h+='<div class="sp-warn i">'+(k?'이 주차('+esc(k)+')는 원유 계획 정보가 없습니다. 위에서 이 주차 생산계획표 PDF를 한 번 더 올리면 자동으로 만들어집니다.':'생산계획표 PDF를 올리면 원유 수유 · 사이로 계획이 자동으로 만들어집니다.')+'</div></div>';return h}
@@ -9554,7 +9623,7 @@ function panelHTML(p){
  h+='<table class="sp-list"><thead><tr><th>수유/생산일</th><th>사이로</th><th>구분</th><th style="text-align:right">수량(L)</th><th>사용일 · 설비</th><th>제품</th><th></th></tr></thead><tbody>'+
   lots.map(function(l){var r=l.recv||(l.cls!=='milk'?l.prod:null);
    return '<tr><td>'+(r?dlabel(r)+' ('+ddow(r)+')'+(l.cls==='milk'&&r===l.use?' 당일':''):'-')+'</td><td><b style="color:'+(COL[l.silo]||'#B45309')+'">'+(l.silo||'미배정')+'</b></td><td>'+esc(l.cls==='ship'?'두유원액 (당일출고)':(l.cls==='wonaek'?'두유원액'+(l.enzyme?' · 효소':''):(l.type!=='일반'?l.type+' ':'')+l.kind+(l.lf?' · 락토프리':(l.enzyme?' · 효소':''))))+(l.est?' <span style="font-size:10px;color:#fff;background:#D97706;border-radius:3px;padding:0 4px">추정 비율</span>':'')+'</td>'+
-    '<td style="text-align:right;font-weight:800">'+num(l.qty)+(l.manualQty?' ✎':'')+'</td><td>'+dlabel(l.use)+' ('+ddow(l.use)+') · '+esc(l.line)+'</td><td style="font-size:11.5px;color:#51606E">'+esc(l.products.join(', '))+'</td>'+
+    '<td style="text-align:right;font-weight:800">'+num(l.qty)+(l.manualQty?' ✎':'')+(l.calc&&!l.manualQty?'<div style="font-size:10.5px;font-weight:600;color:#51606E">배합비 '+esc(l.calc)+(l.lf?' (락토프리 · 여유 없음)':' + 여유 '+num(cfg().margin))+'</div>':'')+'</td><td>'+dlabel(l.use)+' ('+ddow(l.use)+') · '+esc(l.line)+'</td><td style="font-size:11.5px;color:#51606E">'+esc(l.products.join(', '))+'</td>'+
     '<td><button class="btn btn-ghost btn-sm" onclick="SiloPlan.edit(\''+esc(l.id).replace(/'/g,"\\'")+'\')">변경</button></td></tr>'}).join('')+'</tbody></table>';
  if(p.warn.length)h+='<div class="sp-warn w"><b>확인 필요</b><br>'+p.warn.map(esc).join('<br>')+'</div>';
  if(p.est)h+='<div class="sp-warn e">「추정」 표시 품목(파스퇴르 딸기, 세브란스케어)의 원유·원액 비율은 10/26 주 수작업 계획 수치에서 거꾸로 계산한 값입니다. 🥛 품목별 원유 기준에서 실제 배합 비율로 고쳐 주세요.</div>';
@@ -9591,10 +9660,10 @@ function edit(id){
  var W=PLAN.W,o=(W.ov||{})[id]||{},c=cfg();
  var dset=[];var start=dadd(l.use,-3);for(var d=start;d<=l.use;d=dadd(d,1))dset.push(d);
  var curRecv=o.recv||'';
- U.modal('사이로 배정 변경','<div style="font-size:13.5px;line-height:1.7"><b>'+esc(lotTitle(l))+'</b><br><span style="color:var(--muted)">'+esc(l.products.join(', '))+'</span><br>자동 계산 필요량: <b>'+num(needQty(l.raw||0))+'L</b>'+(l.cls==='milk'?' (원료 '+num(Math.round(l.raw))+'L + 여유 '+num(c.margin)+'L)':'')+'</div>'+
+ U.modal('사이로 배정 변경','<div style="font-size:13.5px;line-height:1.7"><b>'+esc(lotTitle(l))+'</b><br><span style="color:var(--muted)">'+esc(l.products.join(', '))+'</span><br>자동 계산 필요량: <b>'+num(lotQty(l))+'L</b>'+(l.cls==='milk'?' (원료 '+num(Math.round(l.raw))+'L + 여유 '+num(c.margin)+'L)':'')+'</div>'+
   '<div class="field" style="margin-top:12px"><label class="f">사이로</label><select id="sp-e-silo" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px"><option value="">자동 배정</option>'+c.silos.map(function(s){return '<option value="'+s.id+'"'+(o.silo===s.id?' selected':'')+'>'+s.id+' ('+num(s.cap)+'L)'+(s.on?'':' — 중지')+'</option>'}).join('')+'</select></div>'+
   '<div class="field"><label class="f">'+(l.cls==='milk'?'수유일':'원액 생산일')+'</label><select id="sp-e-recv" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px"><option value="">자동 (전일수유 우선)</option>'+dset.map(function(d){return '<option value="'+d+'"'+(curRecv===d?' selected':'')+'>'+dlabel(d)+' ('+ddow(d)+')'+(d===l.use?' — 당일':'')+'</option>'}).join('')+'</select><div style="font-size:11.5px;color:var(--muted);margin-top:4px">사이로를 직접 고를 때 적용됩니다.</div></div>'+
-  '<div class="field"><label class="f">수량 (L)</label><input id="sp-e-qty" type="number" step="1000" min="0" value="'+esc(o.qty||'')+'" placeholder="비우면 자동 '+num(needQty(l.raw||0))+'" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px"></div>',
+  '<div class="field"><label class="f">수량 (L)</label><input id="sp-e-qty" type="number" step="1000" min="0" value="'+esc(o.qty||'')+'" placeholder="비우면 자동 '+num(lotQty(l))+'" style="width:100%;padding:8px;border:1px solid var(--line);border-radius:8px"></div>',
   {size:'sm',foot:'<button class="btn btn-ghost btn-sm" id="sp-e-reset">자동으로 되돌리기</button><button class="btn btn-o btn-sm" onclick="U.closeModal()">취소</button><button class="btn btn-p btn-sm" id="sp-e-ok">저장</button>',
    onopen:function(){
     document.getElementById('sp-e-ok').onclick=function(){var s=document.getElementById('sp-e-silo').value,r=document.getElementById('sp-e-recv').value,q=document.getElementById('sp-e-qty').value;
@@ -9610,19 +9679,19 @@ function stripAug(html){var d=document.createElement('div');d.innerHTML=html;[].
 /* ---------- 설정 화면 ---------- */
 function silosModal(){
  var c=cfg();
- var row=function(s,i){return '<tr><td><b>'+s.id+'</b></td><td><input type="number" step="1000" data-i="'+i+'" data-f="cap" value="'+s.cap+'"></td>'+
+ var row=function(s,i){return '<tr><td><b>'+s.id+'</b></td><td><input type="number" step="1000" data-i="'+i+'" data-f="cap" value="'+s.cap+'"></td><td><input type="number" step="1000" data-i="'+i+'" data-f="min" value="'+minOf(s)+'"></td>'+
   '<td><input type="checkbox" data-i="'+i+'" data-f="on"'+(s.on?' checked':'')+'></td><td><input type="checkbox" data-i="'+i+'" data-f="reserve"'+(s.reserve?' checked':'')+'></td>'+
   ['normal','past','enzyme','lf','wonaek'].map(function(a){return '<td><input type="checkbox" data-i="'+i+'" data-a="'+a+'"'+(s.allow&&s.allow[a]?' checked':'')+'></td>'}).join('')+
   '<td class="l"><input type="text" data-i="'+i+'" data-f="note" value="'+esc(s.note||'')+'"></td></tr>'};
- U.modal('사이로 설정','<div style="overflow-x:auto"><table class="sp-cfg"><thead><tr><th>사이로</th><th style="width:100px">용량(L)</th><th>사용</th><th>예비</th><th>일반원유</th><th>살균유</th><th>효소</th><th>락토프리</th><th>원액</th><th>메모</th></tr></thead><tbody>'+c.silos.map(row).join('')+'</tbody></table></div>'+
+ U.modal('사이로 설정','<div style="overflow-x:auto"><table class="sp-cfg"><thead><tr><th>사이로</th><th style="width:100px">용량(L)</th><th style="width:100px">교반 최소량(L)</th><th>사용</th><th>예비</th><th>일반원유</th><th>살균유</th><th>효소</th><th>락토프리</th><th>원액</th><th>메모</th></tr></thead><tbody>'+c.silos.map(row).join('')+'</tbody></table></div>'+
   '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:14px"><div class="field" style="margin:0"><label class="f">여유량 (L, 로트마다 더함)</label><input id="sp-margin" type="number" step="500" value="'+c.margin+'" style="width:140px;padding:7px;border:1px solid var(--line);border-radius:8px"></div>'+
   '<div class="field" style="margin:0"><label class="f">올림 단위 (L)</label><input id="sp-round" type="number" step="500" value="'+c.round+'" style="width:140px;padding:7px;border:1px solid var(--line);border-radius:8px"></div></div>'+
-  '<div style="font-size:12px;color:var(--muted);line-height:1.7;margin-top:10px">· <b>예비</b>: 전일·당일수유 모두 안 될 때만 씁니다.<br>· 체크한 원료만 그 사이로에 배정됩니다. (락토프리는 S1, 원액은 S2만 체크된 상태가 기본)<br>· 들어갈 수 있는 사이로 중 <b>가장 작은 용량</b>부터, 같은 용량이면 번호 순서로 배정합니다.</div>',
+  '<div style="font-size:12px;color:var(--muted);line-height:1.7;margin-top:10px">· <b>예비</b>: 전일·당일수유 모두 안 될 때만 씁니다.<br>· 체크한 원료만 그 사이로에 배정됩니다. (락토프리는 S1, 원액은 S2만 체크된 상태가 기본)<br>· 들어갈 수 있는 사이로 중 <b>가장 작은 용량</b>부터, 같은 용량이면 번호 순서로 배정합니다.<br>· <b>교반 최소량</b>: 이보다 적으면 교반기가 닿지 않아 그 사이로에 받지 않습니다 (락토프리 · 효소도 양이 적으면 S3로). 실제 값으로 고쳐 주세요.<br>· 매일 최소 1대는 빈 사이로로 남기도록 배정합니다 (배합사고 · 규격미달 · 긴 지연 시 냉각이송용).</div>',
   {size:'lg',foot:'<button class="btn btn-ghost btn-sm" id="sp-s-def">기본값으로</button><button class="btn btn-o btn-sm" onclick="U.closeModal()">취소</button><button class="btn btn-p btn-sm" id="sp-s-ok">저장</button>',
    onopen:function(){
     document.getElementById('sp-s-ok').onclick=function(){
      [].forEach.call(document.querySelectorAll('.sp-cfg [data-i]'),function(el){var s=c.silos[+el.getAttribute('data-i')],f=el.getAttribute('data-f'),a=el.getAttribute('data-a');
-      if(a){s.allow=s.allow||{};s.allow[a]=el.checked}else if(f==='cap')s.cap=+el.value||0;else if(f==='on'||f==='reserve')s[f]=el.checked;else if(f)s[f]=el.value});
+      if(a){s.allow=s.allow||{};s.allow[a]=el.checked}else if(f==='cap')s.cap=+el.value||0;else if(f==='min')s.min=+el.value||0;else if(f==='on'||f==='reserve')s[f]=el.checked;else if(f)s[f]=el.value});
      c.margin=+document.getElementById('sp-margin').value||0;c.round=+document.getElementById('sp-round').value||1000;save();U.closeModal();toast('사이로 설정을 저장했습니다.','ok')};
     document.getElementById('sp-s-def').onclick=function(){DB.data.siloCfg={silos:JSON.parse(JSON.stringify(DEF_SILOS)),margin:2000,round:1000};save();U.closeModal();toast('기본값으로 되돌렸습니다.','ok')};
    }});
@@ -15554,6 +15623,117 @@ function heal(){
 heal();
 try{var _ad=S.adopt;S.adopt=function(){var r=_ad.apply(this,arguments);heal();return r}}catch(e){}
 window.yumUserHeal=heal;
+})();
+</script>
+
+<script>
+/* 1팀 지원 → 배합 정상 추가 휴무 (주간근무계획표)
+   · 주간근무계획표 위 「🤝 1팀 지원 → 추가 휴무」: 날짜별로 1팀 지원 인원과 더 쉬게 할 배합 정상 인원 수를 넣으면
+     누가 쉬는 게 가장 좋은지 순위를 매겨 추천 (체크해서 바꿀 수 있음) → 「반영」하면 근무표 · 휴무 개수 · 휴일체크표에 반영
+   · 추천 기준 (점수가 낮을수록 먼저)
+     ① 이번 달 휴무 개수 − 목표 휴무 (덜 쉰 사람 먼저, 하계휴가 제외)
+     ② 전날 · 다음날 휴무와 붙는 사람 우대 (붙여 쉬기 — 목 · 금 둘 다 쉬게 되는 사람 포함)
+     ③ 이번 주 휴무가 적은 사람 · 연속 근무가 긴 사람 우대
+     ④ 조장: 그날 정상에 다른 조장이 없으면 빼지 않음 */
+(function(){
+'use strict';
+if(window.__YUM_SUPOFF__)return;window.__YUM_SUPOFF__=1;
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+var WD=['월','화','수','목','금','토','일'];
+function pad(n){return ('0'+n).slice(-2)}
+function addD(s,n){var d=new Date(s+'T00:00:00');d.setDate(d.getDate()+n);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+function mon(ym){var W=DB.data.workSched=DB.data.workSched||{};W.months=W.months||{};return W.months[ym]}
+function val(n,ds){var o=mon(ds.slice(0,7));if(!o||!o.asg||!o.asg[n])return '';return o.asg[n][+ds.slice(8)-1]||''}
+function staff(){try{return (YSched._staff()||[]).filter(function(p){return p.active!==false&&p.st==='배합'})}catch(e){return []}}
+function offsMonth(n,ym){var o=mon(ym)||{},a=(o.asg||{})[n]||[],W=(o.wishes||{})[n]||{},c=0;a.forEach(function(v,i){if(v==='휴무'&&W[i+1]!=='하계')c++});return c}
+function key(){try{return WeekPlan.cur()}catch(e){return null}}
+function week(){var k=key();return k?[0,1,2,3,4,5,6].map(function(i){return addD(k,i)}):[]}
+function plan(){var k=key();return k&&(DB.data.weeklyPlans||{})[k]}
+var ST=null;   /* {sup:[], extra:[], pick:{ds:{name:true}}} */
+
+function recommend(){
+ var days=week(),S=staff(),pend={},out={};
+ function isOff(n,ds){return val(n,ds)==='휴무'||!!(pend[ds]&&pend[ds][n])}
+ days.forEach(function(ds,i){
+  var need=+ST.extra[i]||0;if(!need)return;
+  var ym=ds.slice(0,7),o=mon(ym)||{},tg=+o.target||0;
+  var on=S.filter(function(p){return val(p.n,ds)==='정상'});
+  var leads=on.filter(function(p){return p.lead});
+  var list=on.map(function(p){
+   var extra=0;Object.keys(pend).forEach(function(x){if(pend[x][p.n]&&x.slice(0,7)===ym)extra++});
+   var offs=offsMonth(p.n,ym)+extra,adjP=isOff(p.n,addD(ds,-1)),adjN=isOff(p.n,addD(ds,1));
+   var wk=days.filter(function(x){return isOff(p.n,x)}).length;
+   var run=0;for(var k=1;k<=7;k++){var v=val(p.n,addD(ds,-k));if(!v||v==='휴무'||(pend[addD(ds,-k)]||{})[p.n])break;run++}
+   for(var k2=1;k2<=7;k2++){var v2=val(p.n,addD(ds,k2));if(!v2||v2==='휴무'||(pend[addD(ds,k2)]||{})[p.n])break;run++}
+   var leadBlock=p.lead&&leads.length<=1;
+   var sc=(offs-tg)-((adjP||adjN)?1.2:0)+wk*0.5-run*0.1;
+   var why=['이번 달 휴무 '+offs+'일'+(tg?' / 목표 '+tg+'일':'')];
+   if(adjP||adjN)why.push((adjP&&adjN?'앞뒤':adjP?'전날':'다음날')+' 휴무와 붙음');
+   why.push('이번 주 휴무 '+wk+'일');if(run>=4)why.push('연속 근무 '+(run+1)+'일 중');
+   if(leadBlock)why.push('그날 정상 조장이 이 사람뿐');
+   return {n:p.n,sc:sc+(leadBlock?100:0),why:why.join(' · '),block:leadBlock};
+  }).sort(function(a,b){return a.sc-b.sc||a.n.localeCompare(b.n,'ko')});
+  out[ds]=list;
+  pend[ds]={};
+  /* 직접 고른 게 있으면 그대로, 없으면 위에서부터 */
+  var mine=ST.pick[ds];
+  if(mine)Object.keys(mine).forEach(function(n){if(mine[n])pend[ds][n]=1});
+  else{var leadLeft=leads.length;list.forEach(function(x){if(Object.keys(pend[ds]).length>=need||x.block)return;var isL=leads.some(function(p){return p.n===x.n});if(isL&&leadLeft<=1)return;pend[ds][x.n]=1;if(isL)leadLeft--})}
+ });
+ return {list:out,pend:pend};
+}
+function body(){
+ var days=week(),W=plan()||{},R=recommend();
+ var h='<div style="font-size:12.5px;color:var(--muted);line-height:1.7;margin-bottom:10px">1팀에서 지원 오는 날 · 인원과, 그 대신 <b>배합 정상</b>에서 더 쉬게 할 인원을 넣으세요. 휴무 개수 · 붙여 쉬기 · 이번 주 휴무 · 연속 근무를 따져 쉬기 좋은 순서로 추천합니다. 체크를 바꿔 직접 고를 수도 있습니다.</div>'+
+  '<table class="so-t"><thead><tr><th>날짜</th><th>배합 정상</th><th>1팀 지원(명)</th><th>추가 휴무(명)</th></tr></thead><tbody>'+
+  days.map(function(ds,i){var n=staff().filter(function(p){return val(p.n,ds)==='정상'}).length;
+   return '<tr><td><b>'+(+ds.slice(5,7))+'/'+(+ds.slice(8))+' ('+WD[i]+')</b></td><td>'+n+'명</td><td><input type="number" min="0" max="9" data-so="sup" data-i="'+i+'" value="'+esc(ST.sup[i]||'')+'"></td><td><input type="number" min="0" max="9" data-so="extra" data-i="'+i+'" value="'+esc(ST.extra[i]||'')+'"></td></tr>'}).join('')+'</tbody></table>';
+ var any=false;
+ days.forEach(function(ds,i){var L=R.list[ds];if(!L)return;any=true;var need=+ST.extra[i]||0,sel=R.pend[ds]||{},cnt=Object.keys(sel).length;
+  h+='<div class="so-day"><div class="so-dh"><b>'+(+ds.slice(5,7))+'/'+(+ds.slice(8))+' ('+WD[i]+')</b> 추가 휴무 '+need+'명 — 선택 '+cnt+'명'+(cnt!==need?' <span style="color:#B42318">(인원 확인)</span>':'')+'</div>'+
+   (L.length?L.map(function(x,r){return '<label class="so-c'+(sel[x.n]?' on':'')+(x.block?' blk':'')+'"><input type="checkbox" data-so="pick" data-ds="'+ds+'" data-n="'+esc(x.n)+'"'+(sel[x.n]?' checked':'')+'><span class="so-r">'+(r+1)+'</span><b>'+esc(x.n)+'</b><small>'+esc(x.why)+'</small></label>'}).join('')
+    :'<div style="color:var(--muted);font-size:12.5px">그날 배합 정상 근무자가 없습니다.</div>')+'</div>'});
+ if(!any)h+='<div style="margin-top:10px;color:var(--muted);font-size:12.5px">「추가 휴무」 인원을 넣으면 추천 명단이 나옵니다.</div>';
+ return h;
+}
+function paint(){var mb=document.querySelector('#modal-box .mb');if(mb&&ST)mb.innerHTML=body()}
+function open(){
+ var k=key(),W=plan();if(!k||!W){alert('먼저 주간근무계획표에서 주를 고르세요.');return}
+ var sx=(W.single||[]).filter(function(q){return q.label==='1팀 지원'})[0],SM=W.supMan||{};
+ ST={sup:[0,1,2,3,4,5,6].map(function(i){var v=SM[i]||'';return String(v).replace(/[^\d]/g,'')}),extra:['','','','','','',''],pick:{}};
+ U.modal('🤝 1팀 지원 → 배합 정상 추가 휴무 · '+esc(W.range||k),body(),{size:'lg',foot:'<button class="btn btn-o btn-sm" onclick="U.closeModal()">취소</button><button class="btn btn-p btn-sm" id="so-ok">반영</button>',
+  onopen:function(){document.getElementById('so-ok').onclick=apply}});
+}
+document.addEventListener('input',function(e){var el=e.target;if(!el||!el.getAttribute||!ST)return;var t=el.getAttribute('data-so');if(t!=='sup'&&t!=='extra')return;
+ var i=+el.getAttribute('data-i');ST[t][i]=el.value;if(t==='extra')delete ST.pick[week()[i]];
+ if(t==='extra'){var pos=el.selectionStart;paint();var n=document.querySelector('#modal-box [data-so="extra"][data-i="'+i+'"]');if(n){n.focus();try{n.setSelectionRange(pos,pos)}catch(x){}}}},true);
+document.addEventListener('change',function(e){var el=e.target;if(!el||!el.getAttribute||el.getAttribute('data-so')!=='pick'||!ST)return;
+ var ds=el.getAttribute('data-ds'),R=recommend();ST.pick[ds]=Object.assign({},R.pend[ds]||{});if(el.checked)ST.pick[ds][el.getAttribute('data-n')]=true;else delete ST.pick[ds][el.getAttribute('data-n')];paint()},true);
+function apply(){
+ var k=key(),W=plan();if(!k||!W)return;
+ var R=recommend(),days=week(),byYm={},changed=[];
+ days.forEach(function(ds,i){var sel=R.pend[ds]||{};Object.keys(sel).forEach(function(n){var ym=ds.slice(0,7),o=mon(ym);if(!o)return;o.asg=o.asg||{};var a=o.asg[n]=o.asg[n]||[];var d=+ds.slice(8);
+  if(a[d-1]!=='정상')return;a[d-1]='휴무';o.planned=o.planned||{};o.planned[d]=1;(byYm[ym]=byYm[ym]||{})[d]=1;changed.push((+ds.slice(5,7))+'/'+d+' '+n)})});
+ /* 1팀 지원 칸 */
+ var SM=W.supMan=W.supMan||{},sx=(W.single||[]).filter(function(q){return q.label==='1팀 지원'})[0];
+ ST.sup.forEach(function(v,i){v=String(v||'').trim();if(v&&+v>0)SM[i]=v+'명';else if(v==='0')SM[i]='-'});
+ Object.keys(byYm).forEach(function(ym){var first=new Date(+ym.slice(0,4),+ym.slice(5,7)-1,1),s0=Math.round((new Date(k+'T00:00:00')-first)/864e5)+1;
+  try{WorkSched.recalc(ym,k,s0,days.filter(function(ds){return ds.slice(0,7)===ym}).map(function(ds){return +ds.slice(8)}))}catch(e){console.warn('[추가 휴무]',e)}});
+ var W2=plan();if(W2){W2.supMan=SM;var sx2=(W2.single||[]).filter(function(q){return q.label==='1팀 지원'})[0];if(sx2)Object.keys(SM).forEach(function(i){sx2.values[+i]=SM[i]});
+  var u=null;try{u=Auth.user()}catch(e){}W2.edited={at:new Date().toISOString(),by:u&&u.name||''};W2._u=W2.edited.at}
+ DB.save();try{if(window.SupaSync&&SupaSync.on()){clearTimeout(SupaSync.pushT);SupaSync.pushNow(DB.data)}}catch(e){}
+ U.closeModal();ST=null;try{WeekPlan.goKey(k)}catch(e){}
+ U.toast(changed.length?'추가 휴무 반영: '+changed.join(', ')+' — 휴무 개수 · 휴일체크표에도 반영했습니다.':'바뀐 근무가 없습니다.',changed.length?'ok':'');
+}
+/* 버튼: 주간근무계획표 「✎ 수정하기」 옆 */
+function addBtn(){var b=document.querySelector('#wp-root button[onclick="WeekPlan.edStart()"]');if(!b||b.parentNode.querySelector('.so-btn'))return;
+ var x=document.createElement('button');x.className='btn btn-o btn-sm so-btn';x.textContent='🤝 1팀 지원 → 추가 휴무';x.title='1팀 지원 오는 날 배합 정상에서 더 쉬게 할 사람을 추천 · 반영';x.onclick=open;b.parentNode.insertBefore(x,b)}
+var T=null;new MutationObserver(function(){clearTimeout(T);T=setTimeout(addBtn,150)}).observe(document.documentElement,{childList:true,subtree:true});
+document.head.insertAdjacentHTML('beforeend','<style>.so-t{border-collapse:collapse;width:100%;font-size:13px;margin-bottom:12px}.so-t th,.so-t td{border:1px solid #E3E7EC;padding:5px 8px;text-align:center}.so-t th{background:#F6F7F9;font-size:12px}.so-t input{width:70px;padding:4px 6px;border:1px solid #CBD2DB;border-radius:6px;text-align:center}'+
+ '.so-day{border:1px solid #E3E7EC;border-radius:10px;padding:10px 12px;margin-top:10px}.so-dh{font-size:13px;margin-bottom:6px}.so-c{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:7px;font-size:13px;cursor:pointer}.so-c:hover{background:#F6F7F9}.so-c.on{background:#ECFDF3}.so-c.blk{opacity:.6}'+
+ '.so-c small{color:var(--muted);font-size:11.5px}.so-r{display:inline-block;min-width:20px;height:20px;line-height:20px;text-align:center;border-radius:10px;background:#EEF2F7;font-size:11px;font-weight:800}.so-c.on .so-r{background:#1B7F4E;color:#fff}'+
+ '@media (prefers-color-scheme:dark){.so-t th{background:#1C2229}.so-c:hover{background:#1C2229}.so-c.on{background:#12301F}}</style>');
+window.yumSupOff={open:open,_rec:function(){return recommend()},_st:function(s){ST=s}};
 })();
 </script>
 
