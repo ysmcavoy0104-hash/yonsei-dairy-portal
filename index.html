@@ -14541,6 +14541,10 @@ console.log('[확장 모듈 66] 일지 화면 분할 로드 완료'+(EMB?' (칸 
 (function(){
 'use strict';
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+var TC={'배합':'mx','계량':'ms','규격':'sp','원본':'og'},KL={'배합':'배합일보','계량':'계량일보','규격':'배합 규격서(PDF)','원본':'원본(스캔 PDF)'},SK={'규격':'규격서','원본':'스캔'};
+function tc(k){return TC[k]||'ms'}
+function klabel(k){return KL[k]||k}
+function sk(k){return SK[k]||k}
 function nz(s){return String(s==null?'':s).replace(/\s+/g,'')}
 
 /* ---------- xlsx 읽기 (zip → xml) ---------- */
@@ -14673,20 +14677,24 @@ function store(){
 function byId(id){var L=store().list;for(var i=0;i<L.length;i++)if(L[i].id===id)return L[i];return null}
 async function handleFiles(files){
  var st=document.getElementById('rcp-status');
- var R=store(),done=[],fail=[];
+ var R=store(),done=[],fail=[],noCode=[];
  for(const f of files){
   try{
    if(st)st.textContent='읽는 중… '+f.name;
-   var sheets=await readXlsx(await f.arrayBuffer());
-   var got=sheets.map(parseSheet).filter(Boolean);
+   var got;
+   if(/\.pdf$/i.test(f.name)){if(!window.PlanRecipePdf)throw new Error('PDF 읽기 모듈이 없습니다');got=await PlanRecipePdf.read(f)}
+   else got=(await readXlsx(await f.arrayBuffer())).map(parseSheet).filter(Boolean);
    if(!got.length){fail.push(f.name+' (배합비 표를 찾지 못함)');continue}
+   var oldCodes=null;R.list.filter(function(x){return x.f===f.name&&x.pdf}).forEach(function(x){if(x.codes&&x.codes.length)oldCodes=x.codes;if(x.pdf!==(got[0]&&got[0].pdf)){try{PlanRecipePdf.drop(x)}catch(e){}}});
    R.list=R.list.filter(function(x){return x.f!==f.name});
    var used={};R.list.forEach(function(x){used[x.id]=1});
    got.forEach(function(g){
+    if(g.pdf&&!g.codes.length&&oldCodes)g.codes=oldCodes.slice();
     var id=g.kind+'|'+g.sheet,n=2;while(used[id])id=g.kind+'|'+g.sheet+'#'+(n++);
     used[id]=1;g.id=id;g.f=f.name;R.list.push(g);
    });
    R.files[f.name]={at:new Date().toISOString(),n:got.length,kind:got[0].kind};
+   if(got[0].pdf&&!got[0].codes.length)noCode.push(f.name);
    done.push(f.name+' — '+got.length+'개');
   }catch(e){fail.push(f.name+' ('+(e&&e.message||e)+')')}
  }
@@ -14695,6 +14703,7 @@ async function handleFiles(files){
  if(window.U&&U.toast)U.toast(done.length?('배합비 등록: '+done.join(', ')):'등록된 배합비가 없습니다');
  if(fail.length)alert('읽지 못한 파일\n'+fail.join('\n'));
  refreshPanel();
+ if(noCode.length&&window.PlanRecipePdf)setTimeout(function(){PlanRecipePdf.editCodes(noCode[0])},300);
 }
 
 /* ---------- 품목코드 → 배합비 찾기 ---------- */
@@ -14719,6 +14728,7 @@ function nameFor(code,hint){
 /* ---------- 화면 ---------- */
 function fmt(v,d){if(v==null||v==='')return '';if(typeof v!=='number')return esc(v);return v.toLocaleString('ko-KR',{maximumFractionDigits:d==null?3:d})}
 function tableHtml(r,batches){
+ if((r.kind==='규격'||r.kind==='원본')&&window.PlanRecipePdf)return PlanRecipePdf.table(r,batches);
  var meter=r.kind==='계량',bt=+batches||0;
  var h='<table class="rcp-tbl"><thead><tr>'+(meter?'<th>분류</th>':'')+'<th>코드</th><th style="text-align:left">원료명</th><th>제조회사</th><th>배합비(%)</th><th>1B 투입량(kg)</th>'+(bt?'<th>'+bt+'B 총량(kg)</th>':(meter&&r.items.some(function(x){return x[6]!=null})?'<th>총투입량(kg)</th>':''))+'</tr></thead><tbody>';
  var last=null;
@@ -14741,10 +14751,10 @@ var CUR={code:'',batch:'',name:'',sel:null,q:''};
 function recipeCard(r){
  return '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;align-items:baseline;margin:2px 0 8px">'+
   '<b style="font-size:15px">'+esc(r.name)+'</b>'+
-  '<span class="rcp-tag '+(r.kind==='배합'?'mx':'ms')+'">'+r.kind+'일보</span>'+
+  '<span class="rcp-tag '+tc(r.kind)+'">'+klabel(r.kind)+'</span>'+
   (r.base?'<span style="color:var(--muted);font-size:12.5px">1배치 '+r.base.toLocaleString()+'kg 기준</span>':'')+
   (r.bat?'<span style="color:var(--muted);font-size:12.5px">계량 배치수 '+esc(r.bat)+'</span>':'')+
-  '<span style="color:var(--muted);font-size:11.5px">시트: '+esc(r.sheet)+' · '+esc(r.f)+'</span></div>';
+  '<span style="color:var(--muted);font-size:11.5px">'+(r.pdf?'파일':'시트')+': '+esc(r.pdf?r.f:r.sheet+' · '+r.f)+'</span></div>'+(r.pdf&&window.PlanRecipePdf?PlanRecipePdf.card(r):'');
 }
 function modalBody(){
  var code=CUR.code,list=find(code),linked=DB.data.recipeLink[code]||[];
@@ -14754,18 +14764,18 @@ function modalBody(){
   return '<div style="padding:18px;text-align:center;color:var(--muted)">등록된 배합비 자료가 없습니다.<br>생산계획표 화면 아래 「📚 배합비 자료」에서 배합일보 · 계량일보 엑셀 파일을 먼저 올려 주세요.</div>';
  }
  if(list.length){
-  if(!CUR.sel||!byId(CUR.sel))CUR.sel=(list.filter(function(r){return r.kind==='배합'})[0]||list[0]).id;
+  if(!CUR.sel||!byId(CUR.sel)){var PR={'규격':0,'원본':1,'배합':2,'계량':3};CUR.sel=list.slice().sort(function(a,b){return (PR[a.kind]==null?9:PR[a.kind])-(PR[b.kind]==null?9:PR[b.kind])})[0].id}
   h+='<div class="rcp-tabs">'+list.map(function(r){
    var lk=linked.indexOf(r.id)>=0;
-   return '<button class="rcp-tab'+(r.id===CUR.sel?' on':'')+'" onclick="PlanRecipe.pick(\''+esc(r.id).replace(/'/g,"\\'")+'\')"><span class="rcp-tag '+(r.kind==='배합'?'mx':'ms')+'">'+r.kind+'</span> '+esc(r.sheet)+(r.base?' · '+(r.base/1000)+'톤':'')+(lk?' 🔗':'')+'</button>'}).join('')+'</div>';
+   return '<button class="rcp-tab'+(r.id===CUR.sel?' on':'')+'" onclick="PlanRecipe.pick(\''+esc(r.id).replace(/'/g,"\\'")+'\')"><span class="rcp-tag '+tc(r.kind)+'">'+sk(r.kind)+'</span> '+esc(r.sheet)+(r.base?' · '+(r.base/1000)+'톤':'')+(lk?' 🔗':'')+'</button>'}).join('')+'</div>';
   var r=byId(CUR.sel);
   if(list.indexOf(r)<0)h+='<div style="font-size:12px;color:#7A5AF8;font-weight:700;margin-bottom:4px">미리보기 — 아직 이 품목코드에 연결되지 않은 배합비입니다 <button class="btn btn-p btn-sm" style="padding:0 8px;font-size:11px" onclick="PlanRecipe.link(\''+esc(r.id).replace(/'/g,"\\'")+'\')">연결</button></div>';
-  h+=recipeCard(r)+(bt?'<label style="font-size:12.5px;display:inline-flex;gap:6px;align-items:center;margin-bottom:6px"><input type="checkbox" id="rcp-bt" '+(CUR.showBt!==false?'checked':'')+' onchange="PlanRecipe.toggleBt(this.checked)"> 생산계획 배치수('+bt+'B) 총량 같이 보기</label>':'')+
+  h+=recipeCard(r)+(bt&&r.kind!=='원본'?'<label style="font-size:12.5px;display:inline-flex;gap:6px;align-items:center;margin-bottom:6px"><input type="checkbox" id="rcp-bt" '+(CUR.showBt!==false?'checked':'')+' onchange="PlanRecipe.toggleBt(this.checked)"> 생산계획 배치수('+bt+'B) 총량 같이 보기</label>':'')+
    '<div style="overflow:auto">'+tableHtml(r,CUR.showBt!==false?bt:0)+'</div>';
   if(linked.indexOf(r.id)>=0)h+='<div style="margin-top:8px;text-align:right"><button class="btn btn-o btn-sm" onclick="PlanRecipe.unlink(\''+esc(r.id).replace(/'/g,"\\'")+'\')">이 품목코드와 연결 해제</button></div>';
   var kinds={};list.forEach(function(x){kinds[x.kind]=1});
-  if(!(kinds['배합']&&kinds['계량'])){
-   var miss=kinds['배합']?'계량':'배합',ref=list[0];
+  if(!(kinds['배합']&&kinds['계량'])&&(kinds['배합']||kinds['계량'])){
+   var miss=kinds['배합']?'계량':'배합',ref=list.filter(function(x){return x.kind==='배합'||x.kind==='계량'})[0];
    var cand=store().list.filter(function(x){return x.kind===miss&&(!ref.base||!x.base||x.base===ref.base)})
     .map(function(x){return {r:x,s:Math.max(sim(ref.name,x.name),sim(ref.sheet,x.sheet))}}).filter(function(x){return x.s>=0.45})
     .sort(function(a2,b2){return b2.s-a2.s}).slice(0,3).map(function(x){return x.r});
@@ -14785,7 +14795,7 @@ function rowsHtml(arr){
  if(!arr.length)return '<div style="color:var(--muted);font-size:12.5px;padding:6px">찾은 배합비가 없습니다.</div>';
  return '<div class="rcp-list">'+arr.slice(0,40).map(function(r){
   var idq=esc(r.id).replace(/'/g,"\\'");
-  return '<div class="rcp-li"><span class="rcp-tag '+(r.kind==='배합'?'mx':'ms')+'">'+r.kind+'</span> <span style="flex:1">'+esc(r.sheet)+(r.codes&&r.codes.length?' <small style="color:var(--muted)">('+esc(r.codes.join(', '))+')</small>':'')+'</span>'+
+  return '<div class="rcp-li"><span class="rcp-tag '+tc(r.kind)+'">'+sk(r.kind)+'</span> <span style="flex:1">'+esc(r.sheet)+(r.codes&&r.codes.length?' <small style="color:var(--muted)">('+esc(r.codes.join(', '))+')</small>':'')+'</span>'+
    '<button class="btn btn-o btn-sm" onclick="PlanRecipe.preview(\''+idq+'\')">보기</button> <button class="btn btn-p btn-sm" onclick="PlanRecipe.link(\''+idq+'\')">연결</button></div>'}).join('')+'</div>';
 }
 function searchHtml(){
@@ -14806,14 +14816,14 @@ function open(code,batch,name){
 
 /* ---------- 생산계획표 화면 아래 「배합비 자료」 패널 ---------- */
 function panelHtml(){
- var R=store(),fs=Object.keys(R.files),nb=R.list.filter(function(r){return r.kind==='배합'}).length,nm=R.list.length-nb;
+ var R=store(),fs=Object.keys(R.files),nb=R.list.filter(function(r){return r.kind==='배합'}).length,nm=R.list.filter(function(r){return r.kind==='계량'}).length,np=R.list.filter(function(r){return r.pdf}).length;
  var withCode=R.list.filter(function(r){return r.codes&&r.codes.length}).length,lk=Object.keys(DB.data.recipeLink||{}).length;
  return '<div style="font-size:15px;font-weight:800;margin-bottom:4px">📚 배합비 자료</div>'+
-  '<div style="font-size:12.5px;color:var(--muted);margin-bottom:8px">배합일보 · 계량일보 엑셀(.xlsx)을 올리면 위 생산계획표에서 <b>품목코드를 눌러</b> 그 품목의 배합비를 볼 수 있습니다. 같은 이름의 파일을 다시 올리면 새 내용으로 바뀝니다.</div>'+
-  '<input type="file" id="rcp-file" accept=".xlsx" multiple> <span id="rcp-status" style="font-size:12.5px;color:var(--muted)"></span>'+
-  (fs.length?'<div style="margin-top:10px;font-size:12.5px">배합일보 <b>'+nb+'</b>개 · 계량일보 <b>'+nm+'</b>개 (품목코드가 적힌 시트 '+withCode+'개 · 직접 연결한 품목코드 '+lk+'개)</div>'+
+  '<div style="font-size:12.5px;color:var(--muted);margin-bottom:8px">배합일보 · 계량일보 엑셀(.xlsx)이나 배합 규격서 PDF를 올리면 위 생산계획표에서 <b>품목코드를 눌러</b> 그 품목의 배합비를 볼 수 있습니다. 같은 이름의 파일을 다시 올리면 새 내용으로 바뀝니다.</div>'+
+  '<input type="file" id="rcp-file" accept=".xlsx,.pdf" multiple> <span id="rcp-status" style="font-size:12.5px;color:var(--muted)"></span>'+
+  (fs.length?'<div style="margin-top:10px;font-size:12.5px">배합일보 <b>'+nb+'</b>개 · 계량일보 <b>'+nm+'</b>개'+(np?' · PDF 규격서 <b>'+np+'</b>개':'')+' (품목코드가 적힌 시트 '+withCode+'개 · 직접 연결한 품목코드 '+lk+'개)</div>'+
    '<div style="margin-top:6px;display:flex;flex-direction:column;gap:3px">'+fs.map(function(f){var x=R.files[f];
-    return '<div style="font-size:12px;display:flex;gap:8px;align-items:center"><span class="rcp-tag '+(x.kind==='배합'?'mx':'ms')+'">'+esc(x.kind||'')+'</span><span>'+esc(f)+'</span><span style="color:var(--muted)">'+x.n+'개 · '+String(x.at||'').slice(0,10)+'</span><button class="btn btn-o btn-sm" style="padding:0 6px;font-size:11px" onclick="PlanRecipe.removeFile(\''+esc(f).replace(/'/g,"\\'")+'\')">삭제</button></div>'}).join('')+'</div>'+
+    return '<div style="font-size:12px;display:flex;gap:8px;align-items:center"><span class="rcp-tag '+tc(x.kind)+'">'+esc(sk(x.kind||''))+'</span><span>'+esc(f)+'</span><span style="color:var(--muted)">'+x.n+'개 · '+String(x.at||'').slice(0,10)+'</span>'+(window.PlanRecipePdf&&/규격|원본/.test(x.kind||'')?PlanRecipePdf.fileExtra(f):'')+'<button class="btn btn-o btn-sm" style="padding:0 6px;font-size:11px" onclick="PlanRecipe.removeFile(\''+esc(f).replace(/'/g,"\\'")+'\')">삭제</button></div>'}).join('')+'</div>'+
    '<div style="margin-top:8px"><input id="rcp-pq" placeholder="품목코드나 이름으로 배합비 찾아보기" style="width:min(360px,100%)" onkeydown="if(event.key===\'Enter\')PlanRecipe.lookup(this.value)"> <button class="btn btn-o btn-sm" onclick="PlanRecipe.lookup(document.getElementById(\'rcp-pq\').value)">찾기</button></div>'
   :'<div style="margin-top:8px;font-size:12.5px;color:var(--muted)">아직 올린 배합비 파일이 없습니다.</div>');
 }
@@ -14828,7 +14838,7 @@ var CSS='<style id="rcp-css">'+
  '.rcp-tbl{border-collapse:collapse;width:100%;font-size:13px}.rcp-tbl th,.rcp-tbl td{border:1px solid #CBD2DB;padding:4px 8px;text-align:center;white-space:nowrap}'+
  '.rcp-tbl th{background:#F2F4F7;font-weight:700}.rcp-tbl td.n{text-align:right;font-variant-numeric:tabular-nums}.rcp-tbl tr.rcp-sum td{background:#F7F9FB;font-weight:700}'+
  '.rcp-tbl tr.rcp-pre td{background:#EEF6F8}.rcp-tbl td.rcp-g{font-weight:700;color:#0E7490}'+
- '.rcp-tag{display:inline-block;padding:0 6px;border-radius:4px;font-size:11px;font-weight:700;color:#fff}.rcp-tag.mx{background:#0E7490}.rcp-tag.ms{background:#7A5AF8}'+
+ '.rcp-tag{display:inline-block;padding:0 6px;border-radius:4px;font-size:11px;font-weight:700;color:#fff}.rcp-tag.mx{background:#0E7490}.rcp-tag.ms{background:#7A5AF8}.rcp-tag.sp{background:#B45309}.rcp-tag.og{background:#64748B}'+
  '.rcp-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}.rcp-tab{border:1px solid #CBD2DB;background:#fff;border-radius:8px;padding:4px 10px;font-size:12.5px;cursor:pointer;color:inherit}.rcp-tab.on{border-color:#0E7490;box-shadow:0 0 0 2px rgba(14,116,144,.18);font-weight:700}'+
  '.rcp-list{display:flex;flex-direction:column;gap:4px;max-height:260px;overflow:auto}.rcp-li{display:flex;gap:6px;align-items:center;font-size:12.5px;padding:3px 4px;border-bottom:1px solid #EEF0F3}'+
  '@media (prefers-color-scheme:dark){.rcp-tbl th{background:#232A33}.rcp-tbl tr.rcp-sum td{background:#1C2229}.rcp-tbl tr.rcp-pre td{background:#16303A}.rcp-tab{background:transparent}}'+
@@ -14853,12 +14863,13 @@ window.PlanRecipe={
  search:function(q){CUR.q=q;var b=document.getElementById('rcp-qres');if(b)b.innerHTML=q?rowsHtml(searchList(q)):''},
  link:function(id){store();var L=DB.data.recipeLink[CUR.code]||(DB.data.recipeLink[CUR.code]=[]);if(L.indexOf(id)<0)L.push(id);DB.save();CUR.sel=id;CUR.q='';rerender();if(U.toast)U.toast('품목코드 '+CUR.code+'에 배합비를 연결했습니다');refreshPanel()},
  unlink:function(id){var L=DB.data.recipeLink[CUR.code]||[];var i=L.indexOf(id);if(i>=0)L.splice(i,1);if(!L.length)delete DB.data.recipeLink[CUR.code];DB.save();CUR.sel=null;rerender();refreshPanel()},
- removeFile:function(f){U.confirm('「'+f+'」 배합비 자료를 지울까요?',function(){var R=store();R.list=R.list.filter(function(x){return x.f!==f});delete R.files[f];DB.save();refreshPanel()},'삭제')},
+ removeFile:function(f){U.confirm('「'+f+'」 배합비 자료를 지울까요?',function(){var R=store();R.list.filter(function(x){return x.f===f&&x.pdf}).forEach(function(x){try{PlanRecipePdf.drop(x)}catch(e){}});R.list=R.list.filter(function(x){return x.f!==f});delete R.files[f];DB.save();refreshPanel()},'삭제')},
  lookup:function(q){q=String(q||'').trim();if(!q)return;if(/^1\d{4}$/.test(q)){open(q,'','');return}
   CUR={code:'',batch:'',name:q,sel:null,q:q,showBt:false};
   U.modal('배합비 찾기 — '+q,'<div style="font-size:12.5px;color:var(--muted);margin-bottom:6px">이름으로 찾은 배합비입니다. 「보기」를 누르면 아래에 표가 나옵니다.</div><div id="rcp-lk">'+rowsHtml(searchList(q).length?searchList(q):suggest(q,20)).replace(/<button class="btn btn-p btn-sm"[^>]*>연결<\/button>/g,'')+'</div><div id="rcp-pv"></div>',{size:'lg',foot:'<button class="btn btn-o btn-sm" onclick="U.closeModal()">닫기</button>'});
   PlanRecipe._lk=true;
  },
+ _int:{store:store,byId:byId,refreshPanel:refreshPanel,rerender:rerender,esc:esc,fmt:fmt,tc:tc,klabel:klabel,find:find},
  _parse:parseSheet,_read:readXlsx,_codes:codesOf,_find:find
 };
 /* 이름 찾기 창의 「보기」 */
@@ -14992,6 +15003,303 @@ try{var _ap=Sync.apply;Sync.apply=function(){
  return _ap.apply(this,arguments)}}catch(e){}
 window.yumBgSafe={busy:busy,dirty:function(){return !!DIRTY[key()]}};
 console.log('[확장 모듈] 입력 · 스크롤 보호(2차) 로드 완료');
+})();
+</script>
+
+<script>
+/* 멸균 파트 업무 일지(FRM-016) — 같은 양식의 Word(.docx) 파일을 첨부하면 웹 양식 칸에 내용만 옮겨 채움
+   · 일지 작성 · 수정 화면 위 도구줄에 「📄 Word에서 불러오기」
+   · 표의 머리줄(품 목 · 배치 수 · 멸균 시작 …)을 기준으로 칸을 찾으므로 줄 간격 · 글꼴이 달라도 됨
+   · 날짜는 문서 머리말(2026년 10월 29일 목요일)에서
+   · 채우기만 하고 저장은 직접 (채운 칸은 잠깐 초록색으로 표시) */
+(function(){
+'use strict';
+if(window.__YUM_F16IMP__)return;window.__YUM_F16IMP__=1;
+function u16(b,o){return b[o]|(b[o+1]<<8)}
+function u32(b,o){return (b[o]|(b[o+1]<<8)|(b[o+2]<<16)|(b[o+3]<<24))>>>0}
+async function unzip(ab){
+ var b=new Uint8Array(ab),e=-1;
+ for(var i=b.length-22;i>=Math.max(0,b.length-70000);i--){if(u32(b,i)===0x06054b50){e=i;break}}
+ if(e<0)throw new Error('Word(.docx) 파일이 아닙니다. 예전 .doc 파일이면 Word에서 「다른 이름으로 저장 → .docx」로 바꿔 주세요.');
+ var n=u16(b,e+10),p=u32(b,e+16),out={},td=new TextDecoder('utf-8');
+ for(var k=0;k<n;k++){if(u32(b,p)!==0x02014b50)break;
+  var fl=u16(b,p+28),xl=u16(b,p+30),cl=u16(b,p+32);
+  out[td.decode(b.subarray(p+46,p+46+fl))]={meth:u16(b,p+10),csz:u32(b,p+20),lo:u32(b,p+42)};p+=46+fl+xl+cl}
+ return async function(name){var f=out[name];if(!f)return null;var o=f.lo,s=o+30+u16(b,o+26)+u16(b,o+28),d=b.subarray(s,s+f.csz);
+  if(f.meth!==0)d=new Uint8Array(await new Response(new Blob([d]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
+  return td.decode(d)};
+}
+var W='http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+function kids(n,t){return Array.prototype.filter.call(n.childNodes,function(c){return c.localName===t})}
+function txt(n){
+ var out=[];
+ (function walk(x){Array.prototype.forEach.call(x.childNodes,function(c){
+  if(c.localName==='t')out.push(c.textContent);
+  else if(c.localName==='tab'||c.localName==='br')out.push(' ');
+  else if(c.localName==='p'){if(out.length)out.push(' ');walk(c)}
+  else walk(c)})})(n);
+ return out.join('').replace(/\s+/g,' ').trim();
+}
+function nz(s){return String(s||'').replace(/\s+/g,'')}
+var H1={'품목':'item','배치수':'batch','멸균시작':'s1','멸균종료':'e1','생산시작':'ps1','생산종료':'pe1','cip시작':'cs1','cip종료':'ce1','가동시간':'run'};
+var H2={'탱크번호':'tank','멸균시작':'s2','멸균종료':'e2','생산시작':'ps2','생산종료':'pe2','cip시작':'cs2','cip종료':'ce2','적산량':'qty'};
+async function parseDocx(ab){
+ var get=await unzip(ab);
+ var xml=await get('word/document.xml');if(!xml)throw new Error('Word 문서 내용을 찾지 못했습니다');
+ var doc=new DOMParser().parseFromString(xml,'application/xml');
+ var rows=[];Array.prototype.forEach.call(doc.getElementsByTagNameNS(W,'tr'),function(tr){rows.push(kids(tr,'tc').map(txt))});
+ /* 날짜: 머리말 → 본문 순 */
+ var heads=[];for(var i=1;i<=6;i++){var h=await get('word/header'+i+'.xml');if(h)heads.push(h.replace(/<w:tab\/>/g,' ').replace(/<[^>]+>/g,''))}
+ var all=heads.join(' ')+' '+txt(doc.documentElement);
+ var dm=/(20\d\d)\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일\s*([월화수목금토일])?/.exec(all.replace(/\s+/g,' '));
+ var data={},blk=0,cur=null,mode='',stop=0,named=0;
+ for(var r=0;r<rows.length;r++){
+  var c=rows[r],k=c.map(function(x){return nz(x).toLowerCase()});
+  var tm=/멸균(\d)호기/.exec(k.join(''));
+  if(c.length<=2&&tm){named=+tm[1];continue}
+  if(k.indexOf('품목')>=0&&k.indexOf('배치수')>=0){blk=named||blk+1;named=0;cur=k.map(function(x){return H1[x]||''});mode='v1';continue}
+  if(k.indexOf('탱크번호')>=0){cur=k.map(function(x){return H2[x]||''});mode='v2';continue}
+  if(k[0]==='정지'&&k.indexOf('재가동')>=0){mode='stop';stop=0;continue}
+  if(!blk)continue;
+  var P='s'+blk+'_';
+  if(k[0]==='특이사항'){data[P+'note']=c.slice(1).join(' ').trim();mode='';continue}
+  if(mode==='v1'||mode==='v2'){cur.forEach(function(f,j){if(f)data[P+f]=(c[j]||'').trim()});mode='';continue}
+  if(mode==='stop'&&stop<3){stop++;data[P+'st'+stop]=(c[0]||'').trim();data[P+'rs'+stop]=(c[1]||'').trim();data[P+'why'+stop]=c.slice(2).join(' ').trim();continue}
+ }
+ return {date:dm?{y:dm[1],m:String(+dm[2]),d:String(+dm[3]),w:dm[4]||''}:null,data:data,blocks:blk};
+}
+function el(k){return document.querySelector('#docpaper [data-gk="'+k+'"]')}
+function setVal(e,v){
+ if(!e)return false;
+ if(e.tagName==='SELECT'){var o=Array.prototype.filter.call(e.options,function(o){return o.value===v||o.text===v||(v&&(o.text.indexOf(v)===0||o.value.indexOf(v)===0))})[0];if(!o)return false;e.value=o.value}
+ else e.value=v;
+ e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));
+ if(v){e.style.transition='background .6s';e.style.background='#DCFCE7';setTimeout(function(){e.style.background=''},2500)}
+ return true;
+}
+function isF16(){return !!(el('s1_tank')&&el('s5_note'))}
+function hasData(){return Array.prototype.some.call(document.querySelectorAll('#docpaper [data-gk^="s"]'),function(e){return /^s\d_/.test(e.getAttribute('data-gk'))&&e.value&&e.value.trim()})}
+function fill(res){
+ var n=0,miss=[];
+ Array.prototype.forEach.call(document.querySelectorAll('#docpaper [data-gk]'),function(e){var k=e.getAttribute('data-gk');if(/^s\d_/.test(k)&&!(k in res.data))setVal(e,'')});
+ Object.keys(res.data).forEach(function(k){var e=el(k);if(!e){if(res.data[k])miss.push(k);return}setVal(e,res.data[k]);if(res.data[k])n++});
+ if(res.date){setVal(el('dY'),res.date.y);setVal(el('dM'),res.date.m);setVal(el('dD'),res.date.d);if(res.date.w)setVal(el('dow'),res.date.w)}
+ return {n:n,miss:miss};
+}
+async function run(file){
+ try{
+  var res=await parseDocx(await file.arrayBuffer());
+  if(!res.blocks||!Object.keys(res.data).length){alert('이 파일에서 멸균 파트 업무 일지 표(품 목 · 배치 수 · 멸균 시작 …)를 찾지 못했습니다.');return}
+  var go=function(){var r=fill(res);
+   U.toast('「'+file.name+'」에서 '+r.n+'칸을 채웠습니다'+(res.date?' · 날짜 '+res.date.y+'-'+res.date.m+'-'+res.date.d:'')+' — 확인 후 저장해 주세요.','ok');
+   if(r.miss.length)console.warn('[Word 불러오기] 양식에 없는 칸',r.miss)};
+  if(hasData())U.confirm('지금 화면에 적힌 내용을 지우고 「'+file.name+'」 내용으로 채울까요? (저장하기 전까지는 서버에 반영되지 않습니다)',go,'불러오기');
+  else go();
+ }catch(e){alert('파일을 읽지 못했습니다: '+(e&&e.message||e))}
+}
+function addBtn(){
+ var h=location.hash||'';if(!/^#\/doc(-new)?[\/?]/.test(h))return;
+ var bar=document.querySelector('#nf-fields .zbar');if(!bar||bar.querySelector('.f16imp')||!isF16())return;
+ var inp=document.createElement('input');inp.type='file';inp.accept='.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document';inp.style.display='none';
+ inp.onchange=function(){var f=inp.files&&inp.files[0];inp.value='';if(f)run(f)};
+ var b=document.createElement('button');b.type='button';b.className='f16imp';b.textContent='📄 Word에서 불러오기';b.title='같은 양식의 멸균 파트 업무 일지 Word(.docx) 파일 내용을 이 칸들에 옮겨 채웁니다';
+ b.style.cssText='border:1px solid #0E7490;background:#ECFEFF;color:#0E7490;border-radius:8px;padding:4px 10px;font-weight:700;font-size:12.5px;cursor:pointer;margin-right:6px';
+ b.onclick=function(){inp.click()};
+ bar.insertBefore(inp,bar.firstChild);bar.insertBefore(b,bar.firstChild.nextSibling);
+}
+var T=null;new MutationObserver(function(){clearTimeout(T);T=setTimeout(addBtn,200)}).observe(document.documentElement,{childList:true,subtree:true});
+window.yumF16Import={parse:parseDocx,run:run};
+})();
+</script>
+
+<script>
+/* 배합비 자료 — PDF 배합 규격서
+   · 컴퓨터로 만든 PDF: 글자 위치로 표를 다시 읽음 (구분/투입순서 · 원재료명 · 코드 · 보관기준 · 배합비(%) · 현장배합비(kg) · 내용 · 비고)
+     + 제품명 · 제품코드 · 포장 · 개정일자 · 개정번호 · 합계 · 주의사항 · 공정조건 줄
+   · 스캔한 PDF(글자 없음): 원본 그림을 그대로 보여 줌 — 품목코드는 파일 이름에서 찾고, 없으면 직접 입력
+   · 원본 PDF 파일: Supabase 저장소(recipe-files)에 올려 모든 직원이 볼 수 있게 함
+     (저장소가 아직 없으면 올린 컴퓨터에만 보관 → 「원본 보기」는 그 컴퓨터에서만) */
+(function(){
+'use strict';
+if(window.PlanRecipePdf)return;
+var BUCKET='recipe-files';
+var I=function(){return PlanRecipe._int};
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function nz(s){return String(s==null?'':s).replace(/\s+/g,'')}
+function lib(src){return new Promise(function(ok,no){var s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=function(){no(new Error('PDF 읽기 도구를 불러오지 못했습니다 (인터넷 연결 확인)'))};document.head.appendChild(s)})}
+function ensurePdf(){
+ if(window.pdfjsLib)return Promise.resolve();
+ return lib('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js').then(function(){
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'});
+}
+async function sha(ab){
+ try{var h=await crypto.subtle.digest('SHA-256',ab);return Array.prototype.map.call(new Uint8Array(h),function(b){return ('0'+b.toString(16)).slice(-2)}).join('').slice(0,32)}
+ catch(e){var b=new Uint8Array(ab),x=2166136261,y=5381;for(var i=0;i<b.length;i++){x=Math.imul(x^b[i],16777619)>>>0;y=(Math.imul(y,33)+b[i])>>>0}return 'f'+x.toString(16)+y.toString(16)+b.length.toString(16)}
+}
+
+/* ---------- 원본 파일 보관: 이 컴퓨터(IndexedDB) + Supabase 저장소 ---------- */
+function idb(){return new Promise(function(ok,no){try{var r=indexedDB.open('yum_recipe_pdf',1);r.onupgradeneeded=function(){r.result.createObjectStore('f')};r.onsuccess=function(){ok(r.result)};r.onerror=function(){no(r.error)}}catch(e){no(e)}})}
+async function idbPut(k,blob){try{var d=await idb();await new Promise(function(ok,no){var t=d.transaction('f','readwrite');t.objectStore('f').put(blob,k);t.oncomplete=ok;t.onerror=function(){no(t.error)}})}catch(e){}}
+async function idbGet(k){try{var d=await idb();return await new Promise(function(ok){var t=d.transaction('f');var q=t.objectStore('f').get(k);q.onsuccess=function(){ok(q.result||null)};q.onerror=function(){ok(null)}})}catch(e){return null}}
+async function idbDel(k){try{var d=await idb();var t=d.transaction('f','readwrite');t.objectStore('f').delete(k)}catch(e){}}
+function cli(){try{return window.SupaSync&&SupaSync.on&&SupaSync.on()?SupaSync.c():null}catch(e){return null}}
+async function upload(key,blob){
+ var c=cli();if(!c||!c.storage)return 'Supabase 연결 없음';
+ try{var r=await c.storage.from(BUCKET).upload(key+'.pdf',blob,{upsert:true,contentType:'application/pdf'});return r&&r.error?(r.error.message||'올리기 실패'):''}catch(e){return (e&&e.message)||String(e)}
+}
+async function download(key){
+ var b=await idbGet(key);if(b)return b;
+ var c=cli();if(!c||!c.storage)return null;
+ try{var r=await c.storage.from(BUCKET).download(key+'.pdf');if(r&&r.data){idbPut(key,r.data);return r.data}}catch(e){}
+ return null;
+}
+
+/* ---------- PDF 글자 → 배합 규격 ---------- */
+function lines(items){
+ var L=[];items.slice().sort(function(a,b){return a.y-b.y||a.x-b.x}).forEach(function(it){
+  var l=L.length?L[L.length-1]:null;if(l&&Math.abs(it.y-l.y)<=3){l.items.push(it)}else L.push({y:it.y,items:[it]})});
+ L.forEach(function(l){l.items.sort(function(a,b){return a.x-b.x});var t='',px=null;l.items.forEach(function(i){if(px!=null&&i.x-px>4)t+=' ';t+=i.s;px=i.x+i.w});l.t=t.replace(/\s+/g,' ').trim()});
+ return L;
+}
+function lab(items,re){return items.filter(function(i){return re.test(nz(i.s))})}
+function numOf(s){var m=/-?\d[\d,]*(\.\d+)?/.exec(String(s||''));return m?parseFloat(m[0].replace(/,/g,'')):null}
+function parseSpec(items){
+ var out={codes:[],name:'',pack:'',rev:'',revNo:'',items:[],sum:{},pre:[],post:[]};
+ if(!items.length)return out;
+ var Lb={};['제품명','제품코드','제품포장','개정일자','개정번호'].forEach(function(k){Lb[k]=lab(items,new RegExp('^'+k+'$'))[0]});
+ function right(l,maxX,dy){if(!l)return [];return items.filter(function(i){return i!==l&&i.x>l.x+l.w-1&&i.x<(maxX||9999)&&Math.abs(i.y-l.y)<=(dy||8)})}
+ if(Lb['제품코드']){var cs=right(Lb['제품코드'],9999,16).map(function(i){return i.s}).join(' ');(cs.match(/(^|[^\d])1\d{4}(?!\d)/g)||[]).forEach(function(c){c=c.replace(/^\D/,'');if(out.codes.indexOf(c)<0)out.codes.push(c)})}
+ if(Lb['제품명']){var lim=Lb['제품코드']?Lb['제품코드'].x-4:9999;out.name=right(Lb['제품명'],lim,12).filter(function(i){return !/배합\s*규격/.test(i.s)}).sort(function(a,b){return a.y-b.y||a.x-b.x}).map(function(i){return i.s}).join(' ').trim()}
+ if(Lb['제품포장'])out.pack=right(Lb['제품포장'],Lb['개정번호']?Lb['개정번호'].x-4:9999,8).map(function(i){return i.s}).join(' ').trim();
+ if(Lb['개정일자'])out.rev=right(Lb['개정일자'],9999,8).map(function(i){return i.s}).join(' ').trim();
+ if(Lb['개정번호'])out.revNo=right(Lb['개정번호'],9999,8).map(function(i){return i.s}).join(' ').trim();
+ /* 배합비 표 머리줄 */
+ var hp=lab(items,/^배합비\(%\)$/)[0];if(!hp)return out;
+ var near=items.filter(function(i){return Math.abs(i.y-hp.y)<=22});
+ function c(i){return i?i.x+i.w/2:null}
+ var col={},pick=function(k,re){var x=near.filter(function(i){return re.test(nz(i.s))})[0];if(x)col[k]=c(x)};
+ pick('grp',/^(구분|투입|투입순서)$/);pick('name',/^품목$/);pick('code',/^코드$/);pick('store',/^보관(기준)?$/);col.pct=c(hp);
+ pick('kg',/^현장배합비/);pick('cont',/^내용$/);pick('note',/^비고/);
+ if(col.name==null){var w=near.filter(function(i){return /^원재료명$/.test(nz(i.s))})[0];if(w)col.name=c(w)}
+ var hb=Math.max.apply(null,near.filter(function(i){return /^(품목|코드|기준|\(kg\)|배합비\(%\)|순서)$/.test(nz(i.s))}).map(function(i){return i.y}));
+ var sumL=items.filter(function(i){return /^합계$/.test(nz(i.s))&&i.y>hb}).sort(function(a,b){return a.y-b.y})[0];
+ var endY=sumL?sumL.y:Math.max.apply(null,items.map(function(i){return i.y}))+1;
+ var keys=Object.keys(col).filter(function(k){return col[k]!=null});
+ function colOf(i){var cx=c(i),best=null,bd=1e9;keys.forEach(function(k){var d=Math.abs(col[k]-cx);if(d<bd){bd=d;best=k}});return best}
+ var body=items.filter(function(i){return i.y>hb+3&&i.y<endY-(sumL?10:5)});
+ /* 행 기준: 배합비(%) 칸의 숫자 */
+ var anchors=body.filter(function(i){return colOf(i)==='pct'&&/^\d+(\.\d+)?$/.test(i.s.trim())}).map(function(i){return i.y}).sort(function(a,b){return a-b});
+ var rows=anchors.map(function(y){return {y:y,c:{}}});
+ if(!rows.length)return out;
+ /* 구분 · 투입순서: 위아래로 붙은 글자는 한 덩어리 → 가운데에 가까운 행 */
+ var gi=body.filter(function(i){return colOf(i)==='grp'}).sort(function(a,b){return a.y-b.y}),cl=[];
+ gi.forEach(function(i){var l=cl[cl.length-1];if(l&&i.y-l[l.length-1].y<=16)l.push(i);else cl.push([i])});
+ cl.forEach(function(g){var cy=(g[0].y+g[g.length-1].y)/2,best=rows[0],bd=1e9;rows.forEach(function(r){var d=Math.abs(r.y-cy);if(d<bd){bd=d;best=r}});best.c.grp=(best.c.grp||[]).concat(g)});
+ body=body.filter(function(i){return colOf(i)!=='grp'});
+ body.forEach(function(i){var k=colOf(i),best=rows[0],bd=1e9;rows.forEach(function(r){var d=Math.abs(r.y-i.y);if(d<bd){bd=d;best=r}});(best.c[k]=best.c[k]||[]).push(i)});
+ out.items=rows.map(function(r){
+  function g(k){return (r.c[k]||[]).sort(function(a,b){return a.y-b.y||a.x-b.x}).map(function(i){return i.s.trim()}).join(' ').replace(/\s+/g,' ').trim()}
+  var kgT=g('kg'),kgN=numOf(kgT),kgM=/^\s*-?\d[\d,]*(\.\d+)?\s*(kg|L|ℓ)?/i.exec(kgT),kgX=kgM?kgT.slice(kgM[0].length).trim():'';
+  var cont=[kgX,g('cont')].filter(Boolean).join(' ');
+  return [g('grp'),g('code'),g('name'),g('store'),numOf(g('pct')),kgM?kgM[0].trim():kgT,cont,g('note'),kgN];
+ });
+ if(sumL){var sl=items.filter(function(i){return Math.abs(i.y-sumL.y)<=12&&i!==sumL});
+  sl.forEach(function(i){var k=colOf(i);if(k==='pct'&&/^\d/.test(i.s))out.sum.pct=numOf(i.s);else if(k==='kg'&&/\d/.test(i.s)&&out.sum.kg==null)out.sum.kg=i.s.trim();else (out.sum.x=out.sum.x||[]).push(i.s.trim())})}
+ /* 표 밖 글줄: 주의사항(표 위) · 공정조건(표 아래) */
+ var top=Math.max.apply(null,[Lb['제품포장'],Lb['개정번호']].filter(Boolean).map(function(i){return i.y}).concat([0]));
+ lines(items.filter(function(i){return i.y>top+16&&i.y<hp.y-24})).forEach(function(l){if(l.t&&!/^(작성|검토|승인)/.test(l.t)&&!/^\d+\.\s*배합비/.test(l.t))out.pre.push(l.t)});
+ lines(items.filter(function(i){return i.y>(sumL?sumL.y+12:endY)})).forEach(function(l){if(l.t&&!/복제|복사할 수 없음|^YS-/.test(l.t))out.post.push(l.t)});
+ out.base=numOf(out.sum.kg);
+ return out;
+}
+function codesFromName(n){var o=[];String(n||'').replace(/\.pdf$/i,'').split(/[^0-9]+/).forEach(function(t){if(/^1\d{4}$/.test(t)&&o.indexOf(t)<0)o.push(t)});return o}
+function cleanName(n){return String(n||'').replace(/\.pdf$/i,'').replace(/^[\d_\s]+/,'').replace(/[_]+/g,' ').replace(/\s*-?\s*V\d+\s*$/i,'').replace(/\s+/g,' ').trim()||String(n||'')}
+async function read(file){
+ var ab=await file.arrayBuffer(),key=await sha(ab);
+ await ensurePdf();
+ var doc=await pdfjsLib.getDocument({data:new Uint8Array(ab.slice(0))}).promise,pages=[];
+ for(var p=1;p<=Math.min(doc.numPages,6);p++){var pg=await doc.getPage(p),vp=pg.getViewport({scale:1}),tc=await pg.getTextContent();
+  pages.push(tc.items.filter(function(i){return i.str&&i.str.trim()}).map(function(i){return {s:i.str,x:i.transform[4],y:vp.height-i.transform[5],w:i.width}}))}
+ var txt=pages.reduce(function(a,b){return a+b.length},0),spec=null;
+ for(var q=0;q<pages.length&&!(spec&&spec.items.length);q++)spec=parseSpec(pages[q]);
+ var blob=new Blob([ab],{type:'application/pdf'});
+ await idbPut(key,blob);
+ var err=await upload(key,blob);
+ var rec;
+ if(spec&&spec.items.length){
+  rec={kind:'규격',sheet:spec.name||cleanName(file.name),name:spec.name||cleanName(file.name),codes:spec.codes.length?spec.codes:codesFromName(file.name),
+   base:spec.base||null,items:spec.items,sum:spec.sum,pack:spec.pack,rev:spec.rev,revNo:spec.revNo,pre:spec.pre.slice(0,20),post:spec.post.slice(0,12)};
+ }else{
+  rec={kind:'원본',sheet:cleanName(file.name),name:cleanName(file.name),codes:codesFromName(file.name),items:[],scan:txt<10?1:0,pages:doc.numPages};
+ }
+ rec.pdf=key;rec.srv=err?0:1;if(err)rec.srvErr=String(err).slice(0,120);
+ if(err&&window.U&&U.toast)U.toast('원본 PDF는 이 컴퓨터에만 보관됩니다 (Supabase 저장소 설정 필요) — 표 내용은 모든 직원에게 보입니다','bad');
+ return [rec];
+}
+
+/* ---------- 화면 ---------- */
+function table(r,bt){
+ var fmt=I().fmt;bt=+bt||0;
+ if(r.kind==='원본')return '<div style="padding:10px 12px;border-radius:8px;background:#F1F5F9;font-size:12.5px;margin-bottom:8px">스캔한 PDF라 표 글자를 읽을 수 없어 <b>원본 그대로</b> 보여 드립니다.</div><div class="rcp-orig" data-k="'+esc(r.pdf)+'" data-auto="1"></div>';
+ var hasG=r.items.some(function(x){return x[0]}),hasS=r.items.some(function(x){return x[3]}),hasC=r.items.some(function(x){return x[6]||x[7]});
+ var h='<table class="rcp-tbl"><thead><tr>'+(hasG?'<th>구분</th>':'')+'<th style="text-align:left">원재료명</th><th>코드</th>'+(hasS?'<th>보관</th>':'')+'<th>배합비(%)</th><th>현장배합비(kg)</th>'+(bt?'<th>'+bt+'B 총량(kg)</th>':'')+(hasC?'<th style="text-align:left">내용 · 비고</th>':'')+'</tr></thead><tbody>';
+ r.items.forEach(function(it){
+  h+='<tr>'+(hasG?'<td class="rcp-g">'+esc(it[0])+'</td>':'')+'<td style="text-align:left;white-space:normal">'+esc(it[2])+'</td><td>'+esc(it[1])+'</td>'+(hasS?'<td>'+esc(it[3])+'</td>':'')+
+   '<td class="n">'+fmt(it[4],5)+'</td><td class="n"><b>'+esc(it[5])+'</b></td>'+(bt?'<td class="n">'+(typeof it[8]==='number'?fmt(it[8]*bt,2)+(/L|ℓ/i.test(it[5])?'L':''):'')+'</td>':'')+
+   (hasC?'<td style="text-align:left;white-space:normal;font-size:12px">'+esc([it[6],it[7]].filter(Boolean).join(' · '))+'</td>':'')+'</tr>';
+ });
+ var s=r.sum||{};
+ h+='<tr class="rcp-sum">'+(hasG?'<td></td>':'')+'<td style="text-align:left">합계</td><td></td>'+(hasS?'<td></td>':'')+'<td class="n">'+fmt(s.pct,5)+'</td><td class="n">'+esc(s.kg||'')+'</td>'+(bt?'<td class="n">'+(r.base?fmt(r.base*bt,0)+'kg':'')+'</td>':'')+(hasC?'<td style="text-align:left;font-size:12px">'+esc((s.x||[]).join(' '))+'</td>':'')+'</tr>';
+ h+='</tbody></table>';
+ if((r.pre&&r.pre.length)||(r.post&&r.post.length))
+  h+='<div style="margin-top:10px;display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">'+
+   (r.pre&&r.pre.length?'<div class="rcp-note"><b>주의 사항 · 목표 규격</b>'+r.pre.map(function(t){return '<div>'+esc(t)+'</div>'}).join('')+'</div>':'')+
+   (r.post&&r.post.length?'<div class="rcp-note"><b>공정 조건</b>'+r.post.map(function(t){return '<div>'+esc(t)+'</div>'}).join('')+'</div>':'')+'</div>';
+ return h+'<div class="rcp-orig" data-k="'+esc(r.pdf)+'"></div>';
+}
+function card(r){
+ return '<div style="display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;margin:-2px 0 8px;font-size:12.5px;color:var(--muted)">'+
+  (r.pack?'<span>포장 '+esc(r.pack)+'</span>':'')+(r.rev?'<span>개정일자 '+esc(r.rev)+'</span>':'')+(r.revNo?'<span>개정번호 '+esc(r.revNo)+'</span>':'')+
+  (r.codes&&r.codes.length?'<span>제품코드 '+esc(r.codes.join(', '))+'</span>':'')+
+  (r.kind==='규격'?'<button class="btn btn-o btn-sm" style="padding:1px 8px;font-size:11.5px" onclick="PlanRecipePdf.show(this)" data-k="'+esc(r.pdf)+'">📄 원본 PDF 보기</button>':'')+
+  (r.srv?'':'<span style="color:#B45309">원본 파일은 올린 컴퓨터에만 있음</span>')+'</div>';
+}
+async function render(box){
+ if(!box||box.getAttribute('data-done'))return;box.setAttribute('data-done','1');
+ box.innerHTML='<div style="padding:10px;color:var(--muted);font-size:12.5px">원본 PDF 불러오는 중…</div>';
+ try{
+  var blob=await download(box.getAttribute('data-k'));
+  if(!blob){box.innerHTML='<div style="padding:10px;color:#B45309;font-size:12.5px">원본 PDF를 찾지 못했습니다. 이 파일은 올린 컴퓨터에만 보관되어 있습니다. (관리자가 Supabase 저장소를 설정한 뒤 다시 올리면 모든 직원이 볼 수 있습니다)</div>';return}
+  await ensurePdf();
+  var doc=await pdfjsLib.getDocument({data:new Uint8Array(await blob.arrayBuffer())}).promise;box.innerHTML='';
+  var W=Math.min(900,(box.clientWidth||860));
+  for(var p=1;p<=doc.numPages;p++){var pg=await doc.getPage(p),v1=pg.getViewport({scale:1}),sc=W/v1.width*(window.devicePixelRatio||1),vp=pg.getViewport({scale:sc});
+   var cv=document.createElement('canvas');cv.width=vp.width;cv.height=vp.height;cv.style.cssText='width:100%;max-width:'+W+'px;display:block;margin:8px auto;border:1px solid #CBD2DB;background:#fff';
+   box.appendChild(cv);await pg.render({canvasContext:cv.getContext('2d'),viewport:vp}).promise}
+ }catch(e){box.innerHTML='<div style="padding:10px;color:#B42318;font-size:12.5px">원본을 보여 주지 못했습니다: '+esc(e&&e.message||e)+'</div>'}
+}
+/* 모달이 다시 그려질 때 스캔 원본은 자동으로 표시 */
+new MutationObserver(function(){var b=document.querySelector('#modal-box .rcp-orig[data-auto]:not([data-done])');if(b)render(b)}).observe(document.documentElement,{childList:true,subtree:true});
+function show(btn){var box=document.querySelector('#modal-box .rcp-orig[data-k="'+btn.getAttribute('data-k')+'"]');if(!box)return;
+ if(box.getAttribute('data-done')){box.innerHTML='';box.removeAttribute('data-done');btn.textContent='📄 원본 PDF 보기';return}
+ btn.textContent='원본 닫기';render(box).then(function(){try{box.scrollIntoView({behavior:'smooth',block:'start'})}catch(e){}})}
+function fileExtra(f){
+ var r=(I().store().list.filter(function(x){return x.f===f})[0])||{};var q=esc(f).replace(/'/g,"\\'");
+ return '<span style="color:'+(r.codes&&r.codes.length?'var(--muted)':'#B42318')+'">'+(r.codes&&r.codes.length?'코드 '+esc(r.codes.join(', ')):'품목코드 없음')+'</span>'+
+  '<button class="btn btn-o btn-sm" style="padding:0 6px;font-size:11px" onclick="PlanRecipePdf.editCodes(\''+q+'\')">코드 '+(r.codes&&r.codes.length?'수정':'입력')+'</button>';
+}
+function editCodes(f){
+ var rs=I().store().list.filter(function(x){return x.f===f});if(!rs.length)return;var r=rs[0];
+ U.modal('품목코드 — '+f,'<div style="font-size:13px;line-height:1.7;margin-bottom:8px">'+(r.codes&&r.codes.length?'':'<b style="color:#B42318">이 PDF에서 품목코드를 찾지 못했습니다.</b><br>')+'생산계획표의 품목코드를 적어 주세요. 여러 개는 쉼표로 나눕니다. (예: 12127, 12195)</div>'+
+  '<input id="rcp-codes" value="'+esc((r.codes||[]).join(', '))+'" style="width:100%;box-sizing:border-box;padding:8px 10px;font-size:14px">',
+  {size:'sm',foot:'<button class="btn btn-o btn-sm" onclick="U.closeModal()">나중에</button><button class="btn btn-p btn-sm" id="rcp-codes-ok">저장</button>',
+   onopen:function(){var i=document.getElementById('rcp-codes');try{i.focus()}catch(e){}
+    document.getElementById('rcp-codes-ok').onclick=function(){var cs=[];String(i.value||'').split(/[^0-9]+/).forEach(function(t){if(/^\d{4,6}$/.test(t)&&cs.indexOf(t)<0)cs.push(t)});
+     rs.forEach(function(x){x.codes=cs.slice()});DB.save();U.closeModal();I().refreshPanel();if(U.toast)U.toast('품목코드를 저장했습니다'+(cs.length?' ('+cs.join(', ')+')':''))}}});
+}
+async function drop(r){try{if(!r||!r.pdf)return;var same=I().store().list.filter(function(x){return x.pdf===r.pdf&&x!==r}).length;if(same)return;await idbDel(r.pdf);var c=cli();if(c&&c.storage)await c.storage.from(BUCKET).remove([r.pdf+'.pdf'])}catch(e){}}
+document.head.insertAdjacentHTML('beforeend','<style>.rcp-note{border:1px solid #E3E7EC;border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.6;background:#FAFBFC}.rcp-note b{display:block;margin-bottom:3px;font-size:12.5px}@media (prefers-color-scheme:dark){.rcp-note{background:#1C2229;border-color:#2F3742}}</style>');
+window.PlanRecipePdf={read:read,table:table,card:card,show:show,fileExtra:fileExtra,editCodes:editCodes,drop:drop,_parse:parseSpec,_name:cleanName};
 })();
 </script>
 
