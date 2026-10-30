@@ -9899,7 +9899,7 @@ window.yumND={
   if(kind==='delay'){
    rec.d=v('nd-d-date')||today();rec.team=v('nd-d-team');rec.hogi=v('nd-d-hogi');rec.product=v('nd-d-product');rec.reason=v('nd-d-reason');
    rec.start=v('nd-d-start');rec.end=v('nd-d-end');var m=rmins(rec.start,rec.end);rec.totalMin=m==null?'':String(m);rec.detail=v('nd-d-detail');
-   if(!rec.reason&&!rec.detail){U.toast('지연 사유 또는 기타 항목을 입력해 주세요.','bad');$i('nd-d-reason').focus();return}
+   if(!rec.reason&&!rec.detail&&!rec.hogi&&!rec.product){U.toast('호기 · 제품 · 지연 사유 중 하나는 입력해 주세요.','bad');$i('nd-d-hogi').focus();return}
   }else{
    rec.d=v('nd-m-date')||today();rec.person=v('nd-m-person');rec.asset=v('nd-m-asset');rec.content=v('nd-m-content');rec.mtype=v('nd-m-mtype');rec.etc=v('nd-m-etc');
    rec.confirmed=!!($i('nd-m-confirmed')&&$i('nd-m-confirmed').checked);
@@ -15300,6 +15300,140 @@ function editCodes(f){
 async function drop(r){try{if(!r||!r.pdf)return;var same=I().store().list.filter(function(x){return x.pdf===r.pdf&&x!==r}).length;if(same)return;await idbDel(r.pdf);var c=cli();if(c&&c.storage)await c.storage.from(BUCKET).remove([r.pdf+'.pdf'])}catch(e){}}
 document.head.insertAdjacentHTML('beforeend','<style>.rcp-note{border:1px solid #E3E7EC;border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.6;background:#FAFBFC}.rcp-note b{display:block;margin-bottom:3px;font-size:12.5px}@media (prefers-color-scheme:dark){.rcp-note{background:#1C2229;border-color:#2F3742}}</style>');
 window.PlanRecipePdf={read:read,table:table,card:card,show:show,fileExtra:fileExtra,editCodes:editCodes,drop:drop,_parse:parseSpec,_name:cleanName};
+})();
+</script>
+
+<script>
+/* 진행 중인 지연 (동시에 여러 건) — 노션 표처럼 시작만 적어 두고, 끝나면 종료 시각만 넣기
+   · 지연 · 정비 기록 화면(#/ndash) 부서 작성 칸 맨 위에 「⏳ 진행 중인 지연」 표
+   · 「＋ 지연 시작」 → 지금 시각으로 한 줄 추가 (여러 줄 동시에 가능) — 호기 · 제품 · 사유 · 기타는 표에서 바로 입력 (칸을 벗어나면 자동 저장)
+   · 「종료」 → 종료 시각(비어 있으면 지금)으로 마감 → 총 시간 자동 계산 → 기록표 · 대시보드에 반영
+   · 아래 지연 사유 일지 칸에서 종료 시각을 비워 두고 저장해도 이 표에 올라옴
+   · 서버 동기화: 줄마다 수정 시각(updatedAt)으로 합쳐서, 여러 사람이 동시에 다른 줄을 고쳐도 서로 지워지지 않음 */
+(function(){
+'use strict';
+if(window.__YUM_OPOPEN__)return;window.__YUM_OPOPEN__=1;
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function me(){try{return Auth.user()}catch(e){return null}}
+function pad(n){return ('0'+n).slice(-2)}
+function today(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+function nowT(){var d=new Date();return pad(d.getHours())+':'+pad(d.getMinutes())}
+function toMin(t){if(!t)return null;var p=String(t).split(':');if(p.length<2||p[0]===''||p[1]==='')return null;return (+p[0])*60+(+p[1])}
+function rmins(s,e){var a=toMin(s),b=toMin(e);if(a==null||b==null)return null;if(b<a)b+=1440;return b-a}
+function hrs(m){if(m==null)return '';if(m<60)return m+'분';var h=Math.floor(m/60),r=m%60;return h+'시간'+(r?' '+r+'분':'')}
+var DIV_TEAMS={'가공2팀':['배합팀','착즙팀'],'가공1팀':['멸균팀','가공1팀'],'포장팀':['포장팀']};
+var HOGI={'포장팀':['A호기','B호기','C호기','D호기','E호기','F호기'],'가공1팀':['1호기','2호기','3호기','4호기','5호기'],'가공2팀':['1호기','2호기','3호기','4호기','5호기']};
+function curDiv(){var h=document.querySelector('#nd-delay h3');var m=h&&h.textContent.match(/·\s*(\S+)\s*$/);return m?m[1]:''}
+function logs(){return DB.data.opLogs||(DB.data.opLogs=[])}
+function byId(id){return logs().filter(function(o){return o.id===id})[0]}
+function isOpen(o){return o&&o.kind==='delay'&&!o.deleted&&o.start&&!o.end}
+function openList(D){return logs().filter(function(o){return isOpen(o)&&(o.div||'가공2팀')===D}).sort(function(a,b){return String(a.d).localeCompare(String(b.d))||String(a.start).localeCompare(String(b.start))||String(a.createdAt).localeCompare(String(b.createdAt))})}
+function canDel(o){var u=me();if(!u)return false;if(u.role==='admin'||u.role==='superadmin')return true;return o.authorId===u.id}
+function push(){try{if(window.SupaSync&&SupaSync.on()){clearTimeout(SupaSync.pushT);SupaSync.pushNow(DB.data)}}catch(e){}}
+function touch(o){var u=me(),t=new Date().toISOString();o.updatedAt=t;o.editedBy=u&&(u.name||u.empNo)||'';o.editedAt=t}
+function save(){DB.save();push();try{window.yumWithOps&&yumWithOps()}catch(e){}}
+function elapsed(o){
+ var a=toMin(o.start);if(a==null)return '';
+ var now=new Date(),days=Math.round((new Date(today())-new Date(o.d||today()))/864e5);
+ var m=days*1440+now.getHours()*60+now.getMinutes()-a;if(m<0)m+=1440;return hrs(m);
+}
+
+function rowHtml(o,D){
+ var teams=DIV_TEAMS[D]||[],id=esc(o.id),old=o.d&&o.d<today();
+ return '<tr data-id="'+id+'"'+(old?' class="opo-old"':'')+'>'+
+  '<td><input type="date" data-f="d" value="'+esc(o.d||today())+'" class="opo-dt"></td>'+
+  '<td><select data-f="team"><option value="">-</option>'+teams.map(function(t){return '<option'+(o.team===t?' selected':'')+'>'+esc(t)+'</option>'}).join('')+'</select></td>'+
+  '<td><input data-f="hogi" list="opo-hogi" value="'+esc(o.hogi)+'" placeholder="호기" class="opo-s"></td>'+
+  '<td><input data-f="product" list="nd-prod" value="'+esc(o.product)+'" placeholder="제품명"></td>'+
+  '<td><input data-f="reason" list="nd-reason" value="'+esc(o.reason)+'" placeholder="지연 사유"></td>'+
+  '<td><input type="time" data-f="start" value="'+esc(o.start)+'" class="opo-t"></td>'+
+  '<td class="opo-el" data-el="'+id+'">'+esc(elapsed(o))+'</td>'+
+  '<td><input type="time" data-f="endv" class="opo-t" title="비워 두고 「종료」를 누르면 지금 시각으로 마감"></td>'+
+  '<td><input data-f="detail" value="'+esc(o.detail)+'" placeholder="기타 (조치 내용 등)"></td>'+
+  '<td class="opo-act"><button class="btn btn-p btn-sm" data-act="end">종료</button>'+(canDel(o)?'<button class="btn btn-ghost btn-sm" data-act="del" title="잘못 만든 줄 지우기">✕</button>':'')+'</td></tr>';
+}
+function cardHtml(D){
+ var L=openList(D);
+ return '<div class="nd-hd" style="align-items:center"><span class="nd-ic" style="background:#D97706">⏳</span><div style="flex:1"><h3>진행 중인 지연 · '+esc(D)+' <span class="opo-n">'+L.length+'건</span></h3>'+
+  '<div class="cap">지연이 생기면 「＋ 지연 시작」으로 시작 시각만 먼저 남기고, 끝나면 그 줄의 「종료」를 누르세요. 여러 호기 지연을 동시에 적어 둘 수 있고, 다른 직원도 같은 표를 보고 마감할 수 있습니다.</div></div>'+
+  '<button class="btn btn-p" data-act="add">＋ 지연 시작</button></div>'+
+  (L.length?'<div class="opo-wrap"><table class="opo-t-tbl"><thead><tr><th>날짜</th><th>팀</th><th>호기</th><th>제품명</th><th>지연 사유</th><th>시작</th><th>경과</th><th>종료</th><th>기타</th><th></th></tr></thead><tbody>'+L.map(function(o){return rowHtml(o,D)}).join('')+'</tbody></table></div>'
+   :'<div class="nd-empty" style="padding:10px 2px">진행 중인 지연이 없습니다.</div>')+
+  '<datalist id="opo-hogi">'+(HOGI[D]||[]).map(function(h){return '<option value="'+esc(h)+'">'}).join('')+'</datalist>';
+}
+function paint(){
+ var card=document.getElementById('nd-open');if(!card)return;var D=curDiv();if(!D)return;
+ card.innerHTML=cardHtml(D);
+}
+function add(){
+ var u=me(),D=curDiv();if(!u||!D)return;
+ var teams=DIV_TEAMS[D]||[],t=new Date().toISOString();
+ var o={id:'OL-'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),div:D,kind:'delay',authorId:u.id,authorName:u.name||u.empNo||'포털',createdAt:t,updatedAt:t,
+  d:today(),team:teams.indexOf(u.team)>=0?u.team:(teams.length===1?teams[0]:''),hogi:'',product:'',reason:'',start:nowT(),end:'',totalMin:'',detail:''};
+ logs().push(o);save();paint();
+ var tr=document.querySelector('#nd-open tr[data-id="'+o.id+'"] input[data-f="hogi"]');if(tr)try{tr.focus()}catch(e){}
+ if(window.U&&U.toast)U.toast('지연 시작 '+o.start+' — 호기 · 제품 · 사유를 적어 두세요. 끝나면 「종료」','ok');
+}
+function setField(id,f,v){
+ var o=byId(id);if(!o)return;
+ if(f==='endv')return;
+ if(String(o[f]||'')===String(v||''))return;
+ o[f]=v;touch(o);save();
+ var el=document.querySelector('#nd-open [data-el="'+id+'"]');if(el)el.textContent=elapsed(o);
+}
+function end(id){
+ var o=byId(id);if(!o)return;var tr=document.querySelector('#nd-open tr[data-id="'+id+'"]');
+ /* 그 줄에 적힌 값 먼저 반영 */
+ if(tr)[].forEach.call(tr.querySelectorAll('[data-f]'),function(el){var f=el.getAttribute('data-f');if(f!=='endv'&&String(o[f]||'')!==String(el.value||'').trim())o[f]=String(el.value||'').trim()});
+ var ev=tr&&tr.querySelector('[data-f="endv"]'),e=(ev&&ev.value)||nowT();
+ if(!o.reason&&!o.detail&&!o.hogi&&!o.product){if(!confirm('호기 · 제품 · 사유가 비어 있습니다. 그래도 마감할까요?'))return}
+ var m=rmins(o.start,e);
+ o.end=e;o.totalMin=m==null?'':String(m);var u=me();o.closedBy=u&&(u.name||u.empNo)||'';o.closedAt=new Date().toISOString();touch(o);save();
+ paint();
+ if(window.U&&U.toast)U.toast('지연 마감 '+o.start+' ~ '+e+(m!=null?' · '+hrs(m):'')+' — 기록표에 저장했습니다','ok');
+}
+function del(id){
+ var o=byId(id);if(!o)return;
+ U.confirm('이 진행 중 지연 줄을 지울까요? ('+[o.hogi,o.product,o.reason].filter(Boolean).join(' · ')+(o.start?' '+o.start+' 시작':'')+')',function(){
+  o.deleted=true;o.deletedAt=new Date().toISOString();touch(o);save();paint()},'지우기');
+}
+/* 이벤트 (표는 다시 그려지므로 위임) */
+document.addEventListener('change',function(e){var el=e.target;if(!el||!el.closest)return;var tr=el.closest('#nd-open tr[data-id]');if(!tr||!el.getAttribute('data-f'))return;
+ setField(tr.getAttribute('data-id'),el.getAttribute('data-f'),String(el.value||'').trim())},true);
+document.addEventListener('click',function(e){var b=e.target&&e.target.closest&&e.target.closest('#nd-open [data-act]');if(!b)return;
+ var a=b.getAttribute('data-act'),tr=b.closest('tr[data-id]');
+ if(a==='add')add();else if(a==='end'&&tr)end(tr.getAttribute('data-id'));else if(a==='del'&&tr)del(tr.getAttribute('data-id'))});
+/* 화면에 붙이기 */
+function mount(){
+ var w=document.getElementById('nd-write');if(!w||document.getElementById('nd-open'))return;
+ var D=curDiv();if(!D)return;
+ var box=document.createElement('div');box.className='nd-card';box.id='nd-open';box.style.marginBottom='12px';
+ var first=w.querySelector('.nd-2');if(first)w.insertBefore(box,first);else w.appendChild(box);
+ paint();
+ /* 아래 작성 칸 안내 */
+ var cap=document.querySelector('#nd-delay .nd-hd .cap');if(cap&&!cap.__opo){cap.__opo=1;cap.insertAdjacentHTML('beforeend','<br><b style="color:#B45309">지연 종료 시각을 비워 두고 저장하면 위 「진행 중인 지연」에 올라갑니다.</b>')}
+}
+var MT=null;new MutationObserver(function(){clearTimeout(MT);MT=setTimeout(mount,80)}).observe(document.documentElement,{childList:true,subtree:true});
+/* 경과 시간 · 다른 사람이 추가/마감한 줄 반영 (입력 중이 아닐 때만 표를 다시 그림) */
+var SIG='';
+setInterval(function(){try{
+ var card=document.getElementById('nd-open');if(!card)return;var D=curDiv();
+ var sig=openList(D).map(function(o){return o.id+'@'+(o.updatedAt||'')}).join(',');
+ var focus=document.activeElement&&card.contains(document.activeElement);
+ if(sig!==SIG&&!focus){SIG=sig;paint();return}
+ openList(D).forEach(function(o){var el=card.querySelector('[data-el="'+o.id+'"]');if(el)el.textContent=elapsed(o)});
+}catch(e){}},5000);
+var CSS='<style>#nd-open .opo-n{display:inline-block;margin-left:6px;padding:0 8px;border-radius:10px;background:#FEF3C7;color:#92400E;font-size:12px;font-weight:800;vertical-align:middle}'+
+ '#nd-open .opo-wrap{overflow-x:auto;margin-top:10px}#nd-open table.opo-t-tbl{width:100%;border-collapse:collapse;font-size:13px;min-width:980px}'+
+ '#nd-open th{background:#FFF7E6;font-size:12px;font-weight:800;padding:6px 6px;border-bottom:1px solid #F1D9A7;text-align:left;white-space:nowrap}'+
+ '#nd-open td{padding:4px 4px;border-bottom:1px solid #F1F2F4;vertical-align:middle}'+
+ '#nd-open td input,#nd-open td select{width:100%;box-sizing:border-box;padding:6px 7px;border:1px solid #D7DCE3;border-radius:6px;font-size:13px;background:#fff;min-width:0}'+
+ '#nd-open td input.opo-t{width:96px}#nd-open td input.opo-dt{width:132px}#nd-open td input.opo-s{width:84px}#nd-open td select{width:86px}'+
+ '#nd-open td.opo-el{font-weight:800;color:#B45309;white-space:nowrap;font-size:12.5px}#nd-open td.opo-act{white-space:nowrap}#nd-open td.opo-act .btn{margin-left:2px}'+
+ '#nd-open tr.opo-old td{background:#FFF1F2}#nd-open tr.opo-old td.opo-el::after{content:" (전날부터)";font-weight:600;color:#B42318}'+
+ '@media (prefers-color-scheme:dark){#nd-open th{background:#2A2214;border-color:#4A3A1A}#nd-open td input,#nd-open td select{background:#161B22;border-color:#2F3742;color:inherit}#nd-open tr.opo-old td{background:#2A1517}}</style>';
+document.head.insertAdjacentHTML('beforeend',CSS);
+window.yumOpOpen={add:add,end:end,list:openList};
 })();
 </script>
 
