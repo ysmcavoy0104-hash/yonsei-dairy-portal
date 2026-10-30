@@ -14162,7 +14162,7 @@ function lockWP(){if(sup())return;var r=document.getElementById('wp-root');if(!r
  var g=document.getElementById('wpe-grid');if(g){try{WeekPlan.edCancel&&WeekPlan.edCancel()}catch(e){}}}
 function lockYS(){if(sup())return;if(!/^#\/schedule/.test(location.hash||''))return;var m=document.getElementById('main')||document.body;
  m.querySelectorAll('button[onclick*="YSched.run"],button[onclick*="YSched.confirm"],button[onclick*="YSched.wipe"]').forEach(function(b){b.style.display='none'})}
-var T=null;new MutationObserver(function(){clearTimeout(T);T=setTimeout(function(){lockWS();lockWP();lockYS()},40)}).observe(document.documentElement,{childList:true,subtree:true});
+var T=null;new MutationObserver(function(){if(document.getElementById('wp-root')||document.getElementById('ws-root')){lockWS();lockWP();lockYS()}clearTimeout(T);T=setTimeout(function(){lockWS();lockWP();lockYS()},40)}).observe(document.documentElement,{childList:true,subtree:true});
 var CSS='.wslk-note{margin:0 0 12px;padding:9px 13px;border-radius:10px;background:#FFF6E5;border:1px solid #F5D49A;color:#7A5200;font-size:12.5px}@media print{.wslk-note{display:none}}';
 function css(){if(document.getElementById('wslk-css'))return;var s=document.createElement('style');s.id='wslk-css';s.textContent=CSS;document.head.appendChild(s)}
 css();document.addEventListener('DOMContentLoaded',css);
@@ -14182,7 +14182,7 @@ function now(){return new Date().toISOString()}
 function ts(x){return String(x||'')}
 function wStamp(W){if(!W)return '';return [ts(W._u),ts(W.edited&&W.edited.at),ts(W.auto&&W.auto.at)].sort().pop()}
 function cp(o){return o?JSON.parse(JSON.stringify(o)):o}
-function mergeWP(R,L){R=R||{};L=L||{};var o={};Object.keys(R).concat(Object.keys(L)).forEach(function(k){if(o[k])return;var r=R[k],l=L[k];o[k]=!r?l:!l?r:(wStamp(l)>wStamp(r)?l:r)});return o}
+function mergeWP(R,L,DEL){R=R||{};L=L||{};DEL=DEL||{};var o={};Object.keys(R).concat(Object.keys(L)).forEach(function(k){if(o[k])return;var r=R[k],l=L[k];var w=!r?l:!l?r:(wStamp(l)>wStamp(r)?l:r);if(DEL[k]&&!(wStamp(w)>String(DEL[k])))return;o[k]=w});return o}
 function mergeMonth(r,l){if(!r)return l;if(!l)return r;var base=cp(ts(l._u)>ts(r._u)?l:r),ru=r.wishesU||{},lu=l.wishesU||{},w={},wu={};
  Object.keys(r.wishes||{}).concat(Object.keys(l.wishes||{})).forEach(function(n){if(n in w)return;var useL=ts(lu[n])>ts(ru[n])||(ts(lu[n])===ts(ru[n])&&base===l);
   var src=useL?l:r,alt=useL?r:l;w[n]=cp((src.wishes||{})[n]||(alt.wishes||{})[n]||{});wu[n]=useL?lu[n]:ru[n]});
@@ -14193,7 +14193,8 @@ function mergeSch(R,L,base){if(!R)return L;if(!L)return R;var out=cp(base||R);Ob
 var _ms=S.mergeState;
 S.mergeState=function(remote,local,lw){var out=_ms.apply(this,arguments);
  try{remote=remote||{};local=local||{};
-  if(remote.weeklyPlans||local.weeklyPlans)out.weeklyPlans=mergeWP(remote.weeklyPlans,local.weeklyPlans);
+  var DEL={};[remote.wpDel,local.wpDel].forEach(function(x){Object.keys(x||{}).forEach(function(k){if(String(x[k])>String(DEL[k]||''))DEL[k]=x[k]})});if(Object.keys(DEL).length)out.wpDel=DEL;
+  if(remote.weeklyPlans||local.weeklyPlans)out.weeklyPlans=mergeWP(remote.weeklyPlans,local.weeklyPlans,DEL);
   if(remote.workSched||local.workSched)out.workSched=mergeWS(remote.workSched,local.workSched);
   if(remote.schedules||local.schedules)out.schedules=mergeSch(remote.schedules,local.schedules,lw?local.schedules:remote.schedules);
  }catch(e){console.warn('[근무 병합]',e)}
@@ -15726,9 +15727,11 @@ function apply(){
  U.toast(changed.length?'추가 휴무 반영: '+changed.join(', ')+' — 휴무 개수 · 휴일체크표에도 반영했습니다.':'바뀐 근무가 없습니다.',changed.length?'ok':'');
 }
 /* 버튼: 주간근무계획표 「✎ 수정하기」 옆 */
-function addBtn(){var b=document.querySelector('#wp-root button[onclick="WeekPlan.edStart()"]');if(!b||b.parentNode.querySelector('.so-btn'))return;
+function isSup(){try{var u=Auth.user();return !!u&&u.role==='superadmin'}catch(e){return false}}
+function addBtn(){if(!isSup())return;var b=document.querySelector('#wp-root button[onclick="WeekPlan.edStart()"]');if(!b||b.parentNode.querySelector('.so-btn'))return;
  var x=document.createElement('button');x.className='btn btn-o btn-sm so-btn';x.textContent='🤝 1팀 지원 → 추가 휴무';x.title='1팀 지원 오는 날 배합 정상에서 더 쉬게 할 사람을 추천 · 반영';x.onclick=open;b.parentNode.insertBefore(x,b)}
-var T=null;new MutationObserver(function(){clearTimeout(T);T=setTimeout(addBtn,150)}).observe(document.documentElement,{childList:true,subtree:true});
+/* 다시 그려질 때 바로(화면에 그려지기 전에) 붙여서 버튼이 뒤늦게 끼어들며 표가 밀리지 않게 */
+new MutationObserver(function(){if(document.getElementById('wp-root'))addBtn()}).observe(document.documentElement,{childList:true,subtree:true});
 document.head.insertAdjacentHTML('beforeend','<style>.so-t{border-collapse:collapse;width:100%;font-size:13px;margin-bottom:12px}.so-t th,.so-t td{border:1px solid #E3E7EC;padding:5px 8px;text-align:center}.so-t th{background:#F6F7F9;font-size:12px}.so-t input{width:70px;padding:4px 6px;border:1px solid #CBD2DB;border-radius:6px;text-align:center}'+
  '.so-day{border:1px solid #E3E7EC;border-radius:10px;padding:10px 12px;margin-top:10px}.so-dh{font-size:13px;margin-bottom:6px}.so-c{display:flex;align-items:center;gap:8px;padding:5px 6px;border-radius:7px;font-size:13px;cursor:pointer}.so-c:hover{background:#F6F7F9}.so-c.on{background:#ECFDF3}.so-c.blk{opacity:.6}'+
  '.so-c small{color:var(--muted);font-size:11.5px}.so-r{display:inline-block;min-width:20px;height:20px;line-height:20px;text-align:center;border-radius:10px;background:#EEF2F7;font-size:11px;font-weight:800}.so-c.on .so-r{background:#1B7F4E;color:#fff}'+
@@ -15789,6 +15792,100 @@ var last='',T=null;
 new MutationObserver(function(){clearTimeout(T);T=setTimeout(function(){var p=document.getElementById('docpaper');var k=location.hash;if(k!==last){last=k;OPEN={}}if(p)sync()},120)}).observe(document.documentElement,{childList:true,subtree:true});
 document.head.insertAdjacentHTML('beforeend','<style>#docpaper .f16-more{position:absolute;right:2px;top:50%;transform:translateY(-50%);border:1px solid #0E7490;background:#ECFEFF;color:#0E7490;border-radius:6px;font-size:10.5px;font-weight:800;padding:1px 6px;cursor:pointer;z-index:2;white-space:nowrap}@media print{#docpaper .f16-more{display:none}}</style>');
 window.yumF16Rows={sync:sync};
+})();
+</script>
+
+<script>
+/* 주간근무계획표 · 근무 화면 깜빡임 수정
+   원인: 다른 직원이 무엇이든 저장하면(서버 동기화 · 다른 탭) 화면 전체를 다시 그렸고,
+         다시 그린 직후 「수정 · 확정」 버튼(직원 계정은 숨김)과 「1팀 지원」 버튼이 조금 늦게 숨겨지거나 붙어서
+         버튼 · 표가 사라졌다 나타나고 위아래로 밀리는 것처럼 보였음
+   수정: ① 근무 화면(주간근무계획표 · 근무스케쥴 · 근무편성)은 근무 데이터가 실제로 바뀐 경우에만 다시 그림
+         ② 직원 계정에서 숨기는 버튼은 처음부터 CSS로 숨김 (그린 뒤에 숨기지 않음) */
+(function(){
+'use strict';
+if(window.__YUM_WPCALM__)return;window.__YUM_WPCALM__=1;
+var UACT=0;
+document.addEventListener('click',function(e){if(e.isTrusted)UACT=Date.now()},true);
+document.addEventListener('keydown',function(e){if(e.isTrusted&&(e.key==='Enter'||e.key===' '))UACT=Date.now()},true);
+window.addEventListener('hashchange',function(){UACT=Date.now()});
+var KEYS={'#/weekplan':['weeklyPlans','workSched','schedules'],'#/worksched':['weeklyPlans','workSched','schedules'],'#/schedule':['weeklyPlans','workSched','schedules']};
+var LAST={};
+function route(){return (location.hash||'').split('?')[0]}
+function sig(r){try{return KEYS[r].map(function(k){return JSON.stringify(DB.data[k]||null)}).join('|')+'|'+(function(){try{var u=Auth.user();return u&&(u.id+u.role)}catch(e){return ''}})()}catch(e){return String(Math.random())}}
+var _r=App.render;
+App.render=function(){
+ var r=route();
+ if(KEYS[r]){
+  var s=sig(r),user=Date.now()-UACT<1500,same=LAST[r]===s&&document.getElementById(r==='#/weekplan'?'wp-root':'ws-root');
+  if(same&&!user){try{App.refreshChrome&&App.refreshChrome()}catch(e){}return}
+  var res=_r.apply(this,arguments);LAST[r]=sig(r);return res;
+ }
+ return _r.apply(this,arguments);
+};
+/* 직원 계정: 수정 · 확정 버튼은 처음부터 숨김 */
+function mark(){try{var u=Auth.user();document.documentElement.classList.toggle('wp-ro',!(u&&u.role==='superadmin'))}catch(e){}}
+mark();setInterval(mark,2000);window.addEventListener('hashchange',mark);
+document.head.insertAdjacentHTML('beforeend','<style>html.wp-ro #wp-root button[onclick*="edStart"],html.wp-ro #wp-root button[onclick*="confirmWeek"],html.wp-ro #wp-root button[onclick*="unconfirmWeek"],html.wp-ro #wp-root .so-btn{display:none!important}</style>');
+})();
+</script>
+
+<script>
+/* 주간근무계획표 삭제 (지정한 주부터 뒤로 전부)
+   · 지운 주는 DB.data.wpDel[주 시작일] = 지운 시각 으로 남겨, 다른 기기의 예전 근무표가 서버 병합으로 되살리지 않게 함
+   · 그 날짜들의 근무 편성(근무스케쥴 · 휴무 개수 · 휴일체크표)도 비움 — 희망휴무 · 목표 휴무 · 필요인원 · 지정휴일은 그대로
+   · 2026-11-09 주부터 한 번 삭제 (요청 2026-10-30) — 최고관리자가 포털을 열면 서버 내용을 받은 뒤 한 번만 실행
+   · 주간근무계획표에 최고관리자용 「🗑 이 주부터 삭제」 버튼 */
+(function(){
+'use strict';
+if(window.__YUM_WPWIPE__)return;window.__YUM_WPWIPE__=1;
+function now(){return new Date().toISOString()}
+function isSup(){try{var u=Auth.user();return !!u&&u.role==='superadmin'}catch(e){return false}}
+function pad(n){return ('0'+n).slice(-2)}
+function wipeFrom(from){
+ var WP=DB.data.weeklyPlans||{},del=DB.data.wpDel=DB.data.wpDel||{},t=now(),gone=[];
+ Object.keys(WP).forEach(function(k){if(k>=from){gone.push(k);delete WP[k];del[k]=t}});
+ /* 근무스케쥴: 그 날짜부터 편성 비우기 */
+ var WS=DB.data.workSched=DB.data.workSched||{};WS.months=WS.months||{};
+ var fy=from.slice(0,7),fd=+from.slice(8);
+ Object.keys(WS.months).forEach(function(ym){
+  if(ym<fy)return;var o=WS.months[ym],start=ym===fy?fd:1,N=new Date(+ym.slice(0,4),+ym.slice(5,7),0).getDate();
+  Object.keys(o.asg||{}).forEach(function(n){var a=o.asg[n];for(var d=start;d<=N;d++)if(a[d-1]!=null)a[d-1]=''});
+  Object.keys(o.planned||{}).forEach(function(d){if(+d>=start)delete o.planned[d]});
+  if(o.result&&o.result.weeks)o.result.weeks=o.result.weeks.filter(function(k){return k<from});
+  if(o.selWeek!=null)delete o.selWeek;
+  o._u=t;
+  try{WorkSched.recalc(ym,null,null,null)}catch(e){console.warn('[주간근무 삭제] 다시 계산',e)}
+  try{var S0=YSched._S(ym);if(S0){if(S0.res&&S0.res.assign)S0.res.assign=o.asg;S0._u=t}}catch(e){}
+ });
+ DB.save();try{if(window.SupaSync&&SupaSync.on()){clearTimeout(SupaSync.pushT);SupaSync.pushNow(DB.data)}}catch(e){}
+ return gone;
+}
+window.yumWpWipe=wipeFrom;
+/* 한 번만: 2026-11-09 주부터 */
+var ONCE='2026-11-09',FLAG='wpWipe20261109',done=false;
+function once(){
+ if(done||!isSup()||typeof DB==='undefined'||!DB.data)return;
+ DB.data.meta=DB.data.meta||{};if(DB.data.meta[FLAG]){done=true;return}
+ if(window.SupaSync&&SupaSync.on&&SupaSync.on()&&!ADOPTED)return;   /* 서버 내용을 받은 뒤에 */
+ done=true;var g=wipeFrom(ONCE);DB.data.meta[FLAG]=now();DB.save();
+ console.log('[주간근무 삭제] '+ONCE+' 주부터 삭제:',g.join(', '));
+ try{U.toast('주간근무계획표 11/9 주부터 '+(g.length?g.length+'개 주':'편성')+'를 삭제했습니다.','ok')}catch(e){}
+ try{if(/^#\/(weekplan|worksched|schedule)/.test(location.hash))App.render()}catch(e){}
+}
+var ADOPTED=false;
+try{var _ad=SupaSync.adopt;SupaSync.adopt=function(){var r=_ad.apply(this,arguments);ADOPTED=true;setTimeout(once,300);return r}}catch(e){}
+setTimeout(once,4000);setInterval(once,5000);
+/* 버튼 */
+function addBtn(){if(!isSup())return;var b=document.querySelector('#wp-root button[onclick="WeekPlan.edStart()"]');if(!b||b.parentNode.querySelector('.wpw-btn'))return;
+ var x=document.createElement('button');x.className='btn btn-ghost btn-sm wpw-btn';x.textContent='🗑 이 주부터 삭제';x.title='보고 있는 주와 그 뒤 주간근무계획표를 모두 지웁니다';
+ x.onclick=function(){var k=null;try{k=WeekPlan.cur()}catch(e){}if(!k)return;
+  var later=Object.keys(DB.data.weeklyPlans||{}).filter(function(x){return x>=k}).sort();
+  U.confirm(k.slice(5).replace('-','/')+' 주부터 뒤 주간근무계획표 '+later.length+'개 주('+later.map(function(x){return x.slice(5).replace('-','/')}).join(', ')+')와 그 날짜들의 근무 편성을 지울까요? 희망휴무 · 목표 휴무 · 필요인원은 그대로 둡니다.',function(){
+   var g=wipeFrom(k);var rest=Object.keys(DB.data.weeklyPlans||{}).sort();try{WeekPlan.goKey(rest.length?rest[rest.length-1]:null)}catch(e){}try{App.render()}catch(e){}
+   U.toast(g.length+'개 주를 삭제했습니다.','ok')},'삭제')};
+ b.parentNode.appendChild(x)}
+new MutationObserver(function(){if(document.getElementById('wp-root'))addBtn()}).observe(document.documentElement,{childList:true,subtree:true});
 })();
 </script>
 
