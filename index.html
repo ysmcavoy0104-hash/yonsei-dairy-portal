@@ -687,6 +687,45 @@ h1.pgt{font-size:24px;font-weight:800;letter-spacing:-.02em;color:var(--navy)}
 </footer>
 
 <script>
+/* PDF 내려받기 파일 이름
+   · 주간근무계획표: 「26년 11월2주 주간근무계획(ver1)_가공2팀.pdf」
+   · 생산계획표:     「26년 11월2주(ver1)_가공2.pdf」
+   · 주차 = 그 주 월요일이 있는 달의 몇째 주 (월요일 시작, 1일이 들어 있는 주가 1주)
+   · ver = 같은 주를 내용이 바뀐 뒤 다시 내려받으면 하나씩 올라감 (내용이 같으면 그대로) — 모든 직원 공통 */
+(function(){
+'use strict';
+if(window.yumDlName)return;
+function pad(n){return ('0'+n).slice(-2)}
+function monday(ds){var d=new Date(ds+'T00:00:00');d.setDate(d.getDate()-((d.getDay()+6)%7));return d}
+function weekLabel(ds){
+ var m=monday(ds),y=m.getFullYear(),mo=m.getMonth()+1,first=new Date(y,mo-1,1),off=(first.getDay()+6)%7;
+ var w=Math.floor((m.getDate()+off-1)/7)+1;
+ return String(y).slice(2)+'년 '+mo+'월'+w+'주';
+}
+function hash(s){var h=0;s=String(s||'');for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))|0;return 'h'+h}
+function ver(kind,key,sig){
+ var V=DB.data.dlVer=DB.data.dlVer||{},k=kind+'|'+key,c=V[k],hs=hash(sig);
+ if(!c){c=V[k]={v:1,sig:hs,at:new Date().toISOString()};try{DB.save()}catch(e){}return 1}
+ if(c.sig!==hs){c.v=(+c.v||1)+1;c.sig=hs;c.at=new Date().toISOString();try{DB.save()}catch(e){}}
+ return c.v;
+}
+/* kind: 'wp'(주간근무계획표) · 'plan'(생산계획표), ds: 그 주 아무 날짜(YYYY-MM-DD), sig: 내용 */
+window.yumDlName=function(kind,ds,sig){
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(ds||''))return null;
+ var lb=weekLabel(ds),mk=monday(ds),key=mk.getFullYear()+'-'+pad(mk.getMonth()+1)+'-'+pad(mk.getDate()),v=ver(kind,key,sig);
+ return kind==='wp'?lb+' 주간근무계획(ver'+v+')_가공2팀.pdf':lb+'(ver'+v+')_가공2.pdf';
+};
+/* 생산계획표 행 이름(예: 11/2, 11/2(월))에서 날짜 */
+window.yumPlanDate=function(rows,uploadedAt){
+ var r=(rows||[])[0]||'',m=/(\d{1,2})\s*\/\s*(\d{1,2})/.exec(r);if(!m)return null;
+ var now=uploadedAt?new Date(uploadedAt):new Date(),y=now.getFullYear(),mo=+m[1];
+ if(mo>=11&&now.getMonth()+1<=2)y--;else if(mo<=2&&now.getMonth()+1>=11)y++;
+ return y+'-'+pad(mo)+'-'+pad(+m[2]);
+};
+})();
+</script>
+
+<script>
 /* 확장 모듈 39 — 홈페이지 동작: 등장 효과 · 숫자 · 로그인 상태별 첫 화면 문구와 오늘의 현황 */
 (function(){
 function $i(id){return document.getElementById(id)}
@@ -7084,7 +7123,7 @@ function exportPdf(){
     if(p>0)doc.addPage('a4','landscape');
     doc.addImage(pc.toDataURL('image/jpeg',0.95),'JPEG',7,7,pageW,sh*scale);
    }
-   doc.save((LAST.fileName||'생산계획표').replace(/\.pdf$/i,'')+'_조건표.pdf');
+   var _nm=null;try{var _pd=window.yumPlanDate&&yumPlanDate(LAST.rows,LAST.uploadedAt);_nm=_pd&&yumDlName('plan',_pd,JSON.stringify([LAST.cells,LAST.rows,LAST.cols]))}catch(e){}doc.save(_nm||((LAST.fileName||'생산계획표').replace(/\.pdf$/i,'')+'_조건표.pdf'));
   });
  }).catch(function(e){alert('PDF 생성 실패: '+e.message)}).then(function(){
   if(box.parentNode)box.parentNode.removeChild(box);
@@ -8014,7 +8053,7 @@ function pdfWeek(){
    var w=PW-2*M,h=w*cv.height/cv.width;
    if(h>PH-2*M){h=PH-2*M;w=h*cv.width/cv.height}
    doc.addImage(cv.toDataURL('image/png'),'PNG',M,M,w,h);
-   doc.save(wk.range.replace(/\s/g,'')+'_주간근무계획표.pdf');
+   var _nm=null;try{_nm=window.yumDlName&&yumDlName('wp',CUR,JSON.stringify([wk.groups,wk.single]))}catch(e){}doc.save(_nm||(wk.range.replace(/\s/g,'')+'_주간근무계획표.pdf'));
    U.toast('PDF가 저장되었습니다.','ok');
   }).catch(function(e){try{document.body.removeChild(holder)}catch(e2){}throw e});
  }).catch(function(e){U.toast('PDF 생성에 실패했습니다: '+e.message)});
