@@ -7208,7 +7208,7 @@ function pickWish(el){
  var n=el.dataset.n,d=+el.dataset.d,v=(el.value||'').trim();
  var o=M(CUR_YM);
  o.wishes[n]=o.wishes[n]||{};
- if(window.wsIsVac&&wsIsVac(v)){o.wishes[n][d]='하계';el.value='하계'}else if(v&&/^[0-9]{1,2}$/.test(v))o.wishes[n][d]=+v;else delete o.wishes[n][d];
+ if(window.wsIsVac&&wsIsVac(v)){o.wishes[n][d]='하계';el.value='하계'}else if(window.wsIsEdu&&wsIsEdu(v)){o.wishes[n][d]='교육';el.value='교육'}else if(v&&/^[0-9]{1,2}$/.test(v))o.wishes[n][d]=+v;else delete o.wishes[n][d];
  DB.save();
 }
 function setTarget(v){var o=M(CUR_YM);o.target=Math.max(0,+v||0);o.targetAuto=false;DB.save();rerenderStats()}
@@ -7380,20 +7380,20 @@ function dayHead(extra){var N=daysInMonth(CUR_YM),T=todayD(),H=holMap();
  return '<thead><tr><th class="ws-name">이름</th>'+Array.from({length:N},function(_,i){var d=i+1,c=dcls(d);
   return '<th class="'+c+(d===T?' tdy':'')+'"'+(H[d]?' title="'+esc(H[d])+'"':'')+'>'+d+'<span class="w">'+WD[dowOf(CUR_YM,d)]+'</span></th>'}).join('')+(extra||'')+'</tr></thead>'}
 function nameCell(n,idx){var t=TEAM3[n];return '<td class="ws-name"><span class="ws-dot" style="background:'+(TCOL[t]||'#999')+'"></span>'+(idx!=null?(idx+1)+'. ':'')+esc(n)+'<span class="ws-tm">'+t+'</span></td>'}
-function pcls(v){return v==null||v===''?'':v==='하계'?'vac':(+v<=3?'" data-p="'+(+v):'pp')}
+function pcls(v){return v==null||v===''?'':v==='하계'?'vac':v==='교육'?'edu':(+v<=3?'" data-p="'+(+v):'pp')}
 
 /* ---------- 1) 희망휴무 입력표 ---------- */
 function wishTableHtml(){
  var o=M(CUR_YM);var N=daysInMonth(CUR_YM);
  var rows=ROSTER.map(function(n){var w=o.wishes[n]||{},k=0;
-  var cells=Array.from({length:N},function(_,i){var d=i+1,v=w[d];if(v!=null)k++;
+  var cells=Array.from({length:N},function(_,i){var d=i+1,v=w[d];if(v!=null&&v!=='교육')k++;
    return '<td class="'+dcls(d)+' '+pcls(v)+'"><input class="ws-in" data-n="'+esc(n)+'" data-d="'+d+'" maxlength="2" inputmode="numeric" value="'+(v!=null?v:'')+'" onclick="window.wsVacClick&&wsVacClick(this)" oninput="WorkSched.paint(this)" onchange="WorkSched.pickWish(this)"></td>';
   }).join('');
   return '<tr>'+nameCell(n)+cells+'<td class="ws-tot"><span class="ws-pill" data-cnt="'+esc(n)+'" style="background:'+(k?'#EFEBFC':'#F4F6F9')+';color:'+(k?'#5B3FC4':'#A0A8B5')+'">'+k+'</span></td></tr>';
  }).join('');
  return '<div class="wsx-tw"><table class="ws-grid">'+dayHead('<th style="min-width:54px">신청</th>')+'<tbody>'+rows+'</tbody></table></div>';
 }
-function paint(el){var td=el.parentNode,v=(el.value||'').trim();td.removeAttribute('data-p');td.classList.remove('pp');td.classList.remove('vac');if(window.wsIsVac&&wsIsVac(v))td.classList.add('vac');
+function paint(el){var td=el.parentNode,v=(el.value||'').trim();td.removeAttribute('data-p');td.classList.remove('pp');td.classList.remove('vac');td.classList.remove('edu');if(window.wsIsVac&&wsIsVac(v))td.classList.add('vac');if(window.wsIsEdu&&wsIsEdu(v))td.classList.add('edu');
  if(/^[0-9]{1,2}$/.test(v)){if(+v<=3)td.setAttribute('data-p',+v);else td.classList.add('pp')}
  var tr=td.parentNode,k=[].filter.call(tr.querySelectorAll('input.ws-in'),function(x){return /^[0-9]{1,2}$/.test((x.value||'').trim())}).length,p=tr.querySelector('.ws-pill');
  if(p){p.textContent=k;p.style.background=k?'#EFEBFC':'#F4F6F9';p.style.color=k?'#5B3FC4':'#A0A8B5'}}
@@ -7593,7 +7593,7 @@ function plan(){
  /* 이번 주 날짜만 반영 */
  var asg={};staff.forEach(function(p){var a=(prev[p.n]||[]).slice();while(a.length<N)a.push('');
   for(var d=1;d<=L0;d++)a[d-1]=(res.assign[p.n]||[])[d-1]||a[d-1];ds.forEach(function(d){a[d-1]=(res.assign[p.n]||[])[d-1]||''});asg[p.n]=a});
- o.asg=asg;o.planned=o.planned||{};ds.forEach(function(d){o.planned[d]=1});
+ o.asg=asg;o.planned=o.planned||{};ds.forEach(function(d){o.planned[d]=1});try{if(window.yumEduPlan)yumEduPlan(CUR_YM,ds)}catch(e){console.warn('[교육 편성]',e)}
  /* 이번 주 규칙 확인 */
  var on={};ds.forEach(function(d){on[d]=1});
  var V=(res.viol||[]).filter(function(v){return on[v.d]&&v.rule!=='오후 다음날 오전/정상'&&!(v.rule==='필요인원 부족'&&isMaint(v.d))})   /* 일요일은 정비 — 인원 부족은 1팀 지원 대상 아님 */,UM=(res.unmet||[]).filter(function(x){return on[x.d]&&x.r>0})   /* 희망휴무만 (교대 인원 부족은 1팀 지원 · 편성 점검에서) */;
@@ -7616,7 +7616,7 @@ function plan(){
  var nx=weekList().findIndex(function(x,i){return i>wi&&(weekState(x)===''||weekState(x)==='part')});o.selWeek=nx>=0?nx:wi;
  DB.save();try{if(window.SupaSync&&SupaSync.on()){clearTimeout(SupaSync.pushT);SupaSync.pushNow(DB.data)}}catch(e){}
  var box=$('#ws-root');if(box)box.innerHTML=innerView();
- var OVW=[];try{var lastD=ds[ds.length-1];staff.forEach(function(p){if(p.st==='4층'||p.st==='지원')return;var a=asg[p.n]||[],used=0,fut=0,W=o.wishes[p.n]||{};for(var d4=1;d4<=lastD;d4++)if(a[d4-1]==='휴무'&&W[d4]!=='하계')used++;Object.keys(W).forEach(function(k){if(+k>lastD&&W[k]!=='하계')fut++});var tg=+o.target||0;if(fut&&used+fut>tg)OVW.push(p.n+'(편성 '+used+'일 + 뒤 희망 '+fut+'일 > 목표 '+tg+'일)')})}catch(e){}
+ var OVW=[];try{var lastD=ds[ds.length-1];staff.forEach(function(p){if(p.st==='4층'||p.st==='지원')return;var a=asg[p.n]||[],used=0,fut=0,W=o.wishes[p.n]||{};for(var d4=1;d4<=lastD;d4++)if(a[d4-1]==='휴무'&&W[d4]!=='하계')used++;Object.keys(W).forEach(function(k){if(+k>lastD&&W[k]!=='하계'&&W[k]!=='교육')fut++});var tg=+o.target||0;if(fut&&used+fut>tg)OVW.push(p.n+'(편성 '+used+'일 + 뒤 희망 '+fut+'일 > 목표 '+tg+'일)')})}catch(e){}
  o.result.overWish=OVW;
  U.toast((wi+1)+'주차('+wk.lab+') 근무 편성 완료 — 주간근무계획표에 넣었습니다.'+(V.length?' 규칙 확인 '+V.length+'건이 있습니다.':'')+(OVW.length?' ⚠ 뒤쪽 희망휴무까지 합치면 목표 휴무를 넘는 사람: '+OVW.join(', ')+' — 이미 편성한 주에서 휴무를 줄이거나 희망휴무를 조정해 주세요.':''),OVW.length?'bad':'ok');
 }
@@ -14254,7 +14254,7 @@ window.__wsVac=false;
 window.wsVacMode=function(btn){window.__wsVac=!window.__wsVac;[].forEach.call(document.querySelectorAll('.wsvac-btn'),function(b){b.classList.toggle('on',window.__wsVac);b.textContent=window.__wsVac?'🏖 하계휴가 입력 중 (끄기)':'🏖 하계휴가 입력'});
  var r=document.getElementById('ws-root');if(r)r.classList.toggle('wsvac-on',window.__wsVac);
  try{U.toast(window.__wsVac?'하계휴가 입력: 날짜 칸을 누르면 하계휴가로 표시됩니다. (다시 누르면 해제)':'하계휴가 입력을 껐습니다.','ok')}catch(e){}};
-window.wsVacClick=function(el){if(!window.__wsVac||!el)return;el.value=el.value==='하계'?'':'하계';
+window.wsVacClick=function(el){if(window.wsEduClick&&wsEduClick(el))return;if(!window.__wsVac||!el)return;el.value=el.value==='하계'?'':'하계';
  try{WorkSched.paint(el)}catch(e){}try{WorkSched.pickWish(el)}catch(e){}el.blur()};
 var CSS='.ws-grid td.vac{background:#F3E1F8!important}.ws-grid td.vac input{color:#6A1B9A!important;font-weight:800!important;font-size:10.5px!important;letter-spacing:-.5px}'+
  '.ws-off.vac{background:#8E24AA!important;color:#fff!important}.wsvac-btn{border:1px solid #8E24AA;background:#fff;color:#6A1B9A;border-radius:999px;padding:4px 11px;font-weight:800;font-size:12px;cursor:pointer;margin-left:6px}'+
@@ -15933,7 +15933,7 @@ function candidates(who,ds){
  var leadsLeft=S.filter(function(p){return p.n!==who&&p.lead&&p.st===me.st&&val(p.n,ds)===shift}).length;
  return S.filter(function(p){return p.n!==who&&p.st===me.st&&val(p.n,ds)==='휴무'}).map(function(p){
   var bad=[],why=[],W=(o.wishes||{})[p.n]||{},w=W[+ds.slice(8)];
-  if(w==='하계')bad.push('하계휴가');else if(w)bad.push('희망휴무 날');
+  if(w==='하계')bad.push('하계휴가');else if(w==='교육')bad.push('그날 교육');else if(w)bad.push('희망휴무 날');
   if(p.fx&&p.fx!==shift)bad.push('고정 근무 '+p.fx);
   if((p.exclDow||[]).indexOf(dow(ds))>=0)bad.push('근무 제외 요일');
   if((shift==='오전'||shift==='정상'||shift==='배합지원')&&val(p.n,addD(ds,-1))==='오후')bad.push('전날 오후 근무');
@@ -15993,6 +15993,19 @@ function apply(){
  U.closeModal();var msg=(+ds.slice(5,7))+'/'+(+ds.slice(8))+' '+who+' '+(ST.label||'교육')+(ST.pick?' · 대체 근무: '+ST.pick+' ('+(LAB[shift]||shift)+')':'');ST=null;
  try{WeekPlan.goKey(k)}catch(e){}U.toast(msg+' — 반영했습니다.','ok');
 }
+/* 다른 모듈용: 교육 반영 + 1순위 대체 근무자 자동 (꼭 지킬 조건을 어기는 사람은 넣지 않음) */
+window.yumEduApplyOne=function(who,ds,label,time){
+ var ym=ds.slice(0,7),o=mon(ym);if(!o)return null;var shift=val(who,ds);
+ var C=WORK.indexOf(shift)>=0&&shift!=='교육'?candidates(who,ds):[],best=C.filter(function(c){return !c.bad.length})[0];
+ setVal(who,ds,'교육');o.asgNote=o.asgNote||{};o.asgNote[who]=o.asgNote[who]||{};o.asgNote[who][+ds.slice(8)]={label:label||'교육',time:time||'08:00~17:00',was:shift,sub:best?best.n:''};
+ if(best)setVal(best.n,ds,shift);
+ o._u=new Date().toISOString();
+ var k=addD(ds,-dow(ds)),first=new Date(+ym.slice(0,4),+ym.slice(5,7)-1,1),s0=Math.round((new Date(k+'T00:00:00')-first)/864e5)+1;
+ if((DB.data.weeklyPlans||{})[k]){try{WorkSched.recalc(ym,k,s0,week(k).filter(function(x){return x.slice(0,7)===ym}).map(function(x){return +x.slice(8)}))}catch(e){console.warn('[교육]',e)}
+  var W=DB.data.weeklyPlans[k];if(W){W._u=new Date().toISOString()}}
+ else{try{WorkSched.recalc(ym,null,null,null)}catch(e){}}
+ return {who:who,ds:ds,shift:shift,shiftLab:LAB[shift]||shift,sub:best?best.n:''};
+};
 /* 버튼 */
 function addBtn(){if(!isSup())return;var b=document.querySelector('#wp-root button[onclick="WeekPlan.edStart()"]');if(!b||b.parentNode.querySelector('.ed-btn'))return;
  var x=document.createElement('button');x.className='btn btn-o btn-sm ed-btn';x.textContent='🎓 교육 · 대체 근무';x.title='교육 등으로 빠지는 사람을 「정상」 칸에 표시하고, 빈 자리에 가장 알맞은 대체 근무자를 넣습니다';x.onclick=open;b.parentNode.insertBefore(x,b)}
@@ -16053,6 +16066,61 @@ window.yumWkFill=fill;
 setTimeout(fill,2500);
 try{var _ad=SupaSync.adopt;SupaSync.adopt=function(){var r=_ad.apply(this,arguments);setTimeout(fill,200);return r}}catch(e){}
 window.addEventListener('hashchange',function(){if(/^#\/(weekplan|worksched|schedule)/.test(location.hash))setTimeout(fill,50)});
+})();
+</script>
+
+<script>
+/* 휴일체크표(희망휴무 입력)에 「교육」
+   · 칸에 「교」 · 「교육」을 적거나, 「🎓 교육 입력」을 켜고 칸을 누르면 그날 교육 (다시 누르면 해제)
+   · 근무 편성 때: 교육 날은 「교육」 근무(휴무 아님 · 휴무 개수에 안 셈)로 넣고,
+     그 사람이 원래 들어갈 근무 자리는 그날 휴무인 같은 팀 사람 중 가장 알맞은 사람으로 채움 (교육 · 대체 근무와 같은 기준)
+   · 11/5 조성빈 교육: 최고관리자가 포털을 열면 서버 내용을 받은 뒤 한 번 반영 (휴일체크표에도 「교육」 표시) */
+(function(){
+'use strict';
+if(window.__YUM_EDUWISH__)return;window.__YUM_EDUWISH__=1;
+window.wsIsEdu=function(v){return /^(교|교육|ㄱ|edu|EDU)$/.test(String(v||'').trim())};
+window.__wsEdu=false;
+window.wsEduMode=function(){window.__wsEdu=!window.__wsEdu;if(window.__wsEdu&&window.__wsVac)try{wsVacMode()}catch(e){}
+ [].forEach.call(document.querySelectorAll('.wsedu-btn'),function(b){b.classList.toggle('on',window.__wsEdu);b.textContent=window.__wsEdu?'🎓 교육 입력 중 (끄기)':'🎓 교육 입력'});
+ try{U.toast(window.__wsEdu?'교육 입력: 날짜 칸을 누르면 그날 교육으로 표시됩니다. (다시 누르면 해제)':'교육 입력을 껐습니다.','ok')}catch(e){}};
+window.wsEduClick=function(el){if(!window.__wsEdu||!el)return false;el.value=el.value==='교육'?'':'교육';try{WorkSched.paint(el)}catch(e){}try{WorkSched.pickWish(el)}catch(e){}el.blur();return true};
+/* 버튼 */
+new MutationObserver(function(){var b=document.querySelector('#ws-root .wsvac-btn');if(b&&!b.parentNode.querySelector('.wsedu-btn')){
+ b.insertAdjacentHTML('afterend','<span><i style="background:#0F766E"></i>교육</span><button type="button" class="wsedu-btn'+(window.__wsEdu?' on':'')+'" onclick="wsEduMode()">'+(window.__wsEdu?'🎓 교육 입력 중 (끄기)':'🎓 교육 입력')+'</button>')}}).observe(document.documentElement,{childList:true,subtree:true});
+document.head.insertAdjacentHTML('beforeend','<style>.ws-grid td.edu{background:#0F766E!important}.ws-grid td.edu input.ws-in{color:#fff!important;font-size:10.5px!important;letter-spacing:-.5px}'+
+ '.wsedu-btn{border:1px solid #0F766E;background:#fff;color:#0F766E;border-radius:999px;padding:4px 11px;font-weight:800;font-size:12px;cursor:pointer;margin-left:6px}.wsedu-btn.on{background:#0F766E;color:#fff}</style>');
+
+/* 편성 결과에 교육 넣기 + 대체 근무 */
+function pad(n){return ('0'+n).slice(-2)}
+window.yumEduPlan=function(ym,days){
+ var o=DB.data.workSched&&DB.data.workSched.months&&DB.data.workSched.months[ym];if(!o||!o.wishes)return [];
+ var out=[];
+ Object.keys(o.wishes).forEach(function(n){var W=o.wishes[n]||{};(days||[]).forEach(function(d){if(W[d]!=='교육')return;
+  var a=(o.asg||{})[n];if(!a||a[d-1]==='교육')return;
+  var r=window.yumEduApplyOne?yumEduApplyOne(n,ym+'-'+pad(d),'교육','08:00~17:00'):null;if(r)out.push(r)})});
+ return out;
+};
+/* 11/5 조성빈 교육 — 한 번 */
+var FLAG='edu20261105_조성빈',done=false,ADOPTED=false;
+function isSup(){try{var u=Auth.user();return !!u&&u.role==='superadmin'}catch(e){return false}}
+function once(){
+ if(done||!isSup()||typeof DB==='undefined'||!DB.data)return;
+ DB.data.meta=DB.data.meta||{};if(DB.data.meta[FLAG]){done=true;return}
+ if(window.SupaSync&&SupaSync.on&&SupaSync.on()&&!ADOPTED)return;
+ var o=DB.data.workSched&&DB.data.workSched.months&&DB.data.workSched.months['2026-11'];if(!o)return;   /* 11월 근무스케쥴이 생기면 */
+ done=true;
+ o.wishes=o.wishes||{};var W=o.wishes['조성빈']=o.wishes['조성빈']||{};W[5]='교육';o.wishesU=o.wishesU||{};o.wishesU['조성빈']=new Date().toISOString();
+ var msg='11/5 조성빈 교육을 휴일체크표에 표시했습니다.';
+ var a=(o.asg||{})['조성빈'];
+ if(a&&a[4]&&a[4]!=='교육'){var r=yumEduApplyOne('조성빈','2026-11-05','교육','08:00~17:00');if(r)msg='11/5 조성빈 교육 반영'+(r.sub?' · 대체 근무: '+r.sub+' ('+r.shiftLab+')':'')+' — 주간근무계획표 · 휴무 개수에 반영했습니다.'}
+ DB.data.meta[FLAG]=new Date().toISOString();o._u=new Date().toISOString();
+ DB.save();try{if(window.SupaSync&&SupaSync.on()){clearTimeout(SupaSync.pushT);SupaSync.pushNow(DB.data)}}catch(e){}
+ console.log('[교육] '+msg);try{U.toast(msg,'ok')}catch(e){}
+ try{if(/^#\/(weekplan|worksched|schedule)/.test(location.hash))App.render()}catch(e){}
+}
+try{var _ad=SupaSync.adopt;SupaSync.adopt=function(){var r=_ad.apply(this,arguments);ADOPTED=true;setTimeout(once,600);return r}}catch(e){}
+setTimeout(once,5000);setInterval(once,6000);
+window.yumEduOnce=function(){done=false;once()};
 })();
 </script>
 
