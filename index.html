@@ -16185,7 +16185,20 @@ function sync(tr){
  if(has&&name&&!sg){p.sg.value=name;p.sg.dataset.auto='1';p.sg.dispatchEvent(new Event('input',{bubbles:true}));p.sg.dispatchEvent(new Event('change',{bubbles:true}))}
  else if(!has&&p.sg.dataset.auto==='1'&&sg===name){p.sg.value='';delete p.sg.dataset.auto;p.sg.dispatchEvent(new Event('input',{bubbles:true}));p.sg.dispatchEvent(new Event('change',{bubbles:true}))}
 }
-function onEv(e){var el=e.target;if(!el||!el.getAttribute)return;var k=el.getAttribute('data-gk')||'';if(!RE.test(k))return;var tr=rowOf(el);if(tr)setTimeout(function(){sync(tr)},0)}
+/* 총인원 = 이름이 적힌 사람 수 · 근무인원 = 그중 시업이나 종업을 적은 사람 수 · 휴무인원 = 나머지 */
+var HC={m14:['m14_total_headcount','m14_260','m14_261'],m28:['m28_total','m28_work','m28_off']};
+function setV(k,v){var e=document.querySelector('#docpaper [data-gk="'+k+'"]');if(!e||String(e.value)===String(v))return;e.value=v;e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}))}
+function counts(){
+ ['m14','m28'].forEach(function(pf){
+  var nms=[].slice.call(document.querySelectorAll('#docpaper [data-gk^="'+pf+'_nm"]'));if(!nms.length)return;
+  var tot=0,wk=0;
+  nms.forEach(function(nm){if(!String(nm.value||'').trim())return;tot++;var p=parts(nm.closest('tr'));if(p&&((p.st&&String(p.st.value||'').trim())||(p.en&&String(p.en.value||'').trim())))wk++});
+  setV(HC[pf][0],tot);setV(HC[pf][1],wk);setV(HC[pf][2],tot-wk);
+ });
+}
+function onEv(e){var el=e.target;if(!el||!el.getAttribute)return;var k=el.getAttribute('data-gk')||'';if(!RE.test(k))return;if(HC.m14.indexOf(k)>=0||HC.m28.indexOf(k)>=0)return;var tr=rowOf(el);setTimeout(function(){if(tr)sync(tr);counts()},0)}
+var CT=null,LASTP=null;new MutationObserver(function(){var p=document.querySelector('#docpaper [data-gk="m14_nm0"],#docpaper [data-gk="m28_nm0"]');if(p&&p!==LASTP){LASTP=p;clearTimeout(CT);CT=setTimeout(counts,300)}}).observe(document.documentElement,{childList:true,subtree:true});
+window.yumF14Counts=counts;
 document.addEventListener('input',onEv,true);document.addEventListener('change',onEv,true);document.addEventListener('blur',onEv,true);
 document.head.insertAdjacentHTML('beforeend','<style>#docpaper input.cell[data-gk^="m14_"],#docpaper input.cell[data-gk^="m28_"]{text-align:center!important}</style>');
 })();
