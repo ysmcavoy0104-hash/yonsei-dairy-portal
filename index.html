@@ -16005,5 +16005,56 @@ window.yumEdu={open:open,_cand:candidates,_st:function(s){ST=s},_apply:function(
 })();
 </script>
 
+<script>
+/* 주간근무계획표 → 근무스케쥴(휴무 개수 · 휴일체크표) 빠진 날 채우기
+   문제: 달이 바뀌는 주(예: 10/26~11/1)는 10월에서 편성해 주간근무계획표에는 11/1이 있지만,
+         11월 근무스케쥴에는 11/1 근무가 없어 11월 휴무 개수에 11/1 휴무가 빠졌음
+   수정: 주간근무계획표에 있는 날인데 그 달 근무스케쥴에 아무 기록이 없으면, 주간근무계획표 내용(오전 · 중간 · 오후 · 4층 · 정상 · 휴무자)으로 채우고
+         그 달 휴무 개수 · 날짜별 현황을 다시 계산 (이미 기록이 있는 날은 건드리지 않음) */
+(function(){
+'use strict';
+if(window.__YUM_WKFILL__)return;window.__YUM_WKFILL__=1;
+function pad(n){return ('0'+n).slice(-2)}
+function addD(s,n){var d=new Date(s+'T00:00:00');d.setDate(d.getDate()+n);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+function EK(n){return String(n||'').replace(/\(.*?\)/g,'').replace(/\s+/g,'')}
+var MAP={'오전':'오전','중간':'정상','오후':'오후','4층':'정상','정상':'정상'};
+function fill(){
+ try{
+  if(typeof DB==='undefined'||!DB.data||!DB.data.weeklyPlans)return [];
+  var staff=[];try{staff=(YSched._staff()||[]).filter(function(p){return p.active!==false})}catch(e){return []}
+  if(!staff.length)return [];
+  var byK={};staff.forEach(function(p){byK[EK(p.n)]=p});
+  var WS=DB.data.workSched=DB.data.workSched||{};WS.months=WS.months||{};
+  var changed={},log=[];
+  Object.keys(DB.data.weeklyPlans).forEach(function(k){
+   var W=DB.data.weeklyPlans[k];if(!W||!/^\d{4}-\d{2}-\d{2}$/.test(k))return;
+   for(var i=0;i<7;i++){
+    var ds=addD(k,i),ym=ds.slice(0,7),d=+ds.slice(8);
+    var o=WS.months[ym];if(!o)continue;   /* 그 달 근무스케쥴이 아직 없으면 그대로 */
+    o.asg=o.asg||{};
+    if(staff.some(function(p){return (o.asg[p.n]||[])[d-1]}))continue;   /* 이미 기록 있음 */
+    var vals={},any=false;
+    (W.groups||[]).forEach(function(g){(g.rows||[]).forEach(function(r){String((r.names||[])[i]||'').split(/[,\n]/).forEach(function(x){var p=byK[EK(x)];if(!p)return;var v=MAP[g.label]||'';if(v==='정상'&&g.label==='중간'&&p.st==='착즙')v='배합지원';if(v){vals[p.n]=v;any=true}})})});
+    var off=(W.single||[]).filter(function(x){return x.label==='휴무자'})[0];
+    if(off&&off.values)String(off.values[i]||'').split(/[,\n]/).forEach(function(x){var p=byK[EK(x)];if(p){vals[p.n]='휴무';any=true}});
+    if(!any)continue;
+    var N=new Date(+ym.slice(0,4),+ym.slice(5,7),0).getDate();
+    Object.keys(vals).forEach(function(n){var a=o.asg[n]=o.asg[n]||[];while(a.length<N)a.push('');a[d-1]=vals[n]});
+    o.planned=o.planned||{};o.planned[d]=1;o._u=new Date().toISOString();
+    changed[ym]=1;log.push(ds);
+   }
+  });
+  Object.keys(changed).forEach(function(ym){try{WorkSched.recalc(ym,null,null,null)}catch(e){console.warn('[근무 채우기]',e)}});
+  if(log.length){DB.save();try{if(window.SupaSync&&SupaSync.on()){clearTimeout(SupaSync.pushT);SupaSync.pushT=setTimeout(function(){SupaSync.pushNow(DB.data)},800)}}catch(e){}console.log('[근무 채우기] 주간근무계획표에서 근무스케쥴로 채운 날:',log.join(', '));try{if(/^#\/(weekplan|worksched|schedule)/.test(location.hash))App.render()}catch(e){}}
+  return log;
+ }catch(e){console.warn('[근무 채우기]',e);return []}
+}
+window.yumWkFill=fill;
+setTimeout(fill,2500);
+try{var _ad=SupaSync.adopt;SupaSync.adopt=function(){var r=_ad.apply(this,arguments);setTimeout(fill,200);return r}}catch(e){}
+window.addEventListener('hashchange',function(){if(/^#\/(weekplan|worksched|schedule)/.test(location.hash))setTimeout(fill,50)});
+})();
+</script>
+
 </body>
 </html>
