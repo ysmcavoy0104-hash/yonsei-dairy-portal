@@ -7761,7 +7761,7 @@ function groupRowsHtml(g){
   var labCell = ri===0?('<td class="wp-lab" rowspan="'+(g.rows.length*2)+'">'+esc(g.label)+'</td>'):'';
   var subCell = '<td class="wp-lab" rowspan="2" style="font-weight:700">'+(r.sub?esc(r.sub):'')+'</td>';
   html += '<tr>'+labCell+subCell+r.time.map(function(v){return '<td class="wp-time">'+esc(v||'-')+'</td>'}).join('')+'</tr>';
-  var dts=weekDates(CUR);html += '<tr>'+r.names.map(function(v,di){return '<td class="wp-names">'+chunk3(v,dts[di]?supSet(dts[di]):null)+'</td>'}).join('')+'</tr>';
+  var dts=weekDates(CUR);html += '<tr>'+r.names.map(function(v,di){return '<td class="wp-names">'+chunk3(v,dts[di]?supSet(dts[di]):null)+(window.yumEduHtml?window.yumEduHtml(CUR,g.label,di):'')+'</td>'}).join('')+'</tr>';
  });
  return html;
 }
@@ -15886,6 +15886,122 @@ function addBtn(){if(!isSup())return;var b=document.querySelector('#wp-root butt
    U.toast(g.length+'개 주를 삭제했습니다.','ok')},'삭제')};
  b.parentNode.appendChild(x)}
 new MutationObserver(function(){if(document.getElementById('wp-root'))addBtn()}).observe(document.documentElement,{childList:true,subtree:true});
+})();
+</script>
+
+<script>
+/* 교육 · 대체 근무 (주간근무계획표)
+   · 「🎓 교육 · 대체 근무」: 날짜 · 사람 · 사유(교육) · 시간(08:00~17:00)을 고르면
+     그 사람은 그날 「교육」 근무(근무스케쥴 값 '교육')로 바뀌고, 주간근무계획표 「정상」 칸 이름 아래에
+     「조성빈(교육)」 · 「08:00~17:00」 두 줄로 표시 (인쇄 · PDF 포함)
+   · 빈 자리(원래 근무 — 오전 · 중간 · 오후)는 그날 휴무인 같은 팀 사람 중 가장 알맞은 사람으로 채움
+     ① 꼭 지킬 것: 하계휴가 · 희망휴무 날은 제외, 오후 다음날 오전/중간 금지, 연속근무 최대(기본 6일), 그 주 최소 휴무 1일, 근무 제외 요일 · 고정 근무
+     ② 점수: 이번 달 휴무가 목표보다 많은 사람 먼저 · 붙여 쉬는 휴무(앞뒤 휴무)를 깨지 않는 사람 우대 · 조장 자리면 조장 우대 · 그 주 휴무가 많은 사람 우대 */
+(function(){
+'use strict';
+if(window.__YUM_EDU__)return;window.__YUM_EDU__=1;
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+var WD=['월','화','수','목','금','토','일'];
+function pad(n){return ('0'+n).slice(-2)}
+function addD(s,n){var d=new Date(s+'T00:00:00');d.setDate(d.getDate()+n);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+function dow(s){return (new Date(s+'T00:00:00').getDay()+6)%7}
+function mon(ym){var W=DB.data.workSched=DB.data.workSched||{};W.months=W.months||{};return W.months[ym]}
+function val(n,ds){var o=mon(ds.slice(0,7));if(!o||!o.asg||!o.asg[n])return '';return o.asg[n][+ds.slice(8)-1]||''}
+function setVal(n,ds,v){var o=mon(ds.slice(0,7));if(!o)return false;o.asg=o.asg||{};var a=o.asg[n]=o.asg[n]||[];var d=+ds.slice(8);while(a.length<d)a.push('');a[d-1]=v;o.planned=o.planned||{};o.planned[d]=1;return true}
+function note(n,ds){var o=mon(ds.slice(0,7));return o&&o.asgNote&&o.asgNote[n]&&o.asgNote[n][+ds.slice(8)]||null}
+function staff(){try{return (YSched._staff()||[]).filter(function(p){return p.active!==false})}catch(e){return []}}
+function isSup(){try{var u=Auth.user();return !!u&&u.role==='superadmin'}catch(e){return false}}
+function key(){try{return WeekPlan.cur()}catch(e){return null}}
+function week(k){k=k||key();return k?[0,1,2,3,4,5,6].map(function(i){return addD(k,i)}):[]}
+var WORK=['오전','정상','오후','배합지원','교육'];
+var LAB={'오전':'오전','정상':'중간','오후':'오후','배합지원':'중간(배합지원)'};
+
+/* 주간근무계획표 「정상」 칸에 교육 줄 */
+window.yumEduHtml=function(k,glabel,di){
+ if(glabel!=='정상'||!k)return '';var ds=addD(k,di),out='';
+ staff().forEach(function(p){if(val(p.n,ds)!=='교육')return;var nt=note(p.n,ds)||{};
+  out+='<div class="wp-edu">'+esc(p.n)+'('+esc(nt.label||'교육')+')</div><div class="wp-edu-t">'+esc(nt.time||'08:00~17:00')+'</div>'});
+ return out;
+};
+
+/* 대체 근무자 추천 */
+function offsMonth(n,ym){var o=mon(ym)||{},a=(o.asg||{})[n]||[],W=(o.wishes||{})[n]||{},c=0;a.forEach(function(v,i){if(v==='휴무'&&W[i+1]!=='하계')c++});return c}
+function runIf(n,ds){var r=1,k;for(k=1;k<=10;k++){var v=val(n,addD(ds,-k));if(!v||v==='휴무')break;r++}for(k=1;k<=10;k++){var v2=val(n,addD(ds,k));if(!v2||v2==='휴무')break;r++}return r}
+function candidates(who,ds){
+ var S=staff(),me=S.filter(function(p){return p.n===who})[0];if(!me)return [];
+ var shift=val(who,ds),ym=ds.slice(0,7),o=mon(ym)||{},tg=+o.target||0,wk=week(addD(ds,-dow(ds)));
+ var leadsLeft=S.filter(function(p){return p.n!==who&&p.lead&&p.st===me.st&&val(p.n,ds)===shift}).length;
+ return S.filter(function(p){return p.n!==who&&p.st===me.st&&val(p.n,ds)==='휴무'}).map(function(p){
+  var bad=[],why=[],W=(o.wishes||{})[p.n]||{},w=W[+ds.slice(8)];
+  if(w==='하계')bad.push('하계휴가');else if(w)bad.push('희망휴무 날');
+  if(p.fx&&p.fx!==shift)bad.push('고정 근무 '+p.fx);
+  if((p.exclDow||[]).indexOf(dow(ds))>=0)bad.push('근무 제외 요일');
+  if((shift==='오전'||shift==='정상'||shift==='배합지원')&&val(p.n,addD(ds,-1))==='오후')bad.push('전날 오후 근무');
+  if(shift==='오후'){var nx=val(p.n,addD(ds,1));if(nx==='오전'||nx==='정상'||nx==='배합지원')bad.push('다음날 오전/중간 근무')}
+  var mc=+p.maxConsec||6,run=runIf(p.n,ds);if(run>mc)bad.push('연속 '+run+'일 근무가 됨');
+  var wOff=wk.filter(function(x){return x!==ds&&val(p.n,x)==='휴무'}).length;if(wOff<(+p.minWeekOff||1))bad.push('그 주 휴무가 없어짐');
+  var offs=offsMonth(p.n,ym),adjP=val(p.n,addD(ds,-1))==='휴무',adjN=val(p.n,addD(ds,1))==='휴무';
+  var sc=-(offs-tg)+(adjP||adjN?1.5:0)-wOff*0.4+(run>=5?0.6:0);
+  if(me.lead&&leadsLeft===0){if(p.lead){sc-=3;why.push('조장 자리 — 조장')}else{sc+=3;why.push('조장 아님(그 근무에 조장이 없어짐)')}}
+  why.unshift('이번 달 휴무 '+offs+'일'+(tg?' / 목표 '+tg+'일':''));
+  if(adjP||adjN)why.push((adjP&&adjN?'앞뒤':adjP?'전날':'다음날')+' 휴무와 붙은 휴무를 깸');else why.push('혼자 떨어진 휴무');
+  why.push('그 주 다른 휴무 '+wOff+'일');why.push('근무하면 연속 '+run+'일');
+  return {n:p.n,sc:sc+(bad.length?100:0),bad:bad,why:why.join(' · '),lead:!!p.lead};
+ }).sort(function(a,b){return a.sc-b.sc||a.n.localeCompare(b.n,'ko')});
+}
+
+/* 화면 */
+var ST=null;
+function body(){
+ var days=week(),S=staff(),ds=ST.ds,who=ST.who;
+ var workers=S.filter(function(p){var v=val(p.n,ds);return v&&v!=='휴무'&&v!=='교육'&&p.st!=='4층'&&p.st!=='지원'});
+ if(who&&!workers.some(function(p){return p.n===who}))who=ST.who='';
+ var h='<div class="ed-g"><label>날짜<select data-ed="ds">'+days.map(function(x,i){return '<option value="'+x+'"'+(x===ds?' selected':'')+'>'+(+x.slice(5,7))+'/'+(+x.slice(8))+' ('+WD[i]+')</option>'}).join('')+'</select></label>'+
+  '<label>사람<select data-ed="who"><option value="">고르세요</option>'+workers.map(function(p){return '<option value="'+esc(p.n)+'"'+(p.n===who?' selected':'')+'>'+esc(p.n)+(p.lead?' ★':'')+' — '+esc(LAB[val(p.n,ds)]||val(p.n,ds))+'</option>'}).join('')+'</select></label>'+
+  '<label>사유<input data-ed="label" value="'+esc(ST.label)+'"></label><label>시간<input data-ed="time" value="'+esc(ST.time)+'"></label></div>';
+ if(!who)return h+'<div class="ed-hint">교육 가는 사람을 고르면, 그 사람 자리에 들어갈 대체 근무자를 추천합니다.</div>';
+ var shift=val(who,ds),C=candidates(who,ds);
+ if(ST.pick==null){var f=C.filter(function(c){return !c.bad.length})[0];ST.pick=f?f.n:''}
+ h+='<div class="ed-hint"><b>'+esc(who)+'</b> '+(+ds.slice(5,7))+'/'+(+ds.slice(8))+' '+esc(LAB[shift]||shift)+' 근무 → <b>'+esc(ST.label)+'</b> ('+esc(ST.time)+') · 「정상」 칸에 「'+esc(who)+'('+esc(ST.label)+')」 · 「'+esc(ST.time)+'」로 표시됩니다.<br>빈 '+esc(LAB[shift]||shift)+' 자리에 들어갈 사람 (그날 휴무인 같은 팀):</div>';
+ h+='<label class="ed-c'+(ST.pick===''?' on':'')+'"><input type="radio" name="ed-pick" value=""'+(ST.pick===''?' checked':'')+'><b>대체 근무자 없이</b><small>그 근무 인원이 1명 줄어듭니다</small></label>';
+ h+=C.map(function(c,i){return '<label class="ed-c'+(ST.pick===c.n?' on':'')+(c.bad.length?' bad':'')+'"><input type="radio" name="ed-pick" value="'+esc(c.n)+'"'+(ST.pick===c.n?' checked':'')+'><span class="ed-r">'+(i+1)+'</span><b>'+esc(c.n)+(c.lead?' ★':'')+'</b><small>'+(c.bad.length?'<span style="color:#B42318;font-weight:700">⚠ '+esc(c.bad.join(', '))+'</span> · ':'')+esc(c.why)+'</small></label>'}).join('');
+ if(!C.length)h+='<div class="ed-hint">그날 휴무인 같은 팀 사람이 없습니다.</div>';
+ return h;
+}
+function paint(){var mb=document.querySelector('#modal-box .mb');if(mb&&ST)mb.innerHTML=body()}
+function open(){
+ var k=key();if(!k){alert('먼저 주간근무계획표에서 주를 고르세요.');return}
+ var days=week(),def=days.filter(function(x){return staff().some(function(p){return p.n==='조성빈'&&WORK.indexOf(val(p.n,x))>=0&&val(p.n,x)!=='교육'})});
+ ST={ds:days[3],who:'',label:'교육',time:'08:00~17:00',pick:null};
+ U.modal('🎓 교육 · 대체 근무',body(),{size:'lg',foot:'<button class="btn btn-o btn-sm" onclick="U.closeModal()">취소</button><button class="btn btn-p btn-sm" id="ed-ok">반영</button>',onopen:function(){document.getElementById('ed-ok').onclick=apply}});
+}
+document.addEventListener('change',function(e){var el=e.target;if(!el||!ST||!el.closest||!el.closest('#modal-box'))return;var t=el.getAttribute('data-ed');
+ if(t==='ds'){ST.ds=el.value;ST.pick=null;paint()}else if(t==='who'){ST.who=el.value;ST.pick=null;paint()}
+ else if(el.name==='ed-pick'){ST.pick=el.value;paint()}},true);
+document.addEventListener('input',function(e){var el=e.target;if(!el||!ST)return;var t=el.getAttribute&&el.getAttribute('data-ed');if(t==='label'||t==='time')ST[t]=el.value},true);
+function apply(){
+ if(!ST||!ST.who){alert('교육 가는 사람을 고르세요.');return}
+ var k=key(),ds=ST.ds,who=ST.who,shift=val(who,ds),ym=ds.slice(0,7),o=mon(ym);if(!o){alert('그 달 근무스케쥴이 없습니다.');return}
+ if(ST.pick){var c=candidates(who,ds).filter(function(x){return x.n===ST.pick})[0];if(c&&c.bad.length&&!confirm(ST.pick+' — '+c.bad.join(', ')+'\n그래도 대체 근무로 넣을까요?'))return}
+ setVal(who,ds,'교육');o.asgNote=o.asgNote||{};o.asgNote[who]=o.asgNote[who]||{};o.asgNote[who][+ds.slice(8)]={label:ST.label||'교육',time:ST.time||'',was:shift,sub:ST.pick||''};
+ if(ST.pick)setVal(ST.pick,ds,shift==='배합지원'?'배합지원':shift);
+ o._u=new Date().toISOString();
+ var first=new Date(+ym.slice(0,4),+ym.slice(5,7)-1,1),s0=Math.round((new Date(k+'T00:00:00')-first)/864e5)+1;
+ try{WorkSched.recalc(ym,k,s0,week().filter(function(x){return x.slice(0,7)===ym}).map(function(x){return +x.slice(8)}))}catch(e){console.warn('[교육]',e)}
+ var W=(DB.data.weeklyPlans||{})[k];if(W){var u=null;try{u=Auth.user()}catch(e){}W.edited={at:new Date().toISOString(),by:u&&u.name||''};W._u=W.edited.at}
+ DB.save();try{if(window.SupaSync&&SupaSync.on()){clearTimeout(SupaSync.pushT);SupaSync.pushNow(DB.data)}}catch(e){}
+ U.closeModal();var msg=(+ds.slice(5,7))+'/'+(+ds.slice(8))+' '+who+' '+(ST.label||'교육')+(ST.pick?' · 대체 근무: '+ST.pick+' ('+(LAB[shift]||shift)+')':'');ST=null;
+ try{WeekPlan.goKey(k)}catch(e){}U.toast(msg+' — 반영했습니다.','ok');
+}
+/* 버튼 */
+function addBtn(){if(!isSup())return;var b=document.querySelector('#wp-root button[onclick="WeekPlan.edStart()"]');if(!b||b.parentNode.querySelector('.ed-btn'))return;
+ var x=document.createElement('button');x.className='btn btn-o btn-sm ed-btn';x.textContent='🎓 교육 · 대체 근무';x.title='교육 등으로 빠지는 사람을 「정상」 칸에 표시하고, 빈 자리에 가장 알맞은 대체 근무자를 넣습니다';x.onclick=open;b.parentNode.insertBefore(x,b)}
+new MutationObserver(function(){if(document.getElementById('wp-root'))addBtn()}).observe(document.documentElement,{childList:true,subtree:true});
+document.head.insertAdjacentHTML('beforeend','<style>.wp-edu{margin-top:3px;font-weight:700}.wp-edu-t{font-size:11px;color:#4A5568}'+
+ '.ed-g{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:10px}.ed-g label{display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:700;color:var(--muted)}.ed-g select,.ed-g input{padding:6px 8px;border:1px solid #CBD2DB;border-radius:7px;font-size:13px;min-width:130px}'+
+ '.ed-hint{font-size:12.5px;line-height:1.7;margin:6px 0 8px;color:#334155}.ed-c{display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:7px;font-size:13px;cursor:pointer;border-bottom:1px solid #F1F2F4}.ed-c:hover{background:#F6F7F9}.ed-c.on{background:#ECFDF3}.ed-c.bad{opacity:.7}'+
+ '.ed-c small{color:var(--muted);font-size:11.5px}.ed-r{display:inline-block;min-width:20px;height:20px;line-height:20px;text-align:center;border-radius:10px;background:#EEF2F7;font-size:11px;font-weight:800}.ed-c.on .ed-r{background:#1B7F4E;color:#fff}</style>');
+window.yumEdu={open:open,_cand:candidates,_st:function(s){ST=s},_apply:function(){apply()}};
 })();
 </script>
 
