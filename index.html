@@ -16328,6 +16328,12 @@ function ensure(){
    if(f.jteam!=='포장팀'||f.team!=='포장팀'){f.jteam='포장팀';f.team='포장팀';ch=true}
    if(jp&&(!x||x.t!=='포장팀')){jp[f.id]={t:'포장팀',fo:(x&&x.fo)||f.jfolder||'',at:(x&&x.at)||'0'};ch=true}
    if((f.code==='FRM-024'||f.code==='FRM-025')&&f.active===false&&!f.mergedInto){f.active=true;ch=true}});
+  /* 포장팀 양식 순서: 호기(A→F)별 생산작업일보 → Check List → HACCP, 그 다음 여러 호기 공용 양식 */
+  var ORD=['FRM-045','FRM-055','FRM-059', 'FRM-023','FRM-024','FRM-025', 'FRM-046','FRM-056', 'FRM-049', 'FRM-047','FRM-062','FRM-063', 'FRM-050','FRM-057','FRM-058',
+   'FRM-065','FRM-048','FRM-064','FRM-051','FRM-060','FRM-027','FRM-026','FRM-061'];
+  var slots=[],items=[];fs.forEach(function(f,i){if(f&&ORD.indexOf(f.code)>=0){slots.push(i);items.push(f)}});
+  var sorted=items.slice().sort(function(a,b){return ORD.indexOf(a.code)-ORD.indexOf(b.code)});
+  if(sorted.some(function(f,k){return f!==items[k]})){slots.forEach(function(i,k){fs[i]=sorted[k]});ch=true}
   if(ch){try{DB.save()}catch(e){}}
  }catch(e){console.warn('[FRM-064]',e)}
 }
