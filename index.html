@@ -9046,10 +9046,15 @@ function matches(f,team,sel){
  if(sel==='none')return ft===team&&!(fo&&fo.team===team);
  if(fo&&fo.id===sel&&ft===team)return true;
  var sf=folders().filter(function(x){return x.id===sel})[0],sh=SHARED_HO[f.code];
- if(sf&&sh&&ft===team){var hs=String(sf.name||'').toUpperCase().match(/[A-F](?=[A-F·,\/\s]*호기)/g)||[];
-  return hs.some(function(h){return sh.indexOf(h)>=0})}
+ if(sf&&sh&&ft===team){var hs=folderHo(sf);return hs.some(function(h){return sh.indexOf(h)>=0})}
  return false;
 }
+/* 폴더의 호기: ① 폴더 이름(「D호기」「D」「B·D」 등) ② 폴더 안 호기 전용 양식(예: 생산작업일보 D호기) */
+function folderHo(sf){var o={},nm=String(sf.name||'').toUpperCase();
+ (nm.match(/[A-F](?=[A-F·,\/\s]*호기)/g)||[]).forEach(function(h){o[h]=1});
+ (nm.match(/(^|[^A-Z0-9])[A-F](?![A-Z0-9])/g)||[]).forEach(function(m){o[m.slice(-1)]=1});
+ (DB.data.forms||[]).forEach(function(x){if(x.active===false||x.jfolder!==sf.id||SHARED_HO[x.code])return;var r=/(?:^|[^A-Za-z])([A-F])\s*호기/g,m,l={};while((m=r.exec(String(x.name||''))))l[m[1]]=1;l=Object.keys(l);if(l.length===1)o[l[0]]=1});
+ return Object.keys(o)}
 var SHARED_HO={'FRM-024':'BD','FRM-025':'BD','FRM-048':'BCDF','FRM-065':'AE','FRM-064':'ABCDEF'};
 window.yumJFShared=SHARED_HO;
 
@@ -16316,6 +16321,13 @@ function ensure(){
    var o={id:'f65',code:'FRM-065',name:'밀봉 공정 중간검사 & 불량팩 (SIG · A·E호기)',origin:'excel',line:'L3',active:true,jteam:'포장팀',team:'포장팀',sub:'SIG 밀봉공정 · A · E호기 공용',
     desc:'SIG 밀봉공정 불량 원인(Explanation · 블루다이 · 용량/과수 농도 · Suction · 박스 · 슬리브 …) 시간별 기록 · 두유 제품 불량 현황',fields:JSON.parse(JSON.stringify(b48.fields||[{k:'pdate',l:'작성일',t:'date'}])),tables:[],checks:[],textareas:[]};
    if(b48.jfolder)o.jfolder=b48.jfolder;var j=fs.indexOf(b48);if(j>=0)fs.splice(j,0,o);else fs.push(o);ch=true}
+  /* 두유포장팀 B호기 · B·D 공용 양식(FRM-023~027)은 팀 정보가 없어 「공통 자료」로 빠져 있었음 → 포장팀으로 */
+  var jp=DB.data.jplace&&typeof DB.data.jplace==='object'?DB.data.jplace:null;
+  fs.forEach(function(f){if(['FRM-023','FRM-024','FRM-025','FRM-026','FRM-027'].indexOf(f.code)<0)return;
+   var x=jp&&jp[f.id];if(x&&x.t&&x.t!=='공통')return;   /* 사용자가 다른 팀으로 직접 옮긴 경우는 그대로 */
+   if(f.jteam!=='포장팀'||f.team!=='포장팀'){f.jteam='포장팀';f.team='포장팀';ch=true}
+   if(jp&&(!x||x.t!=='포장팀')){jp[f.id]={t:'포장팀',fo:(x&&x.fo)||f.jfolder||'',at:(x&&x.at)||'0'};ch=true}
+   if((f.code==='FRM-024'||f.code==='FRM-025')&&f.active===false&&!f.mergedInto){f.active=true;ch=true}});
   if(ch){try{DB.save()}catch(e){}}
  }catch(e){console.warn('[FRM-064]',e)}
 }
