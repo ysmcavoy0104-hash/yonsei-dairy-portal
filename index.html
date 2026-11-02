@@ -16342,5 +16342,40 @@ try{var _ad=SupaSync.adopt;SupaSync.adopt=function(){var r=_ad.apply(this,argume
 })();
 </script>
 
+<script>
+/* 같은 컴퓨터에 포털 창(탭)이 여러 개 열려 있을 때 자료가 사라지던 문제 수정
+   문제: 한 창에서 저장하면 다른 창은 그 창의 자료로 「통째로 바꿈」 → 배합비를 올리기 전부터 열려 있던 창이 무엇이든 저장하면
+         방금 올린 배합비(그리고 그사이 바뀐 다른 자료)가 그 창의 예전 자료로 덮여 사라졌음
+   수정: 다른 창의 자료를 받을 때도 서버에서 받을 때와 똑같이 「항목별로 합침」 (배합비는 파일별, 일지는 문서별 …) */
+(function(){
+'use strict';
+if(window.__YUM_TABMERGE__)return;window.__YUM_TABMERGE__=1;
+function hook(){
+ if(typeof Sync==='undefined'||!Sync||!Sync.receive||Sync.receive.__tm)return false;
+ var _rc=Sync.receive;
+ var g=function(){
+  var prev=DB.data,r=_rc.apply(this,arguments);
+  try{if(prev&&DB.data&&DB.data!==prev&&window.SupaSync&&SupaSync.mergeState){
+   var m=SupaSync.mergeState(DB.data,prev,false);
+   if(m&&JSON.stringify(m.recipes||null)!==JSON.stringify(DB.data.recipes||null)||JSON.stringify(m)!==JSON.stringify(DB.data)){
+    DB.data=m;try{localStorage.setItem('yum_portal_v1',JSON.stringify(m))}catch(e){}
+    try{if(window.SupaSync&&SupaSync.on&&SupaSync.on())SupaSync.queuePush()}catch(e){}
+   }}}catch(e){console.warn('[창 간 병합]',e)}
+  return r};
+ g.__tm=1;Sync.receive=g;return true;
+}
+/* 예전 백업(이 컴퓨터)에 남아 있는 배합비가 지금 자료에 없으면 되살림 (지운 파일은 지운 기록이 있어 되살아나지 않음) */
+function heal(){try{
+ var bk=JSON.parse(localStorage.getItem('yum_portal_v1_backup')||'null');var br=bk&&bk.recipes;if(!br||!br.list||!br.list.length||!window.yumRecMerge)return;
+ var cur=DB.data.recipes||{files:{},list:[]},m=yumRecMerge.recipes(cur,br,false);
+ if(m&&(m.list||[]).length>(cur.list||[]).length){DB.data.recipes=m;
+  if(bk.recipeLink){var L=DB.data.recipeLink||(DB.data.recipeLink={});Object.keys(bk.recipeLink).forEach(function(c){if(!L[c])L[c]=bk.recipeLink[c]})}
+  DB.save();console.log('[배합비] 이 컴퓨터 백업에서 '+((m.list.length)-(cur.list||[]).length)+'개 되살림')}
+}catch(e){}}
+setTimeout(heal,6000);
+if(!hook()){var n=0,iv=setInterval(function(){if(hook()||++n>40)clearInterval(iv)},250)}
+})();
+</script>
+
 </body>
 </html>
