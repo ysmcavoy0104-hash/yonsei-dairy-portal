@@ -9044,8 +9044,14 @@ function matches(f,team,sel){
  if(sel==='common')return ft==='공통'&&team!=='공통';
  var fo=folderOf(f);
  if(sel==='none')return ft===team&&!(fo&&fo.team===team);
- return !!(fo&&fo.id===sel&&ft===team);
+ if(fo&&fo.id===sel&&ft===team)return true;
+ var sf=folders().filter(function(x){return x.id===sel})[0],sh=SHARED_HO[f.code];
+ if(sf&&sh&&ft===team){var hs=String(sf.name||'').toUpperCase().match(/[A-F](?=[A-F·,\/\s]*호기)/g)||[];
+  return hs.some(function(h){return sh.indexOf(h)>=0})}
+ return false;
 }
+var SHARED_HO={'FRM-024':'BD','FRM-025':'BD','FRM-048':'BCDF','FRM-065':'AE','FRM-064':'ABCDEF'};
+window.yumJFShared=SHARED_HO;
 
 /* ---------- 폴더 조작 ---------- */
 window.yumJF={
@@ -9118,6 +9124,7 @@ function enhance(){try{
   var vis=matches(x.f,team,sel);x.el.style.display=vis?'':'none';if(vis)shown++;
   var fo=folderOf(x.f),tag=x.el.querySelector('.jftag');
   var tt=teamOfForm(x.f)!==team?teamOfForm(x.f):(fo&&fo.team===team?'📁 '+fo.name:'');
+  if(SHARED_HO[x.f.code])tt=(tt?tt+' · ':'')+SHARED_HO[x.f.code].split('').join('·')+'호기 공용';
   if(tt){if(!tag){tag=document.createElement('span');tag.className='jftag';var top=x.el.querySelector('.top');if(top)top.appendChild(tag)}tag.textContent=tt}else if(tag)tag.remove();
   if(mg){
    if(!x.el.querySelector('.jfmv')){var bs=x.el.querySelector('.jbtns');if(bs){var b=document.createElement('button');b.type='button';b.className='btn btn-ghost btn-sm jfmv';b.textContent='폴더 이동';b.onclick=function(){yumJF.move(x.f.id)};bs.appendChild(b)}}
