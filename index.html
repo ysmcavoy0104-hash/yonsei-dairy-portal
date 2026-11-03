@@ -6953,11 +6953,12 @@ function parsePdf(file){
 }
 
 /* ---------- 규격 적용/표시 ---------- */
-function specFor(code){return (DB.data.planSpec||{})[code]}
+function specFor(code){var _p=(DB.data.planSpec||{})[code];try{if(window.yumSpecMerge)return yumSpecMerge(code,_p)}catch(e){}return _p}
 function beanOf(spec){if(!spec)return '';if(spec.bean)return spec.bean;if(spec.beanRed)return '볶은콩';if(/서리태/.test(spec.material||''))return '서리태';return ''}
 function boxes(spec){
  if(!spec)return '';
  var out=[];
+ if(spec._rcpOnly||spec._rcpFill)out.push('<span class="pc-box pc-rcp" style="background:#64748B" title="배합비('+esc(spec._rcp||'')+(spec._rcpRev?' · 개정 '+esc(spec._rcpRev):'')+')에서 가져온 규격'+(spec._rcpOnly?' — 등록된 규격 없음':'')+'">배합비 참고</span>');
  if(spec.wt==='wt')out.push('<span class="pc-box" style="background:#1D4E89">WT</span>');
  else if(spec.wt==='decanter')out.push('<span class="pc-box" style="background:#6A3FA0">데칸타</span>');
  var _bt=beanOf(spec);if(spec.material||_bt==='서리태')out.push('<span class="pc-box" style="background:'+(_bt==='볶은콩'?'#B23A3A':_bt==='서리태'?'#5B2C83':'#1F2A37')+'">'+esc(spec.material||'서리태')+(_bt==='서리태'&&!/서리태/.test(spec.material||'')?' (서리태)':'')+'</span>');
@@ -7108,7 +7109,7 @@ function exportPdf(){
  var msg=document.createElement('div');msg.textContent='PDF 만드는 중...';msg.style.cssText='position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#1F2A37;color:#fff;padding:9px 16px;border-radius:8px;z-index:99999;font-size:13px';document.body.appendChild(msg);
  var box=document.createElement('div');box.style.cssText='position:fixed;left:-20000px;top:0;background:#fff;width:1400px;padding:16px';
  ensureExportLibs().then(function(){
-  box.innerHTML=renderResult();document.body.appendChild(box);
+  box.innerHTML=renderResult();[].forEach.call(box.querySelectorAll('.pc-rcp'),function(e){e.remove()});document.body.appendChild(box);
   var tbl=box.querySelector('table');
   return window.html2canvas(tbl,{scale:2,backgroundColor:'#ffffff'}).then(function(cv){
    var doc=new window.jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a4'});
@@ -7133,7 +7134,7 @@ function exportPdf(){
 function exportWord(){
  if(!LAST){alert('먼저 생산계획표 PDF를 업로드해 주세요.');return}
  var html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'+
-  '<head><meta charset="utf-8"><title>생산계획표 조건표</title><style>'+PCBOXCSS+' body{font-family:"맑은 고딕",sans-serif}</style></head><body>'+renderResult()+'</body></html>';
+  '<head><meta charset="utf-8"><title>생산계획표 조건표</title><style>'+PCBOXCSS+' body{font-family:"맑은 고딕",sans-serif}</style></head><body>'+renderResult().replace(/<span class="pc-box pc-rcp"[^>]*>[^<]*<\/span>/g,'')+'</body></html>';
  var blob=new Blob(['\ufeff',html],{type:'application/msword'});
  var a=document.createElement('a');a.href=URL.createObjectURL(blob);
  a.download=(LAST.fileName||'생산계획표').replace(/\.pdf$/i,'')+'_조건표.doc';
@@ -9358,7 +9359,7 @@ function specs(){
  if(!DB.data.milkSpecSeeded){for(var k in EST_SEED){if(!DB.data.milkSpec[k])DB.data.milkSpec[k]=JSON.parse(JSON.stringify(EST_SEED[k]))}DB.data.milkSpecSeeded=1}
  return DB.data.milkSpec;
 }
-function pspec(code){return (DB.data.planSpec||{})[code]||null}
+function pspec(code){var _p=(DB.data.planSpec||{})[code]||null;try{if(window.yumSpecMerge)return yumSpecMerge(code,_p)||null}catch(e){}return _p}
 function pname(code,fallback){var p=pspec(code);return (p&&p.name)||fallback||code}
 /* 제품 규격(원료)으로 기본 원유 기준 추정 */
 function defaultSpec(code,nameHint){
@@ -16457,13 +16458,103 @@ function list(ds){var w=new Date(ds+'T00:00:00').getDay();if(w===0||w===6)return
 function hook(){var f=window.yumEduHtml;if(!f||f.__nh)return !!(f&&f.__nh);
  var g=function(k,glabel,di){var h=f.apply(this,arguments)||'';
   try{if(glabel==='정상'&&k){var ds=addD(k,di),L=list(ds);if(L.length){var byT={};L.forEach(function(x){var t=x.time||'08:00~17:00';(byT[t]=byT[t]||[]).push(x)});
-   Object.keys(byT).forEach(function(t){h+=byT[t].map(function(x){return '<div class="wp-edu wp-new">'+esc(x.n)+'</div>'}).join('')+'<div class="wp-edu-t">'+esc(t)+'</div>'})}}}catch(e){}
+   Object.keys(byT).forEach(function(t){var ns=byT[t].map(function(x){return x.n}),ln=[];for(var q=0;q<ns.length;q+=3)ln.push(ns.slice(q,q+3));
+    h+=ln.map(function(l){return '<div class="wp-edu wp-new" style="margin-top:2px">'+l.map(function(x){return '<span style="white-space:nowrap">'+esc(x)+'</span>'}).join(', ')+'</div>'}).join('')+'<div class="wp-edu-t">'+esc(t)+'</div>'})}}}catch(e){}
   return h};
  g.__nh=1;window.yumEduHtml=g;return true}
 ensure();[600,2000,5000].forEach(function(t){setTimeout(ensure,t)});
 try{var _ad=SupaSync.adopt;SupaSync.adopt=function(){var r=_ad.apply(this,arguments);setTimeout(ensure,0);return r}}catch(e){}
 if(!hook()){var n=0,iv=setInterval(function(){if(hook()||++n>40)clearInterval(iv)},250)}
 window.yumTrainees={list:list};
+})();
+</script>
+
+<script>
+/* 11/5 조성빈 교육 다시 반영 (2026-11-03)
+   · 처음 한 번 넣은 뒤 근무편성 다시 돌리기 · 주간 수정으로 11/5 칸이 원래 근무로 덮여 교육이 사라졌던 경우
+   · 최고관리자가 포털을 열면 서버 내용을 받은 뒤: 휴일체크표 11/5 「교육」 · 근무 「교육」(08:00~17:00) · 빈 자리는 대체 근무자로 채움 (한 번) */
+(function(){
+'use strict';
+if(window.__YUM_EDUFIX2__)return;window.__YUM_EDUFIX2__=1;
+var FLAG='edu20261105_조성빈_v2',done=false,ADOPTED=false;
+function isSup(){try{var u=Auth.user();return !!u&&u.role==='superadmin'}catch(e){return false}}
+function run(){
+ if(done||!isSup()||typeof DB==='undefined'||!DB.data||!window.yumEduApplyOne)return;
+ DB.data.meta=DB.data.meta||{};if(DB.data.meta[FLAG]){done=true;return}
+ if(window.SupaSync&&SupaSync.on&&SupaSync.on()&&!ADOPTED)return;
+ var o=DB.data.workSched&&DB.data.workSched.months&&DB.data.workSched.months['2026-11'];if(!o)return;
+ done=true;
+ o.wishes=o.wishes||{};var W=o.wishes['조성빈']=o.wishes['조성빈']||{};if(W[5]!=='교육'){W[5]='교육';o.wishesU=o.wishesU||{};o.wishesU['조성빈']=new Date().toISOString()}
+ var a=(o.asg||{})['조성빈'],msg='';
+ if(a&&a[4]!=='교육'){var r=yumEduApplyOne('조성빈','2026-11-05','교육','08:00~17:00');msg=r?('11/5 조성빈 교육 다시 반영'+(r.sub?' · 대체 근무: '+r.sub+' ('+r.shiftLab+')':'')):''}
+ DB.data.meta[FLAG]=new Date().toISOString();o._u=new Date().toISOString();
+ DB.save();try{if(window.SupaSync&&SupaSync.on()){clearTimeout(SupaSync.pushT);SupaSync.pushNow(DB.data)}}catch(e){}
+ if(msg){console.log('[교육] '+msg);try{U.toast(msg,'ok')}catch(e){}}
+ try{if(/^#\/(weekplan|worksched|schedule)/.test(location.hash))App.render()}catch(e){}
+}
+try{var _ad=SupaSync.adopt;SupaSync.adopt=function(){var r=_ad.apply(this,arguments);ADOPTED=true;setTimeout(run,1500);return r}}catch(e){}
+setTimeout(run,7000);setInterval(run,8000);
+})();
+</script>
+
+<script>
+/* 생산계획표 품목 규격 ← 배합비 참고 (2026-11-03)
+   · 생산계획표를 넣었을 때 품목코드에 등록된 규격이 없거나 칸이 비어 있으면, 그 품목코드에 연결된 배합비(PDF 규격서 · 배합일보 엑셀)에서 채움
+     제품명 · WT/데칸타(두유액 종류) · 원료(원유 · A2원유 · 서울원유 · 살균유 · 두유 · 볶은콩 · 배양액 · 탈지분유 · 음료) · 콩 종류(서리태 · 볶은콩)
+     멸균온도 · 홀딩타임 · 균질압 (PDF 규격서 「공정조건」 줄)
+   · 직접 등록한 규격이 항상 먼저 — 배합비에서 온 값은 빈 칸만 채움 · 「규격 수정」을 열면 배합비 값이 미리 채워져 있어 저장하면 등록 규격이 됨
+   · 개정일자 최신 배합비 우선 */
+(function(){
+'use strict';
+if(window.yumSpecMerge)return;
+var CACHE={},SIG='';
+function sig(){var R=DB.data.recipes;return R?((R.list||[]).length+'|'+Object.keys(R.files||{}).map(function(k){return k+(R.files[k].u||R.files[k].at||'')}).join(',')+'|'+JSON.stringify(DB.data.recipeLink||{}).length):''}
+function pick(code){
+ var L=[];try{L=(window.PlanRecipe&&PlanRecipe._find)?(PlanRecipe._find(code)||[]):[]}catch(e){}
+ if(!L.length)return [];
+ var rd=function(r){try{return PlanRecipe._revDate?PlanRecipe._revDate(r):''}catch(e){return ''}};
+ var rank=function(r){return r.kind==='규격'?0:r.kind==='배합'?1:r.kind==='계량'?2:3};
+ return L.slice().sort(function(a,b){return rank(a)-rank(b)||String(rd(b)).localeCompare(String(rd(a)))});
+}
+function derive(code){
+ var L=pick(code);if(!L.length)return null;
+ var o={},names=[];L.forEach(function(r){(r.items||[]).forEach(function(it){if(it&&it[2])names.push(String(it[2]))})});
+ var main=L[0],all=names.join(' | '),post=[].concat(main.post||[]).join(' ');
+ if(main.name)o.name=String(main.name).replace(/[,\s]*\(\s*[\d,.]+\s*(?:kg|㎏|KG)\s*\)\s*$/i,'').replace(/\s+/g,' ').trim();
+ if(/데칸[터타]/.test(all+' '+post))o.wt='decanter';else if(/W\s*[.\/]?\s*T(?![a-z])|웨트|\bwt\b/i.test(all+' '+post))o.wt='wt';
+ var bean='';if(/서리태/.test(all))bean='서리태';else if(/볶은\s*콩|볶음\s*콩/.test(all))bean='볶은콩';
+ if(bean){o.bean=bean;o.beanRed=bean==='볶은콩'}
+ var enz=/락타아제|lactase|효소\s*반응/i.test(all);
+ var m='';
+ if(/A2\s*살균유/i.test(all))m='A2살균유';
+ else if(/살균유/.test(all))m='살균유';
+ else if(/A2\s*원유/i.test(all))m='A2원유';
+ else if(/서울\s*원유/.test(all))m='서울원유';
+ else if(/저지방\s*원유/.test(all))m='저지방원유';
+ else if(/원유/.test(all))m='일반원유';
+ else if(/배양액/.test(all))m='배양액';
+ else if(/두유액|대두|콩/.test(all))m=bean==='볶은콩'?'볶은콩(21007)':'두유';
+ else if(/탈지분유|전지분유/.test(all))m='탈지분유';
+ else if(names.length)m='음료';
+ if(m)o.material=m+(enz?(/원유/.test(m)?',효소반응':',효소반응'):'');
+ var t=/(\d{2,3})\s*℃\s*[,·]?\s*(\d{1,3})\s*초/.exec(post)||null;
+ if(t){o.temp=t[1]+'℃';o.hold=t[2]+'초'}else{var t2=/멸균[^\d]{0,20}(\d{2,3})\s*℃/.exec(post)||/(\d{3})\s*℃/.exec(post);if(t2)o.temp=t2[1]+'℃';var h=/(\d{1,3})\s*초/.exec(post);if(h)o.hold=h[1]+'초'}
+ var p=/(\d{2,3}(?:\s*\/\s*\d{2,3})?)\s*bar/i.exec(post);if(p)o.press=p[1].replace(/\s+/g,'')+'bar';
+ o._rcp=main.name||main.sheet||'';o._rcpRev=(function(){try{return PlanRecipe._revDate(main)}catch(e){return ''}})();
+ return o;
+}
+window.yumSpecFromRecipe=function(code){var s=sig();if(s!==SIG){CACHE={};SIG=s}if(!(code in CACHE))CACHE[code]=derive(code);return CACHE[code]};
+window.yumSpecMerge=function(code,ps){
+ var rs=null;try{rs=window.yumSpecFromRecipe(code)}catch(e){}
+ if(!rs)return ps;
+ if(!ps){var o=Object.assign({},rs);o._rcpOnly=1;return o}
+ var out=Object.assign({},ps),used=0;
+ ['name','wt','material','bean','temp','hold','press'].forEach(function(k){if((out[k]==null||out[k]==='')&&rs[k]!=null){out[k]=rs[k];used++}});
+ if(out.beanRed==null&&rs.beanRed!=null)out.beanRed=rs.beanRed;
+ if(used)out._rcpFill=used;
+ return out;
+};
+console.log('[배합비 → 품목 규격] 로드 완료');
 })();
 </script>
 
