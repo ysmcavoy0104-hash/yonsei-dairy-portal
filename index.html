@@ -7419,13 +7419,13 @@ function dcls(d){var wd=dowOf(CUR_YM,d),H=holMap();return (wd===6||H[d])?'sun':(
 function dayHead(extra){var N=daysInMonth(CUR_YM),T=todayD(),H=holMap();
  return '<thead><tr><th class="ws-name">이름</th>'+Array.from({length:N},function(_,i){var d=i+1,c=dcls(d);
   return '<th class="'+c+(d===T?' tdy':'')+'"'+(H[d]?' title="'+esc(H[d])+'"':'')+'>'+d+'<span class="w">'+WD[dowOf(CUR_YM,d)]+'</span></th>'}).join('')+(extra||'')+'</tr></thead>'}
-function nameCell(n,idx){var t=TEAM3[n];return '<td class="ws-name"><span class="ws-dot" style="background:'+(TCOL[t]||'#999')+'"></span>'+(idx!=null?(idx+1)+'. ':'')+esc(n)+'<span class="ws-tm">'+t+'</span></td>'}
+function nameCell(n,idx){var t=TEAM3[n]||(window.yumTraineeTeam&&yumTraineeTeam(n));var _nw=!TEAM3[n]&&t;return '<td class="ws-name"><span class="ws-dot" style="background:'+(TCOL[t]||'#999')+'"></span>'+(idx!=null?(idx+1)+'. ':'')+esc(n)+'<span class="ws-tm">'+t+'</span>'+(_nw?'<span style="margin-left:4px;font-size:10px;font-weight:800;color:#B7791F;background:#FFF4DE;border-radius:5px;padding:1px 5px">신입</span>':'')+'</td>'}
 function pcls(v){return v==null||v===''?'':v==='하계'?'vac':v==='교육'?'edu':(+v<=3?'" data-p="'+(+v):'pp')}
 
 /* ---------- 1) 희망휴무 입력표 ---------- */
 function wishTableHtml(){
  var o=M(CUR_YM);var N=daysInMonth(CUR_YM);
- var rows=ROSTER.map(function(n){var w=o.wishes[n]||{},k=0;
+ var rows=ROSTER.concat(window.yumTraineeNames?yumTraineeNames(CUR_YM):[]).map(function(n){var w=o.wishes[n]||{},k=0;
   var cells=Array.from({length:N},function(_,i){var d=i+1,v=w[d];if(v!=null&&v!=='교육')k++;
    return '<td class="'+dcls(d)+' '+pcls(v)+'"><input class="ws-in" data-n="'+esc(n)+'" data-d="'+d+'" maxlength="2" inputmode="numeric" value="'+(v!=null?v:'')+'" onclick="window.wsVacClick&&wsVacClick(this)" oninput="WorkSched.paint(this)" onchange="WorkSched.pickWish(this)"></td>';
   }).join('');
@@ -7490,13 +7490,13 @@ function checkTableHtml(){
  var o=M(CUR_YM);if(!o.result)return emptyHtml();
  var CONF={},anyConf=false,cw=[];weekList().forEach(function(w){var X=(DB.data.weeklyPlans||{})[w.key];if(X&&X.confirmed){anyConf=true;cw.push(w.lab);w.ds.forEach(function(d){CONF[d]=1})}});
  var N=o.result.N;
- var rows=ROSTER.map(function(n,idx){
-  var set={};(o.result.offByPerson[n]||[]).forEach(function(d){set[d]=1});
-  var VW=o.wishes[n]||{},nv=function(d){return VW[d]!=='하계'},vcnt=(o.result.offByPerson[n]||[]).filter(function(d){return !nv(d)}).length,cnt=(o.result.offByPerson[n]||[]).filter(nv).length,col=offColor(cnt,o.target);
+ var rows=ROSTER.concat(window.yumTraineeNames?yumTraineeNames(CUR_YM):[]).map(function(n,idx){
+  var set={};(o.result.offByPerson[n]||(window.yumTraineeOff?yumTraineeOff(n,CUR_YM,o):[])).forEach(function(d){set[d]=1});
+  var VW=o.wishes[n]||{},nv=function(d){return VW[d]!=='하계'},vcnt=(o.result.offByPerson[n]||(window.yumTraineeOff?yumTraineeOff(n,CUR_YM,o):[])).filter(function(d){return !nv(d)}).length,cnt=(o.result.offByPerson[n]||(window.yumTraineeOff?yumTraineeOff(n,CUR_YM,o):[])).filter(nv).length,col=offColor(cnt,o.target);
   var cells=Array.from({length:N},function(_,i){var d=i+1,w=(o.wishes[n]||{})[d];
    return '<td class="'+dcls(d)+'">'+(set[d]?(w==='하계'?'<span class="ws-off vac" title="하계휴가">하</span>':'<span class="ws-off'+(w!=null&&+w>1?' x':'')+'">'+(w!=null?w:'●')+'</span>'):'')+'</td>';
   }).join('');
-  var cf=(o.result.offByPerson[n]||[]).filter(function(d){return CONF[d]&&nv(d)}).length;
+  var cf=(o.result.offByPerson[n]||(window.yumTraineeOff?yumTraineeOff(n,CUR_YM,o):[])).filter(function(d){return CONF[d]&&nv(d)}).length;
   return '<tr>'+nameCell(n,idx)+cells+'<td class="ws-tot" style="color:#1B7F4E">'+(anyConf?cf:'-')+'</td><td class="ws-tot"><span class="ws-pill" style="background:'+col.bg+';color:'+col.fg+'">'+cnt+'</span></td></tr>';
  }).join('');
  return '<div class="wsx-lg" style="margin-bottom:6px">'+(anyConf?'🔒 확정된 주: <b>'+cw.join(', ')+'</b> — 「확정 휴무」는 확정된 주까지의 실제 휴무 개수, 「휴일 총합」은 편성된 전체 휴무입니다. (하계휴가 「하」는 휴무 개수에 넣지 않습니다)':'아직 확정된 주가 없습니다. 주간근무계획표에서 「✔ 확정」을 누르면 「확정 휴무」에 반영됩니다.')+'</div>'+'<div class="wsx-tw"><table class="ws-grid">'+dayHead('<th style="min-width:60px" title="확정된 주의 휴무만">확정 휴무</th><th style="min-width:60px">휴일 총합</th>')+'<tbody>'+rows+'</tbody></table></div>';
@@ -16454,17 +16454,29 @@ function ensure(){try{
 /* 서버 병합: 이름별로 합침 (한쪽에만 있는 사람은 남김 · 같은 사람은 나중에 고친 쪽) */
 try{var _ms=SupaSync.mergeState.bind(SupaSync);SupaSync.mergeState=function(r,l,lw){var o=_ms(r,l,lw);try{if(r&&l&&(r.trainees||l.trainees)){var m={};(r.trainees||[]).concat(l.trainees||[]).forEach(function(x){if(!x||!x.n)return;var c=m[x.n];if(!c||String(x.u||'')>String(c.u||''))m[x.n]=x});o.trainees=Object.keys(m).map(function(k){return m[k]});o.traineeSeed=Object.assign({},r.traineeSeed||{},l.traineeSeed||{})}}catch(e){}return o}}catch(e){}
 function list(ds){var w=new Date(ds+'T00:00:00').getDay();if(w===0||w===6)return [];
- return (DB.data.trainees||[]).filter(function(x){return x&&x.n&&x.off!==true&&(!x.from||ds>=x.from)&&(!x.to||ds<=x.to)})}
+ var mo=(DB.data.workSched&&DB.data.workSched.months&&DB.data.workSched.months[ds.slice(0,7)])||{},dd=+ds.slice(8);if((mo.holidays||[]).some(function(h){return +h.d===dd}))return [];
+ return (DB.data.trainees||[]).filter(function(x){if(!x||!x.n||x.off===true||(x.from&&ds<x.from)||(x.to&&ds>x.to))return false;var w=((mo.wishes||{})[x.n]||{})[dd];return w==null||w==='교육'})}
 function hook(){var f=window.yumEduHtml;if(!f||f.__nh)return !!(f&&f.__nh);
  var g=function(k,glabel,di){var h=f.apply(this,arguments)||'';
   try{if(glabel==='정상'&&k){var ds=addD(k,di),L=list(ds);if(L.length){var byT={};L.forEach(function(x){var t=x.time||'08:00~17:00';(byT[t]=byT[t]||[]).push(x)});
-   Object.keys(byT).forEach(function(t){var ns=byT[t].map(function(x){return x.n}),ln=[];for(var q=0;q<ns.length;q+=3)ln.push(ns.slice(q,q+3));
+   Object.keys(byT).forEach(function(t){var ns=byT[t].map(function(x){return x.n}),ln=[],rm=ns.length%3,q=0;if(rm){ln.push(ns.slice(0,rm));q=rm}for(;q<ns.length;q+=3)ln.push(ns.slice(q,q+3));
     h+=ln.map(function(l){return '<div class="wp-edu wp-new" style="margin-top:2px">'+l.map(function(x){return '<span style="white-space:nowrap">'+esc(x)+'</span>'}).join(', ')+'</div>'}).join('')+'<div class="wp-edu-t">'+esc(t)+'</div>'})}}}catch(e){}
   return h};
  g.__nh=1;window.yumEduHtml=g;return true}
 ensure();[600,2000,5000].forEach(function(t){setTimeout(ensure,t)});
 try{var _ad=SupaSync.adopt;SupaSync.adopt=function(){var r=_ad.apply(this,arguments);setTimeout(ensure,0);return r}}catch(e){}
 if(!hook()){var n=0,iv=setInterval(function(){if(hook()||++n>40)clearInterval(iv)},250)}
+
+/* 근무스케쥴 「희망휴무 입력」 · 「휴일체크표」에 신입 줄 — 자동 근무 편성 인원에는 넣지 않음(평일 08:00~17:00 고정)
+   휴일체크표 휴무 = 입사일부터 토 · 일 · 지정휴일 + 희망휴무 칸에 적은 날 */
+function ymRange(ym){var y=+ym.slice(0,4),m=+ym.slice(5,7),n=new Date(y,m,0).getDate();return [ym+'-01',ym+'-'+pad(n),n]}
+window.yumTraineeNames=function(ym){var r=ymRange(ym);return (DB.data.trainees||[]).filter(function(x){return x&&x.n&&x.off!==true&&(!x.from||x.from<=r[1])&&(!x.to||x.to>=r[0])}).map(function(x){return x.n})};
+window.yumTraineeTeam=function(n){var x=(DB.data.trainees||[]).filter(function(t){return t&&t.n===n})[0];return x?String(x.team||'배합').replace(/팀$/,''):null};
+window.yumTraineeOff=function(n,ym,o){var x=(DB.data.trainees||[]).filter(function(t){return t&&t.n===n})[0];if(!x)return [];var r=ymRange(ym),out=[],H={};
+ ((o&&o.holidays)||[]).forEach(function(h){H[h.d]=1});var W=(o&&o.wishes&&o.wishes[n])||{};
+ for(var d=1;d<=r[2];d++){var ds=ym+'-'+pad(d);if(x.from&&ds<x.from)continue;if(x.to&&ds>x.to)continue;var w=new Date(ds+'T00:00:00').getDay();
+  if(w===0||w===6||H[d]||(W[d]!=null&&W[d]!=='교육'))out.push(d)}
+ return out};
 window.yumTrainees={list:list};
 })();
 </script>
@@ -16555,6 +16567,41 @@ window.yumSpecMerge=function(code,ps){
  return out;
 };
 console.log('[배합비 → 품목 규격] 로드 완료');
+})();
+</script>
+
+<script>
+/* 근무스케쥴 「희망휴무 입력표」 · 「휴일체크표」를 팀별로 따로 보기 · 체크 (2026-11-03)
+   · 표 위 버튼: [전체] [배합] [착즙 + 지원] — 고른 팀 사람만 표에 나옴 (인쇄할 때도 그 팀만)
+   · 고른 값은 이 컴퓨터에 기억 (다음에 열어도 그대로) · 자료는 그대로 하나 (보기만 나눔) */
+(function(){
+'use strict';
+if(window.__YUM_WSGROUP__)return;window.__YUM_WSGROUP__=1;
+var K='yum_wsgroup',G=[['all','전체'],['mix','배합'],['cj','착즙 + 지원']];
+function cur(){try{return localStorage.getItem(K)||'all'}catch(e){return 'all'}}
+function setCur(v){try{localStorage.setItem(K,v)}catch(e){}}
+function teamOf(tr){var t=tr.querySelector('.ws-name .ws-tm');return t?String(t.textContent||'').trim():null}
+function show(team,g){if(g==='all'||team==null)return true;if(g==='mix')return team==='배합';return team==='착즙'||team==='지원'||team==='4층'}
+function apply(){
+ var root=document.getElementById('ws-root');if(!root)return;var g=cur();
+ [].forEach.call(root.querySelectorAll('table.ws-grid'),function(tb){
+  var rows=[].slice.call(tb.querySelectorAll('tbody tr')),named=rows.filter(function(r){return teamOf(r)!=null});if(!named.length||!named.every(function(r){return /^(배합|착즙|지원|4층)$/.test(teamOf(r))}))return;
+  var vis=0;named.forEach(function(r){var on=show(teamOf(r),g);r.style.display=on?'':'none';if(on)vis++});
+  var wrap=tb.closest('.wsx-tw')||tb;
+  var bar=wrap.previousElementSibling;
+  if(!bar||!bar.classList||!bar.classList.contains('wsg-bar')){bar=document.createElement('div');bar.className='wsg-bar';wrap.parentNode.insertBefore(bar,wrap)}
+  var h='<span class="wsg-l">팀별 체크</span>'+G.map(function(x){return '<button type="button" class="wsg-b'+(x[0]===g?' on':'')+'" onclick="yumWsGroup(\''+x[0]+'\')">'+x[1]+'</button>'}).join('')+'<span class="wsg-n">'+vis+'명</span>';
+  if(bar.innerHTML!==h)bar.innerHTML=h;
+ });
+}
+window.yumWsGroup=function(v){setCur(v);apply()};
+var css=document.createElement('style');css.textContent=
+ '.wsg-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:4px 0 8px}.wsg-l{font-size:12px;font-weight:800;color:#4A5568;margin-right:2px}'+
+ '.wsg-b{border:1px solid #D7DCE3;background:#fff;border-radius:999px;padding:4px 12px;font-size:12px;font-weight:800;color:#4A5568;cursor:pointer}'+
+ '.wsg-b.on{background:#5B3FC4;border-color:#5B3FC4;color:#fff}.wsg-n{font-size:11.5px;color:#8A93A3;font-weight:700;margin-left:4px}'+
+ '@media print{.wsg-bar{display:none!important}}';
+document.head.appendChild(css);
+var T=null;new MutationObserver(function(){clearTimeout(T);T=setTimeout(apply,40)}).observe(document.documentElement,{childList:true,subtree:true});
 })();
 </script>
 
