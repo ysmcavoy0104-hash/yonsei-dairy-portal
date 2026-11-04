@@ -7810,6 +7810,7 @@ function singleRowHtml(s,dates){
  return '<tr class="wp-off"><td class="wp-lab" colspan="2">'+esc(s.label)+'</td>'+
   s.values.map(function(v,di){
    var hiSet=(isName&&dates)?checkedOffSet(dates[di]):null;
+   if(isName&&dates&&window.yumTraineeOffNames){var _have=String(v||'').split(',').map(function(x){return x.trim()}).filter(Boolean),_add=yumTraineeOffNames(dates[di]).filter(function(n){return _have.indexOf(n)<0});if(_add.length)v=_have.concat(_add).join(',')}
    return '<td>'+(isName?chunk3(v,hiSet):(v?esc(v):'<span style="color:var(--faint)">-</span>'))+'</td>';
   }).join('')+'</tr>';
 }
@@ -16501,6 +16502,9 @@ window.yumTraineeOff=function(n,ym,o){var x=(DB.data.trainees||[]).filter(functi
  for(var d=1;d<=r[2];d++){var ds=ym+'-'+pad(d);if(x.from&&ds<x.from)continue;if(x.to&&ds>x.to)continue;var w=new Date(ds+'T00:00:00').getDay();
   if(w===0||w===6||H[d]||(W[d]!=null&&W[d]!=='교육'))out.push(d)}
  return out};
+/* 주간근무계획표 「휴무자」 칸: 입사일부터 근무가 아닌 날(토 · 일 · 지정휴일 · 희망휴무) 신입 이름 */
+window.yumTraineeOffNames=function(ds){try{ds=String(ds||'').slice(0,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(ds))return [];var on={};list(ds).forEach(function(x){on[x.n]=1});
+ return (DB.data.trainees||[]).filter(function(x){return x&&x.n&&x.off!==true&&(!x.from||ds>=x.from)&&(!x.to||ds<=x.to)&&!on[x.n]}).map(function(x){return x.n})}catch(e){return []}};
 window.yumTrainees={list:list};
 })();
 </script>
@@ -16764,6 +16768,61 @@ function fixTitles(){try{if(typeof DB==='undefined'||!DB.data||!window.yumDocTag
  if(ch){DB.save();console.log('[문서 제목] 호기 표시 '+ch+'건')}return true}catch(e){return false}}
 var n=0,iv=setInterval(function(){hook();if(fixTitles()||++n>20)clearInterval(iv)},1500);
 try{var _ad=SupaSync.adopt;SupaSync.adopt=function(){var r=_ad.apply(this,arguments);setTimeout(fixTitles,800);return r}}catch(e){}
+})();
+</script>
+
+<script>
+/* 11월 2주(11/2~11/8) 주간근무 = 「26년 11월2주 주간근무계획(ver2)_가공2팀」 PDF 그대로 (2026-11-04)
+   최고관리자가 포털을 열면 서버 내용을 받은 뒤 한 번 반영 → 근무스케쥴 · 주간근무계획표 · 휴무 개수 · 휴일체크표 */
+(function(){
+'use strict';
+if(window.__YUM_WK1102__)return;window.__YUM_WK1102__=1;
+var FLAG='wk20261102_ver2',done=false,ADOPTED=false;
+/* 날짜 2~8 순서 · 오전/정상(중간)/오후/배합지원/교육/휴무 */
+var A={
+ '조성빈':['오전','휴무','정상','교육','정상','정상','휴무'],
+ '김용찬':['오전','오전','정상','정상','휴무','휴무','휴무'],
+ '정웅':['휴무','오전','오전','오전','오전','오전','휴무'],
+ '이상민':['휴무','정상','오전','오전','오전','오전','정상'],
+ '표상욱':['정상','휴무','휴무','정상','정상','정상','정상'],
+ '조의석':['휴무','정상','휴무','오후','오후','오후','휴무'],
+ '김민성':['휴무','정상','정상','정상','휴무','정상','정상'],
+ '윤인기':['오후','오후','오후','휴무','휴무','정상','휴무'],
+ '김승기':['오후','휴무','오후','오후','오후','오후','휴무'],
+ '이범직':['휴무','오후','오후','오후','오후','휴무','휴무'],
+ '황용식':['오전','오전','오전','오전','오전','휴무','휴무'],
+ '이원석':['오전','휴무','오전','오전','오전','휴무','휴무'],
+ '이연우':['휴무','오전','배합지원','오후','오후','오후','휴무'],
+ '채승엽':['오후','휴무','오후','오후','휴무','오전','오전'],
+ '장영빈':['오후','오후','휴무','배합지원','배합지원','오전','휴무'],
+ '목진웅':['휴무','오후','오후','휴무','오후','오후','휴무'],
+ '우정균':['정상','정상','정상','정상','정상','휴무','휴무'],
+ '김진명':['정상','정상','정상','정상','정상','휴무','휴무'],
+ '이인철':['정상','정상','정상','정상','정상','휴무','휴무'],
+ '임성주':['정상','정상','정상','정상','정상','휴무','휴무']
+};
+function isSup(){try{var u=Auth.user();return !!u&&u.role==='superadmin'}catch(e){return false}}
+function run(){
+ if(done||!isSup()||typeof DB==='undefined'||!DB.data||!window.WorkSched||!WorkSched.recalc)return;
+ DB.data.meta=DB.data.meta||{};if(DB.data.meta[FLAG]){done=true;return}
+ if(window.SupaSync&&SupaSync.on&&SupaSync.on()&&!ADOPTED)return;
+ var W=DB.data.workSched=DB.data.workSched||{};W.months=W.months||{};var o=W.months['2026-11'];if(!o)return;
+ done=true;
+ o.asg=o.asg||{};o.planned=o.planned||{};
+ Object.keys(A).forEach(function(n){var a=o.asg[n]=o.asg[n]||[];while(a.length<30)a.push('');A[n].forEach(function(v,i){a[i+1]=v})});
+ for(var d=2;d<=8;d++)o.planned[d]=1;
+ o.asgNote=o.asgNote||{};o.asgNote['조성빈']=o.asgNote['조성빈']||{};o.asgNote['조성빈'][5]={label:'교육',time:'08:00~17:00'};
+ o.wishes=o.wishes||{};var w=o.wishes['조성빈']=o.wishes['조성빈']||{};w[5]='교육';
+ try{WorkSched.recalc('2026-11','2026-11-02',2,[2,3,4,5,6,7,8])}catch(e){console.warn('[11월 2주]',e)}
+ try{var P=DB.data.weeklyPlans&&DB.data.weeklyPlans['2026-11-02'];if(P){P.supMan={3:'1명',4:'1명',5:'1명'};var sx=(P.single||[]).filter(function(q){return q.label==='1팀 지원'})[0];if(sx){sx.values=sx.values||[];sx.values[3]='1명';sx.values[4]='1명';sx.values[5]='1명'}P._u=new Date().toISOString()}}catch(e){}
+ DB.data.meta[FLAG]=new Date().toISOString();o._u=new Date().toISOString();
+ DB.save();try{if(window.SupaSync&&SupaSync.on()){clearTimeout(SupaSync.pushT);SupaSync.pushNow(DB.data)}}catch(e){}
+ try{U.toast('11월 2주(11/2~11/8) 근무를 ver2 계획표대로 바꿨습니다.','ok')}catch(e){}
+ try{if(/^#\/(weekplan|worksched)/.test(location.hash))App.render()}catch(e){}
+}
+try{var _ad=SupaSync.adopt;SupaSync.adopt=function(){var r=_ad.apply(this,arguments);ADOPTED=true;setTimeout(run,2500);return r}}catch(e){}
+setTimeout(run,9000);setInterval(run,9000);
+window.yumWk1102=function(){done=false;if(DB.data.meta)delete DB.data.meta[FLAG];run()};
 })();
 </script>
 
