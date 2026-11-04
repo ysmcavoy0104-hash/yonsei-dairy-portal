@@ -16478,8 +16478,12 @@ function ensure(){try{
 }catch(e){}}
 /* 서버 병합: 이름별로 합침 (한쪽에만 있는 사람은 남김 · 같은 사람은 나중에 고친 쪽) */
 try{var _ms=SupaSync.mergeState.bind(SupaSync);SupaSync.mergeState=function(r,l,lw){var o=_ms(r,l,lw);try{if(r&&l&&(r.trainees||l.trainees)){var m={};(r.trainees||[]).concat(l.trainees||[]).forEach(function(x){if(!x||!x.n)return;var c=m[x.n];if(!c||String(x.u||'')>String(c.u||''))m[x.n]=x});o.trainees=Object.keys(m).map(function(k){return m[k]});o.traineeSeed=Object.assign({},r.traineeSeed||{},l.traineeSeed||{})}}catch(e){}return o}}catch(e){}
+/* 그달 휴일 = 근무스케쥴 지정휴일 + 예전 편성 화면 「공휴일」 칸 */
+function holSet(ym){var o={};try{var mo=(DB.data.workSched&&DB.data.workSched.months&&DB.data.workSched.months[ym])||{};(mo.holidays||[]).forEach(function(h){if(h&&h.d)o[+h.d]=1})}catch(e){}
+ try{var Y=(DB.data.schedules||{})['Y'+ym];String((Y&&Y.hol)||'').split(',').forEach(function(x){var v=parseInt(x,10);if(v>=1&&v<=31)o[v]=1})}catch(e){}return o}
+window.yumTraineeHol=holSet;
 function list(ds){var w=new Date(ds+'T00:00:00').getDay();if(w===0||w===6)return [];
- var mo=(DB.data.workSched&&DB.data.workSched.months&&DB.data.workSched.months[ds.slice(0,7)])||{},dd=+ds.slice(8);if((mo.holidays||[]).some(function(h){return +h.d===dd}))return [];
+ var mo=(DB.data.workSched&&DB.data.workSched.months&&DB.data.workSched.months[ds.slice(0,7)])||{},dd=+ds.slice(8);if(holSet(ds.slice(0,7))[dd])return [];
  return (DB.data.trainees||[]).filter(function(x){if(!x||!x.n||x.off===true||(x.from&&ds<x.from)||(x.to&&ds>x.to))return false;var w=((mo.wishes||{})[x.n]||{})[dd];return w==null||w==='교육'})}
 function hook(){var f=window.yumEduHtml;if(!f||f.__nh)return !!(f&&f.__nh);
  var g=function(k,glabel,di){var h=f.apply(this,arguments)||'';
@@ -16498,13 +16502,21 @@ function ymRange(ym){var y=+ym.slice(0,4),m=+ym.slice(5,7),n=new Date(y,m,0).get
 window.yumTraineeNames=function(ym){var r=ymRange(ym);return (DB.data.trainees||[]).filter(function(x){return x&&x.n&&x.off!==true&&(!x.from||x.from<=r[1])&&(!x.to||x.to>=r[0])}).map(function(x){return x.n})};
 window.yumTraineeTeam=function(n){var x=(DB.data.trainees||[]).filter(function(t){return t&&t.n===n})[0];return x?String(x.team||'배합').replace(/팀$/,''):null};
 window.yumTraineeOff=function(n,ym,o){var x=(DB.data.trainees||[]).filter(function(t){return t&&t.n===n})[0];if(!x)return [];var r=ymRange(ym),out=[],H={};
- ((o&&o.holidays)||[]).forEach(function(h){H[h.d]=1});var W=(o&&o.wishes&&o.wishes[n])||{};
+ H=holSet(ym);var W=(o&&o.wishes&&o.wishes[n])||{};
  for(var d=1;d<=r[2];d++){var ds=ym+'-'+pad(d);if(x.from&&ds<x.from)continue;if(x.to&&ds>x.to)continue;var w=new Date(ds+'T00:00:00').getDay();
   if(w===0||w===6||H[d]||(W[d]!=null&&W[d]!=='교육'))out.push(d)}
  return out};
 /* 주간근무계획표 「휴무자」 칸: 입사일부터 근무가 아닌 날(토 · 일 · 지정휴일 · 희망휴무) 신입 이름 */
 window.yumTraineeOffNames=function(ds){try{ds=String(ds||'').slice(0,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(ds))return [];var on={};list(ds).forEach(function(x){on[x.n]=1});
  return (DB.data.trainees||[]).filter(function(x){return x&&x.n&&x.off!==true&&(!x.from||ds>=x.from)&&(!x.to||ds<=x.to)&&!on[x.n]}).map(function(x){return x.n})}catch(e){return []}};
+/* 수습 1개월(필요 인원에서 제외 · 평일 08:00~17:00 정상) 끝난 뒤 최고관리자에게 안내 */
+function probEnd(x){var d=new Date((x.from||'2026-11-03')+'T00:00:00');d.setMonth(d.getMonth()+1);d.setDate(d.getDate()-1);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+window.yumTraineeProbEnd=probEnd;
+setInterval(function(){try{var u=Auth.user();if(!u||u.role!=='superadmin'||!/^#\/(weekplan|worksched)/.test(location.hash))return;
+ var td=new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);var L=(DB.data.trainees||[]).filter(function(x){return x&&x.n&&x.off!==true&&!x.to&&td>probEnd(x)});
+ var el=document.getElementById('nh-prob');if(!L.length){if(el)el.remove();return}
+ if(el)return;var m=document.getElementById('main');if(!m)return;
+ m.insertAdjacentHTML('afterbegin','<div id="nh-prob" style="margin:0 0 10px;padding:10px 14px;border-radius:10px;background:#FFF4DE;border:1px solid #F1C27D;font-size:13px;color:#7A4B00"><b>신입 수습 1개월이 지났습니다</b> — '+L.map(function(x){return esc(x.n)}).join(', ')+' (입사 '+esc(L[0].from)+'). 아직 평일 08:00~17:00 정상 · 필요 인원 제외로 편성 중입니다. 정식 교대 근무(필요 인원 포함)로 바꿀 때 알려 주세요.</div>')}catch(e){}},3000);
 window.yumTrainees={list:list};
 })();
 </script>
