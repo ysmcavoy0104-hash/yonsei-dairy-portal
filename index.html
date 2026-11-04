@@ -14022,7 +14022,7 @@ console.log('[확장 모듈 58] 작성 중 계정 전환 이어서 수정 로드
 if(window.__YUM_AUTOFILL__)return;window.__YUM_AUTOFILL__=1;
 function paper(){return document.getElementById('docpaper')}
 function editable(){var p=paper();return !!(p&&p.querySelector('input.gcell'))}
-function formOf(){try{var id=window.__yumFormId||(window.__CURDOC&&window.__CURDOC.formId)||(document.getElementById('nf-form')||{}).value;return (DB.data.forms||[]).filter(function(x){return x.id===id})[0]||null}catch(e){return null}}
+function formOf(){try{var cf=window.__CURFORM;if(cf&&cf.id&&paper())return (DB.data.forms||[]).filter(function(x){return x.id===cf.id})[0]||cf;var id=window.__yumFormId||(window.__CURDOC&&window.__CURDOC.formId)||(document.getElementById('nf-form')||{}).value;return (DB.data.forms||[]).filter(function(x){return x.id===id})[0]||null}catch(e){return null}}
 function el(k){var p=paper();return p&&p.querySelector('[data-gk="'+k+'"]')}
 function fire(e){try{e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}))}catch(x){}}
 function g(d,k){var v=d&&d.data&&d.data.grid&&d.data.grid[k];return v==null?'':String(v).trim()}
@@ -14593,8 +14593,9 @@ function base(){return location.href.split('#')[0].split('?')[0]}
 function srcOf(h){return base()+'?embed=1'+h}
 function forms(){return (DB.data.forms||[]).filter(function(f){return f&&f.id&&f.active!==false&&!f.hidden})}
 function teamOf(f){try{return YumReportCore.teamOf(f)}catch(e){return f.jteam||f.team||'공통'}}
-function drafts(){var u=me()||{},L=(DB.data.docs||[]).filter(function(d){return d&&d.data&&!d.deleted&&/^(temp|draft|in_progress|saved)$/.test(d.status||'')&&(d.authorId===u.id||!u.id)});
- return L.sort(function(a,b){return String(b.updatedAt||'').localeCompare(String(a.updatedAt||''))}).slice(0,30)}
+function drafts(){var u=me()||{},td=new Date(Date.now()-new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10),lim=new Date(Date.now()-3*864e5).toISOString().slice(0,10),fm={};(DB.data.forms||[]).forEach(function(f){fm[f.id]=f});
+ var myT=String(u.team||'').trim(),L=(DB.data.docs||[]).filter(function(d){if(!d||!d.data||d.deleted||!/^(temp|draft|in_progress|saved|pending)$/.test(d.status||''))return false;if(d.authorId===u.id||!u.id)return true;var f=fm[d.formId];return !!(myT&&f&&teamOf(f)===myT&&dateOf(d)>=lim)});
+ return L.sort(function(a,b){var x=dateOf(a)===td?1:0,y=dateOf(b)===td?1:0;return (y-x)||String(dateOf(b)).localeCompare(String(dateOf(a)))||String(b.updatedAt||'').localeCompare(String(a.updatedAt||''))}).slice(0,30)}
 function stLab(s){return {temp:'임시저장',draft:'작성 중',in_progress:'작성 중',saved:'작성 완료'}[s]||s}
 function fname(id){var f=(DB.data.forms||[]).filter(function(x){return x.id===id})[0];return f?f.name:''}
 function dateOf(d){return String((d.data&&d.data.pdate)||d.updatedAt||'').slice(0,10)}
@@ -16278,7 +16279,30 @@ function counts(){
   setV(HC[pf][0],tot);setV(HC[pf][1],wk);setV(HC[pf][2],tot-wk);
  });
 }
-function onEv(e){var el=e.target;if(!el||!el.getAttribute)return;var k=el.getAttribute('data-gk')||'';if(!RE.test(k))return;if(HC.m14.indexOf(k)>=0||HC.m28.indexOf(k)>=0)return;var tr=rowOf(el);setTimeout(function(){if(tr)sync(tr);counts()},0)}
+
+/* 근무시간 · OT · 심야 자동 (2026-11-04)
+   · 근무시간 = (종업 − 시업) − 식사(조식 · 중식 · 석식 · 야식에 고른 값의 합), 8.0까지 · OT = 그 넘는 시간
+   · 심야 = 시업~종업 중 22:00~06:00에 걸친 시간 (식사 빼지 않음) · 종업이 시업보다 이르면 다음날로 봄
+   · 0.0은 비워 둠 · 이 칸을 직접 고치면 그 값 유지(지우면 다시 자동) */
+function mins(v){var m=/^(\d{1,2}):?(\d{2})$/.exec(String(v||'').trim());if(!m)return null;var h=+m[1],mi=+m[2];if(h>24||mi>59)return null;return h*60+mi}
+function fmt1(h){return h>0?(Math.round(h*10)/10).toFixed(1):''}
+function putH(e,v){if(!e)return;if(e.dataset.hman==='1'&&String(e.value||'').trim())return;delete e.dataset.hman;if(String(e.value)===v)return;e.value=v;e.dataset.hauto='1';e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}))}
+function hours(tr){
+ var nm=tr.querySelector('[data-gk^="m14_nm"],[data-gk^="m28_nm"]');if(!nm)return;
+ var ins=[].slice.call(tr.querySelectorAll('[data-gk]')).filter(function(e){return RE.test(e.getAttribute('data-gk'))});var i=ins.indexOf(nm);if(i<0)return;
+ var st=ins[i+1],en=ins[i+2],wk=ins[i+3],ot=ins[i+4],ng=ins[i+5],meals=ins.slice(i+7,i+11);
+ var a=mins(st&&st.value),b=mins(en&&en.value);
+ if(a==null||b==null){if(!String((st||{}).value||'').trim()&&!String((en||{}).value||'').trim()){[wk,ot,ng].forEach(function(e){if(e&&e.dataset.hauto==='1'&&e.dataset.hman!=='1'){e.value='';delete e.dataset.hauto;e.dispatchEvent(new Event('input',{bubbles:true}))}})}return}
+ if(b<=a)b+=1440;
+ var meal=meals.reduce(function(t,e){var v=parseFloat(String((e&&e.value)||'').trim());return t+(isNaN(v)?0:v)},0);
+ var net=Math.max(0,(b-a)/60-meal);
+ var night=0;for(var d=-1;d<=1;d++){var s0=d*1440+22*60,e0=d*1440+30*60;night+=Math.max(0,Math.min(b,e0)-Math.max(a,s0))}
+ putH(wk,fmt1(Math.min(net,8)));putH(ot,fmt1(Math.max(0,net-8)));putH(ng,fmt1(night/60));
+}
+document.addEventListener('input',function(e){var el=e.target;if(!e.isTrusted||!el||!el.getAttribute)return;var k=el.getAttribute('data-gk')||'';if(!RE.test(k))return;var tr=rowOf(el);if(!tr)return;
+ var nm=tr.querySelector('[data-gk^="m14_nm"],[data-gk^="m28_nm"]');if(!nm)return;var ins=[].slice.call(tr.querySelectorAll('[data-gk]')).filter(function(x){return RE.test(x.getAttribute('data-gk'))}),i=ins.indexOf(nm),j=ins.indexOf(el);
+ if(j>=i+3&&j<=i+5){if(String(el.value||'').trim())el.dataset.hman='1';else{delete el.dataset.hman;setTimeout(function(){hours(tr)},0)}}},true);
+function onEv(e){var el=e.target;if(!el||!el.getAttribute)return;var k=el.getAttribute('data-gk')||'';if(!RE.test(k))return;if(HC.m14.indexOf(k)>=0||HC.m28.indexOf(k)>=0)return;var tr=rowOf(el);setTimeout(function(){if(tr){sync(tr);try{hours(tr)}catch(x){}}counts()},0)}
 var CT=null,LASTP=null;new MutationObserver(function(){var p=document.querySelector('#docpaper [data-gk="m14_nm0"],#docpaper [data-gk="m28_nm0"]');if(p&&p!==LASTP){LASTP=p;clearTimeout(CT);CT=setTimeout(counts,300)}}).observe(document.documentElement,{childList:true,subtree:true});
 window.yumF14Counts=counts;
 document.addEventListener('input',onEv,true);document.addEventListener('change',onEv,true);document.addEventListener('blur',onEv,true);
