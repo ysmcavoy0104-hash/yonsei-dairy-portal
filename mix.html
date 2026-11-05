@@ -127,6 +127,14 @@ table{border-collapse:collapse;width:100%}td b,.bar b{white-space:nowrap}th,td{p
 @keyframes bub{0%{transform:translateY(0);opacity:0}10%{opacity:.95}100%{transform:translateY(calc(var(--top) - 150px));opacity:0}}
 .bub{animation:bub 2.8s ease-in infinite}
 @media (prefers-reduced-motion:reduce){.bub{animation:none;display:none}}
+.crew{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.cr{border:1px solid #E6E9EF;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;background:#fff}
+.cr.on{border-color:#C8A15A;box-shadow:0 0 0 2px rgba(200,161,90,.35);background:linear-gradient(180deg,#FFFBF2,#fff)}
+.cr.off{background:#F8FAFC}
+.ch{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.ch b{font-size:14px;color:#12244A}.ch span{font-size:12px;color:var(--mute);font-variant-numeric:tabular-nums}
+.ch i{font-style:normal;font-size:11px;font-weight:800;color:#fff;background:#12244A;border-radius:999px;padding:1px 8px;box-shadow:inset 0 -2px 0 #C8A15A}
+.cn{display:flex;flex-wrap:wrap;gap:6px}.cn span{font-size:13px;font-weight:700;padding:4px 10px;border-radius:999px;background:#EEF2F8;color:#12233F}
+.cr.off .cn span{background:#fff;border:1px solid #E2E8F0;color:#64748B;font-weight:600}
 body{background:#F4F6FA}
 .hero{margin:-18px -16px 0;padding:22px 16px 26px;background:radial-gradient(1200px 280px at 85% -40%,rgba(200,161,90,.22),transparent 60%),linear-gradient(100deg,#0A142B 0%,#12244A 52%,#1B3567 100%);color:#fff;box-shadow:0 1px 0 rgba(200,161,90,.38),0 14px 30px -18px rgba(5,12,30,.6)}
 .hero-in{max-width:1400px;margin:0 auto;display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between}
@@ -192,6 +200,7 @@ body{background:#F4F6FA}
    <span><i class="dot" style="background:#FCE38A;border-color:#94A3B8"></i>바나나</span><span><i class="dot" style="background:#FCD34D;border-color:#94A3B8"></i>음료</span>
    <span><i class="dot" style="background:#7DD3FC;border-color:#94A3B8"></i>CIP 세척수</span>
   </div>
+  <div id="crew"></div>
   <div id="rooms" style="display:flex;flex-direction:column;gap:16px"></div>
   <div id="detail"></div>
   <div id="handover"></div>
@@ -405,7 +414,7 @@ function renderLive(){
    x.tanks.forEach(function(t){var b=el.querySelector('[data-t="'+t.id+'"]');if(!b)return;b.querySelector('[data-sub]').textContent=t.sub;var p=b.querySelector('[data-wave]');if(p&&t.level)p.setAttribute('d',wave(80-66*t.level,t.sp===1?2.6:1.4,74))})}
   el.querySelector('[data-steps]').innerHTML=x.steps.length?x.steps.map(function(s){return '<div class="r"><b style="color:'+(s.u?'var(--red)':'var(--ink)')+'">'+(s.at<=V.m+.5?'지금':hh(s.at))+'</b><span style="color:'+(s.u?'var(--red)':'var(--ink)')+'">'+esc(s.text)+'</span></div>'}).join(''):'<div class="r"><span class="note">진행 중인 작업이 없습니다.</span></div>';
   el.querySelector('[data-foot]').textContent=x.foot});
- renderDetail();renderHandover();renderTodos();renderRules();
+ renderCrew();renderDetail();renderHandover();renderTodos();renderRules();
 }
 document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('[data-t]');if(!b)return;SEL=SEL===b.dataset.t?null:b.dataset.t;document.querySelectorAll('.line').forEach(function(l){l.dataset.sig=''});renderLive();var d=document.getElementById('detail');if(SEL&&d.firstChild)d.scrollIntoView({behavior:'smooth',block:'nearest'})});
 function specFor(p){var S=(DATA&&DATA.planSpec)||{},n=String(p||'').replace(/\s+/g,'');if(!n)return null;var best=null;Object.keys(S).forEach(function(c){var s=S[c]||{},sn=String(s.name||'').replace(/\s+/g,'');if(!sn)return;if(sn.indexOf(n)>=0||n.indexOf(sn.split('[')[0])>=0){if(!best)best=Object.assign({code:c},s)}});return best}
@@ -422,6 +431,22 @@ function renderDetail(){
  var chk='';if(x.doc&&x.off===0){chk=CHECK_ITEMS.map(function(nm,i){var r=10+i,a=G(x.doc,'g2_'+r+'_17'),p=G(x.doc,'g2_'+r+'_18');function bd(v){return '<span class="badge '+(v==='O'?'ok':v==='X'?'ng':'na')+'">'+(v||'—')+'</span>'}return '<div class="row"><span class="k">'+nm+'</span><span class="v">오전'+bd(a)+' 오후'+bd(p)+'</span></div>'}).join('')}else chk='<div class="empty">오늘 일지가 없어 점검 결과가 없습니다.</div>';
  box.innerHTML='<section class="card" style="border:2px solid '+(lv==='red'?'var(--redb)':lv?'var(--amb)':'var(--ink)')+'"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:center"><h2 style="font-size:18px;color:var(--ink)">'+x.L.h+'호기 '+t.id+' · '+(b?b.label:'빈 탱크')+' 자세히 보기</h2><button class="btn" type="button" onclick="SEL=null;document.querySelectorAll(\'.line\').forEach(function(l){l.dataset.sig=\'\'});renderLive()">닫기</button></div>'+msg+
   '<div class="grid2" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))"><div><h2 style="margin-bottom:6px">배치 기록 (제품생산작업일보)</h2>'+facts+'</div><div><h2 style="margin-bottom:6px">품질 기준 (배합작업 매뉴얼) · 규격</h2>'+specs+'</div><div><h2 style="margin-bottom:6px">점검 항목 (오늘 일지)</h2>'+chk+'</div></div></section>';
+}
+
+/* 금일 근무자: 주간근무계획표(근무 탭과 같은 자료)에서 오늘 배합 근무 · 정상 · 4층 · 휴무자 */
+function renderCrew(){var box=document.getElementById('crew');if(!box)return;
+ var n=new Date(),d0=new Date(n.getFullYear(),n.getMonth(),n.getDate()),dow=(d0.getDay()+6)%7,mon=new Date(d0);mon.setDate(d0.getDate()-dow);
+ var W=((DATA&&DATA.weeklyPlans)||{})[dstr(mon)];
+ if(!W||!W.groups){box.innerHTML='<section class="card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline"><h2>금일 근무자</h2><span class="note">근무 탭 → 주간근무계획표</span></div><div class="empty">이번 주 주간근무계획표가 아직 없습니다. 근무 탭에서 작성하면 여기에 오늘 근무자가 나옵니다.</div></section>';return}
+ var nowM=n.getHours()*60+n.getMinutes(),rows=[];
+ function span(t){var m=String(t||'').match(/(\d{1,2}):(\d{2})\s*~\s*(?:(\d{1,2}):(\d{2}))?/);if(!m)return null;var a=+m[1]*60+(+m[2]),b=m[3]!=null?+m[3]*60+(+m[4]):a+9*60;if(b<=a)b+=1440;return [a,b]}
+ W.groups.forEach(function(g){(g.rows||[]).forEach(function(r){if(r.sub&&r.sub!=='배합')return;var t=(r.time||[])[dow]||'',nm=(r.names||[])[dow]||'';if(!nm||nm==='-')return;
+  var sp=span(t),on=sp&&((nowM>=sp[0]&&nowM<sp[1])||(nowM+1440>=sp[0]&&nowM+1440<sp[1]));rows.push({label:g.label+(r.sub?'':''),sub:r.sub,time:t,names:nm.split(/\s*,\s*/).filter(Boolean),on:!!on})})});
+ var off=((W.single||[]).filter(function(x){return x.label==='휴무자'})[0]||{values:[]}).values[dow]||'';
+ var DOW='월화수목금토일';
+ box.innerHTML='<section class="card"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:baseline"><h2>금일 근무자 · '+(d0.getMonth()+1)+'/'+d0.getDate()+' ('+DOW[dow]+')</h2><span class="note">근무 탭의 주간근무계획표('+esc(W.range||'')+') 기준 · 지금 근무 중인 조는 강조</span></div>'+
+  '<div class="crew">'+rows.map(function(r){return '<div class="cr'+(r.on?' on':'')+'"><div class="ch"><b>'+esc(r.label)+(r.sub?' · '+esc(r.sub):'')+'</b><span>'+esc(r.time||'')+'</span>'+(r.on?'<i>근무 중</i>':'')+'</div><div class="cn">'+r.names.map(function(x){return '<span>'+esc(x)+'</span>'}).join('')+'</div></div>'}).join('')+
+  (off&&off!=='-'?'<div class="cr off"><div class="ch"><b>휴무자</b></div><div class="cn">'+off.split(/\s*,\s*/).filter(Boolean).map(function(x){return '<span>'+esc(x)+'</span>'}).join('')+'</div></div>':'')+'</div></section>';
 }
 function renderHandover(){
  var V=LIVE,all=[],LL=V.lines.filter(function(l){return l.L.room===ROOM()}),notes=V.notes.filter(inRoom).map(function(n){return n.t});LL.forEach(function(l){all=all.concat(l.tanks)});
