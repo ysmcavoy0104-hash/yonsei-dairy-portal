@@ -308,7 +308,12 @@ function computeLive(){
  LINES.forEach(function(L){
   var doc=lineDoc(L,T),off=0;if(!doc){doc=lineDoc(L,Y);off=-1440}
   var P=doc?parseLineDoc(doc,L,off):{prods:[],product:'',planned:0,batches:[]};
-  var PW=planToday(L.h),PL=PW.items;if(!P.product&&PL.length){P.product=PL.map(function(x){return x.name}).join(' · ');P.fromPlan=true}if(!P.planned&&PL.length)P.planned=PL.reduce(function(a,x){return a+x.batch},0);
+  var PW=planToday(L.h),PL=PW.items;
+  /* 날짜가 바뀌면 오늘 기준: 어제 일지는 밤새 아직 진행 중인 배치가 있을 때만 탱크 상태로 이어 보여 주고, 품목은 오늘 생산계획으로 */
+  if(doc&&off===-1440){var mm0=moveMinOf(L),act=P.batches.some(function(b){var t0=b.tmix!=null?b.tmix:b.tin;return (b.tmov==null&&t0!=null&&t0>m-720)||(b.tmov!=null&&b.tmov+mm0>m)});
+   if(!act){doc=null;off=0;P={prods:[],product:'',planned:0,batches:[]}}
+   else{P.yest=P.product;if(PL.length){P.product='';P.planned=0}}}
+  if(!P.product&&PL.length){P.product=PL.map(function(x){return x.name}).join(' · ');P.fromPlan=true}if(!P.planned&&PL.length)P.planned=PL.reduce(function(a,x){return a+x.batch},0);
   /* 생산계획표: 「정비」 칸 → 정비 · 빈 칸 → 생산 없음 (그날 일지가 없을 때) */
   var pstat=PW.week&&!PL.length?(PW.maint?'정비':'생산 없음'):(PW.maint?'정비':'');
   var o2=only2(L,P.product),k=o2?2:3,mm=moveMinOf(L),ck=catOf(P.product),cat=cats[ck];
