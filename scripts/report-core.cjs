@@ -12,7 +12,7 @@
 })(typeof self !== 'undefined' ? self : this, function () {
   var DIVS = ['가공2팀', '가공1팀', '포장팀'];
   var DIVSUB = { '가공2팀': '배합 · 착즙', '가공1팀': '멸균', '포장팀': '포장' };
-  var TEAMS = ['배합팀', '착즙팀', '멸균팀', '포장팀', '공통'];
+  var TEAMS = ['착즙팀', '배합팀', '멸균팀', '포장팀', '공통'];
   var DOW = '일월화수목금토';
   var C = { navy: '#13254B', navy2: '#24448C', gold: '#C8A15A', gold2: '#E3C68B', ink: '#111A2E', mute: '#5A6680', line: '#E6E9F1', soft: '#F5F7FB',
     red: '#D64545', redBg: '#FDECEC', amber: '#E0902F', amberBg: '#FFF4E3', green: '#2E9E6A', greenBg: '#E7F6EE', blue: '#2F6FD6', teal: '#12A3A0' };
@@ -294,7 +294,16 @@
     var sp = function (x) { return String(x || '').replace(/\s+/g, ''); };
     var oxF = F('FRM-012').filter(function (x) { return x.kind === 'ox'; }), sF = F('FRM-008');
     var M12 = latest('FRM-012'), M8 = latest('FRM-008'), M9 = latest('FRM-009'), M10 = latest('FRM-010');
-    var M23 = latest('FRM-023'), CK = [latest('FRM-024'), latest('FRM-025'), latest('FRM-026'), latest('FRM-055'), latest('FRM-056'), latest('FRM-057'), latest('FRM-058'), latest('FRM-059'), latest('FRM-062'), latest('FRM-063')];
+    /* 같은 날 · 같은 호기끼리만 합침 (B · D호기 공용 Check List · HACCP는 호기 칸으로 나눔) */
+    var CKHO = { 'FRM-024': 'p24_ho', 'FRM-025': 'p25_ho', 'FRM-026': '', 'FRM-055': 'A', 'FRM-056': 'C', 'FRM-057': 'F', 'FRM-058': 'F', 'FRM-059': 'A', 'FRM-062': 'E', 'FRM-063': 'E' };
+    function latestHo(code) { var f = forms[code], m = {}; if (!f) return m; var hk = CKHO[code] || '', L = {};
+      ((data && data.docs) || []).forEach(function (d) { if (!d || d.deleted || d.formId !== f.id || !d.data) return; var k = docDate(d); if (k < from || k > to) return;
+        var ho = /_ho$/.test(hk) ? (g(d, hk) || 'B') : hk; var key = k + '|' + ho; (L[key] = L[key] || []).push(d); });
+      Object.keys(L).forEach(function (key) { var a = L[key].sort(function (x, y) { return String(x.updatedAt || '').localeCompare(String(y.updatedAt || '')); }), last = a[a.length - 1], gg = {};
+        a.forEach(function (d) { var G0 = (d.data && d.data.grid) || {}; Object.keys(G0).forEach(function (q) { var val = G0[q]; if (val != null && String(val).trim() !== '') gg[q] = val; }); });
+        var D = key.split('|')[0], ho = key.split('|')[1]; (m[D] = m[D] || []).push({ ho: ho, d: Object.assign({}, last, { data: Object.assign({}, last.data, { grid: gg }) }) }); });
+      return m; }
+    var M23 = latest('FRM-023'), CK = ['FRM-024', 'FRM-025', 'FRM-026', 'FRM-055', 'FRM-056', 'FRM-057', 'FRM-058', 'FRM-059', 'FRM-062', 'FRM-063'].map(latestHo);
     var mix = {}, juice = {}, pack = {};
     Object.keys(M12).forEach(function (D) { var d = M12[D], nb = 0, b1 = [], q = [], x = 0;
       for (var r = 10; r <= 24; r++) { var row = [1, 2, 3, 6, 8, 9, 10, 11, 13, 15].map(function (c) { return g(d, 'g2_' + r + '_' + c); }); if (row.some(Boolean)) { nb++; b1.push(n(d, 'g2_' + r + '_8')); } }
@@ -327,18 +336,20 @@
         if (box == null) box = tot(rr.map(function (r) { return n(d, P + '_' + r + '_' + L[4]); }));
         var o = pack[D] = pack[D] || {}; o.ln = o.ln || {}; o.ln[L[0]] = ea;
         if (ea != null) o.ea = (o.ea || 0) + ea; if (box != null) o.box = (o.box || 0) + box; }); });
-    /* 밀봉 공정 중간검사 & 불량팩: 그날 문서 모두(호기마다 한 장)의 불량 합계 */
-    (function () { var f = forms['FRM-048']; if (!f) return;
+    /* 밀봉 공정 중간검사 & 불량팩 (테트라 B·C·D·F · SIG A·E): 그날 문서 모두(호기마다 한 장)의 불량 합계 · 호기별 */
+    [['FRM-048', 'p48'], ['FRM-065', 'p65']].forEach(function (W) { var f = forms[W[0]], P = W[1]; if (!f) return;
       ((data && data.docs) || []).forEach(function (d) { if (!d || d.deleted || d.formId !== f.id || !d.data) return; var D = docDate(d); if (D < from || D > to) return;
-        function rs(y) { var t = n(d, 'p48_' + y + '_29'); if (t != null) return t; var a = []; for (var x = 2; x <= 28; x++) a.push(n(d, 'p48_' + y + '_' + x)); return tot(a); }
-        var ft = rs(18); if (ft == null) { var a = []; for (var y = 7; y <= 16; y++) a.push(rs(y)); ft = tot(a); }
-        if (ft != null) { var o = pack[D] = pack[D] || {}; o.waste = (o.waste || 0) + ft; } }); })();
-    CK.forEach(function (M) { Object.keys(M).forEach(function (D) { var gr = (M[D].data && M[D].data.grid) || {}, x = 0;
+        function rs(y) { var t = n(d, P + '_' + y + '_29'), t2 = y === 17 ? n(d, P + '_17b_29') : null; if (t != null || t2 != null) return (t || 0) + (t2 || 0); var a = []; for (var x = 2; x <= 28; x++) { a.push(n(d, P + '_' + y + '_' + x)); if (y === 17) a.push(n(d, P + '_17b_' + x)); } return tot(a); }
+        var ft = rs(18); if (ft == null) { var a = []; for (var y = 7; y <= 17; y++) a.push(rs(y)); ft = tot(a); }
+        if (ft != null) { var o = pack[D] = pack[D] || {}, ho = g(d, P + '_ho') || '?'; o.waste = (o.waste || 0) + ft; o.wasteBy = o.wasteBy || {}; o.wasteBy[ho] = (o.wasteBy[ho] || 0) + ft; } }); });
+    CK.forEach(function (M) { Object.keys(M).forEach(function (D) { M[D].forEach(function (it) { var gr = (it.d.data && it.d.data.grid) || {}, x = 0;
       Object.keys(gr).forEach(function (k) { if (/^(x|×|불량|부적합|NG)$/i.test(String(gr[k]).trim())) x++; });
-      var o = pack[D] = pack[D] || {}; o.bad = (o.bad || 0) + x; }); });
+      var o = pack[D] = pack[D] || {}; o.bad = (o.bad || 0) + x; if (x) { var ho = it.ho || 'DE'; o.badBy = o.badBy || {}; o.badBy[ho] = (o.badBy[ho] || 0) + x; } }); }); });
     function S(o, k, f) { var a = Object.keys(o).map(function (D) { return o[D][k]; }); return f === 'avg' ? mean(a) : tot(a); }
     return { mix: mix, juice: juice, pack: pack,
       packSum: { days: Object.keys(pack).length, ea: S(pack, 'ea'), box: S(pack, 'box'), rate: S(pack, 'rate', 'avg'), stopN: S(pack, 'stopN'), stopMin: S(pack, 'stopMin'), bad: S(pack, 'bad'), waste: S(pack, 'waste'),
+        badBy: (function () { var o = {}; Object.keys(pack).forEach(function (D) { var b = pack[D].badBy || {}; Object.keys(b).forEach(function (h) { o[h] = (o[h] || 0) + b[h]; }); }); return o; })(),
+        wasteBy: (function () { var o = {}; Object.keys(pack).forEach(function (D) { var b = pack[D].wasteBy || {}; Object.keys(b).forEach(function (h) { o[h] = (o[h] || 0) + b[h]; }); }); return o; })(),
         ln: ['A', 'B', 'C', 'D', 'E', 'F'].map(function (h) { return [h, tot(Object.keys(pack).map(function (D) { return (pack[D].ln || {})[h]; }))]; }).filter(function (x) { return x[1] != null; }) },
       mixSum: { days: Object.keys(mix).length, nb: S(mix, 'nb'), q: S(mix, 'q'), b1: S(mix, 'b1', 'avg'), sug: S(mix, 'sug'), x: S(mix, 'x') },
       juiceSum: { days: Object.keys(juice).length, sug: S(juice, 'sug'), use: S(juice, 'use'), by: S(juice, 'by'), prodH: S(juice, 'prodH'), stopH: S(juice, 'stopH'), raw: S(juice, 'raw'), ts: S(juice, 'ts', 'avg') } };
@@ -578,19 +589,20 @@
       var juiceT = table(['착즙', kind === 'daily' ? '값' : '합계 · 평균'], [
         ['대두 사용량', '<b>' + f1(PJ.use) + '</b> kg' + per(PJ.days ? PJ.use / PJ.days : null)], ['부산물', f1(PJ.by) + ' kg' + (PJ.use && PJ.by != null ? ' (' + f1(PJ.by / PJ.use * 100, 1) + '%)' : '')],
         ['분리액 생산 · 중단', f1(PJ.prodH) + '시간 · ' + f1(PJ.stopH) + '시간'], ['원액 생산', f1(PJ.raw) + ' kg'], ['원액 T.S 평균', f1(PJ.ts, 2) + ' <span style="color:' + C.mute + '">(10±0.2)</span>'], ['설탕 투입', f1(PJ.sug) + ' kg' + per(PJ.days && PJ.sug != null ? PJ.sug / PJ.days : null)]]);
+      function hoBy(o, u) { var ks = Object.keys(o || {}).sort(); if (!ks.length) return ''; return ' <span style="color:' + C.mute + '">(' + ks.map(function (h) { return (h === 'DE' || h === '?' ? h : h + '호기') + ' ' + f1(o[h]) + (u || ''); }).join(' · ') + ')</span>'; }
       var packT = table(['포장 (A~F호기)', kind === 'daily' ? '값' : '합계 · 평균'], [
-        ['생산량 (전 호기)', '<b>' + f1(PK.ea) + '</b> 개' + (PK.box != null ? ' · ' + f1(PK.box) + ' Box' : '') + per(PK.days ? PK.ea / PK.days : null)]].concat(PK.ln && PK.ln.length ? [['호기별 생산량', PK.ln.map(function (x) { return x[0] + '호기 ' + f1(x[1]); }).join(' · ')]] : []).concat(PK.waste != null ? [['밀봉 불량팩', '<b>' + f1(PK.waste) + '</b> 개']] : []).concat([['B호기 가동률', PK.rate != null ? f1(PK.rate, 1) + '%' + (kind === 'daily' ? '' : ' (평균)') : '-'],
-        ['정지', f1(PK.stopN) + '회' + (PK.stopMin != null ? ' · ' + f1(PK.stopMin) + '분' : '')], ['점검 불량(X)', PK.bad ? '<b style="color:' + C.red + '">' + PK.bad + '건</b>' : '0건']]));
+        ['생산량 (전 호기)', '<b>' + f1(PK.ea) + '</b> 개' + (PK.box != null ? ' · ' + f1(PK.box) + ' Box' : '') + per(PK.days ? PK.ea / PK.days : null)]].concat(PK.ln && PK.ln.length ? [['호기별 생산량', PK.ln.map(function (x) { return x[0] + '호기 ' + f1(x[1]); }).join(' · ')]] : []).concat(PK.waste != null ? [['밀봉 불량팩', '<b>' + f1(PK.waste) + '</b> 개' + hoBy(PK.wasteBy)]] : []).concat([['B호기 가동률', PK.rate != null ? f1(PK.rate, 1) + '%' + (kind === 'daily' ? '' : ' (평균)') : '-'],
+        ['정지', f1(PK.stopN) + '회' + (PK.stopMin != null ? ' · ' + f1(PK.stopMin) + '분' : '')], ['점검 불량(X)', PK.bad ? '<b style="color:' + C.red + '">' + PK.bad + '건</b>' + hoBy(PK.badBy, '건') : '0건']]));
       var pser = '';
       if (many) { var dd = M.daily.map(function (o) { var w = dowN(o.d), mx = M.PR.mix[o.d] || {}, jx = M.PR.juice[o.d] || {}, px = M.PR.pack[o.d] || {}; return { lab: kind === 'weekly' ? md(o.d) + ' ' + dowOf(o.d) : String(+o.d.slice(8)), we: w === 0 || w === 6, nb: mx.nb || 0, use: jx.use ? Math.round(jx.use / 1000 * 10) / 10 : 0, ea: px.ea ? Math.round(px.ea / 1000 * 10) / 10 : 0 }; });
         var cs = [];
-        if (hasM) cs.push(card('⚗ 날짜별 배합 배치', vbars(dd, ['nb'], ['#7B5CD6'], { h: 80, top: function (t) { return t || ''; } })));
         if (hasJ) cs.push(card('❖ 날짜별 대두 사용량(톤)', vbars(dd, ['use'], [C.amber], { h: 80, top: function (t) { return t || ''; } })));
+        if (hasM) cs.push(card('⚗ 날짜별 배합 배치', vbars(dd, ['nb'], ['#7B5CD6'], { h: 80, top: function (t) { return t || ''; } })));
         if (hasK) cs.push(card('📦 날짜별 포장 생산량(천 개)', vbars(dd, ['ea'], ['#3062D8'], { h: 80, top: function (t) { return t || ''; } })));
         for (var ci = 0; ci < cs.length; ci += 2) pser += cs[ci + 1] ? two(cs[ci], cs[ci + 1]) : cs[ci]; }
       /* 그 기간에 일지가 있는 공정만 */
       var parts = [], names = [];
-      if (hasM) { parts.push(mixT); names.push('⚗ 배합'); } if (hasJ) { parts.push(juiceT); names.push('❖ 착즙'); } if (hasK) { parts.push(packT); names.push('📦 포장'); }
+      if (hasJ) { parts.push(juiceT); names.push('❖ 착즙'); } if (hasM) { parts.push(mixT); names.push('⚗ 배합'); } if (hasK) { parts.push(packT); names.push('📦 포장'); }
       var body = ''; for (var pi = 0; pi < parts.length; pi += 2) body += (pi ? '<div style="height:10px"></div>' : '') + two(parts[pi], parts[pi + 1] || '');
       if (parts.length) h += card(names.join(' · ') + ' 공정', body, '저장된 일지 기준') + pser;
     }
