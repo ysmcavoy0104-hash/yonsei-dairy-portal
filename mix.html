@@ -218,8 +218,10 @@ function CATS(summer){return {
  C:{name:'고점도 · 식물성/단백질 음료',ex:'균형 단백질 음료 · 고단백 두유 · HSM 배합 제품',mixMove:'60분 이하 (권장)',order:'배합 작업 표준 준수',tanks:'3개 탱크',insp:90,silo:120,note:'1B 이송시간 예외'},
  D:{name:'두유 · 분리액 70% 이상',ex:'뼈 시리즈 등 일반 두유',mixMove:'30분 이하 (권장)',order:'배합 작업 표준 준수',tanks:'3개 탱크',insp:120,silo:summer?120:180,sn:true}}}
 function catOf(p){p=p||'';return /고단백|단백질|HSM|하이셰어/.test(p)?'C':/두유/.test(p)?'D':/연세\s*바나나|원유\s*7/.test(p)?'B':'A'}
-function liq(p){p=p||'';return /딸기/.test(p)?'#F7A1B8':/초코|코코아/.test(p)?'#8B5A3C':/바나나/.test(p)?'#FCE38A':/커피/.test(p)?'#B08968':/녹차|말차/.test(p)?'#A3C585':/두유/.test(p)?'#DCC199':/오렌지|감귤/.test(p)?'#FDBA74':/포도/.test(p)?'#7E3F98':/사과|음료|주스/.test(p)?'#FCD34D':'#FFFFFF'}
-function only2(L,p){return (L.h===2||L.h===3)&&/멸균|흰우유|A2|락토프리|전용목장/i.test(p||'')}
+function liq(p){p=p||'';return /딸기/.test(p)?'#F7A1B8':/초코|코코아/.test(p)?'#8B5A3C':/바나나/.test(p)?'#FCE38A':/커피/.test(p)?'#B08968':/녹차|말차/.test(p)?'#A3C585':isSoy(p)?'#DCC199':/오렌지|감귤/.test(p)?'#FDBA74':/포도/.test(p)?'#7E3F98':/사과|음료|주스/.test(p)?'#FCD34D':'#FFFFFF'}
+/* 두유류: 이름에 두유가 없어도 두유인 제품 (A2 프로틴 · 이롬 블랙오곡 등) */
+function isSoy(p){return /두유|프로틴|오곡|이롬/i.test(p||'')}
+function only2(L,p){return (L.h===2||L.h===3)&&!isSoy(p)&&/멸균|흰우유|A2|락토프리|전용목장/i.test(p||'')}
 /* 생산계획표(PDF 변환 결과) — 오늘 이 호기(멸균 N호기 = 배합 N호기)에 잡힌 품목 */
 function planToday(h){var W=(DATA&&DATA.planWeeks)||{},S=(DATA&&DATA.planSpec)||{},n=new Date(),lbl=(n.getMonth()+1)+'/'+n.getDate(),best=null;
  Object.keys(W).forEach(function(k){var w=W[k];if(!w||!w.rows||w.rows.indexOf(lbl)<0)return;if(!best||(w.uploadedAt||0)>(best.uploadedAt||0))best=w});

@@ -1183,7 +1183,8 @@ const Auth={
   if(pw!==pw2)return this.err('su-err','비밀번호와 비밀번호 확인이 서로 다릅니다.');
   if(window.SUPA_URL&&!window.supabase)return this.err('su-err','공유 서버 연결 모듈을 불러오지 못했습니다. 인터넷(사내망 차단 여부)을 확인한 뒤 새로고침해 주세요.');
   if(S&&S.on()){
-   const r=await S.ensureSession(emp,pw,null,true);
+   let r=await S.ensureSession(emp,pw,null,true);
+   if(!r.ok&&/timeout/i.test(r.msg||'')){if(btn)btn.textContent='서버 응답 대기 중… 다시 시도하는 중';r=await S.ensureSession(emp,pw,null,true)}
    if(!r.ok)return this.err('su-err',S.explain(r.msg));
    signed=true;signedEmail=r.email||'';
    const remote=await S.pull();
@@ -1291,7 +1292,7 @@ const SupaSync={
    if(s.error){
     if(/already/i.test(s.error.message||'')){
      /* 이전 신청 때 서버 계정만 만들어지고 비밀번호가 달라진 경우: 대체 계정으로 이어서 진행 */
-     for(let n=2;n<=8;n++){const alt=String(emp).trim().toLowerCase()+'_'+n+'@yonsei.local';
+     for(let n=2;n<=4;n++){const alt=String(emp).trim().toLowerCase()+'_'+n+'@yonsei.local';
       const ra=await c.auth.signInWithPassword({email:alt,password:ap});if(!ra.error)return {ok:true,email:alt};
       const sa=await c.auth.signUp({email:alt,password:ap});
       if(sa.error){if(/already/i.test(sa.error.message||''))continue;return {ok:false,msg:sa.error.message||'signup_failed'}}
@@ -1308,13 +1309,14 @@ const SupaSync={
   }catch(e){return {ok:false,msg:(e&&e.message)||String(e)}}},
  explain(m){m=String(m||'');const l=m.toLowerCase();
   if(l.indexOf('already')>=0)return '이 사번으로 서버 계정이 이미 만들어져 있습니다. 처음 입력했던 비밀번호로 다시 신청하거나 관리자에게 승인 상태를 문의해 주세요.';
+  if(l.indexOf('timeout')>=0)return '서버 응답이 늦어 처리하지 못했습니다. 1~2분 뒤 같은 사번 · 같은 비밀번호로 다시 눌러 주세요. (계속되면 관리자에게 알려 주세요)';
   if(l.indexOf('rate')>=0||l.indexOf('429')>=0)return '짧은 시간에 요청이 너무 많았습니다. 1~2분 뒤 다시 시도해 주세요.';
   if(l.indexOf('confirm')>=0)return 'Supabase의 이메일 확인(Confirm email) 설정이 켜져 있습니다. 관리자에게 해제를 요청해 주세요.';
   if(l.indexOf('signup')>=0&&l.indexOf('disabled')>=0)return 'Supabase에서 신규 가입이 꺼져 있습니다. 관리자에게 설정을 요청해 주세요.';
   if(l.indexOf('fetch')>=0||l.indexOf('network')>=0)return '서버에 연결하지 못했습니다. 인터넷 연결을 확인해 주세요.';
   if(l.indexOf('row-level')>=0||l.indexOf('policy')>=0||l.indexOf('permission')>=0)return '서버 권한(RLS) 설정 때문에 저장하지 못했습니다. ('+m+')';
   return '서버 오류: '+m},
- adopt(data){if(!data)return;try{const cur=localStorage.getItem(DBKEY);if(cur&&!localStorage.getItem(DBKEY+'_backup'))localStorage.setItem(DBKEY+'_backup',cur)}catch(e){}
+ adopt(data){if(!data)return;
   try{data=this.mergeState(data,DB.data,false)}catch(e){}
   DB.data=data;try{localStorage.setItem(DBKEY,JSON.stringify(data))}catch(e){}this.lastSeen=Date.now();this.adopted=true},
  async pushNow(data){try{const pr=await this.pull();let d=data;if(pr&&pr.data&&pr.data!==data){try{d=this.mergeState(pr.data,data,true)}catch(e){d=data}}const ua=new Date().toISOString();const r=await this.c().from('app_state').upsert({id:1,data:d,updated_at:ua});if(r&&r.error)return r.error.message||'push_failed';this.lastRemoteAt=ua;this.lastSeen=Date.now();return null}catch(e){return (e&&e.message)||String(e)}},
@@ -8672,6 +8674,7 @@ function fixButtons(){
   '<button class="btn btn-o" onclick="Attach.pick()">첨부하기</button>'+
   '<button class="btn btn-p" id="yum-btn-save" onclick="Doc.persist(\'saved\')">저장하기</button>'+
   '<button class="btn btn-ghost" onclick="window.yumPrintDraft()">인쇄하기</button>'+
+  '<button class="btn btn-ghost" id="yum-btn-cancel" onclick="Doc.cancelDraft()" style="color:#B91C1C">취소하기</button>'+
   '<span id="yum-save-state" style="font-size:12px;color:var(--faint);margin-left:6px">'+st+'</span>';
  var note=b.nextElementSibling;
  if(note&&note.tagName==='DIV')note.innerHTML='<b>임시저장</b> → 임시 저장 문서함 · <b>저장하기</b> → 저장 완료 문서함에 보관됩니다. 입력 내용은 자동으로 백업됩니다.';
@@ -8827,6 +8830,15 @@ Doc.inlineEdit=function(id){
   '<span id="yum-save-state" style="font-size:12px;color:var(--faint);align-self:center">수정 중 — 입력 내용은 자동 백업됩니다</span>';
  box.scrollIntoView({block:'start'});
 };
+Doc.cancelDraft=function(){
+ var d=curDoc(),fid=((document.getElementById('nf-form')||{}).value)||window.__yumFormId||'';
+ var msg=d?'저장하지 않고 고친 내용을 버리고 나갈까요?\n(이미 임시저장 · 저장한 내용은 그대로 남습니다)':'작성 중인 내용을 지우고 나갈까요?\n(아직 저장하지 않은 내용은 복구할 수 없습니다)';
+ if(!window.confirm(msg))return;
+ try{clearBuf(d?d.id:'__none__',fid)}catch(e){}
+ try{var h=JSON.parse(localStorage.getItem('yum_handover')||'[]').filter(function(x){return !d||x.id!==d.id});localStorage.setItem('yum_handover',JSON.stringify(h))}catch(e){}
+ window.__yumTouched=false;window.__yumFormHash='';window.__yumInline='';window.__yumDocId=null;window.__yumFormId=null;window.__SIGN={};
+ try{toast('작성을 취소했습니다.','ok')}catch(e){}
+ App.go('#/journals');setTimeout(function(){try{App.render()}catch(e){}},30)};
 Doc.cancelInline=function(){window.__yumInline='';window.__yumFormHash='';try{if(window.__yumDocId)clearBuf(window.__yumDocId,'')}catch(e){}App.render()};
 
 /* ---------- 7. 기존 데이터 정리: 작성완료(draft) → 저장완료(saved) ---------- */
@@ -14024,6 +14036,7 @@ function pending(){
    if(d&&b.at>Date.parse(d.updatedAt||0)){var ex=out.filter(function(o){return o.id===d.id})[0];if(ex){ex.buf=1;ex.at=Math.max(ex.at,b.at)}else out.push({k:'doc',id:d.id,t:d.title||'',at:b.at,st:d.status,buf:1})}}}}catch(e){}
  return out.sort(function(a,b){return b.at-a.at});
 }
+window.yumHandoverClear=function(){if(!window.confirm('이 기기에 남은 「작성 중이던 일지」 알림을 모두 지울까요?\n(임시저장된 문서는 임시 저장 문서함에 그대로 남습니다)'))return;try{var ks=[];for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&k.indexOf('yumbuf:')===0)ks.push(k)}ks.forEach(function(k){localStorage.removeItem(k)});localStorage.removeItem('yum_handover')}catch(e){}try{U.closeModal()}catch(e){}try{U.toast('작성 중이던 일지 알림을 지웠습니다.','ok')}catch(e){}};
 window.yumHandoverOpen=function(k,id){try{U.closeModal()}catch(e){}if(k==='new')App.go('#/doc-new?form='+id);else Doc.edit(id)};
 function notice(){
  var u=me();if(!u)return;var L=pending();if(!L.length)return;
@@ -14032,7 +14045,7 @@ function notice(){
   '<div style="font-size:11.5px;color:var(--muted,#6B7685)">'+(o.by?esc(o.by)+'님 작성 · ':'')+new Date(o.at).toLocaleString('ko-KR')+(o.k==='new'?' · 아직 저장 안 됨':o.buf?' · 저장 뒤 더 입력한 내용 있음':o.st==='temp'?' · 임시저장':'')+'</div></div>'+
   '<button class="btn btn-p btn-sm" onclick="yumHandoverOpen(\''+o.k+'\',\''+esc(o.id)+'\')">이어서 작성</button></div>'};
  U.modal('이 기기에서 작성 중이던 일지',
-  '<div style="font-size:13px;line-height:1.6;margin-bottom:10px;color:var(--muted,#6B7685)">이전 사용자가 이 기기에서 쓰던 일지입니다. 열어서 이어서 작성하고 저장할 수 있습니다. (작성자는 그대로, 수정한 사람은 문서 이력에 남습니다)</div>'+L.slice(0,6).map(row).join(''),
+  '<div style="font-size:13px;line-height:1.6;margin-bottom:10px;color:var(--muted,#6B7685)">이전 사용자가 이 기기에서 쓰던 일지입니다. 열어서 이어서 작성하고 저장할 수 있습니다. (작성자는 그대로, 수정한 사람은 문서 이력에 남습니다)</div><div style="text-align:right;margin:-4px 0 8px"><button class="btn btn-ghost btn-sm" style="color:#B91C1C" onclick="yumHandoverClear()">이 목록 모두 지우기</button></div>'+L.slice(0,6).map(row).join(''),
   {size:'sm',okText:'닫기'});
 }
 var _op=App.openPortal;
