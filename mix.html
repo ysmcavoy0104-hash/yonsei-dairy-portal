@@ -460,16 +460,16 @@ function lotSub(l){if(l.cls==='milk')return l.a===l.b?'당일 수유 · 사용':
 function renderSilo(){
  siloFrameCalc();var T=today(),N=siloSrc();
  function card(x){var c=x.cip,run=c&&c.e==null,lots=siloLots(x.s.id),SDd=siloSrc(),useT=!!(SDd&&SDd.days&&(SDd.days[T]||[]).indexOf(x.s.id)>=0),now=lots.filter(function(l){return l.b===T})[0]||lots.filter(function(l){return l.a<=T&&l.b>=T})[0],next=lots.filter(function(l){return l.a>T})[0];
-  var lvl=now?Math.max(.08,Math.min(.95,(now.qty||0)/x.s.cap)):0,enz=!!(now&&now.enzyme),fill=run?'#7DD3FC':now?(now.cls==='milk'?(enz?'#E4F2CF':'#FFFFFF'):'#DCC199'):'#FFFFFF';
+  var lvl=now?Math.max(.08,Math.min(.95,(now.qty||0)/x.s.cap)):0,enz=!!(now&&now.enzyme),fill=run?'#7DD3FC':now?(now.cls==='milk'?(enz?'#FFF3D9':'#FFFFFF'):'#DCC199'):'#FFFFFF';
   if(run&&!now)lvl=.1;
   var h=142,top=14,wl=lvl?(top+h-4)-(h-8)*lvl:null;
   /* 바닥부터 꽉 차게 · 효소 투입은 기포가 올라오는 모습 */
-  var bub='';if(enz&&lvl&&!run){[[16,0],[28,.7],[40,1.4],[52,.35],[22,1.9],[46,2.4]].forEach(function(b){bub+='<circle class="bub" cx="'+b[0]+'" cy="150" r="2.2" fill="#fff" stroke="#7CB342" stroke-width=".8" style="animation-delay:-'+b[1]+'s;--top:'+(wl+6).toFixed(0)+'px"></circle>'})}
-  var wv=lvl?'<g clip-path="url(#cs'+x.s.id+')"><g class="w3"><path d="'+wave(wl,1.4,90)+'" fill="'+fill+'" stroke="'+(enz?'#7CB342':'#94A3B8')+'" stroke-width="'+(enz?1:.7)+'"></path></g>'+bub+'</g>':'';
+  var bub='';if(enz&&lvl&&!run){[[16,0],[28,.7],[40,1.4],[52,.35],[22,1.9],[46,2.4]].forEach(function(b){bub+='<circle class="bub" cx="'+b[0]+'" cy="150" r="2.2" fill="#fff" stroke="#D4B271" stroke-width=".8" style="animation-delay:-'+b[1]+'s;--top:'+(wl+6).toFixed(0)+'px"></circle>'})}
+  var wv=lvl?'<g clip-path="url(#cs'+x.s.id+')"><g class="w3"><path d="'+wave(wl,1.4,90)+'" fill="'+fill+'" stroke="'+(enz?'#C8A15A':'#94A3B8')+'" stroke-width="'+(enz?1:.7)+'"></path></g>'+bub+'</g>':'';
   var drops='';if(run){[12,20,28,40,48,56].forEach(function(x2,i){drops+='<rect class="d" x="'+x2+'" y="24" width="1.8" height="5" rx=".9" fill="#0EA5E9" style="animation-delay:-'+(i*0.3).toFixed(1)+'s"></rect>'});drops+='<circle cx="34" cy="22" r="4.5" fill="#0EA5E9" stroke="#0369A1"></circle>'}
   var spin=now&&!run?'s3':'';
   var svg='<svg width="68" height="160" viewBox="0 0 68 160" aria-hidden="true" style="flex:none"><defs><clipPath id="cs'+x.s.id+'"><rect x="6" y="16" width="56" height="138" rx="16"></rect></clipPath></defs><rect x="4" y="14" width="60" height="142" rx="18" fill="#E2E8F0" stroke="#64748B" stroke-width="1.5"></rect>'+wv+'<rect x="26" y="2" width="16" height="12" rx="2" fill="#475569"></rect><line x1="34" y1="14" x2="34" y2="140" stroke="#1E293B" stroke-width="2.5"></line><g class="'+spin+'"><rect x="20" y="136" width="28" height="4" rx="2" fill="#1E293B"></rect></g>'+drops+'</svg>';
-  var st=run?'CIP 중 · '+hh(c.s)+' 시작 · 약 '+hh(c.s+CIPMIN)+' 종료 예상':now?lotLabel(now):'오늘 배정 없음';var enzB=enz&&!run?' <span style="font-size:11px;font-weight:800;padding:1px 8px;border-radius:999px;background:#E4F2CF;color:#33691E;border:1px solid #9CCC65">효소</span>':'';
+  var st=run?'CIP 중 · '+hh(c.s)+' 시작 · 약 '+hh(c.s+CIPMIN)+' 종료 예상':now?lotLabel(now):'오늘 배정 없음';var enzB=enz&&!run?' <span style="font-size:11px;font-weight:800;padding:1px 8px;border-radius:999px;background:#FBF1DC;color:#7A5A1E;border:1px solid #E2C58C">효소</span>':'';
   var col=run?'var(--cip)':now?'var(--ink)':'var(--mute)';
   var body=now?'<div class="row"><span class="k">계획 수량</span><span class="v">'+(now.qty||0).toLocaleString()+' L ('+Math.round(lvl*100)+'%)</span></div><div class="row"><span class="k">일정</span><span class="v">'+lotSub(now)+'</span></div>'+(now.line?'<div class="row"><span class="k">사용 라인</span><span class="v">'+esc(now.line)+'</span></div>':'')+(now.products&&now.products.length?'<div class="note" style="line-height:1.6">'+esc(now.products.join(' · '))+'</div>':''):'';
   var nx=next?'<div class="row"><span class="k">다음 배정</span><span class="v">'+md(next.a)+' · '+esc(lotLabel(next))+' '+(next.qty||0).toLocaleString()+'L</span></div>':'';
