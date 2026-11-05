@@ -23,7 +23,7 @@ button{font:inherit;color:inherit}
 .btn.dark{background:var(--ink);color:#fff;border-color:var(--ink)}
 .tabs{display:flex;gap:6px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:4px;width:max-content;max-width:100%;overflow-x:auto}
 .tabs button{border:0;border-radius:9px;padding:0 18px;min-height:40px;font-weight:800;cursor:pointer;background:transparent;white-space:nowrap}
-.tabs button.on{background:var(--ink);color:#fff}
+.tabs button.on{background:var(--ink);color:#fff}.tabs small{display:inline-block;min-width:18px;padding:0 6px;margin-left:4px;border-radius:9px;background:var(--red);color:#fff;font-size:11px;font-weight:800}.tabs small:empty{display:none}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px}
 .card h2{margin:0;font-size:15px;font-weight:800;color:var(--sub)}
 .note{font-size:12px;color:var(--mute)}
@@ -107,7 +107,9 @@ table{border-collapse:collapse;width:100%}td b,.bar b{white-space:nowrap}th,td{p
   </div>
  </div>
  <div class="tabs" role="tablist">
-  <button type="button" role="tab" id="tab-live" class="on" onclick="setTab('live')">배합 현황판</button>
+  <button type="button" role="tab" id="tab-old" class="on" onclick="setTab('old')">구 배합실 <small id="cnt-old"></small></button>
+  <button type="button" role="tab" id="tab-new" onclick="setTab('new')">신규 배합실 <small id="cnt-new"></small></button>
+  <button type="button" role="tab" id="tab-silo" onclick="setTab('silo')">SILO 현황판</button>
   <button type="button" role="tab" id="tab-mgr" onclick="setTab('mgr')">관리 분석</button>
   <button type="button" role="tab" id="tab-plan" onclick="setTab('plan')">생산계획표 변환</button>
  </div>
@@ -127,8 +129,8 @@ table{border-collapse:collapse;width:100%}td b,.bar b{white-space:nowrap}th,td{p
   <div id="handover"></div>
   <div class="grid2"><div id="todos"></div><div id="missing"></div></div>
   <div id="rules"></div>
-  <div id="silo"></div>
  </div>
+ <div id="v-silo" class="hide" style="flex-direction:column;gap:16px"><div id="silo"></div></div>
  <div id="v-mgr" class="hide" style="flex-direction:column;gap:16px"></div>
  <div id="v-plan" class="hide" style="flex-direction:column;gap:10px">
   <div class="note">생산계획 PDF를 올리면 품목별 공정 규격과 원유 수유 · 사일로(S1~S5) 배정이 자동으로 만들어집니다. 결과는 부문포털과 같은 서버에 저장되고, 현황판 · 배합비 규격에도 바로 쓰입니다.</div>
@@ -163,7 +165,7 @@ function liq(p){p=p||'';return /딸기/.test(p)?'#F7A1B8':/초코|코코아/.tes
 function only2(L,p){return (L.h===2||L.h===3)&&/멸균|흰우유|A2|락토프리/i.test(p||'')}
 
 /* ───────── 공통 ───────── */
-var DATA=null, LAST_AT=null, TAB='live', SEL=null, PERIOD=7, SUMMER=false;
+var DATA=null, LAST_AT=null, TAB='old', SEL=null, PERIOD=7, SUMMER=false;
 try{SUMMER=localStorage.getItem('mix_summer')==='1'}catch(e){}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function pad(n){return String(n).padStart(2,'0')}
@@ -227,7 +229,7 @@ function computeLive(){
     if(c&&c.s>=b.tmov-10)cipState();
     else if(m<end){o.state='이송 중';o.color='var(--move)';o.sp=2;o.level=Math.max(.04,.95*(1-(m-b.tmov)/mm));o.sub='종료 예상 '+hh(end);o.eta=end}
     else{o.state='이송 완료';o.color='var(--move)';o.level=.03;o.sub='CIP 필요';o.needCip=end;
-     if(m-end>30)missing.push({where:'L'+L.h+'호기 '+id+' · '+b.label,what:'이송 끝났는데 CIP 시작 기록 없음',form:L.cip.f==='FRM-042'?'CIP 및 살균 작업 일보 (기존 배합실)':'CIP 및 살균 작업 일보 (신규 배합실)'})}}
+     if(m-end>30)missing.push({room:L.room,where:'L'+L.h+'호기 '+id+' · '+b.label,what:'이송 끝났는데 CIP 시작 기록 없음',form:L.cip.f==='FRM-042'?'CIP 및 살균 작업 일보 (기존 배합실)':'CIP 및 살균 작업 일보 (신규 배합실)'})}}
    else if(b&&b.tmix!=null){var w=m-b.tmix;o.state='이송 대기';o.color='var(--ready)';o.sp=3;o.level=.95;
     var projEnd=Math.max(m,movEnd||m)+mm,proj=projEnd-b.tmix;
     if(w>=cat.silo){o.lv='red';o.sub='품질 이상 주의 · '+dur(w);o.msg='조합탱크 보관 기준('+dur(cat.silo)+')을 넘었습니다 (현재 '+dur(w)+'). SILO로 냉각 이송하고 팀장에게 보고하세요.'}
@@ -237,21 +239,21 @@ function computeLive(){
     o.wait=w;o.queue=Math.max(m,movEnd||m)}
    else if(b){o.state='혼합 중';o.color='var(--mix)';o.sp=1;var st=b.tin!=null?b.tin:null;o.level=st!=null?Math.min(.95,.35+(m-st)/avgMix*.6):.6;o.sub=st!=null?'완료 예상 '+hh(st+avgMix):'유입 시각 미기록';o.eta=st!=null?st+avgMix:null}
    else if(c)cipState();
-   if(o.lv)flags.push({lv:o.lv,text:L.h+'호기 '+id+' · '+(b?b.label:'')+' — '+o.msg});
-   if(o.state==='CIP 중')flags.push({lv:'cip',text:L.h+'호기 '+id+' CIP 진행 중 — 약 '+hh(c.s+CIPMIN)+' 종료 예상'});
-   if(c&&!c.kind&&c.s>=-60)missing.push({where:L.h+'호기 '+id,what:'CIP 시작 기록은 있는데 CIP 종류 미선택',form:'CIP 및 살균 작업 일보 · CIP 종류'});
-   if(c&&c.e==null&&m-c.s>120)missing.push({where:L.h+'호기 '+id,what:'CIP 시작 후 2시간이 지났는데 종료 시각 미입력',form:'CIP 및 살균 작업 일보 · 종료시간'});
+   if(o.lv)flags.push({room:L.room,lv:o.lv,text:L.h+'호기 '+id+' · '+(b?b.label:'')+' — '+o.msg});
+   if(o.state==='CIP 중')flags.push({room:L.room,lv:'cip',text:L.h+'호기 '+id+' CIP 진행 중 — 약 '+hh(c.s+CIPMIN)+' 종료 예상'});
+   if(c&&!c.kind&&c.s>=-60)missing.push({room:L.room,where:L.h+'호기 '+id,what:'CIP 시작 기록은 있는데 CIP 종류 미선택',form:'CIP 및 살균 작업 일보 · CIP 종류'});
+   if(c&&c.e==null&&m-c.s>120)missing.push({room:L.room,where:L.h+'호기 '+id,what:'CIP 시작 후 2시간이 지났는데 종료 시각 미입력',form:'CIP 및 살균 작업 일보 · 종료시간'});
    return o});
   /* 배치 기록 누락 */
   if(doc&&off===0){P.batches.forEach(function(b){var w=L.h+'호기 '+b.label;
-   if(b.tmix!=null&&!b.brix)missing.push({where:w,what:'혼합 완료 시각은 있는데 최종 Brix 미입력',form:'제품생산작업일보 · 최종 Brix'});
-   if(b.tmix!=null&&!b.mixer)missing.push({where:w,what:'혼합 작업자 미입력',form:'제품생산작업일보 · 혼합 작업자'});
-   if(b.tmov!=null&&!b.mover)missing.push({where:w,what:'이송 작업자 미입력',form:'제품생산작업일보 · 이송 작업자'});
-   if(b.tmov!=null&&m-b.tmov>20&&!b.pbrix)missing.push({where:w,what:'이송 시작했는데 제품 Brix 미입력',form:'제품생산작업일보 · 제품 Brix'})});
+   if(b.tmix!=null&&!b.brix)missing.push({room:L.room,where:w,what:'혼합 완료 시각은 있는데 최종 Brix 미입력',form:'제품생산작업일보 · 최종 Brix'});
+   if(b.tmix!=null&&!b.mixer)missing.push({room:L.room,where:w,what:'혼합 작업자 미입력',form:'제품생산작업일보 · 혼합 작업자'});
+   if(b.tmov!=null&&!b.mover)missing.push({room:L.room,where:w,what:'이송 작업자 미입력',form:'제품생산작업일보 · 이송 작업자'});
+   if(b.tmov!=null&&m-b.tmov>20&&!b.pbrix)missing.push({room:L.room,where:w,what:'이송 시작했는데 제품 Brix 미입력',form:'제품생산작업일보 · 제품 Brix'})});
    [[17,12*60,'오전'],[18,18*60,'오후']].forEach(function(x){if(m<x[1])return;var blank=[],bad=[];for(var r=10;r<=24;r++){var nm=r<=23?CHECK_ITEMS[r-10]:G(doc,'g2_24_16');if(!nm)continue;var v=G(doc,'g2_'+r+'_'+x[0]);if(!v)blank.push(nm);else if(v==='X')bad.push(nm)}
-    if(blank.length)missing.push({where:L.h+'호기 '+x[2]+' 점검',what:'점검 항목 '+blank.length+'개 미체크 ('+blank.slice(0,3).join(', ')+(blank.length>3?' 외':'')+')',form:'제품생산작업일보 · 점검 항목 '+x[2]});
-    if(bad.length)flags.push({lv:'chk',text:L.h+'호기 '+x[2]+' 점검 X — '+bad.join(', ')})});
-   ['g2_note','g2_etc'].forEach(function(kk){var v=G(doc,kk);if(v)notes.push(L.h+'호기 — '+v)})}
+    if(blank.length)missing.push({room:L.room,where:L.h+'호기 '+x[2]+' 점검',what:'점검 항목 '+blank.length+'개 미체크 ('+blank.slice(0,3).join(', ')+(blank.length>3?' 외':'')+')',form:'제품생산작업일보 · 점검 항목 '+x[2]});
+    if(bad.length)flags.push({room:L.room,lv:'chk',text:L.h+'호기 '+x[2]+' 점검 X — '+bad.join(', ')})});
+   ['g2_note','g2_etc'].forEach(function(kk){var v=G(doc,kk);if(v)notes.push({room:L.room,t:L.h+'호기 — '+v})})}
   /* 다음 할 일 */
   var steps=[];tanks.forEach(function(t){if(t.off)return;var b=t.batch;
    if(t.state==='이송 중')steps.push({at:t.eta,text:t.id+' '+b.label+' 이송 종료 → CIP 시작'});
@@ -265,7 +267,7 @@ function computeLive(){
   var foot=(o2?'탱크 1 · 2번 교대 운영 · ':'')+(P.planned?'남은 배치 '+remain+'B'+(remain?' · 생산 종료 예상 '+hh(Math.max(m,movEnd||m)+remain*mm):' · 계획 배치 완료'):'작업현황(품목 · 생산량) 미입력');
   lines.push({L:L,doc:doc,off:off,P:P,cat:cat,ck:ck,tanks:tanks,steps:steps.slice(0,4),foot:foot,moved:moved,remain:remain})});
  /* SILO */
- var silos=SILOS.map(function(s){var ce=cipEvents('FRM-042','cB',s.row,11,12,[Y,T]),c=ce[ce.length-1];return {s:s,cip:c}});
+ var silos=SILOS.map(function(s){var ce=cipEvents('FRM-042','cB',s.row,11,12,[Y,T]),c=ce[ce.length-1];return {s:s,cip:c,all:ce}});
  return {lines:lines,flags:flags,missing:missing,notes:notes,silos:silos,m:m,cats:cats};
 }
 
@@ -280,15 +282,19 @@ function tankSvg(t,product){
   '<rect x="21" y="1" width="14" height="9" rx="2" fill="#475569"></rect><line x1="28" y1="10" x2="28" y2="71" stroke="#1E293B" stroke-width="2"></line><g class="'+spin+'"><rect x="17" y="47" width="22" height="3.5" rx="1.75" fill="#1E293B"></rect></g><g class="'+spin+' ph"><rect x="17" y="68" width="22" height="3.5" rx="1.75" fill="#1E293B"></rect></g>'+drops+'</svg>';
 }
 var LIVE=null;
+function ROOM(){return TAB==='new'?1:0}
+function inRoom(x){return x.room===ROOM()}
+function badges(V){[0,1].forEach(function(r){var n=V.flags.filter(function(f){return f.room===r&&(f.lv==='red'||f.lv==='amber')}).length;var e=document.getElementById('cnt-'+(r?'new':'old'));if(e)e.textContent=n?String(n):''})}
+function headAlert(V){var alertN=V.flags.filter(function(f){return f.lv==='red'||f.lv==='amber'}).length;document.getElementById('alertN').textContent=alertN+'건';var ac=document.getElementById('alertChip');ac.style.background=alertN?'#FEE2E2':'#DCFCE7';ac.style.borderColor=alertN?'#FCA5A5':'#86EFAC';badges(V)}
 function renderLive(){
- var V=LIVE=computeLive();
+ var V=LIVE=computeLive();headAlert(V);
  var alertN=V.flags.filter(function(f){return f.lv==='red'||f.lv==='amber'}).length;
  document.getElementById('alertN').textContent=alertN+'건';
  var ac=document.getElementById('alertChip');ac.style.background=alertN?'#FEE2E2':'#DCFCE7';ac.style.borderColor=alertN?'#FCA5A5':'#86EFAC';
  /* 탱크 카드: 상태가 바뀔 때만 다시 그려 애니메이션이 끊기지 않게 */
  var rooms=document.getElementById('rooms');
- if(!rooms.dataset.built){rooms.innerHTML=[['구 배합실 (1 · 2 · 3호기)',0],['신규 배합실 (4 · 5호기)',1]].map(function(r){return '<section class="room"><h3>'+r[0]+'</h3><div class="lines">'+LINES.filter(function(L){return L.room===r[1]}).map(function(L){return '<article class="line" id="ln'+L.h+'"></article>'}).join('')+'</div></section>'}).join('');rooms.dataset.built='1'}
- V.lines.forEach(function(x){var L=x.L,el=document.getElementById('ln'+L.h);
+ if(rooms.dataset.built!==String(ROOM())){rooms.innerHTML=[['구 배합실 (1 · 2 · 3호기)',0],['신규 배합실 (4 · 5호기)',1]].filter(function(r){return r[1]===ROOM()}).map(function(r){return '<section class="room"><h3>'+r[0]+'</h3><div class="lines">'+LINES.filter(function(L){return L.room===r[1]}).map(function(L){return '<article class="line" id="ln'+L.h+'"></article>'}).join('')+'</div></section>'}).join('');rooms.dataset.built=String(ROOM())}
+ V.lines.filter(function(x){return x.L.room===ROOM()}).forEach(function(x){var L=x.L,el=document.getElementById('ln'+L.h);
   var head='<div class="lh"><div style="display:flex;flex-direction:column;gap:2px"><span class="nm">'+L.h+'호기</span><span class="sp">'+L.tk[0][0]+',000TK · 용량 '+L.cap.toLocaleString()+'kg · 이송 '+L.rate.toLocaleString()+'kg/h'+(L.pump?' · '+L.pump:'')+(L.note?' · '+L.note:'')+'</span></div>'+
    '<div class="pr"><b>'+esc(x.P.product||'품목 미입력')+'</b><span class="note">'+(x.doc?'배치 '+x.moved+' / '+(x.P.planned||'?')+'B'+(x.off?' · 어제 일지':''):'오늘 일지 없음')+'</span>'+(x.P.product?'<span class="cat">'+x.cat.name+' · 검사 '+dur(x.cat.insp)+' / 냉각 이송 '+dur(x.cat.silo)+'</span>':'')+'</div></div>';
   var pct=x.P.planned?Math.min(100,Math.round(x.moved/x.P.planned*100)):0;
@@ -306,13 +312,13 @@ function renderLive(){
    x.tanks.forEach(function(t){var b=el.querySelector('[data-t="'+t.id+'"]');if(!b)return;b.querySelector('[data-sub]').textContent=t.sub;var p=b.querySelector('[data-wave]');if(p&&t.level)p.setAttribute('d',wave(80-66*t.level,t.sp===1?2.6:1.4,74))})}
   el.querySelector('[data-steps]').innerHTML=x.steps.length?x.steps.map(function(s){return '<div class="r"><b style="color:'+(s.u?'var(--red)':'var(--ink)')+'">'+(s.at<=V.m+.5?'지금':hh(s.at))+'</b><span style="color:'+(s.u?'var(--red)':'var(--ink)')+'">'+esc(s.text)+'</span></div>'}).join(''):'<div class="r"><span class="note">진행 중인 작업이 없습니다.</span></div>';
   el.querySelector('[data-foot]').textContent=x.foot});
- renderDetail();renderHandover();renderTodos();renderRules();renderSilo();
+ renderDetail();renderHandover();renderTodos();renderRules();
 }
 document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('[data-t]');if(!b)return;SEL=SEL===b.dataset.t?null:b.dataset.t;document.querySelectorAll('.line').forEach(function(l){l.dataset.sig=''});renderLive();var d=document.getElementById('detail');if(SEL&&d.firstChild)d.scrollIntoView({behavior:'smooth',block:'nearest'})});
 function specFor(p){var S=(DATA&&DATA.planSpec)||{},n=String(p||'').replace(/\s+/g,'');if(!n)return null;var best=null;Object.keys(S).forEach(function(c){var s=S[c]||{},sn=String(s.name||'').replace(/\s+/g,'');if(!sn)return;if(sn.indexOf(n)>=0||n.indexOf(sn.split('[')[0])>=0){if(!best)best=Object.assign({code:c},s)}});return best}
 function renderDetail(){
  var box=document.getElementById('detail');if(!SEL||!LIVE){box.innerHTML='';return}
- var x=null,t=null;LIVE.lines.forEach(function(l){l.tanks.forEach(function(tt){if(tt.id===SEL){x=l;t=tt}})});if(!t){box.innerHTML='';return}
+ var x=null,t=null;LIVE.lines.filter(function(l){return l.L.room===ROOM()}).forEach(function(l){l.tanks.forEach(function(tt){if(tt.id===SEL){x=l;t=tt}})});if(!t){box.innerHTML='';return}
  var b=t.batch,c=x.cat,lv=t.lv,sp=specFor(b?b.prod:x.P.product);
  function row(k,v,badge){return '<div class="row"><span class="k">'+k+'</span><span class="v">'+esc(v||'-')+(badge||'')+'</span></div>'}
  var msg=lv?'<div class="msg" style="background:'+(lv==='red'?'#FEE2E2':'#FEF3C7')+';color:'+(lv==='red'?'#7F1D1D':'#78350F')+'">'+(lv==='red'?'품질 이상 주의':lv==='amber'?'추가 검사 필요':'기준 초과 예상')+' — '+esc(t.msg)+'</div>':'';
@@ -325,19 +331,19 @@ function renderDetail(){
   '<div class="grid2" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))"><div><h2 style="margin-bottom:6px">배치 기록 (제품생산작업일보)</h2>'+facts+'</div><div><h2 style="margin-bottom:6px">품질 기준 (배합작업 매뉴얼) · 규격</h2>'+specs+'</div><div><h2 style="margin-bottom:6px">점검 항목 (오늘 일지)</h2>'+chk+'</div></div></section>';
 }
 function renderHandover(){
- var V=LIVE,all=[];V.lines.forEach(function(l){all=all.concat(l.tanks)});
+ var V=LIVE,all=[],LL=V.lines.filter(function(l){return l.L.room===ROOM()}),notes=V.notes.filter(inRoom).map(function(n){return n.t});LL.forEach(function(l){all=all.concat(l.tanks)});
  function c(s){return all.filter(function(t){return t.state===s}).length}
- var alertN=V.flags.filter(function(f){return f.lv==='red'||f.lv==='amber'}).length,remain=V.lines.reduce(function(a,l){return a+l.remain},0);
+ var alertN=V.flags.filter(function(f){return inRoom(f)&&(f.lv==='red'||f.lv==='amber')}).length,remain=LL.reduce(function(a,l){return a+l.remain},0);
  var h=new Date().getHours(),shift=h<6?'심야조':h<14?'오전조':h<22?'오후조':'심야조';
- var K=[['혼합 중',c('혼합 중'),'배치','var(--mix)'],['이송 대기',c('이송 대기'),'배치','var(--ready)'],['이송 중',c('이송 중'),'배치','var(--move)'],['CIP 중',c('CIP 중'),'탱크','var(--cip)'],['품질 주의',alertN,'추가 검사 · 냉각 이송',alertN?'var(--red)':'#14532D'],['남은 배치',remain,'5개 호기 합계','var(--ink)']];
- document.getElementById('handover').innerHTML='<section class="card"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:baseline"><h2>교대 인수인계 카드</h2><span class="note">'+shift+' 근무 중 · '+hh(V.m)+' 기준 자동 작성</span></div><div class="kp">'+K.map(function(k){return '<div><span>'+k[0]+'</span><b style="color:'+k[3]+'">'+k[1]+'</b><small>'+k[2]+'</small></div>'}).join('')+'</div>'+
-  '<div><h2 style="font-size:13px;margin-bottom:4px">인계 특이사항 (오늘 생산작업일보 비고 · 특이사항)</h2>'+(V.notes.length?V.notes.map(function(n){return '<div class="row"><span>· '+esc(n)+'</span></div>'}).join(''):'<div class="empty">적힌 특이사항이 없습니다.</div>')+'</div></section>';
+ var K=[['혼합 중',c('혼합 중'),'배치','var(--mix)'],['이송 대기',c('이송 대기'),'배치','var(--ready)'],['이송 중',c('이송 중'),'배치','var(--move)'],['CIP 중',c('CIP 중'),'탱크','var(--cip)'],['품질 주의',alertN,'추가 검사 · 냉각 이송',alertN?'var(--red)':'#14532D'],['남은 배치',remain,(ROOM()?'4 · 5호기 합계':'1 · 2 · 3호기 합계'),'var(--ink)']];
+ document.getElementById('handover').innerHTML='<section class="card"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:baseline"><h2>'+(ROOM()?'신규 배합실':'구 배합실')+' 교대 인수인계 카드</h2><span class="note">'+shift+' 근무 중 · '+hh(V.m)+' 기준 자동 작성</span></div><div class="kp">'+K.map(function(k){return '<div><span>'+k[0]+'</span><b style="color:'+k[3]+'">'+k[1]+'</b><small>'+k[2]+'</small></div>'}).join('')+'</div>'+
+  '<div><h2 style="font-size:13px;margin-bottom:4px">인계 특이사항 (오늘 생산작업일보 비고 · 특이사항)</h2>'+(notes.length?notes.map(function(n){return '<div class="row"><span>· '+esc(n)+'</span></div>'}).join(''):'<div class="empty">적힌 특이사항이 없습니다.</div>')+'</div></section>';
 }
 function renderTodos(){
  var V=LIVE,ORD={red:0,amber:1,pred:2,chk:3,cip:4},TAG={red:['긴급','var(--red)'],amber:['추가 검사','var(--ready)'],pred:['초과 예상','var(--ready)'],chk:['점검 X','var(--red)'],cip:['CIP','var(--cip)']};
- var f=V.flags.slice().sort(function(a,b){return ORD[a.lv]-ORD[b.lv]});
+ var f=V.flags.filter(inRoom).sort(function(a,b){return ORD[a.lv]-ORD[b.lv]});
  document.getElementById('todos').innerHTML='<section class="card" style="height:100%"><h2>오늘 할 일 · 확인 사항</h2>'+(f.length?f.map(function(x){return '<div class="todo"><b style="color:'+TAG[x.lv][1]+'">'+TAG[x.lv][0]+'</b><span>'+esc(x.text)+'</span></div>'}).join(''):'<div class="empty">지금 확인할 항목이 없습니다.</div>')+'</section>';
- var M=V.missing;
+ var M=V.missing.filter(inRoom);
  document.getElementById('missing').innerHTML='<section class="card" style="height:100%"><div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline"><h2>기록 누락 알림</h2><span class="note">단계는 지났는데 일지 칸이 빈 곳</span></div>'+(M.length?M.map(function(x){return '<div class="todo" style="flex-direction:column;gap:2px"><span><b style="color:var(--ready)">'+esc(x.where.replace(/^L/,''))+'</b> · '+esc(x.what)+'</span><span class="note">'+esc(x.form)+'</span></div>'}).join(''):'<div class="empty">빠진 기록이 없습니다.</div>')+'</section>';
 }
 function renderRules(){
@@ -347,11 +353,22 @@ function renderRules(){
  '</tbody></table></div><div class="note" style="background:#F8FAFC;border-left:4px solid var(--red);border-radius:6px;padding:10px 12px;line-height:1.7;color:var(--sub)">생산작업일보 집중 모니터링으로 작업표준 미준수 및 변질 사고 시 무관용 원칙 적용 · 조합탱크 시간 초과 시 냉각 이송 · 빠듯한 경우(예: 3시간 40분) 생산 중 10분 간격 pH · Brix · 침전도 검사</div></section>';
 }
 function renderSilo(){
- document.getElementById('silo').innerHTML='<section class="card"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:baseline"><h2>SILO 운영 현황</h2><span class="note">CIP 상태는 CIP 및 살균 작업 일보(기존 배합실) SILO TANK 행 기준 · 잔량은 기록 칸이 생기면 표시</span></div><div class="silos">'+
- LIVE.silos.map(function(x){var c=x.cip,st=c?(c.e==null?'CIP 중':'CIP 완료 '+hh(c.e)):'오늘 CIP 기록 없음',col=c&&c.e==null?'var(--cip)':'var(--mute)';
-  var drops='';if(c&&c.e==null){[10,16,22,32,38,44].forEach(function(x2,i){drops+='<rect class="d" x="'+x2+'" y="20" width="1.5" height="4" rx=".75" fill="#0EA5E9" style="animation-delay:-'+(i*0.3).toFixed(1)+'s"></rect>'});drops+='<circle cx="28" cy="18" r="3.5" fill="#0EA5E9" stroke="#0369A1"></circle>'}
-  return '<div class="silo"><svg width="56" height="104" viewBox="0 0 56 104" aria-hidden="true"><rect x="3" y="11" width="50" height="90" rx="14" fill="#E2E8F0" stroke="#64748B" stroke-width="1.5"></rect><rect x="21" y="2" width="14" height="9" rx="2" fill="#475569"></rect><line x1="28" y1="11" x2="28" y2="89" stroke="#1E293B" stroke-width="2"></line><rect x="16" y="86" width="24" height="3.5" rx="1.75" fill="#1E293B"></rect>'+drops+'</svg>'+
-  '<div style="display:flex;flex-direction:column;gap:3px"><b style="font-size:16px">'+x.s.id+'</b><span class="note">용량 '+x.s.cap.toLocaleString()+'kg</span><span style="font-size:12.5px;font-weight:700;color:'+col+'">'+st+'</span><span class="note">잔량 미기록</span></div></div>'}).join('')+'</div></section>';
+ var T=today();
+ var cards=LIVE.silos.map(function(x){var c=x.cip,run=c&&c.e==null,st=c?(run?'CIP 중':'CIP 완료'):'오늘 CIP 기록 없음',col=run?'var(--cip)':c?'var(--move)':'var(--mute)';
+  var drops='';if(run){[12,20,28,40,48,56].forEach(function(x2,i){drops+='<rect class="d" x="'+x2+'" y="24" width="1.8" height="5" rx=".9" fill="#0EA5E9" style="animation-delay:-'+(i*0.3).toFixed(1)+'s"></rect>'});drops+='<circle cx="34" cy="22" r="4.5" fill="#0EA5E9" stroke="#0369A1"></circle>'}
+  var water=run?'<rect x="7" y="130" width="54" height="14" rx="6" fill="#7DD3FC"></rect>':'';
+  var hist=x.all.length?x.all.slice().reverse().map(function(e){return '<div class="row"><span class="k">'+hh(e.s)+' ~ '+(e.e!=null?hh(e.e):'진행 중')+'</span><span class="v">'+(e.e!=null?dur(e.e-e.s):'')+(e.kind?' · '+esc(e.kind):'')+'</span></div>'}).join(''):'<div class="empty">오늘 · 어제 CIP 기록이 없습니다.</div>';
+  return '<div class="card" style="flex-direction:row;gap:16px;align-items:flex-start;border-color:'+(run?'var(--cip)':'var(--line)')+';border-width:'+(run?'2px':'1px')+'">'+
+   '<svg width="68" height="160" viewBox="0 0 68 160" aria-hidden="true" style="flex:none"><rect x="4" y="14" width="60" height="142" rx="18" fill="#E2E8F0" stroke="#64748B" stroke-width="1.5"></rect>'+water+'<rect x="26" y="2" width="16" height="12" rx="2" fill="#475569"></rect><line x1="34" y1="14" x2="34" y2="140" stroke="#1E293B" stroke-width="2.5"></line><rect x="20" y="136" width="28" height="4" rx="2" fill="#1E293B"></rect>'+drops+'</svg>'+
+   '<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><b style="font-size:22px">'+x.s.id+'</b><span class="note">용량 '+x.s.cap.toLocaleString()+'kg</span></div>'+
+   '<span style="font-size:14px;font-weight:800;color:'+col+'">'+st+(c?(run?' · '+hh(c.s)+' 시작 · 약 '+hh(c.s+CIPMIN)+' 종료 예상':' · '+hh(c.e)):'')+'</span>'+
+   '<span class="note">잔량 · 내용물: 기록 칸 없음</span>'+
+   '<div style="margin-top:4px"><div style="font-size:12px;font-weight:800;color:var(--sub)">CIP 기록 (오늘 · 어제)</div>'+hist+'</div></div></div>'});
+ var run=LIVE.silos.filter(function(x){return x.cip&&x.cip.e==null}).length,done=LIVE.silos.filter(function(x){return x.cip&&x.cip.e!=null}).length;
+ document.getElementById('silo').innerHTML='<section class="card"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:baseline"><h2 style="font-size:17px;color:var(--ink)">SILO 현황판</h2><span class="note">CIP 및 살균 작업 일보(기존 배합실) SILO TANK 1~5 행 기준 · '+hh(LIVE.m)+' 갱신</span></div>'+
+  '<div class="kp"><div><span>CIP 중</span><b style="color:var(--cip)">'+run+'</b><small>SILO</small></div><div><span>오늘 CIP 완료</span><b style="color:var(--move)">'+done+'</b><small>SILO</small></div><div><span>전체 용량</span><b>'+(SILOS.reduce(function(a,x){return a+x.cap},0)/1000)+'톤</b><small>S1~S5</small></div></div></section>'+
+  '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">'+cards.join('')+'</div>'+
+  '<section class="card"><h2>잔량 · 내용물 표시하려면</h2><div class="note" style="line-height:1.7;color:var(--sub)">지금 일지에는 SILO 잔량 · 내용물(원유 종류, 수유일)을 적는 칸이 없어 탱크 안 양을 그리지 못합니다. 하루 1~2번 SILO별 잔량과 내용물을 적는 칸을 일지에 추가하면, 이 화면에서 탱크 수위 · 내용물 색 · 생산계획 기준 소진 예상 시각까지 바로 보여 줄 수 있습니다.</div></section>';
 }
 
 /* ───────── 관리 분석 ───────── */
@@ -409,13 +426,16 @@ function renderMgr(){
 }
 
 /* ───────── 화면 · 데이터 ───────── */
-function setTab(t){TAB=t;['live','mgr','plan'].forEach(function(k){document.getElementById('tab-'+k).classList.toggle('on',k===t);var v=document.getElementById('v-'+k);v.classList.toggle('hide',k!==t);v.style.display=k===t?'flex':'none'});
+function setTab(t){if(t==='live')t='old';TAB=t;var view={old:'live',new:'live',silo:'silo',mgr:'mgr',plan:'plan'};
+ ['old','new','silo','mgr','plan'].forEach(function(k){document.getElementById('tab-'+k).classList.toggle('on',k===t)});
+ ['live','silo','mgr','plan'].forEach(function(v){var e=document.getElementById('v-'+v),on=view[t]===v;e.classList.toggle('hide',!on);e.style.display=on?'flex':'none'});
  if(t==='plan'){var f=document.getElementById('planFrame');if(!f.getAttribute('src'))f.setAttribute('src','index.html?embed=1#/planconv')}
+ if(t==='old'||t==='new'){var tk=SEL&&LINES.filter(function(L){return L.tk.indexOf(SEL)>=0})[0];if(tk&&tk.room!==ROOM())SEL=null;document.querySelectorAll('.line').forEach(function(l){l.dataset.sig=''})}
  try{localStorage.setItem('mix_tab',t)}catch(e){}render()}
 function goPortal(){try{if(window.opener&&!window.opener.closed){window.opener.focus();return}}catch(e){}location.href='index.html'}
 function summerUI(){var b=document.getElementById('summerBtn');b.textContent=SUMMER?'하절기 기준 적용 중':'하절기 기준 꺼짐';b.style.background=SUMMER?'#FEF3C7':'#fff';b.setAttribute('aria-pressed',SUMMER?'true':'false')}
 document.getElementById('summerBtn').onclick=function(){SUMMER=!SUMMER;try{localStorage.setItem('mix_summer',SUMMER?'1':'0')}catch(e){}summerUI();document.querySelectorAll('.line').forEach(function(l){l.dataset.sig=''});render()};
-function render(){if(!DATA)return;try{if(TAB==='live')renderLive();else if(TAB==='mgr')renderMgr()}catch(e){console.error(e)}}
+function render(){if(!DATA)return;try{if(TAB==='old'||TAB==='new')renderLive();else if(TAB==='silo'){LIVE=computeLive();headAlert(LIVE);renderSilo()}else if(TAB==='mgr')renderMgr()}catch(e){console.error(e)}}
 function session(){var s=null;try{s=JSON.parse(sessionStorage.getItem('yum_sess')||localStorage.getItem('yum_sess')||'null')}catch(e){}if(!s)return null;if(s.exp&&Date.now()>s.exp)return null;return s}
 function gate(msg){var g=document.getElementById('gate');g.innerHTML='<h1 style="margin:0;font-size:22px">배합팀 업무포털</h1><p style="margin:0;color:#475569;line-height:1.7">'+msg+'</p><a class="btn dark" style="display:flex;align-items:center;justify-content:center;text-decoration:none" href="index.html">부문포털로 가기</a>';g.classList.remove('hide');document.getElementById('app').classList.add('hide')}
 function checkUser(){var s=session();if(!s){gate('부문포털에 로그인한 뒤, 홈 화면의 <b>배합팀 업무포털</b> 배너를 눌러 열어 주세요.');return false}
@@ -433,13 +453,13 @@ async function pull(first){
 }
 function boot(){
  try{var c=localStorage.getItem(DBKEY);if(c)DATA=JSON.parse(c)}catch(e){}
- try{var t=localStorage.getItem('mix_tab');if(t==='mgr'||t==='plan')TAB=t}catch(e){}
+ try{var t=localStorage.getItem('mix_tab');if(['old','new','silo','mgr','plan'].indexOf(t)>=0)TAB=t}catch(e){}
  summerUI();
  if(DATA){if(checkUser())setTab(TAB)}else if(!session())gate('부문포털에 로그인한 뒤, 홈 화면의 <b>배합팀 업무포털</b> 배너를 눌러 열어 주세요.');
  pull(true).then(function(){if(DATA&&checkUser())setTab(TAB)});
  setInterval(function(){pull(false)},30000);
  setInterval(function(){var n=new Date();document.getElementById('clock').textContent=pad(n.getHours())+':'+pad(n.getMinutes())},1000);
- setInterval(function(){if(TAB==='live')render()},15000);
+ setInterval(function(){if(['old','new','silo'].indexOf(TAB)>=0)render()},15000);
  window.addEventListener('storage',function(e){if(e.key===DBKEY&&e.newValue){try{DATA=JSON.parse(e.newValue);render()}catch(x){}}});
 }
 boot();
