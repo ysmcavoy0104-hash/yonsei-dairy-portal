@@ -12426,8 +12426,8 @@ document.addEventListener('visibilitychange',function(){if(!document.hidden)setT
 
 /* 로그인: 서버 확인에 시간 제한 + 버튼에 진행 표시 */
 var _es=S.ensureSession.bind(S);
-S.ensureSession=async function(){var r=await to(_es.apply(this,arguments),7000);if(r==='__timeout__'){console.warn('[로그인] 서버 응답 지연');return {ok:false,msg:'timeout'}}return r};
-if(S.resolveEmail){var _re=S.resolveEmail.bind(S);S.resolveEmail=async function(){var r=await to(_re.apply(this,arguments),6000);return r==='__timeout__'?null:r}}
+S.ensureSession=async function(){var r=await to(_es.apply(this,arguments),20000);if(r==='__timeout__'){console.warn('[로그인] 서버 응답 지연');return {ok:false,msg:'timeout'}}return r};
+if(S.resolveEmail){var _re=S.resolveEmail.bind(S);S.resolveEmail=async function(){var r=await to(_re.apply(this,arguments),12000);return r==='__timeout__'?null:r}}
 var _login=Auth.login.bind(Auth);
 Auth.login=async function(ev){
  var b=document.querySelector('#f-login button.btn-p'),t=b?b.textContent:'';
@@ -14238,9 +14238,11 @@ console.log('[확장 모듈 60] 지연·정비 기록 입력 보강 로드 완�
    그 밖의 직원: 희망휴무 입력만 가능, 나머지는 보기 · 인쇄 · PDF만                                              */
 (function(){
 if(window.__YUM_WSLOCK__)return;window.__YUM_WSLOCK__=1;
-function sup(){try{var u=Auth.user();return !!u&&u.role==='superadmin'}catch(e){return false}}
+function sup0(){try{var u=Auth.user();return !!u&&u.role==='superadmin'}catch(e){return false}}
+var TMX=/[?&]embed=1(&|$)/.test(location.search)&&/[?&]team=mix(&|$)/.test(location.search),STRICT={confirmWeek:1,unconfirmWeek:1,wipe:1,confirm:1};
+function sup(){return sup0()||TMX}
 function deny(){try{U.toast('근무표 수정은 최고관리자만 할 수 있습니다. (희망휴무 입력만 가능)','bad')}catch(e){}}
-function guard(obj,names){if(!obj)return;names.forEach(function(k){var f=obj[k];if(typeof f!=='function'||f.__lk)return;var g=function(){if(!sup()){deny();return}return f.apply(this,arguments)};g.__lk=1;obj[k]=g})}
+function guard(obj,names){if(!obj)return;names.forEach(function(k){var f=obj[k];if(typeof f!=='function'||f.__lk)return;var g=function(){if(!(STRICT[k]?sup0():sup())){deny();return}return f.apply(this,arguments)};g.__lk=1;obj[k]=g})}
 function wrapAll(){
  guard(window.WorkSched,['setTarget','setReq','setTeamReq','openAddHoliday','addHoliday','removeHoliday','plan','solve','toggleMaint','resetTeam','syncTotal','recalc']);
  guard(window.WeekPlan,['edStart','edSave','edSet','edSup','edPut','edPick','confirmWeek','unconfirmWeek']);
@@ -15975,9 +15977,9 @@ App.render=function(){
  return _r.apply(this,arguments);
 };
 /* 직원 계정: 수정 · 확정 버튼은 처음부터 숨김 */
-function mark(){try{var u=Auth.user();document.documentElement.classList.toggle('wp-ro',!(u&&u.role==='superadmin'))}catch(e){}}
+function mark(){try{var u=Auth.user(),sup=!!(u&&u.role==='superadmin'),tm=/[?&]team=mix(&|$)/.test(location.search)&&/[?&]embed=1(&|$)/.test(location.search);document.documentElement.classList.toggle('wp-ro',!sup&&!tm);document.documentElement.classList.toggle('wp-tm',!sup&&tm)}catch(e){}}
 mark();setInterval(mark,2000);window.addEventListener('hashchange',mark);
-document.head.insertAdjacentHTML('beforeend','<style>html.wp-ro #wp-root button[onclick*="edStart"],html.wp-ro #wp-root button[onclick*="confirmWeek"],html.wp-ro #wp-root button[onclick*="unconfirmWeek"],html.wp-ro #wp-root .so-btn{display:none!important}</style>');
+document.head.insertAdjacentHTML('beforeend','<style>html.wp-ro #wp-root button[onclick*="edStart"],html.wp-ro #wp-root button[onclick*="confirmWeek"],html.wp-ro #wp-root button[onclick*="unconfirmWeek"],html.wp-ro #wp-root .so-btn{display:none!important}html.wp-tm #wp-root button[onclick*="confirmWeek"],html.wp-tm #wp-root button[onclick*="unconfirmWeek"]{display:none!important}</style>');
 })();
 </script>
 
@@ -16900,6 +16902,7 @@ setTimeout(run,8000);setInterval(run,8000);
 'use strict';
 if(window.__YUM_SLIM__)return;window.__YUM_SLIM__=1;
 var EMB=/[?&]embed=1(&|$)/.test(location.search);
+var TEAMEMB=EMB&&/[?&]team=mix(&|$)/.test(location.search); /* 배합팀 업무포털 안에서 연 화면 */
 function me(){try{return Auth.user()}catch(e){return null}}
 function isSuper(){var u=me();return !!(u&&u.role==='superadmin')}
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
@@ -16984,7 +16987,7 @@ App.render=function(){
  var p=route(),M=document.getElementById('main');
  if(!me()||!M)return _r.apply(this,arguments);
  if(p==='#/teams'){this.baseRoute='#/teams';M.innerHTML=teamsHTML();try{this.buildSidebar();this.refreshChrome()}catch(e){}return}
- if(WORK.indexOf(p)>=0&&!isSuper()){this.baseRoute='#/dash';M.innerHTML=lockHTML('최고관리자 전용 화면','근무편성 · 주간근무계획표는 최고관리자만 볼 수 있습니다.','<button class="btn btn-p" onclick="App.go(\'#/overview\')">대시보드로</button>');try{this.buildSidebar();this.refreshChrome()}catch(e){}return}
+ if(WORK.indexOf(p)>=0&&!isSuper()&&!TEAMEMB){this.baseRoute='#/dash';M.innerHTML=lockHTML('최고관리자 전용 화면','근무편성 · 주간근무계획표는 최고관리자만 볼 수 있습니다.','<button class="btn btn-p" onclick="App.go(\'#/overview\')">대시보드로</button>');try{this.buildSidebar();this.refreshChrome()}catch(e){}return}
  if(p==='#/admin'&&!isSuper()){this.baseRoute='#/dash';M.innerHTML=lockHTML('최고관리자 전용 화면','시스템관리는 최고관리자만 볼 수 있습니다.','<button class="btn btn-p" onclick="App.go(\'#/overview\')">대시보드로</button>');try{this.buildSidebar();this.refreshChrome()}catch(e){}return}
  if(PLAN.indexOf(p)>=0&&!EMB){this.baseRoute='#/teams';M.innerHTML=lockHTML('생산계획은 배합팀 업무포털로 옮겼습니다','생산계획표 변환은 이제 <b>배합팀 업무포털 → 생산계획표 변환</b> 탭에서 합니다. 변환 결과(공정 규격 · 사일로 배정)는 지금처럼 같은 서버에 저장됩니다.','<button class="btn btn-p" onclick="yumOpenMix()">배합팀 포털 열기 →</button>');try{this.buildSidebar();this.refreshChrome()}catch(e){}return}
  var res=_r.apply(this,arguments);
@@ -17054,16 +17057,18 @@ function teamInsight(){var M=document.getElementById('main');if(!M||route()!=='#
    생산계획표(PDF)를 올리면 계산되는 원유 수유 · 사이로(S1~S5) 배정을 DB.data.siloNow 에 요약해 둔다 → 배합팀 포털 SILO 현황판이 읽음
    · 계획이 바뀌었을 때만 저장 (같으면 저장 안 함) */
 var SN_T=null,SN_BUSY=false;
-function siloSnap(){if(SN_BUSY||EMB&&!/planconv/.test(location.hash))return;try{if(!window.SiloPlan||!SiloPlan._plan||!DB.data.siloWeeks||!Object.keys(DB.data.siloWeeks).length)return;
+function siloSnap(){if(SN_BUSY||!/planconv/.test(location.hash||''))return;try{if(!window.SiloPlan||!SiloPlan._plan||!DB.data.siloWeeks||!Object.keys(DB.data.siloWeeks).length)return;
  var P=SiloPlan._plan();if(!P||!P.lots)return;
  var lots=P.lots.filter(function(l){return l.silo}).map(function(l){return {silo:l.silo,cls:l.cls,kind:l.kind||'',type:l.type||'',lf:!!l.lf,enzyme:!!l.enzyme,qty:Math.round(+l.qty||0),a:l.cls==='milk'?(l.recv||l.use):(l.prod||l.use),b:l.use,line:l.line||'',products:(l.products||[]).slice(0,6)}});
  var snap={key:P.key,lots:lots};var sig=JSON.stringify(snap);var cur=DB.data.siloNow;
  if(cur&&JSON.stringify({key:cur.key,lots:cur.lots})===sig)return;
  snap.at=Date.now();SN_BUSY=true;DB.data.siloNow=snap;try{DB.save()}finally{SN_BUSY=false}}catch(e){SN_BUSY=false;console.warn('[siloSnap]',e)}}
-function queueSnap(){clearTimeout(SN_T);SN_T=setTimeout(siloSnap,2500)}
-try{var _dsv=DB.save;DB.save=function(){var r=_dsv.apply(this,arguments);if(!SN_BUSY)queueSnap();return r}}catch(e){}
-try{var _ad2=SupaSync.adopt.bind(SupaSync);SupaSync.adopt=function(){var r=_ad2.apply(this,arguments);queueSnap();return r}}catch(e){}
-setTimeout(siloSnap,4000);
+function queueSnap(){clearTimeout(SN_T);SN_T=setTimeout(siloSnap,3000)}
+/* 서버 부담 줄이기: 생산계획표 변환 화면에 있을 때만 (들어올 때 · 업로드 · 수정 후) 계산 — 저장마다 계산하지 않음 */
+window.addEventListener('hashchange',function(){if(/planconv/.test(location.hash||''))queueSnap()});
+document.addEventListener('change',function(e){if(e.target&&e.target.id==='pc-file')setTimeout(queueSnap,4000)},true);
+document.addEventListener('click',function(e){if(/planconv/.test(location.hash||'')&&e.target&&e.target.closest&&e.target.closest('.sp-bar,.sp-box,.modal,.btn'))queueSnap()},true);
+if(/planconv/.test(location.hash||''))setTimeout(siloSnap,5000);
 /* ---------- 스타일 ---------- */
 var css=
  '.yl-dd{position:relative;display:inline-flex;align-items:center}.yl-cv{display:inline-block;width:6px;height:6px;margin-left:7px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:translateY(-2px) rotate(45deg);opacity:.7;transition:transform .25s}'+
