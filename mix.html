@@ -124,6 +124,9 @@ table{border-collapse:collapse;width:100%}td b,.bar b{white-space:nowrap}th,td{p
 .tbar.done i{width:100%;animation:none;background:linear-gradient(90deg,#86EFAC,#22C55E)}
 @keyframes barfill{0%{width:0;opacity:.85}70%{width:var(--p);opacity:1}100%{width:var(--p);opacity:1}}
 @media (prefers-reduced-motion:reduce){.drain,.tbar i{animation:none}}
+@keyframes bub{0%{transform:translateY(0);opacity:0}10%{opacity:.95}100%{transform:translateY(calc(var(--top) - 150px));opacity:0}}
+.bub{animation:bub 2.8s ease-in infinite}
+@media (prefers-reduced-motion:reduce){.bub{animation:none;display:none}}
 body{background:#F4F6FA}
 .hero{margin:-18px -16px 0;padding:22px 16px 26px;background:radial-gradient(1200px 280px at 85% -40%,rgba(200,161,90,.22),transparent 60%),linear-gradient(100deg,#0A142B 0%,#12244A 52%,#1B3567 100%);color:#fff;box-shadow:0 1px 0 rgba(200,161,90,.38),0 14px 30px -18px rgba(5,12,30,.6)}
 .hero-in{max-width:1400px;margin:0 auto;display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between}
@@ -357,7 +360,7 @@ function computeLive(){
 }
 
 /* ───────── 그리기: 현황판 ───────── */
-function wave(y,amp,x1){var d='M-18 '+y.toFixed(1);for(var x=-18;x<x1;x+=9)d+=' q4.5 '+(x%18===0?-amp:amp)+' 9 0';return d+' L'+x1+' 110 L-18 110 Z'}
+function wave(y,amp,x1){var d='M-18 '+y.toFixed(1);for(var x=-18;x<x1;x+=9)d+=' q4.5 '+(x%18===0?-amp:amp)+' 9 0';return d+' L'+x1+' 220 L-18 220 Z'}
 function tankSvg(t,product){
  var lvl=t.level||0,fill=t.state==='CIP 중'||t.state==='CIP 완료'?'#7DD3FC':liq(product),sp=t.off?0:t.sp;
  var mv=t.state==='이송 중';
@@ -452,26 +455,28 @@ function siloFrameLoad(){var f=document.getElementById('planFrame');if(!f.getAtt
 function siloSrc(){return SILOFR&&SILOFR.lots?SILOFR:(DATA&&DATA.siloNow)}
 function siloLots(id){var N=siloSrc();if(!N||!N.lots)return [];return N.lots.filter(function(l){return l.silo===id}).sort(function(a,b){return String(a.a).localeCompare(String(b.a))})}
 function md(k){var p=String(k||'').split('-');return p.length===3?(+p[1])+'/'+(+p[2]):String(k||'')}
-function lotLabel(l){if(l.cls==='milk')return ((l.type&&l.type!=='일반')?l.type+' ':'')+(l.kind||'원유')+(l.lf?' · 락토프리':l.enzyme?' · 효소':'');if(l.cls==='wonaek')return '원액'+(l.enzyme?' · 효소 투입':'');return '원액 (당일 출고)'}
+function lotLabel(l){if(l.cls==='milk')return ((l.type&&l.type!=='일반')?l.type+' ':'')+(l.kind||'원유')+(l.lf?' · 락토프리':l.enzyme?' · 효소':'');if(l.cls==='wonaek')return '두유 원액'+(l.enzyme?' · 효소 투입':'');return '두유 원액 (당일 출고)'}
 function lotSub(l){if(l.cls==='milk')return l.a===l.b?'당일 수유 · 사용':md(l.a)+' 수유 → '+md(l.b)+' 사용';return l.a===l.b?'당일 생산 · 사용':md(l.a)+' 생산 → '+md(l.b)+' 사용'}
 function renderSilo(){
  siloFrameCalc();var T=today(),N=siloSrc();
  function card(x){var c=x.cip,run=c&&c.e==null,lots=siloLots(x.s.id),SDd=siloSrc(),useT=!!(SDd&&SDd.days&&(SDd.days[T]||[]).indexOf(x.s.id)>=0),now=lots.filter(function(l){return l.b===T})[0]||lots.filter(function(l){return l.a<=T&&l.b>=T})[0],next=lots.filter(function(l){return l.a>T})[0];
-  var lvl=now?Math.max(.08,Math.min(.95,(now.qty||0)/x.s.cap)):0,fill=run?'#7DD3FC':now?(now.cls==='milk'?'#FFFFFF':'#EAD7B0'):'#FFFFFF';
+  var lvl=now?Math.max(.08,Math.min(.95,(now.qty||0)/x.s.cap)):0,enz=!!(now&&now.enzyme),fill=run?'#7DD3FC':now?(now.cls==='milk'?(enz?'#E4F2CF':'#FFFFFF'):'#DCC199'):'#FFFFFF';
   if(run&&!now)lvl=.1;
   var h=142,top=14,wl=lvl?(top+h-4)-(h-8)*lvl:null;
-  var wv=lvl?'<g clip-path="url(#cs'+x.s.id+')"><g class="w3"><path d="'+wave(wl,1.4,90)+'" fill="'+fill+'" stroke="#94A3B8" stroke-width="0.7"></path></g></g>':'';
+  /* 바닥부터 꽉 차게 · 효소 투입은 기포가 올라오는 모습 */
+  var bub='';if(enz&&lvl&&!run){[[16,0],[28,.7],[40,1.4],[52,.35],[22,1.9],[46,2.4]].forEach(function(b){bub+='<circle class="bub" cx="'+b[0]+'" cy="150" r="2.2" fill="#fff" stroke="#7CB342" stroke-width=".8" style="animation-delay:-'+b[1]+'s;--top:'+(wl+6).toFixed(0)+'px"></circle>'})}
+  var wv=lvl?'<g clip-path="url(#cs'+x.s.id+')"><g class="w3"><path d="'+wave(wl,1.4,90)+'" fill="'+fill+'" stroke="'+(enz?'#7CB342':'#94A3B8')+'" stroke-width="'+(enz?1:.7)+'"></path></g>'+bub+'</g>':'';
   var drops='';if(run){[12,20,28,40,48,56].forEach(function(x2,i){drops+='<rect class="d" x="'+x2+'" y="24" width="1.8" height="5" rx=".9" fill="#0EA5E9" style="animation-delay:-'+(i*0.3).toFixed(1)+'s"></rect>'});drops+='<circle cx="34" cy="22" r="4.5" fill="#0EA5E9" stroke="#0369A1"></circle>'}
   var spin=now&&!run?'s3':'';
   var svg='<svg width="68" height="160" viewBox="0 0 68 160" aria-hidden="true" style="flex:none"><defs><clipPath id="cs'+x.s.id+'"><rect x="6" y="16" width="56" height="138" rx="16"></rect></clipPath></defs><rect x="4" y="14" width="60" height="142" rx="18" fill="#E2E8F0" stroke="#64748B" stroke-width="1.5"></rect>'+wv+'<rect x="26" y="2" width="16" height="12" rx="2" fill="#475569"></rect><line x1="34" y1="14" x2="34" y2="140" stroke="#1E293B" stroke-width="2.5"></line><g class="'+spin+'"><rect x="20" y="136" width="28" height="4" rx="2" fill="#1E293B"></rect></g>'+drops+'</svg>';
-  var st=run?'CIP 중 · '+hh(c.s)+' 시작 · 약 '+hh(c.s+CIPMIN)+' 종료 예상':now?lotLabel(now):'오늘 배정 없음';
+  var st=run?'CIP 중 · '+hh(c.s)+' 시작 · 약 '+hh(c.s+CIPMIN)+' 종료 예상':now?lotLabel(now):'오늘 배정 없음';var enzB=enz&&!run?' <span style="font-size:11px;font-weight:800;padding:1px 8px;border-radius:999px;background:#E4F2CF;color:#33691E;border:1px solid #9CCC65">효소</span>':'';
   var col=run?'var(--cip)':now?'var(--ink)':'var(--mute)';
   var body=now?'<div class="row"><span class="k">계획 수량</span><span class="v">'+(now.qty||0).toLocaleString()+' L ('+Math.round(lvl*100)+'%)</span></div><div class="row"><span class="k">일정</span><span class="v">'+lotSub(now)+'</span></div>'+(now.line?'<div class="row"><span class="k">사용 라인</span><span class="v">'+esc(now.line)+'</span></div>':'')+(now.products&&now.products.length?'<div class="note" style="line-height:1.6">'+esc(now.products.join(' · '))+'</div>':''):'';
   var nx=next?'<div class="row"><span class="k">다음 배정</span><span class="v">'+md(next.a)+' · '+esc(lotLabel(next))+' '+(next.qty||0).toLocaleString()+'L</span></div>':'';
   var cipT=c?'<div class="row"><span class="k">최근 CIP</span><span class="v">'+hh(c.s)+' ~ '+(c.e!=null?hh(c.e):'진행 중')+(c.kind?' · '+esc(c.kind):'')+'</span></div>':'';
   return '<div class="card" style="flex-direction:row;gap:16px;align-items:flex-start;border-color:'+(run?'var(--cip)':'var(--line)')+';border-width:'+(run?'2px':'1px')+'">'+svg+
    '<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><span style="display:flex;align-items:center;gap:8px"><b style="font-size:22px">'+x.s.id+'</b>'+(useT?'<span style="font-size:11.5px;font-weight:800;padding:2px 9px;border-radius:999px;background:#12244A;color:#fff;box-shadow:inset 0 -2px 0 #C8A15A">오늘 사용</span>':'')+'</span><span class="note">용량 '+x.s.cap.toLocaleString()+'L</span></div>'+
-   '<span style="font-size:14px;font-weight:800;color:'+col+'">'+esc(st)+'</span>'+body+nx+cipT+'</div></div>'}
+   '<span style="font-size:14px;font-weight:800;color:'+col+'">'+esc(st)+enzB+'</span>'+body+nx+cipT+'</div></div>'}
  var grp=[['S1 · S2 · S3',0],['S4 · S5',1]].map(function(g){return '<section class="room"><h3>'+g[0]+'</h3><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px">'+LIVE.silos.filter(function(x){return x.s.g===g[1]}).map(card).join('')+'</div></section>'}).join('');
  var run=LIVE.silos.filter(function(x){return x.cip&&x.cip.e==null}).length,SD=siloSrc(),useToday=SD&&SD.days&&SD.days[T]?SD.days[T]:null,used=useToday?useToday.length:LIVE.silos.filter(function(x){return siloLots(x.s.id).some(function(l){return l.a<=T&&l.b>=T})}).length;
  var src=N&&N.lots?'생산계획표 변환의 SILO 운영 계획 ('+esc(N.key||'')+(N.at?' · '+new Date(N.at).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})+' 반영':'')+') + CIP 및 살균 작업 일보':'CIP 및 살균 작업 일보 기준 · 생산계획표를 올리면 SILO 운영 계획이 함께 표시됩니다';
