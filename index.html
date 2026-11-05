@@ -687,6 +687,32 @@ h1.pgt{font-size:24px;font-weight:800;letter-spacing:-.02em;color:var(--navy)}
 </footer>
 
 <script>
+/* 자동 로그인 유지 보강 ① 저장 공간 (2026-11-05)
+   포털 데이터 캐시(yum_portal_v1)가 브라우저 저장 공간(약 5MB)을 거의 다 쓰면
+   서버 로그인 정보(sb-…-auth-token) · 로그인 유지 정보가 저장되지 못해 다음에 열 때 로그인 화면이 뜸
+   → 저장 공간이 모자라면 오래된 백업 · 임시 자료부터 지우고 다시 저장 (서버 로그인 정보가 가장 먼저) */
+(function(){
+'use strict';
+if(window.__YUM_AUTHSTORE__)return;window.__YUM_AUTHSTORE__=1;
+var DBK='yum_portal_v1';
+function isQuota(e){return e&&(e.name==='QuotaExceededError'||e.code===22||e.code===1014||/quota/i.test(String(e.message||e.name||'')))}
+function free(k){var ls=window.localStorage,rm=[];try{
+ if(ls.getItem(DBK+'_backup')!=null)rm.push(DBK+'_backup');
+ for(var i=0;i<ls.length;i++){var key=ls.key(i);if(!key||key===k)continue;
+  if(key.indexOf('yumbuf:')===0){try{var b=JSON.parse(ls.getItem(key)||'null');if(!b||Date.now()-(b.at||0)>12*3600e3)rm.push(key)}catch(e){rm.push(key)}}}
+ /* 서버 로그인 · 로그인 유지 정보를 저장해야 하는데도 모자라면 데이터 캐시를 비움 (데이터는 서버에서 다시 받음) */
+ if(!rm.length&&k&&(k.indexOf('sb-')===0||k==='yum_sess'||k==='yum_auto'||k==='yum_me'))rm.push(DBK);
+ rm.forEach(function(x){try{ls.removeItem(x)}catch(e){}});if(rm.length)console.warn('[저장 공간] 정리:',rm.join(', '))}catch(e){}return rm.length}
+try{var P=Storage.prototype,_set=P.setItem;
+ P.setItem=function(k,v){try{return _set.call(this,k,v)}catch(e){if(this!==window.localStorage||!isQuota(e))throw e;
+  if(free(k)){try{return _set.call(this,k,v)}catch(e2){if(free(k))return _set.call(this,k,v);throw e2}}throw e}};
+}catch(e){}
+/* 예전 백업 사본(처음 서버 연결할 때 한 번 만든 전체 복사본)은 서버가 원본이 된 지금은 필요 없음 → 지워서 공간 확보 */
+try{if(localStorage.getItem(DBK+'_backup')!=null&&localStorage.getItem(DBK)!=null){localStorage.removeItem(DBK+'_backup');console.log('[저장 공간] 예전 백업 사본 정리')}}catch(e){}
+})();
+</script>
+
+<script>
 /* PDF 내려받기 파일 이름
    · 주간근무계획표: 「26년 11월2주 주간근무계획(ver1)_가공2팀.pdf」
    · 생산계획표:     「26년 11월2주(ver1)_가공2.pdf」
@@ -17067,6 +17093,31 @@ function boot(){try{landing()}catch(e){}}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 setTimeout(boot,1500);
 console.log('[확장 모듈] 부문포털 메뉴 간소화 로드 완료');
+})();
+</script>
+
+<script>
+/* 자동 로그인 유지 보강 ② (2026-11-05)
+   · 로그인 유지(30일)가 켜져 있으면 내 계정 정보 요약을 따로 보관 → 포털 데이터를 아직 못 받았어도 로그인 상태 유지
+   · 서버 데이터를 받은 뒤 로그인 유지 상태인데 로그인 화면이 떠 있으면 바로 포털로 */
+(function(){
+'use strict';
+if(window.__YUM_AUTHKEEP__)return;window.__YUM_AUTHKEEP__=1;
+var MK='yum_me';
+function sess(){try{var s=JSON.parse(sessionStorage.getItem('yum_sess')||localStorage.getItem('yum_sess')||'null');if(!s||(s.exp&&Date.now()>s.exp))return null;return s}catch(e){return null}}
+function keepMe(u){try{if(!u||localStorage.getItem('yum_auto')!=='1')return;var o={id:u.id,name:u.name,empNo:u.empNo,role:u.role,status:u.status,dept:u.dept,team:u.team,title:u.title,email:u.email,at:Date.now()};var j=JSON.stringify(o),c=localStorage.getItem(MK);if(!c||JSON.parse(c).id!==o.id||JSON.stringify(Object.assign({},JSON.parse(c),{at:0}))!==JSON.stringify(Object.assign({},o,{at:0})))localStorage.setItem(MK,j)}catch(e){}}
+var _u=Auth.user.bind(Auth);
+Auth.user=function(){
+ var u=_u();if(u){keepMe(u);return u}
+ try{var s=sess();if(!s||localStorage.getItem('yum_auto')!=='1')return null;
+  /* 데이터에 내 계정이 있는데 못 찾은 것(비활성 등)이면 그대로 null */
+  if((DB.data.users||[]).some(function(x){return x.id===s.uid}))return null;
+  var m=JSON.parse(localStorage.getItem(MK)||'null');if(m&&m.id===s.uid&&m.status==='active')return m}catch(e){}
+ return null};
+var _lo=Auth.logout;Auth.logout=function(){try{localStorage.removeItem(MK)}catch(e){}return _lo.apply(this,arguments)};
+function reopen(){try{if(!Auth.user())return;var a=document.getElementById('page-auth');if(a&&a.classList.contains('on')){App.openPortal();console.log('[로그인 유지] 포털로 복귀')}}catch(e){}}
+try{var _ad=SupaSync.adopt.bind(SupaSync);SupaSync.adopt=function(){var r=_ad.apply(this,arguments);setTimeout(reopen,50);return r}}catch(e){}
+window.addEventListener('load',function(){setTimeout(reopen,1500);setTimeout(reopen,4000)});
 })();
 </script>
 
