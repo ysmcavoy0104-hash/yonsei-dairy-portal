@@ -116,6 +116,20 @@ table{border-collapse:collapse;width:100%}td b,.bar b{white-space:nowrap}th,td{p
 @media (prefers-reduced-motion:reduce){.fd .ft,.fd .fb{animation:none;display:none}}
 
 /* 이송 애니메이션: 탱크 유액 빠짐 반복 + 진행 막대 차오름 반복 */
+@keyframes mxpour{from{stroke-dashoffset:0}to{stroke-dashoffset:-14}}
+@keyframes mxsteam{0%{transform:translateY(4px);opacity:0}30%{opacity:.75}100%{transform:translateY(-9px);opacity:0}}
+.pour{stroke-dasharray:5 2;animation:mxpour .5s linear infinite}
+.steam path{animation:mxsteam 2.4s ease-out infinite}.steam path:nth-child(2){animation-delay:-.8s}.steam path:nth-child(3){animation-delay:-1.6s}
+.flow{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-top:6px;font-size:11.5px;font-weight:700}
+.flow span{padding:3px 9px;border-radius:999px;background:#EEF2F7;color:#64748B;border:1px solid #E2E8F0}
+.flow span.on{background:#2563EB;color:#fff;border-color:#2563EB;box-shadow:0 0 0 3px rgba(37,99,235,.18);animation:mxflowp 1.6s ease-in-out infinite}
+.flow span.dn{background:#DBEAFE;color:#1E40AF;border-color:#BFDBFE}
+.flow i{font-style:normal;color:#94A3B8}
+.mxbadge{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;background:#2563EB;color:#fff;font-size:12px;font-weight:800;margin-right:6px}
+.mxbadge::before{content:'';width:7px;height:7px;border-radius:50%;background:#fff;animation:mxflowp 1.2s ease-in-out infinite}
+.mxbadge.soy{background:#A16207}
+@keyframes mxflowp{0%,100%{opacity:1}50%{opacity:.55}}
+@media (prefers-reduced-motion:reduce){.pour,.steam path,.flow span.on,.mxbadge::before{animation:none}}
 @keyframes drain{0%{transform:translateY(0)}80%{transform:translateY(56px)}100%{transform:translateY(56px)}}
 .drain{animation:drain 4.2s ease-in infinite}
 .tbar{position:relative;display:block;width:78%;height:14px;border-radius:7px;background:#E2E8F0;overflow:hidden;box-shadow:inset 0 0 0 1px rgba(21,128,61,.25)}
@@ -301,6 +315,25 @@ function cipEvents(code,pre,row,s,e,dates){
 function lineDoc(L,ds){var a=docsOf('FRM-012').filter(function(d){return docDate(d)===ds&&(G(d,'hogi')===L.h+'호기'||G(d,'hogi')===String(L.h))});return a.length?latest(a):null}
 function moveMinOf(L){return L.cap/L.rate*60}
 
+/* ───────── 일지 없을 때 기준 시간표로 자동 표시 ─────────
+   두유: 06:30부터 착즙팀 분리유액(두유 원액, 약 80℃)이 혼합탱크 상단으로 → 탱크 용량의 약 40% 받으면 다음 탱크로
+         유량 6,000급 4,000kg/h · 8,000급 이상 약 5,100kg/h
+   배합: 07:30 시작 (래피드 믹서 → 첨가물 탱크 교반 → 혼합탱크 저장) · 1번 탱크 약 08:00 완료
+   하이셰어믹서 쓰는 고단백 제품은 조금 더 늦게 (1번 약 08:30) */
+var SIM={recv0:6*60+30,mix0:7*60+30,ratio:.4};
+function simFlow(L){return L.cap>=8000?5100:4000}
+function simMixMin(prod){return catOf(prod)==='C'?60:30}
+function simTank(L,prod,i,m){
+ var soy=isSoy(prod)&&L.h!==3,F=simFlow(L),recv=SIM.ratio*L.cap/F*60,rs=SIM.recv0+i*recv,re=rs+recv,mm=simMixMin(prod);
+ var ms=SIM.mix0+i*mm;if(soy)ms=Math.max(ms,re);var me=ms+mm,SOYC='#C8955B',o={sim:true,batch:{label:(i+1)+'B',prod:prod}};
+ if(soy&&m<rs){o.state='원액 투입 예정';o.color='var(--empty)';o.sub=hh(rs)+' 분리유액 투입 예정';o.eta=rs;o.stepText='분리유액 투입 시작 (상단 주입)'}
+ else if(soy&&m<re){var q=(m-rs)/recv;o.state='원액 투입 중';o.color='#A16207';o.fill=SOYC;o.pour=true;o.hot=true;o.level=Math.max(.04,SIM.ratio*q);o.prog=q;o.progTxt='원액';
+  o.sub='약 80℃ · '+F.toLocaleString()+'kg/h · '+hh(re)+' 다음 탱크로';o.eta=re;o.stepText='원액 40% 도달 → 다음 탱크로 전환'}
+ else if(m<ms){o.state=soy?'원액 대기':'배합 예정';o.color=soy?'#A16207':'var(--empty)';if(soy){o.fill=SOYC;o.hot=true;o.level=SIM.ratio}o.sub=hh(ms)+' 배합 시작 예정';o.eta=ms;o.stepText='배합 시작 (래피드 믹서)'}
+ else if(m<me){var p=(m-ms)/mm;o.state='배합 중';o.color='var(--mix)';o.sp=1;o.level=(soy?SIM.ratio:.08)+(.95-(soy?SIM.ratio:.08))*p;o.mixP=p;o.sub='완료 예상 '+hh(me)+(catOf(prod)==='C'?' · 하이셰어믹서':'');o.eta=me;o.stepText='배합 완료 → 최종 Brix · 온도 기록'}
+ else{o.state='배합 완료';o.color='var(--ready)';o.sp=3;o.level=.95;o.sub=hh(me)+' 완료 예상 · 이송 대기'}
+ return o}
+
 /* ───────── 현황 계산 ───────── */
 function computeLive(){
  var T=today(),Y=addDays(T,-1),m=nowMin(),cats=CATS(SUMMER);
@@ -317,12 +350,15 @@ function computeLive(){
   /* 생산계획표: 「정비」 칸 → 정비 · 빈 칸 → 생산 없음 (그날 일지가 없을 때) */
   var pstat=PW.week&&!PL.length?(PW.maint?'정비':'생산 없음'):(PW.maint?'정비':'');
   var o2=only2(L,P.product),k=o2?2:3,mm=moveMinOf(L),ck=catOf(P.product),cat=cats[ck];
+  /* 오늘 배치 기록이 아직 없으면 기준 시간표로 자동 표시 (일지에 배치를 적으면 실제 기록으로 바뀜) */
+  var simOn=!P.batches.length&&PL.length>0&&!!P.product;
   var mixDur=P.batches.filter(function(b){return b.tin!=null&&b.tmix!=null&&b.tmix>b.tin}).map(function(b){return b.tmix-b.tin});
   var avgMix=mixDur.length?mixDur.reduce(function(a,b){return a+b},0)/mixDur.length:MIXDEF;
   var movEnd=null;P.batches.forEach(function(b){if(b.tmov!=null&&b.tmov+mm>m)movEnd=Math.max(movEnd||0,b.tmov+mm)});
   var tanks=L.tk.map(function(id,ti){
    var o={id:id,ti:ti,line:L,state:pstat==='정비'&&!PL.length?'정비':'빈 탱크',sub:pstat&&!PL.length?(pstat==='정비'?'생산계획: 정비':'생산계획: 생산 없음'):'오늘 기록 없음',color:'var(--empty)',lv:'',level:0,sp:0,batch:null,msg:'',cip:null,off:false};
    if(o2&&ti===2){o.off=true;o.state='미사용';o.sub='멸균유 · A2 · 락토프리는 1 · 2번만';return o}
+   if(simOn){var so=simTank(L,P.product,ti,m);Object.keys(so).forEach(function(k){o[k]=so[k]});return o}
    var bs=P.batches.filter(function(b){return b.i%k===ti}),b=bs[bs.length-1];
    var ce=cipEvents(L.cip.f,L.cip.p,L.cip.rows[ti],L.cip.s,L.cip.e,[Y,T]),c=ce[ce.length-1];
    function cipState(){o.cip=c;if(c.e==null){o.state='CIP 중';o.color='var(--cip)';o.level=.12;o.sp=0;o.spray=true;o.sub='종료 예상 약 '+hh(c.s+CIPMIN);o.eta=c.s+CIPMIN}else{o.state='CIP 완료';o.color='var(--empty)';o.sub=hh(c.e)+' 완료 · 유입 가능'}}
@@ -358,6 +394,7 @@ function computeLive(){
    ['g2_note','g2_etc'].forEach(function(kk){var v=G(doc,kk);if(v)notes.push({room:L.room,t:L.h+'호기 — '+v})})}
   /* 다음 할 일 */
   var steps=[];tanks.forEach(function(t){if(t.off)return;var b=t.batch;
+   if(t.sim){if(t.stepText&&t.eta!=null)steps.push({at:t.eta,text:t.id+' '+t.stepText});return}
    if(t.state==='이송 중')steps.push({at:t.eta,text:t.id+' '+b.label+' 이송 종료 → CIP 시작'});
    if(t.state==='이송 완료')steps.push({at:m,text:t.id+' CIP 시작 (이송 끝남)',u:true});
    if(t.state==='혼합 중'&&t.eta!=null)steps.push({at:t.eta,text:t.id+' '+b.label+' 혼합 완료 → 최종 Brix · 온도 기록'});
@@ -367,7 +404,8 @@ function computeLive(){
   steps.sort(function(a,b){return a.at-b.at});
   var moved=P.batches.filter(function(b){return b.tmov!=null}).length,remain=Math.max(0,P.planned-moved);
   var foot=(o2?'탱크 1 · 2번 교대 운영 · ':'')+(P.planned?'남은 배치 '+remain+'B'+(remain?' · 생산 종료 예상 '+hh(Math.max(m,movEnd||m)+remain*mm):' · 계획 배치 완료'):(pstat&&!PL.length?'오늘 '+pstat:'작업현황(품목 · 생산량) 미입력'));
-  lines.push({L:L,plan:PL,pstat:pstat,doc:doc,off:off,P:P,cat:cat,ck:ck,tanks:tanks,steps:steps.slice(0,4),foot:foot,moved:moved,remain:remain})});
+  var mixT=tanks.filter(function(t){return !t.off&&(t.state==='배합 중'||t.state==='혼합 중')})[0],recvT=tanks.filter(function(t){return t.state==='원액 투입 중'})[0];
+  lines.push({sim:simOn,mixT:mixT,recvT:recvT,L:L,plan:PL,pstat:pstat,doc:doc,off:off,P:P,cat:cat,ck:ck,tanks:tanks,steps:steps.slice(0,4),foot:foot,moved:moved,remain:remain})});
  /* SILO */
  var silos=SILOS.map(function(s){var ce=cipEvents('FRM-042','cB',s.row,11,12,[Y,T]),c=ce[ce.length-1];return {s:s,cip:c,all:ce}});
  return {lines:lines,flags:flags,missing:missing,notes:notes,silos:silos,m:m,cats:cats};
@@ -376,14 +414,17 @@ function computeLive(){
 /* ───────── 그리기: 현황판 ───────── */
 function wave(y,amp,x1){var d='M-18 '+y.toFixed(1);for(var x=-18;x<x1;x+=9)d+=' q4.5 '+(x%18===0?-amp:amp)+' 9 0';return d+' L'+x1+' 220 L-18 220 Z'}
 function tankSvg(t,product){
- var lvl=t.level||0,fill=t.state==='CIP 중'||t.state==='CIP 완료'?'#7DD3FC':liq(product),sp=t.off?0:t.sp;
+ var lvl=t.level||0,fill=t.fill||(t.state==='CIP 중'||t.state==='CIP 완료'?'#7DD3FC':liq(product)),sp=t.off?0:t.sp;
  var mv=t.state==='이송 중';
  /* 이송 중: 가득 찬 유액이 점점 빠지는 모습을 반복 (실제 남은 양은 아래 막대 · 종료 예상 시각으로 표시) */
  var wv=mv?'<g clip-path="url(#ck'+t.id+')"><g class="drain"><g class="w2"><path d="'+wave(80-66*.92,1.6,74)+'" fill="'+fill+'" stroke="#94A3B8" stroke-width="0.7"></path></g></g></g>':
   lvl>0?'<g clip-path="url(#ck'+t.id+')"><g class="'+(sp?'w'+sp:'w3')+'"><path data-wave d="'+wave(80-66*lvl,sp===1?2.6:1.4,74)+'" fill="'+fill+'" stroke="#94A3B8" stroke-width="0.7"></path></g></g>':'';
  var spin=sp?'s'+sp:'';
  var drops='';if(t.spray){[9,14,19,24,31,36,41,46].forEach(function(x,i){drops+='<rect class="d" x="'+x+'" y="17" width="1.5" height="4" rx=".75" fill="#0EA5E9" style="animation-delay:-'+((i*0.37)%1.1).toFixed(2)+'s"></rect>'});drops+='<circle cx="28" cy="15" r="3.5" fill="#0EA5E9" stroke="#0369A1"></circle>'}
- return '<svg width="56" height="84" viewBox="0 0 56 84" aria-hidden="true"><defs><clipPath id="ck'+t.id+'"><rect x="5" y="12" width="46" height="68" rx="8"></rect></clipPath></defs><rect x="3" y="10" width="50" height="72" rx="10" fill="#E2E8F0" stroke="#64748B" stroke-width="1.5"></rect>'+wv+
+ /* 분리유액(두유 원액) 투입: 상단 왼쪽 주입구에서 내려오는 줄기 + 뜨거운 김 */
+ var pour=t.pour?'<rect x="8" y="3" width="8" height="8" rx="1.5" fill="#92400E"></rect><line class="pour" x1="12" y1="11" x2="12" y2="80" stroke="#C08A4E" stroke-opacity=".9" stroke-width="3.2" stroke-linecap="round"></line>':'';
+ var hot=t.hot?'<g class="steam" fill="none" stroke="#94A3B8" stroke-width="1.3" stroke-linecap="round"><path d="M40 8 q-2 -2 0 -4 q2 -2 0 -4"></path><path d="M45 9 q-2 -2 0 -4 q2 -2 0 -4"></path><path d="M50 8 q-2 -2 0 -4 q2 -2 0 -4"></path></g>'+(lvl>.12?'<text x="40" y="'+Math.min(76,(80-66*lvl)+11).toFixed(1)+'" text-anchor="middle" font-size="8" font-weight="800" fill="#7C2D12">80℃</text>':''):'';
+ return '<svg width="56" height="84" viewBox="0 0 56 84" aria-hidden="true"><defs><clipPath id="ck'+t.id+'"><rect x="5" y="12" width="46" height="68" rx="8"></rect></clipPath></defs><rect x="3" y="10" width="50" height="72" rx="10" fill="#E2E8F0" stroke="#64748B" stroke-width="1.5"></rect>'+pour+wv+hot+
   '<rect x="21" y="1" width="14" height="9" rx="2" fill="#475569"></rect><line x1="28" y1="10" x2="28" y2="71" stroke="#1E293B" stroke-width="2"></line><g class="'+spin+'"><rect x="17" y="47" width="22" height="3.5" rx="1.75" fill="#1E293B"></rect></g><g class="'+spin+' ph"><rect x="17" y="68" width="22" height="3.5" rx="1.75" fill="#1E293B"></rect></g>'+drops+'</svg>';
 }
 var LIVE=null;
@@ -401,18 +442,20 @@ function renderLive(){
  if(rooms.dataset.built!==String(ROOM())){rooms.innerHTML=[['구 배합실 (1 · 2 · 3호기)',0],['신규 배합실 (4 · 5호기)',1]].filter(function(r){return r[1]===ROOM()}).map(function(r){return '<section class="room"><h3>'+r[0]+'</h3><div class="lines">'+LINES.filter(function(L){return L.room===r[1]}).map(function(L){return '<article class="line" id="ln'+L.h+'"></article>'}).join('')+'</div></section>'}).join('');rooms.dataset.built=String(ROOM())}
  V.lines.filter(function(x){return x.L.room===ROOM()}).forEach(function(x){var L=x.L,el=document.getElementById('ln'+L.h);
   var head='<div class="lh"><div style="display:flex;flex-direction:column;gap:2px"><span class="nm">'+L.h+'호기</span><span class="sp">'+L.tk[0][0]+',000TK · 용량 '+L.cap.toLocaleString()+'kg · 이송 '+L.rate.toLocaleString()+'kg/h'+(L.pump?' · '+L.pump:'')+(L.note?' · '+L.note:'')+'</span></div>'+
-   '<div class="pr"><b>'+(!x.P.product&&x.pstat?'<span class="pst '+(x.pstat==='정비'?'mt':'no')+'">'+x.pstat+'</span>':esc(x.P.product||'품목 미입력'))+(x.P.fromPlan?' <small style="font-weight:700;color:#0F766E">(생산계획)</small>':'')+'</b><span class="note">'+(x.doc?'배치 '+x.moved+' / '+(x.P.planned||'?')+'B'+(x.off?' · 어제 일지':''):'오늘 일지 없음')+'</span>'+(x.P.product?'<span class="cat">'+x.cat.name+' · 검사 '+dur(x.cat.insp)+' / 냉각 이송 '+dur(x.cat.silo)+'</span>':'')+'</div></div>';
+   '<div class="pr"><b>'+(!x.P.product&&x.pstat?'<span class="pst '+(x.pstat==='정비'?'mt':'no')+'">'+x.pstat+'</span>':esc(x.P.product||'품목 미입력'))+(x.P.fromPlan?' <small style="font-weight:700;color:#0F766E">(생산계획)</small>':'')+'</b><span class="note">'+(x.mixT?'<span class="mxbadge">배합 중</span>':'')+(x.recvT?'<span class="mxbadge soy">분리유액 투입 중</span>':'')+(x.sim?'기준 시간표 자동 표시 · ':'')+(x.doc?'배치 '+x.moved+' / '+(x.P.planned||'?')+'B'+(x.off?' · 어제 일지':''):'오늘 일지 없음')+'</span>'+(x.P.product?'<span class="cat">'+x.cat.name+' · 검사 '+dur(x.cat.insp)+' / 냉각 이송 '+dur(x.cat.silo)+'</span>':'')+'</div></div>'+(function(){if(!x.mixT)return '';var p=x.mixT.mixP,st=p==null?-1:p<1/3?0:p<2/3?1:2;
+   return '<div class="flow" aria-label="배합 공정 진행">'+['래피드 믹서','첨가물 탱크 교반','혼합탱크 저장 ('+x.mixT.id+')'].map(function(n,i){return '<span class="'+(st<0||i===st?'on':i<st?'dn':'')+'">'+n+'</span>'}).join('<i>→</i>')+'</div>'})();
   var pct=x.P.planned?Math.min(100,Math.round(x.moved/x.P.planned*100)):0;
   var plan=x.plan.length?'<div class="plan"><b>오늘 생산계획</b>'+x.plan.map(function(p){return '<span>'+esc(p.code)+' · '+p.batch+'B · '+esc(p.time)+' · '+esc(p.name)+'</span>'}).join('')+'</div>':'';
-  var sig=JSON.stringify([x.P.product,plan,x.pstat,x.tanks.map(function(t){return [t.state,t.lv,t.off,Math.round((t.level||0)*20),t.spray]}),SEL]);
+  var sig=JSON.stringify([x.P.product,plan,x.pstat,x.tanks.map(function(t){return [t.state,t.lv,t.off,Math.round((t.level||0)*20),t.spray,t.pour,t.hot,t.mixP==null?null:Math.floor(t.mixP*3)]}),SEL]);
   var body='';
-  if(!x.doc)body=x.pstat&&!x.plan.length?'<div class="nodoc" style="'+(x.pstat==='정비'?'background:#FFF7ED;color:#9A3412':'')+'"><b style="font-size:15px">'+x.pstat+'</b><br>'+(x.pstat==='정비'?'생산계획표에 오늘 '+L.h+'호기 정비가 잡혀 있습니다.':'생산계획표에 오늘 '+L.h+'호기 생산 계획이 없습니다.')+'</div>':'<div class="nodoc">오늘 '+L.h+'호기 생산작업일보가 아직 없습니다.<br>일지를 작성하면서 <b>임시저장</b>하면 바로 여기에 나타납니다.</div>';
+  if(x.sim)body='<div class="nodoc" style="background:#F8FAFC">일지에 배치 기록이 아직 없어 <b>기준 시간표</b>로 보여 줍니다 — '+(isSoy(x.P.product)&&L.h!==3?'06:30 분리유액(두유 원액 · 약 80℃, '+simFlow(L).toLocaleString()+'kg/h) 상단 투입 → 탱크 40%마다 다음 탱크로, ':'')+'07:30 배합 시작'+(x.ck==='C'?' (하이셰어믹서 · 1번 약 08:30 완료)':' (1번 약 08:00 완료)')+'.<br>생산작업일보에 유입 · 혼합 시각을 적으면 실제 기록으로 바뀝니다.</div>';
+  else if(!x.doc)body=x.pstat&&!x.plan.length?'<div class="nodoc" style="'+(x.pstat==='정비'?'background:#FFF7ED;color:#9A3412':'')+'"><b style="font-size:15px">'+x.pstat+'</b><br>'+(x.pstat==='정비'?'생산계획표에 오늘 '+L.h+'호기 정비가 잡혀 있습니다.':'생산계획표에 오늘 '+L.h+'호기 생산 계획이 없습니다.')+'</div>':'<div class="nodoc">오늘 '+L.h+'호기 생산작업일보가 아직 없습니다.<br>일지를 작성하면서 <b>임시저장</b>하면 바로 여기에 나타납니다.</div>';
   if(x.pstat==='정비'&&x.plan.length)body+='<div class="nodoc" style="background:#FFF7ED;color:#9A3412">생산계획표에 오늘 <b>정비</b>도 함께 적혀 있습니다.</div>';
   if(el.dataset.sig!==sig){
    el.innerHTML=head+'<div class="prog" role="progressbar" aria-valuenow="'+pct+'" aria-valuemin="0" aria-valuemax="100" aria-label="배치 진행률 '+pct+'%"><div style="--pw:'+pct+'%"></div></div>'+plan+
     '<div class="tanks">'+x.tanks.map(function(t){var border=t.off?'#CBD5E1':t.lv==='red'?'var(--redb)':t.lv==='amber'||t.lv==='pred'?'var(--amb)':t.color;
      return '<button type="button" class="tank '+(t.lv==='red'?'alert':t.lv==='amber'?'warn':'')+(t.off?' off':'')+(SEL===t.id?' sel':'')+'" style="border-color:'+border+'" data-t="'+t.id+'" aria-label="'+t.id+' 탱크 '+t.state+'">'+
-     '<span class="id">'+t.id+'</span>'+(t.prog!=null&&!t.off?'<span class="tbar'+(t.prog>=1?' done':'')+'" title="이송 진행 '+Math.round(t.prog*100)+'%"><i style="--p:'+Math.max(8,Math.round(t.prog*100))+'%"></i><b>'+(t.prog>=1?'이송 완료':Math.round(t.prog*100)+'%')+'</b></span>':'')+tankSvg(t,x.P.product)+'<span class="st" style="color:'+(t.off?'var(--mute)':t.color)+'">'+t.state+'</span><span class="bt">'+(t.batch?t.batch.label:'-')+'</span><span class="sb" data-sub style="color:'+(t.lv==='red'?'var(--red)':t.lv?'var(--ready)':'var(--mute)')+'">'+esc(t.sub)+'</span></button>'}).join('')+'</div>'+body+
+     '<span class="id">'+t.id+'</span>'+(t.prog!=null&&!t.off?'<span class="tbar'+(t.prog>=1?' done':'')+'" title="이송 진행 '+Math.round(t.prog*100)+'%"><i style="--p:'+Math.max(8,Math.round(t.prog*100))+'%"></i><b>'+(t.progTxt?t.progTxt+' '+Math.round(t.prog*100)+'%':t.prog>=1?'이송 완료':Math.round(t.prog*100)+'%')+'</b></span>':'')+tankSvg(t,x.P.product)+'<span class="st" style="color:'+(t.off?'var(--mute)':t.color)+'">'+t.state+'</span><span class="bt">'+(t.batch?t.batch.label:'-')+'</span><span class="sb" data-sub style="color:'+(t.lv==='red'?'var(--red)':t.lv?'var(--ready)':'var(--mute)')+'">'+esc(t.sub)+'</span></button>'}).join('')+'</div>'+body+
     '<div class="steps"><span class="t">다음 할 일 (순서대로)</span><div data-steps></div><span class="f" data-foot></span></div>';
    el.dataset.sig=sig}
   else{el.querySelector('.lh').outerHTML=head;el.querySelector('.prog div').style.setProperty('--pw',pct+'%');
@@ -458,7 +501,7 @@ function renderHandover(){
  function c(s){return all.filter(function(t){return t.state===s}).length}
  var alertN=V.flags.filter(function(f){return inRoom(f)&&(f.lv==='red'||f.lv==='amber')}).length,remain=LL.reduce(function(a,l){return a+l.remain},0);
  var h=new Date().getHours(),shift=h<6?'심야조':h<14?'오전조':h<22?'오후조':'심야조';
- var K=[['혼합 중',c('혼합 중'),'배치','var(--mix)'],['이송 대기',c('이송 대기'),'배치','var(--ready)'],['이송 중',c('이송 중'),'배치','var(--move)'],['CIP 중',c('CIP 중'),'탱크','var(--cip)'],['품질 주의',alertN,'추가 검사 · 냉각 이송',alertN?'var(--red)':'#14532D'],['남은 배치',remain,(ROOM()?'4 · 5호기 합계':'1 · 2 · 3호기 합계'),'var(--ink)']];
+ var K=[['혼합 중',c('혼합 중')+c('배합 중'),'배치','var(--mix)'],['이송 대기',c('이송 대기'),'배치','var(--ready)'],['이송 중',c('이송 중'),'배치','var(--move)'],['CIP 중',c('CIP 중'),'탱크','var(--cip)'],['품질 주의',alertN,'추가 검사 · 냉각 이송',alertN?'var(--red)':'#14532D'],['남은 배치',remain,(ROOM()?'4 · 5호기 합계':'1 · 2 · 3호기 합계'),'var(--ink)']];
  document.getElementById('handover').innerHTML='<section class="card"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:baseline"><h2>'+(ROOM()?'신규 배합실':'구 배합실')+' 교대 인수인계 카드</h2><span class="note">'+shift+' 근무 중 · '+hh(V.m)+' 기준 자동 작성</span></div><div class="kp">'+K.map(function(k){return '<div><span>'+k[0]+'</span><b style="color:'+k[3]+'">'+k[1]+'</b><small>'+k[2]+'</small></div>'}).join('')+'</div>'+
   '<div><h2 style="font-size:13px;margin-bottom:4px">인계 특이사항 (오늘 생산작업일보 비고 · 특이사항)</h2>'+(notes.length?notes.map(function(n){return '<div class="row"><span>· '+esc(n)+'</span></div>'}).join(''):'<div class="empty">적힌 특이사항이 없습니다.</div>')+'</div></section>';
 }
