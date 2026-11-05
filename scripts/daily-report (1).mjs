@@ -66,6 +66,13 @@ function loadTemplates() {
     const html = fs.readFileSync('index.html', 'utf8');
     const m = html.match(/var T=(\{"FRM-[\s\S]*?\});\n(?:var NEWF|function)/);
     if (m) return JSON.parse(m[1].replace(/<\\\//g, '</'));
+    /* 파일 크기를 줄이려고 반복 서식(st)을 표로 모아 둔 형식 */
+    const z = html.match(/var T=\(function\(S,o\)\{[\s\S]*?return o\}\)\((\[[\s\S]*?\]),(\{"FRM-[\s\S]*?\})\);\n(?:var NEWF|function)/);
+    if (z) {
+      const S = JSON.parse(z[1].replace(/<\\\//g, '</')), T = JSON.parse(z[2].replace(/<\\\//g, '</'));
+      const w = (x) => { if (Array.isArray(x)) x.forEach(w); else if (x && typeof x === 'object') for (const k in x) { const v = x[k]; if (k === 'st' && typeof v === 'number') x[k] = S[v]; else if (v && typeof v === 'object') w(v); } };
+      w(T); return T;
+    }
   } catch (e) { log('일지 양식 읽기 실패 — 포털 데이터의 양식 사용', e.message); }
   return null;
 }
