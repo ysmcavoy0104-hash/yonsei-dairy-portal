@@ -16929,7 +16929,7 @@ function qs(k){var m=(location.hash||'').match(new RegExp('[?&]'+k+'=([^&]*)'));
 
 /* ---------- 팀 포털 ---------- */
 var TEAMS=[
- {k:'juice',n:'착즙팀',ic:'❖',c:'#D97706',dash:'#/juice',d:'착즙 · 분리액 생산 현황'},
+ {k:'juice',n:'착즙팀',ic:'❖',c:'#D97706',dash:'#/juice',url:'https://soyline.netlify.app',link:{fn:'https://qehezkmwoyshqybnsvdz.supabase.co/functions/v1/portal-link',key:'sb_publishable_BCVOp1rKwrw5c4n424eyIg_m-hhqpB2',into:'https://soyline.netlify.app/#/link-in?token_hash='},d:'착즙 · 분리액 생산 현황 (착즙팀 자체 포털 · 연계 게스트로 보기 전용 입장)'},
  {k:'mix',n:'배합팀',ic:'⚗',c:'#2563EB',url:'mix.html',dash:'#/mix',d:'호기 · 탱크별 혼합 · 이송 · CIP 실시간 현황, 품질 이상 주의, 기록 누락 알림, 관리 분석, 생산계획표 변환'},
  {k:'ster',n:'멸균팀',ic:'♨',c:'#0F8F7C',dash:'#/ster',url:'https://myeolgyun-portal.vercel.app',d:'호기별 가동률 · 생산 달성률 · 멸균 · CIP · 알람 · 정비 이력 (멸균팀 자체 포털)'},
  {k:'pack',n:'포장팀',ic:'▣',c:'#6D50D9',dash:'#/pack',d:'호기별 생산 · 정지 현황'}];
@@ -16937,7 +16937,33 @@ var EN={mix:'Blending',juice:'Extraction',ster:'Sterilization',pack:'Packaging'}
 function ddHTML(){return '<span class="yl-menu" role="menu"><span class="yl-hd"><em>Team Portals</em><b>팀별 업무포털</b></span>'+TEAMS.map(function(t,i){var on=!!t.url;
  return '<button type="button" role="menuitem" class="yl-it'+(on?' on':'')+'" onclick="yumTeamGo(\''+t.k+'\')"><span class="yl-no">0'+(i+1)+'</span><span class="yl-tx"><b>'+t.n.replace('팀','')+'</b><small>'+EN[t.k]+'</small></span><span class="yl-st">'+(on?'운영 중':'준비 중')+'</span><span class="yl-ar">→</span></button>'}).join('')+'</span>'}
 window.yumOpenMix=function(){var w=null;try{w=window.open('mix.html','yum_mix')}catch(e){}if(!w)location.href='mix.html'};
-window.yumOpenTeam=function(k){var t=TEAMS.filter(function(x){return x.k===k})[0];if(!t||!t.url)return;if(k==='mix'){yumOpenMix();return}var w=null;try{w=window.open(t.url,'yum_'+k)}catch(e){}if(!w)location.href=t.url};
+
+/* 팀 포털 연계 로그인: 부문포털 로그인 그대로 → 그 팀 포털에 「연계 게스트(보기 전용)」로 입장
+   버튼을 누를 때마다 그 팀 서버(portal-link)에서 일회용 입장 코드를 새로 받아 # 뒤에 붙여 넘김 */
+function linkIn(t){
+ var w=null;try{w=window.open('about:blank','yum_'+t.k)}catch(e){}
+ function msg(h){try{if(w&&!w.closed){w.document.title=t.n+' 포털';w.document.body.innerHTML='<div style="font-family:system-ui,sans-serif;max-width:520px;margin:18vh auto;text-align:center;line-height:1.7;color:#12233F">'+h+'</div>'}}catch(e){}}
+ msg('<b style="font-size:18px">'+t.n+' 업무포털로 이동하는 중…</b><br><span style="color:#64748B">부문포털 로그인으로 연계 입장 코드를 받고 있습니다.</span>');
+ (async function(){
+  var err='';
+  try{
+   var S=window.SupaSync,ses=null;
+   try{ses=(await Promise.race([S.c().auth.getSession(),new Promise(function(r){setTimeout(function(){r({data:{}})},8000)})])).data.session}catch(e){}
+   if(!ses||!ses.access_token)throw new Error('부문포털 서버 로그인 정보가 없습니다. 로그아웃 후 다시 로그인한 뒤 눌러 주세요.');
+   var ctl=new AbortController(),to=setTimeout(function(){ctl.abort()},20000);
+   var r=await fetch(t.link.fn,{method:'POST',signal:ctl.signal,headers:{'Content-Type':'application/json',apikey:t.link.key},body:JSON.stringify({portal_url:window.SUPA_URL,token:ses.access_token})});
+   clearTimeout(to);var j=await r.json().catch(function(){return null});
+   if(!r.ok||!j||!j.token_hash)throw new Error((j&&j.error)||(t.n+' 서버 응답 '+r.status));
+   var url=t.link.into+encodeURIComponent(j.token_hash);
+   if(w&&!w.closed)w.location.href=url;else location.href=url;
+   return;
+  }catch(e){err=e&&e.name==='AbortError'?t.n+' 서버가 응답하지 않습니다. 잠시 뒤 다시 눌러 주세요.':String(e&&e.message||e)}
+  msg('<b style="font-size:18px;color:#B91C1C">연계 입장을 하지 못했습니다</b><br>'+String(err).replace(/[<>&]/g,'')+'<br><br><a href="'+t.url+'" style="color:#1D4ED8;font-weight:700">'+t.n+' 포털 첫 화면으로 가기 →</a>');
+  if(!w||w.closed){try{toast(err,'bad')}catch(x){alert(err)}}
+ })();
+}
+window.yumOpenTeam=function(k){var t=TEAMS.filter(function(x){return x.k===k})[0];if(!t||!t.url)return;if(k==='mix'){yumOpenMix();return}
+ if(t.link){linkIn(t);return}var w=null;try{w=window.open(t.url,'yum_'+k)}catch(e){}if(!w)location.href=t.url};
 window.yumTeamGo=function(k){var tt=TEAMS.filter(function(x){return x.k===k})[0];if(tt&&tt.url){yumOpenTeam(k);return}try{if(!me()){lnavGo('#/teams?t='+k);return}App.show('app');App.go('#/teams?t='+k)}catch(e){location.hash='#/teams?t='+k}};
 function teamsHTML(){var sel=qs('t');
  return '<div class="hrow"><div><h1 class="pgt">팀 포털</h1><div class="pgt-sub">팀마다 따로 운영하는 업무포털입니다. 일지 작성 · 결재는 부문포털에서 하고, 팀 포털은 그 데이터로 현장 현황을 보여 줍니다.</div></div></div>'+
