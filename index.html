@@ -1141,13 +1141,15 @@ const Auth={
  clearErr(){$$('.auth-err,.auth-ok').forEach(e=>{e.classList.remove('on');e.textContent=e.classList.contains('auth-ok')?e.textContent:''});$('#su-ok').textContent='신청이 접수되었습니다. 관리자 승인 후 로그인할 수 있습니다.'},
  async login(ev){ev.preventDefault();this.clearErr();
   const id=$('#li-id').value.trim(),pw=$('#li-pw').value,auto=$('#li-auto').checked;
-  if(window.SupaSync&&SupaSync.on()){try{
+  let _fast=false;try{const _l=(DB.data.users||[]).find(x=>String(x.empNo||'').toLowerCase()===id.toLowerCase()||String(x.email||'').toLowerCase()===id.toLowerCase());if(_l&&_l.status==='active'&&_l.pwHash&&(await sha256(_l.empNo+'::'+pw))===_l.pwHash)_fast=true}catch(e){}
+  if(window.SupaSync&&SupaSync.on()){const _sync=async()=>{try{
    let emp=id,em=null;
    if(id.indexOf('@')>=0){em=id;const lu=(DB.data.users||[]).find(x=>(x.email||'').toLowerCase()===id.toLowerCase());emp=lu?lu.empNo:id.split('@')[0]}
    else{const lu=(DB.data.users||[]).find(x=>String(x.empNo||'').toLowerCase()===id.toLowerCase());em=(lu&&(lu.authEmail||lu.email))||await SupaSync.resolveEmail(id)}
    const r=await SupaSync.ensureSession(emp,pw,em,false);this._srvOk=!!r.ok;
    if(r.ok){const remote=await SupaSync.pull();if(remote&&remote.data)SupaSync.adopt(remote.data)}
-  }catch(e){console.warn('[login sync]',e)}}
+  }catch(e){console.warn('[login sync]',e)}};
+   if(_fast){this._srvOk=null;setTimeout(()=>{_sync().then(()=>{try{if(Auth.user()){App.render();App.refreshChrome()}}catch(e){}})},50)}else await _sync()}
   const u=DB.data.users.find(x=>String(x.empNo||'').toLowerCase()===id.toLowerCase()||String(x.email||'').toLowerCase()===id.toLowerCase()||(x.aliases||[]).some(a=>String(a).toLowerCase()===id.toLowerCase()));
   const fail=m=>this.err('li-err',m);
   if(!u)return fail(window.SupaSync&&SupaSync.on()&&this._srvOk===false?'사번 또는 비밀번호가 일치하지 않습니다. 가입 신청 후 승인 전이라면 승인을 기다려 주세요.':'등록되지 않은 사번·이메일입니다.');
@@ -16929,20 +16931,21 @@ function qs(k){var m=(location.hash||'').match(new RegExp('[?&]'+k+'=([^&]*)'));
 var TEAMS=[
  {k:'juice',n:'착즙팀',ic:'❖',c:'#D97706',dash:'#/juice',d:'착즙 · 분리액 생산 현황'},
  {k:'mix',n:'배합팀',ic:'⚗',c:'#2563EB',url:'mix.html',dash:'#/mix',d:'호기 · 탱크별 혼합 · 이송 · CIP 실시간 현황, 품질 이상 주의, 기록 누락 알림, 관리 분석, 생산계획표 변환'},
- {k:'ster',n:'멸균팀',ic:'♨',c:'#0F8F7C',dash:'#/ster',d:'멸균기 운전 · CIP 현황'},
+ {k:'ster',n:'멸균팀',ic:'♨',c:'#0F8F7C',dash:'#/ster',url:'https://myeolgyun-portal.vercel.app',d:'호기별 가동률 · 생산 달성률 · 멸균 · CIP · 알람 · 정비 이력 (멸균팀 자체 포털)'},
  {k:'pack',n:'포장팀',ic:'▣',c:'#6D50D9',dash:'#/pack',d:'호기별 생산 · 정지 현황'}];
 var EN={mix:'Blending',juice:'Extraction',ster:'Sterilization',pack:'Packaging'};
-function ddHTML(){return '<span class="yl-menu" role="menu"><span class="yl-hd"><em>Team Portals</em><b>팀별 업무포털</b></span>'+TEAMS.map(function(t,i){var on=t.k==='mix';
+function ddHTML(){return '<span class="yl-menu" role="menu"><span class="yl-hd"><em>Team Portals</em><b>팀별 업무포털</b></span>'+TEAMS.map(function(t,i){var on=!!t.url;
  return '<button type="button" role="menuitem" class="yl-it'+(on?' on':'')+'" onclick="yumTeamGo(\''+t.k+'\')"><span class="yl-no">0'+(i+1)+'</span><span class="yl-tx"><b>'+t.n.replace('팀','')+'</b><small>'+EN[t.k]+'</small></span><span class="yl-st">'+(on?'운영 중':'준비 중')+'</span><span class="yl-ar">→</span></button>'}).join('')+'</span>'}
 window.yumOpenMix=function(){var w=null;try{w=window.open('mix.html','yum_mix')}catch(e){}if(!w)location.href='mix.html'};
-window.yumTeamGo=function(k){if(k==='mix'){yumOpenMix();return}try{if(!me()){lnavGo('#/teams?t='+k);return}App.show('app');App.go('#/teams?t='+k)}catch(e){location.hash='#/teams?t='+k}};
+window.yumOpenTeam=function(k){var t=TEAMS.filter(function(x){return x.k===k})[0];if(!t||!t.url)return;if(k==='mix'){yumOpenMix();return}var w=null;try{w=window.open(t.url,'yum_'+k)}catch(e){}if(!w)location.href=t.url};
+window.yumTeamGo=function(k){var tt=TEAMS.filter(function(x){return x.k===k})[0];if(tt&&tt.url){yumOpenTeam(k);return}try{if(!me()){lnavGo('#/teams?t='+k);return}App.show('app');App.go('#/teams?t='+k)}catch(e){location.hash='#/teams?t='+k}};
 function teamsHTML(){var sel=qs('t');
  return '<div class="hrow"><div><h1 class="pgt">팀 포털</h1><div class="pgt-sub">팀마다 따로 운영하는 업무포털입니다. 일지 작성 · 결재는 부문포털에서 하고, 팀 포털은 그 데이터로 현장 현황을 보여 줍니다.</div></div></div>'+
- '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">'+TEAMS.map(function(t){var on=t.k==='mix',hl=sel===t.k;
+ '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">'+TEAMS.map(function(t){var on=!!t.url,hl=sel===t.k;
   return '<div class="panel" style="margin:0;border:'+(hl?'2px solid '+t.c:'1px solid #E1E6EC')+';display:flex;flex-direction:column;gap:10px">'+
    '<div style="display:flex;align-items:center;gap:10px"><span style="width:40px;height:40px;border-radius:12px;background:'+t.c+';color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px">'+t.ic+'</span><div><b style="font-size:17px">'+t.n+' 업무포털</b><div style="font-size:12px;font-weight:700;color:'+(on?'#15803D':'#94A3B8')+'">'+(on?'운영 중':'연계 준비 중')+'</div></div></div>'+
    '<div style="font-size:13px;color:#475569;line-height:1.6;min-height:42px">'+esc(t.d)+'</div>'+
-   (on?'<button class="btn btn-p" onclick="yumOpenMix()">배합팀 포털 열기 →</button>':'<div style="font-size:12.5px;color:#64748B;background:#F8FAFC;border-radius:8px;padding:8px 10px;line-height:1.6">팀 포털 주소와 서버 정보를 연결하면 이곳에서 열리고, 그 포털의 자료로 팀 인사이트가 만들어집니다.</div>')+
+   (on?'<button class="btn btn-p" onclick="yumOpenTeam(\''+t.k+'\')">'+t.n+' 포털 열기 →</button>':'<div style="font-size:12.5px;color:#64748B;background:#F8FAFC;border-radius:8px;padding:8px 10px;line-height:1.6">팀 포털 주소와 서버 정보를 연결하면 이곳에서 열리고, 그 포털의 자료로 팀 인사이트가 만들어집니다.</div>')+
    '<a href="'+t.dash+'" style="font-size:12.5px;font-weight:700">'+t.n.replace('팀','')+' 대시보드 보기 →</a></div>'}).join('')+'</div>';
 }
 function lockHTML(t,msg,btn){return '<div class="panel" style="max-width:640px;margin:40px auto;text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center"><div style="font-size:34px">🔒</div><h2 style="margin:0">'+t+'</h2><div style="color:#475569;line-height:1.7">'+msg+'</div>'+(btn||'')+'</div>'}
@@ -16953,7 +16956,7 @@ var _nav=App.navItems;
 App.navItems=function(){
  var u=me(),pend=0;try{pend=myTodoApprovals().length}catch(e){}
  var S=[
-  {id:'plan',t:'팀 포털',i:'⊞',items:[{k:'#/teams',t:'팀 포털 전체',i:'⊞'}].concat(TEAMS.map(function(t){return {k:'#/teams?t='+t.k,t:t.n+' 포털',i:t.ic,act:t.k==='mix'?'yumOpenMix()':"App.go('#/teams?t="+t.k+"')"}}))},
+  {id:'plan',t:'팀 포털',i:'⊞',items:[{k:'#/teams',t:'팀 포털 전체',i:'⊞'}].concat(TEAMS.map(function(t){return {k:'#/teams?t='+t.k,t:t.n+' 포털',i:t.ic,act:t.url?"yumOpenTeam('"+t.k+"')":"App.go('#/teams?t="+t.k+"')"}}))},
   {id:'dash',t:'대시보드',i:'▦',items:[{k:'#/overview',t:'대시보드 전체보기',i:'◉'},{k:'#/dash',t:'팀별 현황',i:'▦'},{k:'#/juice',t:'착즙 대시보드',i:'❖'},{k:'#/mix',t:'배합 대시보드',i:'⚗'},{k:'#/ster',t:'멸균 대시보드',i:'♨'},{k:'#/pack',t:'포장 대시보드',i:'▣'},{k:'#/notice',t:'인사이트',i:'📢'}]},
   {id:'journal',t:'자료',i:'✎',items:[{k:'#/journals',t:'일지 작성',i:'✎'},{k:'#/approval',t:'전자결재',i:'✓',c:pend||undefined},{k:'#/docs',t:'문서관리',i:'▤'},{k:'#/reports',t:'업무 보고서함',i:'📋'},{k:'#/ndash',t:'지연·정비 기록',i:'◈'},{k:'#/equipment',t:'설비관리',i:'⚙'},{k:'#/notion',t:'Notion 업무자료',i:'N'},{k:'#/notebooklm',t:'설비 매뉴얼 AI (NotebookLM)',i:'✦',act:'NB.open()'},{k:'#/files',t:'파일관리',i:'▣'},{k:'#/talk',t:'부서톡',i:'💬'},{k:'#/ai',t:'AI 업무도우미',i:'✦'}]},
   {id:'ref',t:'안전',i:'⚠',items:[{k:'#/safenews',t:'안전 소식 · 점검',i:'⚠'},{k:'#/safety',t:'안전관리',i:'⛑'}]}
@@ -17054,6 +17057,37 @@ function mixInsight(days){
  if(!out.length)out.push(['ok','특이사항 없음','최근 '+days+'일 배합 일지에서 기준을 넘긴 기록이 없습니다.']);
  return {R:R,items:out};
 }
+
+/* ---------- 멸균팀 포털 KPI (Edge Function ster-proxy 경유 · 토큰은 서버 Secret에만) ---------- */
+var STK=null,STKAT=0,STKERR='',STKBUSY=false;
+function sterLoad(){if(STKBUSY)return;STKBUSY=true;(async function(){try{
+  try{var c=JSON.parse(sessionStorage.getItem('yum_sterkpi')||'null');if(c&&Date.now()-c.at<30*60e3){STK=c.d;STKAT=c.at;STKERR='';return}}catch(e){}
+  var S=window.SupaSync,ses=null;try{ses=(await Promise.race([S.c().auth.getSession(),new Promise(function(r){setTimeout(function(){r({data:{}})},8000)})])).data.session}catch(e){}
+  if(!ses){STKERR='서버 로그인 정보가 없어 멸균팀 자료를 불러오지 못했습니다. 다시 로그인해 주세요.';return}
+  var r=await fetch(window.SUPA_URL+'/functions/v1/ster-proxy',{method:'POST',headers:{'Content-Type':'application/json',apikey:window.SUPA_ANON,Authorization:'Bearer '+ses.access_token},body:JSON.stringify({path:'kpi'})});
+  var j=await r.json().catch(function(){return null});
+  if(!r.ok||!j||j.error){STKERR=(j&&j.error)||('응답 '+r.status);if(r.status===404)STKERR='중계 기능(ster-proxy)이 아직 서버에 설치되지 않았습니다.';return}
+  STK=j;STKAT=Date.now();STKERR='';try{sessionStorage.setItem('yum_sterkpi',JSON.stringify({at:STKAT,d:j}))}catch(e){}
+ }catch(e){STKERR='멸균팀 자료를 불러오지 못했습니다: '+(e&&e.message||e)}finally{STKBUSY=false;setTimeout(function(){try{teamInsight()}catch(e){}},0)}})()}
+function sterInsight(){
+ var link='<a href="#" onclick="yumOpenTeam(\'ster\');return false">멸균팀 포털에서 자세히 →</a>';
+ if(!STK&&!STKERR)sterLoad();
+ if(!STK&&!STKERR){return '<div style="color:#64748B;padding:8px 0">멸균팀 업무포털에서 호기별 KPI를 불러오는 중입니다… · '+link+'</div>'}
+ if(!STK)return '<div style="color:#B45309;padding:8px 0;line-height:1.7">'+esc(STKERR)+' · '+link+'</div>';
+ var U=(STK.units||[]).filter(function(u){return u.unit!=='전체'&&u.unit!=null&&u.unit!=='all'}),ALL=(STK.units||[]).filter(function(u){return u.unit==='전체'})[0]||{};
+ function n(v,d){return v==null?'-':(Math.round(v*Math.pow(10,d||0))/Math.pow(10,d||0)).toLocaleString('ko-KR')}
+ var C={red:['#FEE2E2','#7F1D1D','즉시 확인'],amb:['#FEF3C7','#78350F','관찰'],ok:['#DCFCE7','#14532D','참고']},items=[];
+ var low=U.filter(function(u){return u.capaRatePct!=null}).sort(function(a,b){return a.capaRatePct-b.capaRatePct})[0];
+ if(low)items.push([low.capaRatePct<70?'red':low.capaRatePct<85?'amb':'ok','가동률 가장 낮은 호기: '+low.unit+'호기 '+n(low.capaRatePct,1)+'%','전체 가동률 '+n(ALL.capaRatePct,1)+'% · 시간당 생산량 '+n(low.lphNet)+' L/h']);
+ var miss=U.filter(function(u){return u.achievementPct!=null&&u.achievementPct<95});
+ items.push([miss.length?'amb':'ok',miss.length?'생산 달성률 95% 미만: '+miss.map(function(u){return u.unit+'호기 '+n(u.achievementPct,1)+'%'}).join(' · '):'모든 호기 생산 달성률 95% 이상','전체 달성률 '+n(ALL.achievementPct,1)+'% · 총 생산량 '+n(ALL.totalL)+' L · 배치 '+n(ALL.batches)]);
+ var st=U.filter(function(u){return u.unplannedStopMin}).sort(function(a,b){return b.unplannedStopMin-a.unplannedStopMin})[0];
+ if(st)items.push([st.unplannedStopMin>=300?'red':'amb','비계획 정지 최다: '+st.unit+'호기 '+n(st.unplannedStopMin)+'분 ('+n(st.unplannedStopN)+'회)','중간 CIP '+n(st.midCipN)+'회 · '+n(st.midCipMin)+'분 — 배합 이송 시각과 함께 확인해 보세요.']);
+ var tbl='<div style="overflow-x:auto;margin-top:10px"><table style="width:100%;min-width:640px;border-collapse:collapse;font-size:12.5px"><thead><tr style="background:#F1F5F9;text-align:left">'+['호기','가동률','달성률','순생산률','생산량(L)','배치','비계획 정지','중간 CIP','멸균 평균'].map(function(h){return '<th style="padding:6px 8px">'+h+'</th>'}).join('')+'</tr></thead><tbody>'+
+  (STK.units||[]).map(function(u){var a=u.unit==='전체';return '<tr style="'+(a?'font-weight:800;background:#F8FAFC':'')+'"><td style="padding:6px 8px;border-bottom:1px solid #E2E8F0">'+(a?'전체':u.unit+'호기')+'</td>'+[n(u.capaRatePct,1)+'%',n(u.achievementPct,1)+'%',n(u.netProductionPct,1)+'%',n(u.totalL),n(u.batches),n(u.unplannedStopMin)+'분 / '+n(u.unplannedStopN)+'회',n(u.midCipMin)+'분 / '+n(u.midCipN)+'회',n(u.sterAvgMin,1)+'분'].map(function(v){return '<td style="padding:6px 8px;border-bottom:1px solid #E2E8F0">'+v+'</td>'}).join('')+'</tr>'}).join('')+'</tbody></table></div>';
+ return '<div style="font-size:12.5px;color:#64748B;margin-bottom:8px">멸균팀 업무포털 자료 ('+esc(STK.month||'')+' · '+esc(STK.from||'')+' ~ '+esc(STK.to||'')+') · 30분마다 새로 받음 · '+link+'</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px">'+
+  items.map(function(it){var c=C[it[0]];return '<div style="border:1px solid #E2E8F0;border-left:4px solid '+c[1]+';border-radius:10px;padding:10px 12px"><span style="font-size:11px;font-weight:800;padding:1px 7px;border-radius:6px;background:'+c[0]+';color:'+c[1]+'">'+c[2]+'</span><div style="font-weight:800;margin:6px 0 4px">'+esc(it[1])+'</div><div style="font-size:12.5px;color:#475569;line-height:1.6">'+esc(it[2])+'</div></div>'}).join('')+'</div>'+tbl;
+}
 var TI='mix';
 window.yumTeamInsight=function(k){TI=k;teamInsight()};
 function teamInsight(){var M=document.getElementById('main');if(!M||route()!=='#/notice')return;var box=document.getElementById('yum-ti');
@@ -17064,8 +17098,9 @@ function teamInsight(){var M=document.getElementById('main');if(!M||route()!=='#
   body=!X||!X.R.docs?'<div style="color:#64748B;padding:8px 0">최근 7일 배합 생산작업일보가 없어 인사이트를 만들 수 없습니다.</div>':
    '<div style="font-size:12.5px;color:#64748B;margin-bottom:8px">배합팀 업무포털과 같은 자료(제품생산작업일보 '+X.R.docs+'건 · 최근 7일)로 자동 계산 · <a href="#" onclick="yumOpenMix();return false">배합팀 포털에서 자세히 →</a></div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px">'+
    X.items.map(function(it){var c=C[it[0]];return '<div style="border:1px solid #E2E8F0;border-left:4px solid '+c[1]+';border-radius:10px;padding:10px 12px"><span style="font-size:11px;font-weight:800;padding:1px 7px;border-radius:6px;background:'+c[0]+';color:'+c[1]+'">'+c[2]+'</span><div style="font-weight:800;margin:6px 0 4px">'+it[1]+'</div><div style="font-size:12.5px;color:#475569;line-height:1.6">'+it[2]+'</div></div>'}).join('')+'</div>'}
+ else if(TI==='ster')body=sterInsight();
  else body='<div style="color:#475569;line-height:1.7;padding:6px 0">'+TEAMS.filter(function(t){return t.k===TI})[0].n+' 업무포털이 아직 연계되지 않았습니다. 팀 포털 주소와 서버 정보를 연결하면, 그 팀 포털에 모인 자료로 이곳에 팀 인사이트가 만들어집니다. 그 전까지는 아래 <b>자동 인사이트</b>(부문포털 일지 · 지연 · 정비 기록 기준)를 참고하세요.</div>';
- box.innerHTML='<div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:center;margin-bottom:10px"><h3 style="margin:0;font-size:17px">팀별 인사이트</h3><div style="display:flex;gap:6px;flex-wrap:wrap">'+TEAMS.map(function(t){var on=t.k===TI;return '<button class="btn btn-sm'+(on?' btn-p':' btn-o')+'" onclick="yumTeamInsight(\''+t.k+'\')">'+t.n+(t.k==='mix'?'':' · 연계 전')+'</button>'}).join('')+'</div></div>'+body;
+ box.innerHTML='<div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:center;margin-bottom:10px"><h3 style="margin:0;font-size:17px">팀별 인사이트</h3><div style="display:flex;gap:6px;flex-wrap:wrap">'+TEAMS.map(function(t){var on=t.k===TI;return '<button class="btn btn-sm'+(on?' btn-p':' btn-o')+'" onclick="yumTeamInsight(\''+t.k+'\')">'+t.n+(t.url?'':' · 연계 전')+'</button>'}).join('')+'</div></div>'+body;
 }
 
 
