@@ -1227,7 +1227,7 @@ const SupaSync={
  c(){if(!this.cli)this.cli=window.supabase.createClient(window.SUPA_URL,window.SUPA_ANON);return this.cli},
  async pull(){try{const r=await this.c().from('app_state').select('data,updated_at').eq('id',1).maybeSingle();if(r.error){console.warn('[SupaSync pull]',r.error.message);return null}return r.data}catch(e){console.warn('[SupaSync pull]',e);return null}},
  async push(data){try{const pr=await this.pull();let d=data;if(pr&&pr.data&&pr.data!==data){try{d=this.mergeState(pr.data,data,true)}catch(e){d=data}}const ua=new Date().toISOString();await this.c().from('app_state').upsert({id:1,data:d,updated_at:ua});this.lastRemoteAt=ua;this.lastSeen=Date.now()}catch(e){console.warn('[SupaSync push]',e)}},
- queuePush(){if(!this.on())return;clearTimeout(this.pushT);this.pushT=setTimeout(()=>{this.push(DB.data)},800)},
+ queuePush(){if(!this.on())return;clearTimeout(this.pushT);this.pushT=setTimeout(()=>{this.push(DB.data)},4000)},
  async boot(){
   const remote=await this.pull();
   let local=null;try{local=JSON.parse(localStorage.getItem(DBKEY)||'null')}catch(e){}
@@ -12393,7 +12393,7 @@ console.log('[확장 모듈 43] 개인 휴대폰 알림 로드 완료');
 if(window.__YUM_PERF__)return;window.__YUM_PERF__=1;
 var S=window.SupaSync;if(!S)return;
 var LAST='';           /* 서버의 마지막 변경 시각 (내가 본 값 또는 내가 쓴 값) */
-var POLL_MS=8000;
+var POLL_MS=30000;
 function to(p,ms){return Promise.race([p,new Promise(function(r){setTimeout(function(){r('__timeout__')},ms)})])}
 async function meta(){try{var r=await S.c().from('app_state').select('updated_at').eq('id',1).maybeSingle();if(r.error)return null;return r.data}catch(e){return null}}
 
@@ -12403,6 +12403,7 @@ S.pull=async function(){
  var r=window.__yumLogin?await to(_pull(),12000):await _pull();
  if(r==='__timeout__'){console.warn('[동기화] 서버 응답이 늦어 기기 데이터로 진행합니다');return null}
  if(r&&r.updated_at)LAST=r.updated_at;
+ try{if(r&&r.data)window.__yumSrvJS=JSON.stringify(r.data)}catch(e){}
  return r;
 };
 
@@ -12413,9 +12414,11 @@ S.push=async function(data){
  try{
   var d=data,m=await meta();
   if(!(m&&LAST&&m.updated_at===LAST)){var pr=await _pull();if(pr&&pr.updated_at)LAST=pr.updated_at;if(pr&&pr.data&&pr.data!==data){try{d=this.mergeState(pr.data,data,true)}catch(e){d=data}}}
+  var js=null;try{js=JSON.stringify(d)}catch(e){}
+  if(js&&js===window.__yumSrvJS){this.lastSeen=Date.now();return}
   var ts=new Date().toISOString();
   var w=await this.c().from('app_state').upsert({id:1,data:d,updated_at:ts});
-  if(!w||!w.error){LAST=ts;this.lastSeen=Date.now()}else console.warn('[SupaSync push]',w.error.message);
+  if(!w||!w.error){LAST=ts;this.lastSeen=Date.now();if(js)window.__yumSrvJS=js}else console.warn('[SupaSync push]',w.error.message);
  }catch(e){console.warn('[SupaSync push]',e)}
  finally{PENDING=false}
 };
@@ -17136,6 +17139,42 @@ var _lo=Auth.logout;Auth.logout=function(){try{localStorage.removeItem(MK)}catch
 function reopen(){try{if(!Auth.user())return;var a=document.getElementById('page-auth');if(a&&a.classList.contains('on')){App.openPortal();console.log('[로그인 유지] 포털로 복귀')}}catch(e){}}
 try{var _ad=SupaSync.adopt.bind(SupaSync);SupaSync.adopt=function(){var r=_ad.apply(this,arguments);setTimeout(reopen,50);return r}}catch(e){}
 window.addEventListener('load',function(){setTimeout(reopen,1500);setTimeout(reopen,4000)});
+})();
+</script>
+
+<script>
+/* 로그인 · 회원가입 서버 진단 (2026-11-05)
+   · 로그인 실패 때 서버가 돌려준 실제 이유를 함께 표시 (예: 시간 초과 · 이메일 확인 · 요청 제한)
+   · 로그인 · 회원가입 화면 아래 「서버 상태 확인」 → 인증 서버 · 데이터 서버 응답 코드와 걸린 시간을 보여 줌 (화면을 찍어 보내면 원인 파악 가능) */
+(function(){
+'use strict';
+if(window.__YUM_SRVDIAG__)return;window.__YUM_SRVDIAG__=1;
+var LAST='';
+try{var S=window.SupaSync,_es=S.ensureSession;S.ensureSession=async function(){var r=await _es.apply(this,arguments);try{if(r&&!r.ok)LAST=String(r.msg||'')}catch(e){}return r}}catch(e){}
+/* 로그인 실패 문구에 서버 이유 덧붙이기 */
+try{var _err=Auth.err.bind(Auth);Auth.err=function(id,msg){var m=msg;try{if(id==='li-err'&&LAST&&LAST!=='invalid_credentials'&&!/서버 이유/.test(m))m+=' (서버 이유: '+S.explain(LAST).replace(/^서버 오류: /,'')+')'}catch(e){}return _err(id,m)}}catch(e){}
+function ms(t){return Math.round(performance.now()-t)+'ms'}
+async function probe(url,opt){var t=performance.now(),ctl=new AbortController(),to=setTimeout(function(){ctl.abort()},15000);
+ try{var r=await fetch(url,Object.assign({signal:ctl.signal,cache:'no-store'},opt||{}));clearTimeout(to);var txt='';try{txt=(await r.text()).slice(0,160)}catch(e){}return {ok:r.ok,code:r.status,t:ms(t),txt:txt}}
+ catch(e){clearTimeout(to);return {ok:false,code:e.name==='AbortError'?'15초 시간 초과':'연결 실패',t:ms(t),txt:String(e.message||e)}}}
+window.yumSrvCheck=async function(box){
+ var el=document.getElementById(box);if(!el)return;el.style.display='block';el.innerHTML='서버 상태 확인 중…';
+ var U=window.SUPA_URL,K=window.SUPA_ANON,H={apikey:K,Authorization:'Bearer '+K};
+ var a=await probe(U+'/auth/v1/health',{headers:H});
+ var b=await probe(U+'/rest/v1/app_state?select=updated_at&id=eq.1',{headers:H});
+ var c=await probe(U+'/auth/v1/settings',{headers:H});var conf='';
+ try{var r2=await fetch(U+'/auth/v1/settings',{headers:H});var st=await r2.json();conf=' · 가입 '+(st.disable_signup?'꺼짐':'허용')+' · 이메일 확인 '+(st.mailer_autoconfirm?'자동':'필요')}catch(e){}
+ function line(n,x){return '<div><b>'+n+'</b> — '+(x.ok?'<span style="color:#15803D">정상</span>':'<span style="color:#B91C1C">문제</span>')+' · 응답 '+x.code+' · '+x.t+(x.ok?'':'<br><small style="color:#64748B;word-break:break-all">'+String(x.txt).replace(/[<>&]/g,'')+'</small>')+'</div>'}
+ el.innerHTML='<div style="font-weight:800;margin-bottom:4px">서버 상태 ('+new Date().toLocaleTimeString('ko-KR')+')</div>'+line('로그인 서버',a)+line('데이터 서버',b)+line('가입 설정',c)+(conf?'<div style="font-size:12px;color:#475569">'+conf+'</div>':'')+
+  (LAST?'<div style="font-size:12px;color:#475569;margin-top:4px">마지막 실패 이유: '+String(LAST).replace(/[<>&]/g,'')+'</div>':'')+
+  '<div style="font-size:11.5px;color:#64748B;margin-top:6px">이 화면을 찍어 관리자에게 보내 주세요.</div>';
+};
+function addBtn(){[['li-err','yum-diag-li'],['su-err','yum-diag-su']].forEach(function(p){var e=document.getElementById(p[0]);if(!e||document.getElementById(p[1]))return;
+ e.insertAdjacentHTML('afterend','<div style="text-align:center;margin-top:8px"><button type="button" class="btn btn-ghost btn-sm" style="font-size:12px" onclick="yumSrvCheck(\''+p[1]+'\')">서버 상태 확인</button></div><div id="'+p[1]+'" style="display:none;margin-top:6px;padding:9px 11px;border-radius:10px;background:#F1F5F9;font-size:12.5px;line-height:1.6;text-align:left"></div>')})}
+/* 저장을 4초씩 묶어 올리므로, 창을 닫거나 다른 앱으로 넘어갈 때 아직 안 올린 저장은 바로 올림 */
+function flush(){try{var S=window.SupaSync;if(S&&S.pushT&&S.on()){clearTimeout(S.pushT);S.pushT=null;S.push(DB.data)}}catch(e){}}
+document.addEventListener('visibilitychange',function(){if(document.visibilityState==='hidden')flush()});window.addEventListener('pagehide',flush);
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addBtn);else addBtn();setTimeout(addBtn,1500);
 })();
 </script>
 
