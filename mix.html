@@ -235,6 +235,32 @@ body{font-family:'Pretendard','Noto Sans KR',system-ui,sans-serif;letter-spacing
 .kp div{border:1px solid #EEF1F5;border-radius:12px;background:#FBFCFE;padding:12px 14px}
 .kp b{font-size:26px;font-variant-numeric:tabular-nums}
 .room>h3{font-size:15px;color:#0F1F3D}
+
+/* 배출 배관 애니메이션 */
+.oflow{stroke-dasharray:4 3;animation:oflow .7s linear infinite}
+.odash{stroke-dasharray:1 6;animation:oflow .7s linear infinite}
+@keyframes oflow{from{stroke-dashoffset:7}to{stroke-dashoffset:0}}
+.oarw{animation:oarw 1s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes oarw{0%,100%{opacity:1;transform:translateX(0)}50%{opacity:.45;transform:translateX(1.5px)}}
+@media (prefers-reduced-motion:reduce){.oflow,.odash,.oarw{animation:none}}
+
+/* 호기 공정 흐름 (밝은 도면) */
+.lf{display:flex;flex-direction:column;gap:0;margin:2px 2px -4px}.lfb{margin:-4px 2px 2px}
+.lf-chips{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.lf-c{display:inline-flex;align-items:center;gap:6px;padding:5px 10px 5px 8px;border-radius:10px;border:1px solid #E2E8F0;background:#F8FAFC;color:#94A3B8;font-size:11.5px;line-height:1.1}
+.lf-c b{font-weight:700;color:#64748B}.lf-c small{font-size:10.5px;color:#94A3B8;font-weight:600}
+.lf-c.on{border-color:#93B4F5;background:#EFF4FF;color:#1D4ED8;box-shadow:0 0 0 3px rgba(37,99,235,.10)}.lf-c.on b{color:#1D4ED8}
+.lf-c.soy{margin-left:auto}.lf-c.soy.on{border-color:#E7C48E;background:#FBF3E6;color:#A16207;box-shadow:0 0 0 3px rgba(161,98,7,.10)}.lf-c.soy.on b{color:#92400E}
+.lf-c.mv{border-color:#86D3A3;background:#EDFBF2;color:#15803D;box-shadow:0 0 0 3px rgba(21,128,61,.10)}.lf-c.mv b{color:#166534}
+.lf-ar{width:16px;height:2px;background:#CBD5E1;position:relative;flex:none}.lf-ar::after{content:'';position:absolute;right:-1px;top:-3px;border:4px solid transparent;border-left:5px solid #CBD5E1;border-right:0}
+.lf-ar.on{background:#2563EB}.lf-ar.on::after{border-left-color:#2563EB}
+.lf-p{width:100%;height:26px;display:block;overflow:visible}.lf-p.bot{height:16px}
+.lf-b{stroke:#D5DCE6;stroke-width:4;vector-effect:non-scaling-stroke;stroke-linecap:round}.lf-b.off{stroke:#EEF1F5}
+.lf-f{fill:none;stroke-width:3;vector-effect:non-scaling-stroke;stroke-dasharray:7 6;stroke-linecap:round;stroke-linejoin:round;animation:lff .8s linear infinite}
+.lf-f.mix{stroke:#2563EB}.lf-f.soy{stroke:#C08A4E}.lf-f.move{stroke:#16A34A}
+@keyframes lff{from{stroke-dashoffset:13}to{stroke-dashoffset:0}}
+.lf-out{display:flex;justify-content:flex-end;margin-top:4px}
+@media (prefers-reduced-motion:reduce){.lf-f{animation:none}}
 </style>
 </head>
 <body>
@@ -497,14 +523,39 @@ function tankSvg(t,product){
  /* 분리유액(두유 원액) 투입: 상단 왼쪽 주입구에서 내려오는 줄기 + 뜨거운 김 */
  var pour=t.pour?'<rect x="8" y="3" width="8" height="8" rx="1.5" fill="#92400E"></rect><line class="pour" x1="12" y1="11" x2="12" y2="80" stroke="#C08A4E" stroke-opacity=".9" stroke-width="3.2" stroke-linecap="round"></line>':'';
  var hot=t.hot?'<g class="steam" fill="none" stroke="#94A3B8" stroke-width="1.3" stroke-linecap="round"><path d="M40 8 q-2 -2 0 -4 q2 -2 0 -4"></path><path d="M45 9 q-2 -2 0 -4 q2 -2 0 -4"></path><path d="M50 8 q-2 -2 0 -4 q2 -2 0 -4"></path></g>'+(lvl>.12?'<text x="40" y="'+Math.min(76,(80-66*lvl)+11).toFixed(1)+'" text-anchor="middle" font-size="8" font-weight="800" fill="#7C2D12">80℃</text>':''):'';
- return '<svg width="56" height="84" viewBox="0 0 56 84" aria-hidden="true"><defs><clipPath id="ck'+t.id+'"><rect x="5" y="12" width="46" height="68" rx="8"></rect></clipPath></defs><rect x="3" y="10" width="50" height="72" rx="10" fill="#B9C4D2" stroke="#475569" stroke-width="1.5"></rect>'+pour+wv+hot+
-  '<rect x="21" y="1" width="14" height="9" rx="2" fill="#475569"></rect><line x1="28" y1="10" x2="28" y2="71" stroke="#1E293B" stroke-width="2"></line><g class="'+spin+'"><rect x="17" y="47" width="22" height="3.5" rx="1.75" fill="#1E293B"></rect></g><g class="'+spin+' ph"><rect x="17" y="68" width="22" height="3.5" rx="1.75" fill="#1E293B"></rect></g>'+drops+'</svg>';
+ /* 배출 배관: 탱크 바닥 → 오른쪽 (멸균기로). 이송 중이면 밸브 열림(초록) + 유액 흐름 + 화살표 */
+ var cipNow=t.state==='CIP 중',outC=mv?fill:'#CBD5E1';
+ var pipe='<g class="outp'+(mv?' on':'')+'"><path d="M28 82 V88 H64" fill="none" stroke="#64748B" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"></path>'+
+  '<path d="M28 82 V88 H64" fill="none" stroke="#E2E8F0" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"></path>'+
+  (mv?'<path class="oflow" d="M28 82 V88 H64" fill="none" stroke="'+outC+'" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"></path><path class="odash" d="M28 82 V88 H64" fill="none" stroke="#15803D" stroke-opacity=".55" stroke-width="1.4" stroke-linecap="round"></path>':'')+
+  '<g transform="translate(43 88)"><path d="M-4 -3.4 L4 3.4 L4 -3.4 L-4 3.4 Z" fill="'+(mv?'#16A34A':'#94A3B8')+'" stroke="#334155" stroke-width=".6" stroke-linejoin="round"></path><rect x="-.7" y="-7" width="1.4" height="3.6" fill="#334155"></rect><rect x="-2.6" y="-8" width="5.2" height="1.6" rx=".6" fill="'+(mv?'#16A34A':'#64748B')+'"></rect></g>'+
+  (mv?'<path class="oarw" d="M64 84 L70 88 L64 92 Z" fill="#16A34A"></path>':'<path d="M64 85.6 L67 88 L64 90.4 Z" fill="#94A3B8"></path>')+'</g>';
+ return '<svg width="72" height="94" viewBox="0 0 72 94" aria-hidden="true"><defs><clipPath id="ck'+t.id+'"><rect x="5" y="12" width="46" height="68" rx="8"></rect></clipPath></defs><rect x="3" y="10" width="50" height="72" rx="10" fill="#B9C4D2" stroke="#475569" stroke-width="1.5"></rect>'+pour+wv+hot+
+  '<rect x="21" y="1" width="14" height="9" rx="2" fill="#475569"></rect><line x1="28" y1="10" x2="28" y2="71" stroke="#1E293B" stroke-width="2"></line><g class="'+spin+'"><rect x="17" y="47" width="22" height="3.5" rx="1.75" fill="#1E293B"></rect></g><g class="'+spin+' ph"><rect x="17" y="68" width="22" height="3.5" rx="1.75" fill="#1E293B"></rect></g>'+drops+pipe+'</svg>';
 }
 var LIVE=null;
 function ROOM(){return TAB==='new'?1:0}
 function inRoom(x){return x.room===ROOM()}
 function badges(V){[0,1].forEach(function(r){var n=V.flags.filter(function(f){return f.room===r&&(f.lv==='red'||f.lv==='amber')}).length;var e=document.getElementById('cnt-'+(r?'new':'old'));if(e)e.textContent=n?String(n):''})}
 function headAlert(V){var alertN=V.flags.filter(function(f){return f.lv==='red'||f.lv==='amber'}).length;document.getElementById('alertN').textContent=alertN+'건';var ac=document.getElementById('alertChip');ac.style.background=alertN?'rgba(220,38,38,.28)':'rgba(34,197,94,.18)';ac.style.borderColor=alertN?'rgba(252,165,165,.7)':'rgba(134,239,172,.5)';badges(V)}
+/* 호기 공정 흐름 (밝은 도면): 래피드 믹서 → 첨가물 탱크 → 공급 배관 → 혼합탱크 / 혼합탱크 → 수집 배관 → 멸균 N호기 */
+var LF_IC={rm:'<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M3 4h12l-2 10H5z" fill="currentColor" opacity=".18" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M9 1v9M6 8l3 2 3-2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+ ad:'<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><rect x="3.5" y="3" width="11" height="13" rx="3" fill="currentColor" opacity=".18" stroke="currentColor" stroke-width="1.4"/><path d="M9 1v11M6 10h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
+ st:'<svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><rect x="1.5" y="4" width="15" height="10" rx="2" fill="currentColor" opacity=".14" stroke="currentColor" stroke-width="1.4"/><path d="M3.5 9l2-3 2 6 2-6 2 6 2-3" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>'};
+function lfTop(x){var T=x.tanks,n=T.length,xs=T.map(function(t,i){return (i+.5)/n*300});
+ var mi=x.mixT?T.indexOf(x.mixT):-1,p=x.mixT?x.mixT.mixP:null,stg=mi<0?-1:(p==null?3:p<1/3?0:p<2/3?1:2),ri=x.recvT?T.indexOf(x.recvT):-1;
+ var c=function(k,ic,t,on,sub){return '<span class="lf-c'+(on?' on':'')+'">'+LF_IC[ic]+'<b>'+t+'</b>'+(sub?'<small>'+sub+'</small>':'')+'</span>'};
+ var chips='<div class="lf-chips">'+c('rm','rm','래피드 믹서',stg===0||stg===3)+'<i class="lf-ar'+(stg>=1?' on':'')+'"></i>'+c('ad','ad','첨가물 탱크',stg===1||stg===3)+'<i class="lf-ar'+(stg>=2?' on':'')+'"></i>'+
+  (isSoy(x.P.product)&&x.L.h!==3?'<span class="lf-c soy'+(ri>=0?' on':'')+'">'+LF_IC.ad+'<b>분리유액</b><small>착즙</small></span>':'')+'</div>';
+ var g='<line x1="0" y1="5" x2="'+xs[n-1]+'" y2="5" class="lf-b"/>'+xs.map(function(X,i){return '<line x1="'+X+'" y1="5" x2="'+X+'" y2="26" class="lf-b'+(T[i].off?' off':'')+'"/>'}).join('');
+ if(mi>=0&&stg>=2)g+='<path d="M0 5 H'+xs[mi]+' V26" class="lf-f mix"/>';
+ if(ri>=0)g+='<path d="M300 5 H'+xs[ri]+' V26" class="lf-f soy"/>';
+ return chips+'<svg class="lf-p" viewBox="0 0 300 26" preserveAspectRatio="none" aria-hidden="true">'+g+'</svg>'}
+function lfBot(x){var T=x.tanks,n=T.length,xs=T.map(function(t,i){return (i+.5)/n*300}),mv=-1;T.forEach(function(t,i){if(t.state==='이송 중')mv=i});
+ var g=xs.map(function(X,i){return '<line x1="'+X+'" y1="0" x2="'+X+'" y2="14" class="lf-b'+(T[i].off?' off':'')+'"/>'}).join('')+'<line x1="'+xs[0]+'" y1="14" x2="300" y2="14" class="lf-b"/>';
+ if(mv>=0)g+='<path d="M'+xs[mv]+' 0 V14 H300" class="lf-f move"/>';
+ var stName='멸균 '+x.L.h+'호기';
+ return '<svg class="lf-p bot" viewBox="0 0 300 16" preserveAspectRatio="none" aria-hidden="true">'+g+'</svg><div class="lf-out"><span class="lf-c'+(mv>=0?' on mv':'')+'">'+LF_IC.st+'<b>'+stName+'</b><small>'+(mv>=0?T[mv].id+' 이송 중':'이송 대기')+'</small></span></div>'}
 function renderLive(){
  var V=LIVE=computeLive();headAlert(V);
  var alertN=V.flags.filter(function(f){return f.lv==='red'||f.lv==='amber'}).length;
@@ -522,8 +573,7 @@ function renderLive(){
    '<div class="prod">'+prodTxt+'</div>'+
    (x.P.product?'<div class="crit"><span>'+esc(x.cat.name)+'</span><span>추가 검사 <b>'+dur(x.cat.insp)+'</b></span><span>냉각 이송 <b>'+dur(x.cat.silo)+'</b></span></div>':'')+
    (L.note?'<div class="lnote">'+esc(L.note)+'</div>':'')+
-   (function(){if(!x.mixT)return '';var p=x.mixT.mixP,st=p==null?-1:p<1/3?0:p<2/3?1:2;
-   return '<div class="flow" aria-label="배합 공정 진행">'+['래피드 믹서','첨가물 탱크 교반','혼합탱크 저장 · '+x.mixT.id].map(function(n,i){return '<span class="'+(st<0||i===st?'on':i<st?'dn':'')+'">'+n+'</span>'}).join('')+'</div>'})()+'</div>';
+   ''+'</div>';
   var pct=x.P.planned?Math.min(100,Math.round(x.moved/x.P.planned*100)):0;
   var plan=x.plan.length?'<div class="plan"><span class="pl">오늘 계획</span>'+x.plan.map(function(p){return '<span class="pi"><b>'+p.batch+'B</b>'+(p.time?' · '+esc(p.time):'')+(x.plan.length>1?' · '+esc(p.name):'')+'</span>'}).join('')+'</div>':'';
   var sig=JSON.stringify([x.P.product,plan,x.pstat,x.tanks.map(function(t){return [t.state,t.lv,t.off,Math.round((t.level||0)*20),t.spray,t.pour,t.hot,t.mixP==null?null:Math.floor(t.mixP*3)]}),SEL]);
@@ -533,9 +583,9 @@ function renderLive(){
   if(x.pstat==='정비'&&x.plan.length)body+='<div class="nodoc" style="background:#FFF7ED;color:#9A3412">생산계획표에 오늘 <b>정비</b>도 함께 적혀 있습니다.</div>';
   if(el.dataset.sig!==sig){
    el.innerHTML=head+'<div class="prog" role="progressbar" aria-valuenow="'+pct+'" aria-valuemin="0" aria-valuemax="100" aria-label="배치 진행률 '+pct+'%"><div style="--pw:'+pct+'%"></div></div>'+plan+
-    '<div class="tanks">'+x.tanks.map(function(t){var border=t.off?'#CBD5E1':t.lv==='red'?'var(--redb)':t.lv==='amber'||t.lv==='pred'?'var(--amb)':t.color;
+    '<div class="lf">'+lfTop(x)+'</div><div class="tanks">'+x.tanks.map(function(t){var border=t.off?'#CBD5E1':t.lv==='red'?'var(--redb)':t.lv==='amber'||t.lv==='pred'?'var(--amb)':t.color;
      return '<button type="button" class="tank '+(t.lv==='red'?'alert':t.lv==='amber'?'warn':'')+(t.off?' off':'')+(SEL===t.id?' sel':'')+'" style="--tc:'+border+'" data-t="'+t.id+'" aria-label="'+t.id+' 탱크 '+t.state+'">'+
-     '<span class="id">'+t.id+'</span>'+(t.prog!=null&&!t.off?'<span class="tbar'+(t.prog>=1?' done':'')+'" title="이송 진행 '+Math.round(t.prog*100)+'%"><i style="--p:'+Math.max(8,Math.round(t.prog*100))+'%"></i><b>'+(t.progTxt?t.progTxt+' '+Math.round(t.prog*100)+'%':t.prog>=1?'이송 완료':Math.round(t.prog*100)+'%')+'</b></span>':'')+tankSvg(t,x.P.product)+'<span class="st" style="color:'+(t.off?'var(--mute)':t.color)+'">'+t.state+'</span><span class="bt">'+(t.batch?t.batch.label:'-')+'</span><span class="sb" data-sub style="color:'+(t.lv==='red'?'var(--red)':t.lv?'var(--ready)':'var(--mute)')+'">'+esc(t.sub)+'</span></button>'}).join('')+'</div>'+body+
+     '<span class="id">'+t.id+'</span>'+(t.prog!=null&&!t.off?'<span class="tbar'+(t.prog>=1?' done':'')+'" title="이송 진행 '+Math.round(t.prog*100)+'%"><i style="--p:'+Math.max(8,Math.round(t.prog*100))+'%"></i><b>'+(t.progTxt?t.progTxt+' '+Math.round(t.prog*100)+'%':t.prog>=1?'이송 완료':Math.round(t.prog*100)+'%')+'</b></span>':'')+tankSvg(t,x.P.product)+'<span class="st" style="color:'+(t.off?'var(--mute)':t.color)+'">'+t.state+'</span><span class="bt">'+(t.batch?t.batch.label:'-')+'</span><span class="sb" data-sub style="color:'+(t.lv==='red'?'var(--red)':t.lv?'var(--ready)':'var(--mute)')+'">'+esc(t.sub)+'</span></button>'}).join('')+'</div><div class="lf lfb">'+lfBot(x)+'</div>'+body+
     '<div class="steps"><span class="t">다음 할 일</span><div data-steps></div><span class="f" data-foot></span></div>';
    el.dataset.sig=sig}
   else{el.querySelector('.lhw').outerHTML=head;el.querySelector('.prog div').style.setProperty('--pw',pct+'%');
