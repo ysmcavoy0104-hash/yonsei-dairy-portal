@@ -6532,6 +6532,18 @@ function solve(m){var S0=S(m),N=days(m),H=hset(m),st=allStaff().filter(function(
     if(k==='정상'){A[x.n][d-1]='배합지원';continue}
     var y=st.filter(function(o){return o.st==='배합'&&A[o.n][d-1]==='정상'&&!o.lead&&!(d<N&&(A[o.n][d]==='오전'||A[o.n][d]==='정상'))})[0];
     if(!y)break;A[y.n][d-1]='오후';A[x.n][d-1]='배합지원'}})})})();
+ (function(){
+  function n2(o,d,k){return st.filter(function(p){return p.st==='배합'&&A[p.n][d-1]===k}).length}
+  PD.forEach(function(d){var r=reqOf(S0,d,'배합',m);
+   ['오전','오후'].forEach(function(k){for(var g2=0;g2<4&&n2(0,d,k)<(+r[k]||0);g2++){
+    var hasL=st.some(function(p){return p.st==='배합'&&p.lead&&A[p.n][d-1]===k});
+    var c=st.filter(function(p){if(p.st!=='배합'||A[p.n][d-1]!=='정상'||p.fx||isFixG(p))return false;
+      if(k==='오전'&&d>1&&A[p.n][d-2]==='오후')return false;                       /* 어제 오후 → 오늘 오전 금지 */
+      if(k==='오후'&&d<N&&(A[p.n][d]==='오전'||A[p.n][d]==='정상'))return false;   /* 오늘 오후 → 내일 오전 · 중간 금지 */
+      return true});
+    if(!c.length)break;
+    c.sort(function(a,b){var la=(!hasL&&a.lead)?0:a.lead?2:1,lb=(!hasL&&b.lead)?0:b.lead?2:1;return la-lb});
+    A[c[0].n][d-1]=k}})})})();
  var cnt={};st.forEach(function(p){var c={오전:0,정상:0,오후:0,휴무:0,근무:0,wk:0,hol:0};for(var d=1;d<=N;d++){var v=A[p.n][d-1];if(v in c)c[v]++;if(v&&v!=='휴무')c[H[d]?'hol':'wk']++}cnt[p.n]=c});
  var V=[];
  PD.forEach(function(d){G.forEach(function(g){var r=reqOf(S0,d,g,m),got={오전:0,정상:0,오후:0};var leads=st.filter(function(p){return p.st===g&&p.lead}),hl={};
