@@ -1146,9 +1146,9 @@ const Auth={
    let emp=id,em=null;
    if(id.indexOf('@')>=0){em=id;const lu=(DB.data.users||[]).find(x=>(x.email||'').toLowerCase()===id.toLowerCase());emp=lu?lu.empNo:id.split('@')[0]}
    else{const lu=(DB.data.users||[]).find(x=>String(x.empNo||'').toLowerCase()===id.toLowerCase());em=(lu&&(lu.authEmail||lu.email))||await SupaSync.resolveEmail(id)}
-   const r=await SupaSync.ensureSession(emp,pw,em,false);this._srvOk=!!r.ok;this._srvR=r;
+   const _mine=(DB.data.users||[]).some(x=>String(x.empNo||'').toLowerCase()===id.toLowerCase()||String(x.email||'').toLowerCase()===id.toLowerCase());const _liteP=(!_mine&&window.yumUsersLite)?yumUsersLite():null;const r=await SupaSync.ensureSession(emp,pw,em,false);this._srvOk=!!r.ok;this._srvR=r;
    let _got=false;if(r.ok){const remote=await SupaSync.pull();if(remote&&remote.data){SupaSync.adopt(remote.data);_got=true}}
-   if(!_got&&window.yumUsersLite){await yumUsersLite()}
+   if(!_got&&window.yumUsersLite){if(!(_liteP&&await _liteP))await yumUsersLite()}
   }catch(e){console.warn('[login sync]',e)}};
    if(_fast){this._srvOk=null;setTimeout(()=>{_sync().then(()=>{try{if(Auth.user()){App.render();App.refreshChrome()}}catch(e){}})},50)}else await _sync()}
   const u=DB.data.users.find(x=>String(x.empNo||'').toLowerCase()===id.toLowerCase()||String(x.email||'').toLowerCase()===id.toLowerCase()||(x.aliases||[]).some(a=>String(a).toLowerCase()===id.toLowerCase()));
@@ -12438,7 +12438,8 @@ async function check(){
  if(busy||!S.on()||document.hidden)return;if(PENDING&&!stuck&&!lite)return;busy=true;
  try{
   var m=await meta();if(!m||!m.updated_at||(m.updated_at===LAST&&!lite))return;
-  var r=await _pull();if(!(r&&r.data))return;LAST=r.updated_at||m.updated_at;
+  if(!lite&&!stuck&&LAST&&window.__yumLastFull&&Date.now()-window.__yumLastFull<120000)return;
+  var r=await _pull();if(!(r&&r.data))return;LAST=r.updated_at||m.updated_at;window.__yumLastFull=Date.now();
   S.lastSeen=Date.now();
   if(PENDING||lite){
    /* 이 기기에서 아직 못 올린 변경이 있으면 서버 데이터와 합침 (명단 요약본은 서버 원본 명단으로) */
@@ -17295,7 +17296,7 @@ function lite(list){return (list||[]).map(function(u){var o={};F.forEach(functio
 function saveLite(){try{if(DB&&DB.data&&DB.data.users&&DB.data.users.length)localStorage.setItem(UK,JSON.stringify({at:Date.now(),u:lite(DB.data.users)}))}catch(e){}}
 function mergeUsers(list){try{var U=DB.data.users||(DB.data.users=[]),n=0;(list||[]).forEach(function(x){if(!x||!x.id)return;var i=-1;U.forEach(function(u,k){if(u.id===x.id)i=k});if(i<0){U.push(x);n++}else{Object.assign(U[i],x)}});if(list&&list.length)window.__yumLiteUsers=true;return n}catch(e){return 0}}
 function fromLite(){try{var c=JSON.parse(localStorage.getItem(UK)||'null');if(c&&c.u)mergeUsers(c.u.filter(function(x){return !(DB.data.users||[]).some(function(u){return u.id===x.id})}))}catch(e){}}
-window.yumUsersLite=async function(){try{var S=window.SupaSync;var r=await Promise.race([S.c().from('app_state').select('users:data->users').eq('id',1).maybeSingle(),new Promise(function(z){setTimeout(function(){z(null)},15000)})]);
+window.yumUsersLite=async function(){try{var S=window.SupaSync;var r=await Promise.race([S.c().from('app_state').select('users:data->users').eq('id',1).maybeSingle(),new Promise(function(z){setTimeout(function(){z(null)},25000)})]);
  if(r&&r.data&&Array.isArray(r.data.users)){mergeUsers(lite(r.data.users));saveLite();console.log('[로그인] 직원 명단만 받아 진행');return true}}catch(e){}fromLite();return false};
 try{var _ad3=SupaSync.adopt.bind(SupaSync);SupaSync.adopt=function(){var r=_ad3.apply(this,arguments);window.__yumLiteUsers=false;setTimeout(saveLite,0);return r}}catch(e){}
 /* 명단 요약으로 로그인한 상태에서는 서버 전체 데이터를 받기 전까지 서버에 올리지 않음 (요약본이 원본 직원 정보를 덮지 않게) */
@@ -17653,7 +17654,7 @@ var LP=null,T=null;new MutationObserver(function(){var p=el(KEYS[0]);if(p&&p!==L
 (function(){
 'use strict';
 if(window.__YUM_LIVESAVE__)return;window.__YUM_LIVESAVE__=1;
-var IDLE=40000,GAP=120000,dirty=false,lastEdit=0,lastAuto=0,quiet=false;
+var IDLE=60000,GAP=300000,dirty=false,lastEdit=0,lastAuto=0,quiet=false;
 function curDoc(){try{var id=window.__yumDocId||(window.__CURDOC&&window.__CURDOC.id);return id?(DB.data.docs||[]).filter(function(d){return d.id===id})[0]:null}catch(e){return null}}
 function onForm(){return !!(document.getElementById('docpaper')&&document.querySelector('.formactions')&&/^#\/doc-new/.test(location.hash||''))}
 function canAuto(){if(!onForm())return false;var d=curDoc();if(d&&d.status!=='temp')return false;try{return !!Auth.user()}catch(e){return false}}
