@@ -13756,6 +13756,8 @@ function viewExec(){
  var h='<div class="ov ex">';
  h+='<div class="ov-hd ex-hd"><div><div class="ov-en">Daily Production Report</div><h2>'+md(D)+' ('+dw(D)+') 상온제품생산부문 생산 현황</h2><div class="ov-sub"><span class="ex-live"><i></i>실시간</span> 일지를 저장하면 바로 반영됩니다'+(lastSave?' · 마지막 저장 '+lastSave:'')+'</div></div>'+
   '<div class="ov-act"><select onchange="yumOverview.pick(this.value)">'+dates.map(function(d){return '<option value="'+d+'"'+(d===D?' selected':'')+'>'+d+' ('+dw(d)+')</option>'}).join('')+'</select><a class="btn btn-o btn-sm" href="#/dash">팀별 현황 →</a></div></div>';
+ /* 0. 공정 흐름도 (착즙 → 배합 → 멸균 → 아셉틱 충전 → 포장) */
+ h+='<div id="fm-wrap" data-d="'+D+'">'+(window.yumFlowMap?yumFlowMap(D):'')+'</div>';
  /* 1. 공정 흐름 */
  h+='<div class="ex-sec"><span class="ex-st1">공정 흐름</span><span class="ex-flow" aria-hidden="true"></span></div><div class="ex-procs">'+
   proc('juice','착즙','❖',C.juice,jD,jR,exNum(jR&&jR.use,0,'kg')+'<div class="ex-cap">대두 사용량</div>',jR?[['부산물률',fmt(jR.byRate,1)+'%'],['원액 생산',fmt(jR.raw)+'kg']]:[],jT,dev.j,'#/juice')+
@@ -17771,6 +17773,147 @@ document.addEventListener('keydown',function(ev){
  nx.focus();try{if(nx.select&&nx.tagName==='INPUT')nx.select()}catch(x){}
  try{nx.scrollIntoView({block:'nearest',inline:'nearest'})}catch(x){}
 },true);
+})();
+</script>
+
+<script>
+/* 공정 흐름도 (2026-11-06) — 대시보드 맨 위: 착즙 → 배합 → 멸균 → 아셉틱 충전 → 포장
+   · 각 팀 일지(착즙 FRM-009 · 배합 FRM-012/011 · 멸균 업무일지 FRM-016 · 포장 호기별 생산작업일보)로 상태를 그림
+   · 지금 흐르는 구간만 라인 색 점선이 흐름 (배합 → 멸균은 같은 호기, 멸균 → 충전은 그날 일지의 제품명으로 연결) */
+(function(){
+'use strict';
+if(window.yumFlowMap)return;
+var COL={1:'#60A5FA',2:'#F472B6',3:'#FACC15',4:'#5EEAD4',5:'#FB923C',6:'#A78BFA'},SOY='#E0B04A';
+var MIXL={1:[6000,5000],2:[10000,6000],3:[6000,6000],4:[8000,8000],5:[6000,6000]};
+function pad(n){return String(n).padStart(2,'0')}
+function today(){var n=new Date();return n.getFullYear()+'-'+pad(n.getMonth()+1)+'-'+pad(n.getDate())}
+function E(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function cut(s,n){s=String(s||'').replace(/\s+/g,' ').trim();return s.length>n?s.slice(0,n-1)+'…':s}
+function form(code){return ((DB.data&&DB.data.forms)||[]).filter(function(f){return f.code===code})[0]}
+function G(d,k){var g=d&&d.data&&d.data.grid,v=g&&g[k];if(v==null&&d&&d.data)v=d.data[k];return v==null?'':String(v).trim()}
+function dateOf(d){var p=d&&d.data&&d.data.pdate;if(p)return String(p).slice(0,10);var y=G(d,'dY'),m=G(d,'dM'),dd=G(d,'dD');if(y&&m&&dd)return y+'-'+pad(+m)+'-'+pad(+dd);
+ var t=Date.parse(d.createdAt||d.updatedAt||'');if(isNaN(t))return String(d.createdAt||'').slice(0,10);var x=new Date(t);return x.getFullYear()+'-'+pad(x.getMonth()+1)+'-'+pad(x.getDate())}
+function docs(code,D){var f=form(code);if(!f)return [];return (DB.data.docs||[]).filter(function(d){return d&&d.formId===f.id&&!d.deleted&&d.status!=='deleted'&&dateOf(d)===D}).sort(function(a,b){return String(b.updatedAt||'').localeCompare(String(a.updatedAt||''))})}
+function tmin(s){var m=/^(\d{1,2})\s*[:.]?\s*(\d{2})$/.exec(String(s||'').trim());if(!m)return null;var h=+m[1],mi=+m[2];if(h>24||mi>59)return null;return (h%24)*60+mi}
+function isSoy(p){return /두유|프로틴|오곡|이롬|콩/.test(p||'')}
+function norm(s){return String(s||'').replace(/\[[^\]]*\]|\([^)]*\)|\d+\s*m[lL]|\s+/g,'').replace(/[^가-힣A-Za-z0-9]/g,'')}
+function same(a,b){a=norm(a);b=norm(b);if(!a||!b)return false;if(a.indexOf(b)>=0||b.indexOf(a)>=0)return true;var k=0;while(k<a.length&&k<b.length&&a[k]===b[k])k++;return k>=4}
+
+/* ───── 각 팀 상태 ───── */
+function juice(D,now){var d=docs('FRM-009',D)[0],out=[];
+ for(var n=1;n<=4;n++){var bk=d?G(d,'bk'+n):'',wt=d?G(d,'wt'+n):'',nm=d?G(d,'nm'+n):'',hrs=[],on=0;
+  for(var h=0;h<=24;h++){var v=d?G(d,'ax'+n+'_'+h):'';hrs.push(v);if(v)on++}
+  var run=now!=null?!!hrs[Math.floor(now/60)]:on>0;
+  out.push({k:'j'+n,n:n,wt:n===4?'D':String(wt||'').replace(/\D/g,''),t:'빈쿠커 #'+(bk||n),sub:n===4?'→ 데칸타':(wt?'→ WT'+String(wt).replace(/\D/g,''):''),prod:nm,on:on>0,run:run,st:run?(now!=null?'가동 중':'가동 '+on+'시간'):on?'가동 '+on+'시간':'미가동'})}
+ return out}
+function mix(D,now){var out=[],L=docs('FRM-012',D).concat(docs('FRM-011',D));
+ for(var h=1;h<=5;h++){var d=L.filter(function(x){var v=G(x,'hogi').replace(/\s+/g,''),m=v.match(/^#?(\d)/);return m&&+m[1]===h})[0];
+  var prods=[],B=[],mm=MIXL[h][0]/MIXL[h][1]*60;
+  if(d){for(var rr=3;rr<=6;rr++){var p=G(d,'g2_'+rr+'_'+(2*h));if(p)prods.push(p)}
+   for(var r=10;r<=24;r++){var tin=tmin(G(d,'g2_'+r+'_1')),tmx=tmin(G(d,'g2_'+r+'_11')),tmv=tmin(G(d,'g2_'+r+'_13'));if(tin==null&&tmx==null&&tmv==null)continue;B.push({tin:tin,tmx:tmx,tmv:tmv})}}
+  var mv=now!=null&&B.some(function(b){return b.tmv!=null&&now>=b.tmv&&now<b.tmv+mm}),mixing=B.some(function(b){return b.tmx==null&&b.tmv==null}),waiting=B.some(function(b){return b.tmx!=null&&b.tmv==null});
+  var moved=B.filter(function(b){return b.tmv!=null}).length,st,run=false;
+  if(!B.length)st=d&&prods.length?'작성 중':'일지 없음';
+  else if(now==null)st='배치 '+B.length+'B · 이송 '+moved+'B';
+  else{var a=[];if(mv)a.push('이송 중');if(mixing)a.push('혼합 중');if(waiting)a.push('이송 대기');st=(a.join(' · ')||'이송 완료')+' · '+moved+'/'+B.length+'B';run=mv||mixing||waiting}
+  out.push({k:'m'+h,h:h,t:'배합 '+h+'호기',sub:MIXL[h][0].toLocaleString()+'TK',prod:prods.join(' · '),on:!!(d&&(prods.length||B.length)),run:run,mv:mv,st:st,soy:isSoy(prods.join(' '))})}
+ return out}
+var EQ={1:'FLEX#1',2:'FLEX#2',3:'PHE',4:'FLEX',5:'IUHT'};
+function ster(D,now){var out=[],d=null;
+ try{var f=window.SterIlji&&SterIlji.form&&SterIlji.form();if(f)d=(DB.data.docs||[]).filter(function(x){return x.formId===f.id&&!x.deleted&&dateOf(x)===D}).sort(function(a,b){return String(b.updatedAt||'').localeCompare(String(a.updatedAt||''))})[0]}catch(e){}
+ for(var h=1;h<=5;h++){var p='s'+h+'_',item=d?G(d,p+'item'):'',T=function(k){return d?tmin(G(d,p+k)):null};
+  var s1=T('s1'),e1=T('e1'),ps=T('ps1'),pe=T('pe1'),cs=T('cs1'),ce=T('ce1'),q=d?parseFloat(G(d,p+'qty').replace(/[^\d.]/g,'')):NaN;
+  var any=[s1,e1,ps,pe,cs,ce].some(function(x){return x!=null}),maint=/정비|휴지|미가동/.test(item)&&ps==null;
+  var st='일지 없음',run=false,on=false;
+  if(maint){st=/휴지/.test(item)?'휴지':'정비'}
+  else if(item||any){on=true;
+   if(now==null)st=ps!=null?'생산':'멸균만';
+   else{var stops=[];for(var r=1;r<=3;r++){var a=T('st'+r),b=T('rs'+r);if(a!=null&&b!=null)stops.push([a,b])}
+    var inS=function(a,b){return a!=null&&now>=a&&(b==null||now<b)};
+    if(inS(cs,ce))st='CIP';else if(pe!=null&&now>=pe)st=cs!=null&&ce!=null&&now>=ce?'종료':'CIP 전 대기';
+    else if(inS(ps,pe)){var stop=stops.some(function(x){return now>=x[0]&&now<x[1]});st=stop?'정지':'생산 중';run=!stop}
+    else if(inS(s1,e1)){st='멸균 중';run=true}
+    else if(e1!=null&&now>=e1)st='멸균 후 대기';
+    else st='시작 전'}}
+  out.push({k:'s'+h,h:h,t:'멸균 '+h+'호기',sub:EQ[h],prod:maint?'':item,on:on,run:run,st:st+(isFinite(q)&&q?' · '+Math.round(q).toLocaleString():'')})}
+ return out}
+function pack(D,now){var PD=window.yumProcDash,R=null;try{R=PD&&PD.day?PD.day('pack',D):null}catch(e){}
+ var lines=(R&&R.lines)||[];return ['A','B','C','D','E','F'].map(function(h){var o=lines.filter(function(x){return x.h===h})[0];
+  return {k:'p'+h,h:h,t:'충전 '+h+'호기',sub:'Aseptic',prod:o?o.prod||'':'',on:!!o,run:!!o&&!!(o.prod||o.ea),st:o?(o.ea?Math.round(o.ea).toLocaleString()+'개':'생산 중'):'일지 없음',ea:o&&o.ea,box:o&&o.box}})}
+
+/* ───── 그리기 ───── */
+var W=1250,TOP=56,RH=78,NH=64;
+var COLS=[{k:'j',x:16,w:164,t:'빈쿠커'},{k:'w',x:212,w:150,t:'WT · 데칸타'},{k:'m',x:420,w:172,t:'배합'},{k:'s',x:640,w:172,t:'멸균'},{k:'p',x:860,w:166,t:'아셉틱 충전'},{k:'b',x:1070,w:166,t:'포장'}];
+function ys(n){var off=(6-n)*RH/2;var a=[];for(var i=0;i<n;i++)a.push(TOP+off+i*RH);return a}
+function icon(kind,x,y,c,run,lvl){var g='';
+ if(kind==='j')g='<path d="M'+(x)+' '+(y+4)+' h16 l-4 8 h-8 z" fill="'+(run?c:'#3A4743')+'"/><rect x="'+(x+20)+'" y="'+(y+2)+'" width="14" height="10" rx="2" fill="none" stroke="#56645F"/><rect x="'+(x)+'" y="'+(y+15)+'" width="34" height="5" rx="2.5" fill="none" stroke="#56645F" stroke-dasharray="2 2"/>';
+ else if(kind==='m'){var hh=Math.round(16*(lvl||0));g='<rect x="'+x+'" y="'+y+'" width="16" height="20" rx="4" fill="#1F2A27" stroke="#56645F"/>'+(hh?'<rect x="'+(x+1)+'" y="'+(y+19-hh)+'" width="14" height="'+hh+'" rx="3" fill="'+c+'" opacity=".85"/>':'')+'<line x1="'+(x+8)+'" y1="'+(y-2)+'" x2="'+(x+8)+'" y2="'+(y+16)+'" stroke="#9CA3AF" stroke-width="1.2"/>'}
+ else if(kind==='w')g=(lvl==='D'?'<path d="M'+x+' '+(y+6)+' h26 l8 5 l-8 5 h-26 z" fill="'+(run?c:'#2B3633')+'" opacity="'+(run?.85:1)+'" stroke="#56645F"/><line x1="'+(x+3)+'" y1="'+(y+11)+'" x2="'+(x+26)+'" y2="'+(y+11)+'" stroke="#0E1714" stroke-dasharray="2 2"/>':'<rect x="'+x+'" y="'+(y+4)+'" width="15" height="12" rx="2" fill="#1F2A27" stroke="'+(run?c:'#56645F')+'"/><rect x="'+(x+19)+'" y="'+(y+4)+'" width="15" height="12" rx="2" fill="#1F2A27" stroke="'+(run?c:'#56645F')+'"/><text x="'+(x+7.5)+'" y="'+(y+13)+'" text-anchor="middle" font-size="6.5" fill="#9CA3AF">1차</text><text x="'+(x+26.5)+'" y="'+(y+13)+'" text-anchor="middle" font-size="6.5" fill="#9CA3AF">2차</text>');
+ else if(kind==='s')g='<rect x="'+x+'" y="'+(y+2)+'" width="30" height="16" rx="3" fill="#1F2A27" stroke="#56645F"/><path d="M'+(x+3)+' '+(y+10)+' l4 -5 l4 10 l4 -10 l4 10 l4 -10 l4 5" fill="none" stroke="'+(run?c:'#56645F')+'" stroke-width="1.4"/>';
+ else if(kind==='p')g='<path d="M'+(x+4)+' '+(y+2)+' h12 l3 5 v13 h-18 v-13 z" fill="'+(run?c:'#2B3633')+'" opacity="'+(run?.9:1)+'" stroke="#56645F"/><path d="M'+(x+4)+' '+(y+2)+' l3 5 h12" fill="none" stroke="#56645F"/>';
+ else g='<rect x="'+x+'" y="'+(y+4)+'" width="24" height="16" rx="2" fill="'+(run?c:'#2B3633')+'" opacity="'+(run?.85:1)+'" stroke="#56645F"/><path d="M'+x+' '+(y+9)+' h24 M'+(x+12)+' '+(y+4)+' v5" stroke="#0E1714" stroke-width="1.2"/>';
+ return g}
+function node(n,x,y,w,c,kind){var act=n.run,on=n.on,b=act?c:on?'#46544F':'#2B3633';
+ return '<g class="fm-n'+(act?' act':'')+'" style="--c:'+c+'"><title>'+E(n.t+(n.prod?' · '+n.prod:'')+' · '+n.st)+'</title>'+
+  '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+NH+'" rx="10" fill="#141D1A" stroke="'+b+'" stroke-width="'+(act?2:1.2)+'"/>'+
+  '<circle cx="'+(x+w-11)+'" cy="'+(y+11)+'" r="3.6" fill="'+(act?c:on?'#64748B':'#334155')+'"'+(act?' class="fm-dot"':'')+'/>'+
+  '<text x="'+(x+10)+'" y="'+(y+19)+'" class="fm-t">'+E(n.t)+'</text>'+(n.sub?'<text x="'+(x+w-20)+'" y="'+(y+19)+'" class="fm-s" text-anchor="end">'+E(cut(n.sub,10))+'</text>':'')+
+  icon(kind,x+10,y+27,c,act,n.lvl)+
+  '<text x="'+(x+52)+'" y="'+(y+37)+'" class="fm-p">'+E(cut(n.prod||'—',kind==='j'?11:12))+'</text>'+
+  '<text x="'+(x+52)+'" y="'+(y+53)+'" class="fm-st" fill="'+(act?c:'#7C8A85')+'">'+E(cut(n.st,16))+'</text></g>'}
+function path(x1,y1,x2,y2,mx){return 'M'+x1+' '+y1+' H'+mx+' V'+y2+' H'+x2}
+function link(d,c,mode,badge,bx,by){var s='<path d="'+d+'" class="fm-base"/>';
+ if(mode==='flow')s+='<path d="'+d+'" class="fm-flow" stroke="'+c+'"/>';else if(mode==='on')s+='<path d="'+d+'" class="fm-on" stroke="'+c+'"/>';
+ if(badge!=null&&mode==='flow')s+='<g><circle cx="'+bx+'" cy="'+by+'" r="8" fill="'+c+'"/><text x="'+bx+'" y="'+(by+3.6)+'" text-anchor="middle" class="fm-b">'+E(badge)+'</text></g>';return s}
+function render(D){
+ var now=D===today()?(function(){var n=new Date();return n.getHours()*60+n.getMinutes()})():null;
+ var J=juice(D,now),M=mix(D,now),S=ster(D,now),P=pack(D,now);
+ M.forEach(function(m){m.lvl=m.mv?.45:m.run?.85:m.on?.3:0});
+ /* 포장(후포장 · 실적) = 충전 호기별 */
+ var B=P.map(function(p){return {k:'b'+p.h,h:p.h,t:'포장 '+p.h+'호기',sub:'',prod:p.box!=null?Math.round(p.box).toLocaleString()+' 박스':'',on:p.on,run:p.run,st:p.ea!=null?Math.round(p.ea).toLocaleString()+'개 생산':p.on?'생산 중':'일지 없음'}});
+ var Y={j:ys(J.length),m:ys(M.length),s:ys(S.length),p:ys(P.length),b:ys(B.length)},C=function(k){return COLS.filter(function(c){return c.k===k})[0]};
+ var links='',nodes='';
+ /* 빈쿠커 → WT · 데칸타 */
+ var WN=['1','2','3','4','D'].map(function(k){var F=J.filter(function(j){return j.wt===k}),on=F.some(function(j){return j.on}),run=F.some(function(j){return j.run});
+  return {k:'w'+k,wk:k,lvl:k,t:k==='D'?'데칸타':'WT'+k,sub:F.length?'← #'+F.map(function(j){return j.t.replace(/\D/g,'')}).join(' #'):'',prod:F.map(function(j){return j.prod}).filter(Boolean).join(' · '),on:on,run:run,st:run?'가동 중':on?'오늘 가동':'미가동'}});
+ Y.w=ys(WN.length);
+ var cj=C('j'),cw=C('w'),cm=C('m'),busX=cw.x+cw.w+30,soyM=M.filter(function(m){return m.soy&&m.on});
+ J.forEach(function(j,i){var wi=-1;WN.forEach(function(w,k){if(w.wk===j.wt)wi=k});var y1=Y.j[i]+NH/2;
+  if(wi<0){links+=link('M'+(cj.x+cj.w)+' '+y1+' H'+(cj.x+cj.w+12),SOY,'',null);return}
+  var y2=Y.w[wi]+NH/2,mx=cj.x+cj.w+(cw.x-cj.x-cj.w)/2;links+=link(path(cj.x+cj.w,y1,cw.x,y2,mx),SOY,j.run?'flow':j.on?'on':'',null)});
+ /* WT · 데칸타 → 배합 (분리유액 · 두유 원액 공급 헤더) */
+ var wRun=WN.filter(function(w){return w.run});
+ WN.forEach(function(w,i){var y=Y.w[i]+NH/2;links+=link('M'+(cw.x+cw.w)+' '+y+' H'+busX,SOY,w.run&&soyM.length?'flow':w.on?'on':'',null)});
+ links+='<path d="M'+busX+' '+(TOP+8)+' V'+(TOP+RH*6-20)+'" class="fm-base"/>';
+ if(wRun.length&&soyM.length){var ya=Math.min.apply(null,WN.map(function(w,i){return w.run?Y.w[i]+NH/2:1e9}).concat(soyM.map(function(m){return Y.m[m.h-1]+NH/2}))),yb=Math.max.apply(null,WN.map(function(w,i){return w.run?Y.w[i]+NH/2:-1}).concat(soyM.map(function(m){return Y.m[m.h-1]+NH/2})));links+='<path d="M'+busX+' '+ya+' V'+yb+'" class="fm-flow" stroke="'+SOY+'"/>'}
+ var jRun=wRun;
+ M.forEach(function(m,i){if(!m.soy)return;var y=Y.m[i]+NH/2;links+=link('M'+busX+' '+y+' H'+cm.x,SOY,jRun.length&&m.on?'flow':m.on?'on':'',null)});
+ /* 배합 N → 멸균 N */
+ var cs=C('s');M.forEach(function(m,i){var s=S[i],y1=Y.m[i]+NH/2,y2=Y.s[i]+NH/2,mx=cm.x+cm.w+(cs.x-cm.x-cm.w)/2,c=COL[m.h];
+  links+=link(path(cm.x+cm.w,y1,cs.x,y2,mx),c,m.mv?'flow':(m.on&&s.on?'on':''),m.h,mx,(y1+y2)/2)});
+ /* 멸균 → 충전 (그날 일지 제품명이 같은 호기) */
+ var cp=C('p'),used={};S.forEach(function(s,i){if(!s.prod)return;P.forEach(function(p,j){if(!p.prod||!same(s.prod,p.prod))return;used[p.h]=s.h;var y1=Y.s[i]+NH/2,y2=Y.p[j]+NH/2,mx=cs.x+cs.w+(cp.x-cs.x-cs.w)/2-6+i*3,c=COL[s.h];
+  links+=link(path(cs.x+cs.w,y1,cp.x,y2,mx),c,s.run&&p.run?'flow':(s.on&&p.on?'on':''),s.h,mx,(y1+y2)/2)})});
+ /* 충전 → 포장 */
+ var cb=C('b');P.forEach(function(p,j){var y=Y.p[j]+NH/2,c=used[p.h]?COL[used[p.h]]:'#94A3B8';links+=link('M'+(cp.x+cp.w)+' '+y+' H'+cb.x,c,p.run?'flow':p.on?'on':'',null)});
+ [['j',J],['w',WN],['m',M],['s',S],['p',P],['b',B]].forEach(function(a){var c=C(a[0]);a[1].forEach(function(n,i){var col=a[0]==='j'||a[0]==='w'?SOY:a[0]==='m'||a[0]==='s'?COL[n.h]:(used[n.h]?COL[used[n.h]]:'#94A3B8');nodes+=node(n,c.x,Y[a[0]][i],c.w,col,a[0])})});
+ var head=COLS.map(function(c){return '<text x="'+(c.x+c.w/2)+'" y="'+(TOP-22)+'" text-anchor="middle" class="fm-h">'+c.t+'</text>'}).join('');
+ var H=TOP+RH*6+6;
+ var leg='<div class="fm-leg">'+[1,2,3,4,5].map(function(h){return '<span><i style="background:'+COL[h]+'"></i>'+h+'호기 라인</span>'}).join('')+'<span><i style="background:'+SOY+'"></i>분리유액 · 두유 원액</span><span class="fm-legn">점선이 흐르는 구간 = 지금 이송 · 생산 중</span></div>';
+ var clock=now!=null?pad(Math.floor(now/60))+':'+pad(now%60):D.slice(5).replace('-','/')+' 기록';
+ return '<div class="fm"><div class="fm-top">'+leg+'<b class="fm-clock">'+clock+'</b></div><div class="fm-sc"><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="공정 흐름도">'+head+links+nodes+'</svg></div>'+
+  '<div class="fm-note">각 팀 일지(착즙 작업일보 · 생산작업일보 · 멸균 업무일지 · 포장 생산작업일보)로 그립니다 · 멸균 → 충전은 그날 일지의 제품명이 같은 호기로 연결 · 노드에 마우스를 올리면 자세히</div></div>'}
+var CSS='.fm{background:#0E1714;border-radius:18px;padding:14px 16px 12px;color:#E5E7EB;box-shadow:0 20px 40px -28px rgba(0,0,0,.7);margin-bottom:18px}'+
+ '.fm-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px}.fm-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:#B5C0BC}.fm-leg i{display:inline-block;width:16px;height:3px;border-radius:2px;margin-right:5px;vertical-align:3px}.fm-legn{color:#7C8A85}'+
+ '.fm-clock{font:800 20px/1 ui-monospace,Menlo,Consolas,monospace;color:#F8FAFC;letter-spacing:.04em}.fm-sc{overflow-x:auto}.fm svg{width:100%;min-width:980px;height:auto;display:block}'+
+ '.fm-h{font:700 11px sans-serif;fill:#8FA39C;letter-spacing:.08em}.fm-t{font:800 13px sans-serif;fill:#F1F5F9}.fm-s{font:600 10px sans-serif;fill:#7C8A85}.fm-p{font:600 11.5px sans-serif;fill:#CBD5D1}.fm-st{font:700 10.5px sans-serif}.fm-b{font:800 10px sans-serif;fill:#0E1714}'+
+ '.fm-base{fill:none;stroke:#26332F;stroke-width:4;stroke-linejoin:round}.fm-on{fill:none;stroke-width:2.2;opacity:.45;stroke-linejoin:round}'+
+ '.fm-flow{fill:none;stroke-width:3.2;stroke-dasharray:9 7;stroke-linecap:round;stroke-linejoin:round;animation:fmflow .9s linear infinite}@keyframes fmflow{from{stroke-dashoffset:16}to{stroke-dashoffset:0}}'+
+ '.fm-n.act rect{filter:drop-shadow(0 0 6px color-mix(in srgb,var(--c) 45%,transparent))}.fm-dot{animation:fmdot 1.4s ease-in-out infinite}@keyframes fmdot{0%,100%{opacity:1}50%{opacity:.35}}'+
+ '.fm-note{font-size:11px;color:#6B7A75;margin-top:6px}@media (prefers-reduced-motion:reduce){.fm-flow,.fm-dot{animation:none}}';
+/* 1분마다 흐름도만 다시 그림 (오늘 화면일 때) */
+setInterval(function(){try{var w=document.getElementById('fm-wrap');if(!w||document.hidden)return;var D=w.getAttribute('data-d');if(D!==today())return;w.innerHTML=render(D)}catch(e){}},60000);
+window.yumFlowMap=function(D){try{if(!document.getElementById('fm-css')){var st=document.createElement('style');st.id='fm-css';st.textContent=CSS;document.head.appendChild(st)}return render(D||today())}catch(e){console.warn('[공정 흐름도]',e);return ''}};
 })();
 </script>
 
