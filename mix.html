@@ -191,6 +191,7 @@ body{font-family:'Pretendard','Noto Sans KR',system-ui,sans-serif;letter-spacing
 .lst::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;opacity:.9}
 .lst.mix{background:#EAF1FF;color:#1D4ED8}.lst.mix::before{animation:mxflowp 1.2s ease-in-out infinite}
 .lst.soy{background:#FBF1E4;color:#92400E}.lst.soy::before{animation:mxflowp 1.2s ease-in-out infinite}
+.lst.live{background:#E8F7F3;color:#0F766E}.lst.live::before{animation:mxflowp 1s ease-in-out infinite}
 .lst.doc{background:#EEF2F7;color:#12244A}.lst.wait{background:#F4F6FA;color:#64748B}
 .lst.mt{background:#FFF1E6;color:#9A3412}.lst.no{background:#F4F6FA;color:#64748B}
 .prod{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:24px}
@@ -348,7 +349,15 @@ function num(s){var v=parseFloat(String(s==null?'':s).replace(/[^\d.\-]/g,''));r
 function form(code){return ((DATA&&DATA.forms)||[]).find(function(f){return f.code===code})}
 function G(d,k){var g=d&&d.data&&d.data.grid;var v=g&&g[k];if(v==null&&d&&d.data)v=d.data[k];return v==null?'':String(v).trim()}
 function docDate(d){var p=d&&d.data&&d.data.pdate;if(p)return String(p).slice(0,10);var y=G(d,'dY'),m=G(d,'dM'),dd=G(d,'dD');if(y&&m&&dd)return y+'-'+pad(+m)+'-'+pad(+dd);var t=Date.parse(d.createdAt||d.updatedAt||'');return isNaN(t)?String(d.createdAt||'').slice(0,10):dstr(new Date(t))}
-function docsOf(code){var f=form(code);if(!f)return [];return (DATA.docs||[]).filter(function(d){return d.formId===f.id&&d.status!=='deleted'&&!d.deleted})}
+/* 부문포털에서 작성 중인 일지 (실시간 전달 · 저장 전) */
+var LIVED={};
+function liveDocs(fid){var out=[],now=Date.now();Object.keys(LIVED).forEach(function(k){var x=LIVED[k];if(now-Date.parse(x.at)>40*60000){delete LIVED[k];return}if(x.formId!==fid)return;
+  if(x.id){var s=(DATA.docs||[]).filter(function(d){return d.id===x.id})[0];if(s&&String(s.updatedAt||'')>=x.at)return}
+  out.push({id:x.id||x.key,formId:x.formId,status:'temp',live:true,liveBy:x.by,createdAt:x.createdAt||x.at,updatedAt:x.at,data:x.data})});return out}
+function docsOf(code){var f=form(code);if(!f)return [];var L=liveDocs(f.id),ids={};L.forEach(function(d){ids[d.id]=1});
+ return (DATA.docs||[]).filter(function(d){return d.formId===f.id&&d.status!=='deleted'&&!d.deleted&&!ids[d.id]}).concat(L)}
+function liveSub(){try{if(!SB||SB.__live)return;SB.__live=1;SB.channel('yum-mix-live').on('broadcast',{event:'draft'},function(m){var x=m&&m.payload;if(!x||!x.key||!x.formId)return;
+  LIVED[x.key]=x;document.querySelectorAll('.line').forEach(function(l){l.dataset.sig=''});setSync('실시간 · '+(x.by||'')+' 작성 중 내용 반영 '+hh(nowMin()),true);if(DATA&&['old','new','silo'].indexOf(TAB)>=0)render()}).subscribe()}catch(e){console.warn('[mix live]',e)}}
 function latest(arr){return arr.slice().sort(function(a,b){return String(b.updatedAt||b.createdAt).localeCompare(String(a.updatedAt||a.createdAt))})[0]}
 function nowMin(){var n=new Date();return n.getHours()*60+n.getMinutes()+n.getSeconds()/60}
 function today(){return dstr(new Date())}
@@ -507,7 +516,7 @@ function renderLive(){
  V.lines.filter(function(x){return x.L.room===ROOM()}).forEach(function(x){var L=x.L,el=document.getElementById('ln'+L.h);
   /* 카드 머리: 호기 · 상태 / 품목 / 기준 / 공정 단계 */
   var stp=x.mixT?['배합 중','mix']:x.recvT?['분리유액 투입 중','soy']:(!x.P.product&&x.pstat)?[x.pstat,x.pstat==='정비'?'mt':'no']:x.doc?['배치 '+x.moved+' / '+(x.P.planned||'?')+'B','doc']:x.sim?['배합 대기','wait']:['일지 없음','no'];
-  var pills='<span class="lst '+stp[1]+'">'+stp[0]+'</span>'+(x.mixT&&x.recvT?'<span class="lst soy">분리유액 투입 중</span>':'');
+  var pills=(x.doc&&x.doc.live?'<span class="lst live" title="부문포털에서 지금 작성 중인 내용 (저장 전)">실시간 · '+esc(x.doc.liveBy||'작성 중')+'</span>':'')+'<span class="lst '+stp[1]+'">'+stp[0]+'</span>'+(x.mixT&&x.recvT?'<span class="lst soy">분리유액 투입 중</span>':'');
   var prodTxt=x.P.product?'<i class="pdot" style="background:'+liq(x.P.product)+'"></i><b>'+esc(x.P.product)+'</b>'+(x.P.fromPlan?'<em>생산계획</em>':'')+(x.off&&x.doc?'<em class="y">어제 일지</em>':''):'<b class="none">'+(x.pstat?'오늘 '+x.pstat:'품목 미입력')+'</b>';
   var head='<div class="lhw"><div class="lh"><div class="lt"><span class="nm">'+L.h+'호기</span><span class="sp">'+L.tk[0][0]+',000TK · '+L.cap.toLocaleString()+'kg · 이송 '+L.rate.toLocaleString()+'kg/h'+(L.pump?' · '+L.pump:'')+'</span></div><div class="pills">'+pills+'</div></div>'+
    '<div class="prod">'+prodTxt+'</div>'+
@@ -721,7 +730,7 @@ var SB=null;
 var LASTFULL=0;
 async function pull(first){
  try{if(!SB&&window.supabase)SB=window.supabase.createClient(SUPA_URL,SUPA_ANON);if(!SB)throw new Error('no client');
-  var m=await SB.from('app_state').select('updated_at').eq('id',1).maybeSingle();if(m.error)throw m.error;
+  liveSub();var m=await SB.from('app_state').select('updated_at').eq('id',1).maybeSingle();if(m.error)throw m.error;
   if(!first&&m.data&&m.data.updated_at===LAST_AT){setSync('서버 연결됨 · '+hh(nowMin())+' 확인',true);return}
   /* 서버 부담 줄이기: 전체 데이터는 3분에 한 번까지만 (같은 PC에 부문포털이 열려 있으면 그쪽 저장 내용이 바로 반영됨) */
   if(!first&&Date.now()-LASTFULL<180000){setSync('서버 연결됨 · '+hh(nowMin())+' 확인',true);return}

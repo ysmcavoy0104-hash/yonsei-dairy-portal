@@ -17043,6 +17043,15 @@ window.yumOpenMix=function(){var w=null;try{w=window.open('mix.html','yum_mix')}
 
 /* 팀 포털 연계 로그인: 부문포털 로그인 그대로 → 그 팀 포털에 「연계 게스트(보기 전용)」로 입장
    버튼을 누를 때마다 그 팀 서버(portal-link)에서 일회용 입장 코드를 새로 받아 # 뒤에 붙여 넘김 */
+/* 서버 로그인 정보 (만료가 1분 안이면 새로 받음) */
+async function srvSession(){var S=window.SupaSync;if(!S||!S.on())return null;var to=function(p,ms){return Promise.race([p,new Promise(function(r){setTimeout(function(){r(null)},ms)})])};
+ var ses=null;try{var g=await to(S.c().auth.getSession(),8000);ses=g&&g.data&&g.data.session}catch(e){}
+ if(ses&&ses.expires_at&&ses.expires_at*1000-Date.now()<60000){try{var rf=await to(S.c().auth.refreshSession(),12000);ses=rf&&rf.data&&rf.data.session||null}catch(e){ses=null}}
+ return ses}
+function askPw(name){return new Promise(function(ok){var o=document.createElement('div');o.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(10,20,43,.55);display:flex;align-items:center;justify-content:center;padding:16px';
+ o.innerHTML='<form style="background:#fff;border-radius:16px;padding:22px;max-width:360px;width:100%;font-family:inherit;box-shadow:0 20px 50px -20px rgba(0,0,0,.5)"><b style="font-size:17px;color:#12233F">'+name+' 포털 연계</b><p style="font-size:13px;color:#475569;line-height:1.6;margin:8px 0 12px">서버 로그인이 끊겨 있습니다. 부문포털 비밀번호를 한 번 입력해 주세요.</p><input type="password" autocomplete="current-password" style="width:100%;height:42px;border:1px solid #CBD5E1;border-radius:10px;padding:0 12px;font-size:15px;box-sizing:border-box"><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button type="button" data-x style="height:40px;padding:0 16px;border-radius:10px;border:1px solid #CBD5E1;background:#fff;cursor:pointer">취소</button><button type="submit" style="height:40px;padding:0 18px;border-radius:10px;border:0;background:#12244A;color:#fff;font-weight:700;cursor:pointer">연결</button></div></form>';
+ document.body.appendChild(o);var i=o.querySelector('input');setTimeout(function(){i.focus()},50);
+ function done(v){o.remove();ok(v)}o.querySelector('[data-x]').onclick=function(){done(null)};o.querySelector('form').onsubmit=function(e){e.preventDefault();done(i.value)}})}
 function linkIn(t){
  var w=null;try{w=window.open('about:blank','yum_'+t.k)}catch(e){}
  function msg(h){try{if(w&&!w.closed){w.document.title=t.n+' 포털';w.document.body.innerHTML='<div style="font-family:system-ui,sans-serif;max-width:520px;margin:18vh auto;text-align:center;line-height:1.7;color:#12233F">'+h+'</div>'}}catch(e){}}
@@ -17050,9 +17059,15 @@ function linkIn(t){
  (async function(){
   var err='';
   try{
-   var S=window.SupaSync,ses=null;
-   try{ses=(await Promise.race([S.c().auth.getSession(),new Promise(function(r){setTimeout(function(){r({data:{}})},8000)})])).data.session}catch(e){}
-   if(!ses||!ses.access_token)throw new Error('부문포털 서버 로그인 정보가 없습니다. 로그아웃 후 다시 로그인한 뒤 눌러 주세요.');
+   var S=window.SupaSync,ses=await srvSession();
+   if(!ses||!ses.access_token){
+    /* 서버가 느릴 때 기기 확인만으로 로그인했거나 오래 켜 둬 서버 로그인이 끊긴 경우 → 비밀번호로 한 번 다시 연결 */
+    msg('<b style="font-size:18px">부문포털 창에서 비밀번호를 입력해 주세요</b><br><span style="color:#64748B">서버 로그인이 끊겨 있어 다시 연결합니다.</span>');
+    var pw=await askPw(t.n);if(pw==null)throw new Error('비밀번호 입력을 취소했습니다.');
+    var u=me(),r0=await S.ensureSession(u.empNo,pw,u.authEmail||u.email||null,false);
+    if(!r0||!r0.ok)throw new Error(r0&&/invalid/i.test(r0.msg||'')?'비밀번호가 맞지 않습니다.':'서버 응답이 늦어 다시 연결하지 못했습니다. 잠시 뒤 다시 눌러 주세요.');
+    msg('<b style="font-size:18px">'+t.n+' 업무포털로 이동하는 중…</b>');ses=await srvSession();
+    if(!ses||!ses.access_token)throw new Error('서버 로그인 정보를 받지 못했습니다. 잠시 뒤 다시 눌러 주세요.')}
    var ctl=new AbortController(),to=setTimeout(function(){ctl.abort()},20000);
    var r=await fetch(t.link.fn,{method:'POST',signal:ctl.signal,headers:{'Content-Type':'application/json',apikey:t.link.key},body:JSON.stringify({portal_url:window.SUPA_URL,token:ses.access_token})});
    clearTimeout(to);var j=await r.json().catch(function(){return null});
@@ -17693,6 +17708,35 @@ try{var _go=App.go;App.go=function(){try{run('화면 이동')}catch(e){}return _
 try{var _p=Doc.persist;Doc.persist=function(){dirty=false;return _p.apply(this,arguments)}}catch(e){}
 try{var _c=Doc.cancelDraft;if(_c)Doc.cancelDraft=function(){dirty=false;return _c.apply(this,arguments)}}catch(e){}
 window.yumLiveSave=run;
+})();
+</script>
+
+<script>
+/* 작성 중인 배합 일지를 배합팀 업무포털로 실시간 전달 (2026-11-06)
+   · 생산작업일보(FRM-012 · 멸균유 FRM-011) · 배합실 CIP 일보(FRM-042 · 043)를 쓰는 동안, 입력이 멈추고 2.5초 뒤 내용을 보냄
+   · 서버 데이터베이스에 쓰지 않는 실시간 전송(Supabase Realtime broadcast) → 저장 없이도 현황판 애니메이션에 바로 반영 · 서버 부담 거의 없음
+   · 실제 보관은 지금처럼 임시저장 · 자동 임시저장으로 */
+(function(){
+'use strict';
+if(window.__YUM_LIVECAST__)return;window.__YUM_LIVECAST__=1;
+var CODES=['FRM-012','FRM-011','FRM-042','FRM-043'],CH=null,ready=false,T=null,HB=null,KEY=null,KFORM=null;
+function chan(){if(CH)return CH;try{var S=window.SupaSync;if(!S||!S.on())return null;var c=S.c();if(!c||!c.channel)return null;
+ CH=c.channel('yum-mix-live',{config:{broadcast:{self:false}}});CH.subscribe(function(st){ready=st==='SUBSCRIBED'})}catch(e){CH=null}return CH}
+function form(){var f=window.__CURFORM;if(f&&f.code)return f;try{var sel=document.getElementById('nf-form'),id=sel?sel.value:window.__yumFormId;return (DB.data.forms||[]).filter(function(x){return x.id===id})[0]}catch(e){return null}}
+function curDoc(){try{var id=window.__yumDocId||(window.__CURDOC&&window.__CURDOC.id);return id?(DB.data.docs||[]).filter(function(d){return d.id===id})[0]:null}catch(e){return null}}
+function onEditor(){var p=document.getElementById('docpaper');if(!p||!p.querySelector('[data-gk],[data-k]'))return false;
+ if(/^#\/doc-new/.test(location.hash||''))return true;return !!(window.__yumInline&&window.__yumInline===location.hash)}
+function send(){try{
+ var f=form();if(!f||CODES.indexOf(f.code)<0||!onEditor())return;var ch=chan();if(!ch)return;if(!ready){setTimeout(send,1500);return}
+ var data=FormRender.collect(),d=curDoc(),u=Auth.user()||{};
+ if(KFORM!==f.id){KEY=null;KFORM=f.id}if(!KEY)KEY='live-'+Math.random().toString(36).slice(2,10);
+ ch.send({type:'broadcast',event:'draft',payload:{key:KEY,id:d?d.id:null,formId:f.id,code:f.code,data:data,by:u.name||'',at:new Date().toISOString(),createdAt:d?d.createdAt:null}});
+}catch(e){console.warn('[실시간 전달]',e)}}
+function kick(e){if(!e.isTrusted)return;var t=e.target;if(!(t&&t.closest&&t.closest('#docpaper')))return;chan();clearTimeout(T);T=setTimeout(send,2500);
+ /* 쓰는 동안 1분마다 다시 보냄 (나중에 현황판을 연 사람도 바로 보이게) */
+ if(!HB)HB=setInterval(function(){if(onEditor())send();else{clearInterval(HB);HB=null;KEY=null}},60000)}
+document.addEventListener('input',kick,true);document.addEventListener('change',kick,true);
+window.yumLiveCast=send;
 })();
 </script>
 
