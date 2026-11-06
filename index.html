@@ -17668,7 +17668,10 @@ var LP=null,T=null;new MutationObserver(function(){var p=el(KEYS[0]);if(p&&p!==L
 if(window.__YUM_LIVESAVE__)return;window.__YUM_LIVESAVE__=1;
 var IDLE=60000,GAP=300000,dirty=false,lastEdit=0,lastAuto=0,quiet=false;
 function curDoc(){try{var id=window.__yumDocId||(window.__CURDOC&&window.__CURDOC.id);return id?(DB.data.docs||[]).filter(function(d){return d.id===id})[0]:null}catch(e){return null}}
-function onForm(){return !!(document.getElementById('docpaper')&&document.querySelector('.formactions')&&/^#\/doc-new/.test(location.hash||''))}
+/* 작성 화면(#/doc-new) 또는 문서 화면에서 「수정하기」로 바로 고치는 중 */
+function onForm(){var p=document.getElementById('docpaper');if(!p||!p.querySelector('[data-gk],[data-k]'))return false;
+ if(/^#\/doc-new/.test(location.hash||'')&&document.querySelector('.formactions'))return true;
+ return !!(window.__yumInline&&window.__yumInline===location.hash)}
 function canAuto(){if(!onForm())return false;var d=curDoc();if(d&&d.status!=='temp')return false;try{return !!Auth.user()}catch(e){return false}}
 document.addEventListener('input',function(e){if(!e.isTrusted)return;var t=e.target;if(t&&t.closest&&t.closest('#docpaper')){dirty=true;lastEdit=Date.now()}},true);
 document.addEventListener('change',function(e){if(!e.isTrusted)return;var t=e.target;if(t&&t.closest&&t.closest('#docpaper')){dirty=true;lastEdit=Date.now()}},true);

@@ -347,7 +347,7 @@ function tmin(s){s=String(s==null?'':s).trim();if(!s)return null;var m=s.match(/
 function num(s){var v=parseFloat(String(s==null?'':s).replace(/[^\d.\-]/g,''));return isFinite(v)?v:null}
 function form(code){return ((DATA&&DATA.forms)||[]).find(function(f){return f.code===code})}
 function G(d,k){var g=d&&d.data&&d.data.grid;var v=g&&g[k];if(v==null&&d&&d.data)v=d.data[k];return v==null?'':String(v).trim()}
-function docDate(d){var p=d&&d.data&&d.data.pdate;if(p)return String(p).slice(0,10);var y=G(d,'dY'),m=G(d,'dM'),dd=G(d,'dD');if(y&&m&&dd)return y+'-'+pad(+m)+'-'+pad(+dd);return String(d.createdAt||'').slice(0,10)}
+function docDate(d){var p=d&&d.data&&d.data.pdate;if(p)return String(p).slice(0,10);var y=G(d,'dY'),m=G(d,'dM'),dd=G(d,'dD');if(y&&m&&dd)return y+'-'+pad(+m)+'-'+pad(+dd);var t=Date.parse(d.createdAt||d.updatedAt||'');return isNaN(t)?String(d.createdAt||'').slice(0,10):dstr(new Date(t))}
 function docsOf(code){var f=form(code);if(!f)return [];return (DATA.docs||[]).filter(function(d){return d.formId===f.id&&d.status!=='deleted'&&!d.deleted})}
 function latest(arr){return arr.slice().sort(function(a,b){return String(b.updatedAt||b.createdAt).localeCompare(String(a.updatedAt||a.createdAt))})[0]}
 function nowMin(){var n=new Date();return n.getHours()*60+n.getMinutes()+n.getSeconds()/60}
@@ -374,7 +374,9 @@ function cipEvents(code,pre,row,s,e,dates){
    out.push({s:A,e:B,kind:G(d,pre+'_'+row+'_kind'),doc:d})})});
  return out.sort(function(x,y){return x.s-y.s});
 }
-function lineDoc(L,ds){var a=docsOf('FRM-012').filter(function(d){return docDate(d)===ds&&(G(d,'hogi')===L.h+'호기'||G(d,'hogi')===String(L.h))});return a.length?latest(a):null}
+function hogiOf(d){var h=G(d,'hogi').replace(/\s+/g,''),m=h.match(/^#?(\d)/);if(m)return +m[1];
+ var on=[];for(var k=1;k<=5;k++){for(var rr=3;rr<=6;rr++){if(G(d,'g2_'+rr+'_'+(2*k))){on.push(k);break}}}return on.length===1?on[0]:null}
+function lineDoc(L,ds){var a=docsOf('FRM-012').filter(function(d){return docDate(d)===ds&&hogiOf(d)===L.h});return a.length?latest(a):null}
 function moveMinOf(L){return L.cap/L.rate*60}
 
 /* ───────── 일지 없을 때 기준 시간표로 자동 표시 ─────────
