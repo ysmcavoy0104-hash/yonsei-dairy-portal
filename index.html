@@ -6498,7 +6498,7 @@ function solve(m){var S0=S(m),N=days(m),H=hset(m),st=allStaff().filter(function(
   function pref(p){return (pi[p.n]+wk(d))%2===0?'오전':'오후'}
   function cntS(n,s){var c=0;for(var i=0;i<d-1;i++)if(A[n][i]===s)c++;return c}
   var order=[],mx=0;keys.forEach(function(k){mx=Math.max(mx,+r[k]||0)});
-  ['오전','정상','오후'].forEach(function(k){if(keys.indexOf(k)>=0)for(var i=0;i<(+r[k]||0);i++)order.push(k)});
+  (g==='배합'?['오전','오후','정상']:['오전','정상','오후']).forEach(function(k){if(keys.indexOf(k)>=0)for(var i=0;i<(+r[k]||0);i++)order.push(k)});
   var gc=JSON.parse(JSON.stringify(got));order=order.filter(function(k){if(gc[k]>0){gc[k]--;return false}return true});
   order.forEach(function(s){var c=av.filter(function(p){return !(prevPM(p)&&(s==='오전'||s==='정상'))});
    if(!c.length){if(g==='배합'&&supFill(d,s,got)){return}unmet.push({d:d,n:g+' '+s,r:0,why:'배정 가능 인원 부족'});return}
