@@ -17892,7 +17892,9 @@ function same(a,b){a=norm(a);b=norm(b);if(!a||!b)return false;if(a.indexOf(b)>=0
 function juice(D,now){var d=docs('FRM-009',D)[0],out=[];
  for(var n=1;n<=4;n++){var bk=d?G(d,'bk'+n):'',wt=d?G(d,'wt'+n):'',nm=d?G(d,'nm'+n):'',hrs=[],on=0;
   for(var h=0;h<=24;h++){var v=d?G(d,'ax'+n+'_'+h):'';hrs.push(v);if(v)on++}
-  var run=now!=null?!!hrs[Math.floor(now/60)]:on>0;
+  var hh=now!=null?Math.floor(now/60):-1,last=-1;hrs.forEach(function(v,i){if(v)last=i});
+  /* 지금 시각 칸이 체크됐거나, 일지를 아직 못 채운 경우(마지막 체크가 바로 앞 시간) 가동 중으로 */
+  var run=now!=null?(!!hrs[hh]||(last>=0&&last===hh-1)):on>0;
   out.push({k:'j'+n,n:n,wt:n===4?'D':String(wt||'').replace(/\D/g,''),t:'빈쿠커 #'+(bk||n),sub:n===4?'→ 데칸타':(wt?'→ WT'+String(wt).replace(/\D/g,''):''),prod:nm,on:on>0,run:run,st:run?(now!=null?'가동 중':'가동 '+on+'시간'):on?'가동 '+on+'시간':'미가동'})}
  return out}
 function mix(D,now){var out=[],L=docs('FRM-012',D).concat(docs('FRM-011',D));
@@ -18006,8 +18008,8 @@ function render(D){
  WN.forEach(function(w,i){var y=Y.w[i]+NH/2;if(!wU[i])links+=link('M'+gapL+' '+y+' H'+(busX-10),SOY,w.on?'on':'',null)+vlv(busX-18,y,false)});
  links+='<path d="M'+busX+' '+(TOP+8)+' V'+(TOP+RH*6-20)+'" class="fm-base"/>';
  M.forEach(function(m,i){var y=Y.m[i]+NH/2;if(!mU[i])links+='<path d="M'+(busX+10)+' '+y+' H'+gapR+'" class="fm-base"/>'+vlv(busX+18,y,false)});
- wm.forEach(function(q,k){var w=WN[q[0]],x=laneX(k),dy=nP>1?5:0,ya=Y.w[q[0]]+NH/2-dy,yb=Y.m[q[1]]+NH/2+dy,d='M'+gapL+' '+ya+' H'+x+' V'+yb+' H'+gapR;
-  var c=COL[M[q[1]].h]||SOY;links+='<path d="'+d+'" fill="none" stroke="#0E1714" stroke-width="9" stroke-linejoin="round"/>'+link(d,c,w.run?'flow':'on',M[q[1]].h,x,(ya+yb)/2)+vlv(gapL+14,ya,true,c)+vlv(gapR-14,yb,true,c)});
+ wm.forEach(function(q,k){var w=WN[q[0]],fl=w.run||(w.on&&M[q[1]].run),x=laneX(k),dy=nP>1?5:0,ya=Y.w[q[0]]+NH/2-dy,yb=Y.m[q[1]]+NH/2+dy,d='M'+gapL+' '+ya+' H'+x+' V'+yb+' H'+gapR;
+  var c=COL[M[q[1]].h]||SOY;links+='<path d="'+d+'" fill="none" stroke="#0E1714" stroke-width="9" stroke-linejoin="round"/>'+link(d,c,fl?'flow':'on',M[q[1]].h,x,(ya+yb)/2)+vlv(gapL+14,ya,true,c)+vlv(gapR-14,yb,true,c)});
  /* 배합 N → 멸균 N */
  var cs=C('s');M.forEach(function(m,i){var s=S[i],y1=Y.m[i]+NH/2,y2=Y.s[i]+NH/2,mx=cm.x+cm.w+(cs.x-cm.x-cm.w)/2,c=COL[m.h];
   links+=link(path(cm.x+cm.w,y1,cs.x,y2,mx),c,m.mv?'flow':(m.on&&s.on?'on':''),m.h,mx,(y1+y2)/2)});
