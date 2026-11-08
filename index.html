@@ -6433,9 +6433,11 @@ function solve(m){var S0=S(m),N=days(m),H=hset(m),st=allStaff().filter(function(
  function wkLoad(n,w){var c=0,len=0,Wn=(S0.wishes||{})[n]||{};for(var d=1;d<=N;d++)if(wk(d)===w){len++;if(A[n][d-1]==='휴무')c+=(Wn[d]!=null||Wn[String(d)]!=null)?1.5:1}return len?Math.round(c*7/len*10)/10:0}   /* 희망휴무가 있는 주는 조금 더 무겁게 → 그 주에는 자동 휴무를 덜 줌 */
  function isW(n,j){var W=(S0.wishes||{})[n]||{};return j>=1&&(W[j]!=null||W[String(j)]!=null)}
  function adjOff(n,d){var k=0,j,w=false;for(j=d-1;j>=d-7;j--){if((j>=1?A[n][j-1]:hv(n,j))==='휴무'){if(isW(n,j))w=true;k++}else break}for(j=d+1;j<=N;j++){if(A[n][j-1]==='휴무'){if(isW(n,j))w=true;k++}else break}if(w)return 2;return k===0?1:(k+1<=2?0:2)}   /* 자동 휴무끼리 이어서 2일(퐁당퐁당 대신) · 희망휴무 옆에는 붙이지 않음 · 3일 이상 몰림 피함 */
- function cap(d,g){return st.filter(function(p){return p.st===g&&A[p.n][d-1]!=='휴무'}).length-needOf(S0,d,g,m)}
+ function cap(d,g){return st.filter(function(p){return p.st===g&&A[p.n][d-1]!=='휴무'&&A[p.n][d-1]!=='4층교육'}).length-needOf(S0,d,g,m)}
  st.forEach(function(p){var f=fxOf(p),ed=p.exclDow||[];PD.forEach(function(d){if(ed.indexOf(dow(m,d))>=0){A[p.n][d-1]='휴무';return}if(f)A[p.n][d-1]=H[d]?'휴무':f})});
- var VC=S0.vac||{};st.forEach(function(p){var v=VC[p.n]||{};PD.forEach(function(d){if(v[d]||v[String(d)])A[p.n][d-1]='휴무'})});function vcn(n){var v=VC[n]||{},c=0;for(var d=1;d<=N;d++)if((v[d]||v[String(d)])&&A[n][d-1]==='휴무')c++;return c}
+ var VC=S0.vac||{};st.forEach(function(p){var v=VC[p.n]||{};PD.forEach(function(d){if(v[d]||v[String(d)])A[p.n][d-1]='휴무'})});
+ (DB.data.edu4||[]).forEach(function(e){var p=st.filter(function(o){return String(o.n).replace(/\s+/g,'')===String(e.n).replace(/\s+/g,'')})[0];if(!p||isFixG(p)||p.fx)return;var W=(S0.wishes||{})[p.n]||{};
+  PD.forEach(function(d){var ds=m+'-'+String(d).padStart(2,'0'),w=dow(m,d);if(ds<e.from||ds>e.to||w===0||w===6||H[d])return;if(A[p.n][d-1]==='휴무'||W[d]!=null||W[String(d)]!=null)return;A[p.n][d-1]='4층교육'})});function vcn(n){var v=VC[n]||{},c=0;for(var d=1;d<=N;d++)if((v[d]||v[String(d)])&&A[n][d-1]==='휴무')c++;return c}
  var q={};st.forEach(function(p){q[p.n]=T-offs(p.n)+vcn(p.n)});
  var unmet=[],wl=[];Object.keys(S0.wishes||{}).forEach(function(n){if(!A[n])return;var w=S0.wishes[n];Object.keys(w).forEach(function(d){var r=+w[d];d=+d;if(r>=1&&r<=3&&d>L&&d<=N)wl.push({n:n,d:d,r:r})})});
  wl.sort(function(a,b){return a.r-b.r||(a.n<b.n?-1:1)});
@@ -6464,7 +6466,7 @@ function solve(m){var S0=S(m),N=days(m),H=hset(m),st=allStaff().filter(function(
  function rpm(n,d){var c=0;for(var k=d-7;k<d;k++)if(hv(n,k)==='오후')c++;return c}
  /* 배합 인원이 모자랄 때 착즙 지원: 착즙 오전 · 오후 필요 인원은 남겨 두고 투입 */
  function supFill(d,s,got){if(s==='오전')return false;var rc=reqOf(S0,d,'착즙',m),needC=(+rc['오전']||0)+(+rc['오후']||0);
-  var avC=st.filter(function(o){return o.st==='착즙'&&A[o.n][d-1]!=='휴무'&&A[o.n][d-1]!=='배합지원'}).length;if(avC-1<needC)return false;
+  var avC=st.filter(function(o){return o.st==='착즙'&&A[o.n][d-1]!=='휴무'&&A[o.n][d-1]!=='배합지원'&&A[o.n][d-1]!=='4층교육'}).length;if(avC-1<needC)return false;
   var x=st.filter(function(o){return ['장영빈','이연우'].indexOf(String(o.n).replace(/\\s+/g,''))>=0&&A[o.n][d-1]===''&&!(d>1&&A[o.n][d-2]==='오후')})[0];if(!x)return false;
   if(s==='정상'){A[x.n][d-1]='배합지원';got['정상']=(got['정상']||0)+1;return true}
   var y=st.filter(function(o){return o.st==='배합'&&A[o.n][d-1]==='정상'&&!o.lead}).sort(function(a,b){return rpm(a.n,d)-rpm(b.n,d)})[0];
@@ -6544,6 +6546,11 @@ function solve(m){var S0=S(m),N=days(m),H=hset(m),st=allStaff().filter(function(
     if(!c.length)break;
     c.sort(function(a,b){var la=(!hasL&&a.lead)?0:a.lead?2:1,lb=(!hasL&&b.lead)?0:b.lead?2:1;return la-lb});
     A[c[0].n][d-1]=k}})})})();
+ (DB.data.edu4||[]).forEach(function(e){var p=st.filter(function(o){return String(o.n).replace(/\s+/g,'')===String(e.n).replace(/\s+/g,'')})[0];if(!p)return;
+  PD.forEach(function(d){var ds=m+'-'+String(d).padStart(2,'0'),w=dow(m,d);if(ds<e.from||ds>e.to||!(w===0||w===6))return;if(A[p.n][d-1]!=='오후')return;
+   if(d>1&&A[p.n][d-2]==='오후')return;
+   var c=st.filter(function(o){return o.st===p.st&&o.n!==p.n&&A[o.n][d-1]==='오전'&&!(d<N&&(A[o.n][d]==='오전'||A[o.n][d]==='정상'))}).sort(function(a,b){return (a.lead?1:0)-(b.lead?1:0)})[0];
+   if(c){A[c.n][d-1]='오후';A[p.n][d-1]='오전'}})});
  var cnt={};st.forEach(function(p){var c={오전:0,정상:0,오후:0,휴무:0,근무:0,wk:0,hol:0};for(var d=1;d<=N;d++){var v=A[p.n][d-1];if(v in c)c[v]++;if(v&&v!=='휴무')c[H[d]?'hol':'wk']++}cnt[p.n]=c});
  var V=[];
  PD.forEach(function(d){G.forEach(function(g){var r=reqOf(S0,d,g,m),got={오전:0,정상:0,오후:0};var leads=st.filter(function(p){return p.st===g&&p.lead}),hl={};
@@ -6567,6 +6574,7 @@ function shiftInfo(p,d,m,v){if(!v)return {code:'',hours:0,night:0};
  if(v==='정상'){if(p.st==='배합')return {code:'중간',hours:9,night:0};return {code:'정상',hours:8,night:0}}
  if(v==='오후')return {code:'오후',hours:12,night:8};
  if(v==='근무')return {code:'근무',hours:8,night:0};
+ if(v==='4층교육')return {code:'4층',hours:8,night:0};
  return {code:v,hours:0,night:0}}
 function staffTally(m){var S0=S(m),N=days(m),res=S0.res,R=allStaff().filter(function(p){return p.active!==false});
  return R.map(function(p){var row={n:p.n,st:p.st,days:[],tot:0,ot:0,night:0,off:0};
@@ -7628,7 +7636,7 @@ function buildWeeks(asg,staff,w){
  var ds=[0,1,2,3,4,5,6].map(function(i){return w.s+i}),key=w.key,W=WP[key],on={};w.only.forEach(function(d){on[d]=1});
  var dates=ds.map(function(d){return ymd(y,mo,d)});
  var mine=function(d){return !!on[d]};                          /* 이번에 편성한 날짜만 새로 씀 — 나머지 칸은 그대로 */
- var who=function(d,st,sh){return staff.filter(function(p){return (p.st===st&&(asg[p.n]||[])[d-1]===sh)||(st==='배합'&&sh==='정상'&&(asg[p.n]||[])[d-1]==='배합지원')}).map(function(p){return p.n}).join(',')};
+ var who=function(d,st,sh){return staff.filter(function(p){return (p.st===st&&(asg[p.n]||[])[d-1]===sh)||(st==='배합'&&sh==='정상'&&(asg[p.n]||[])[d-1]==='배합지원')||(st==='4층'&&sh==='정상'&&(asg[p.n]||[])[d-1]==='4층교육')}).map(function(p){return p.n+((asg[p.n]||[])[d-1]==='4층교육'?'(교육)':'')}).join(',')};
  var oldG=function(lab,sub,i,k){var g=W&&(W.groups||[]).filter(function(x){return x.label===lab})[0],r=g&&(g.rows||[]).filter(function(x){return (x.sub||'')===sub})[0];return r&&r[k]?(r[k][i]||''):''};
  var oldS=function(lab,i){var x=W&&(W.single||[]).filter(function(q){return q.label===lab})[0];return x&&x.values?(x.values[i]||''):''};
  var groups=WG.map(function(g){return {label:g[0],rows:g[1].map(function(r){var fixed=g[0]==='4층'||g[0]==='정상';
@@ -17129,7 +17137,7 @@ function landing(){
  /* 영역 카드 */
  var g=document.querySelector('#areas .ha-g');
  if(g&&g.getAttribute('data-sig')!==String(sup)){
-  var C=[['#/teams','01 · Team Portals','⊞','팀 포털','착즙 · 배합 · 멸균 · 포장 팀별 업무포털로 바로 들어갑니다. 현장 현황과 팀 인사이트를 봅니다.',['배합팀 포털 (운영 중)','착즙 · 멸균 · 포장 (연계 준비)'],'#0F8F7C','#0A3F3A','15,143,124'],
+  var C=[['#/teams','01 · Team Portals','⊞','팀 포털','착즙 · 배합 · 멸균 · 포장 팀별 업무포털로 바로 들어갑니다. 현장 현황과 팀 인사이트를 봅니다.',['배합팀 포털 (운영 중)','착즙 · 멸균 · 포장 포털 바로가기'],'#0F8F7C','#0A3F3A','15,143,124'],
    ['#/overview','02 · Dashboard','▦','대시보드','팀별 일지와 생산 현황을 한 화면에서 확인합니다.',['대시보드 전체보기','팀별 현황'],'#3062D8','#12245A','48,98,216'],
    ['#/notice','03 · Insight','📢','인사이트','팀 포털과 일지에 모인 자료로 팀별 인사이트를 자동으로 만듭니다.',['팀별 인사이트','자동 인사이트 · 부서 공지'],'#D9822B','#5A300A','217,130,43'],
    ['#/docs','04 · Resources','✎','자료','일지 · 결재 · 문서 · 보고서와 지연 · 정비 기록, 업무 자료를 한곳에 모았습니다.',['일지 작성 · 전자결재','지연 · 정비 기록','설비 매뉴얼 AI'],'#C27A2C','#53300F','194,122,44'],
@@ -17969,5 +17977,106 @@ window.yumFlowMap=function(D){try{if(!document.getElementById('fm-css')){var st=
 </script>
 
 <style>#docpaper input.cell[data-gk$="_prod"]{width:300px!important;max-width:100%}#docpaper input.cell[data-gk="a19_chk"],#docpaper input.cell[data-gk="a20_chk"]{width:120px!important}</style>
+<script>
+/* 4층 교육 배치 (2026-11-07 · 11-08 화면 추가)
+   · DB.data.edu4 = [{n:이름, from:'YYYY-MM-DD', to:'YYYY-MM-DD', note}] — 기간의 평일(공휴일 · 희망휴무 제외)에 「4층교육」으로 편성
+   · 4층 인원은 그대로 + 교육 인원만 추가 · 주말은 원래 규칙(착즙 조출 · 배합지원, 오후는 오전과 맞바꿈)
+   · 근무스케쥴(근무편성) 화면 위쪽 「4층 교육 인원」 칸에서 직접 추가 · 삭제 → 그 주를 다시 편성하면 반영 */
+(function(){
+'use strict';
+if(window.__YUM_EDU4__)return;window.__YUM_EDU4__=1;
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function pad(n){return String(n).padStart(2,'0')}
+function today(){var n=new Date();return n.getFullYear()+'-'+pad(n.getMonth()+1)+'-'+pad(n.getDate())}
+function addD(s,k){var d=new Date(s+'T00:00:00');d.setDate(d.getDate()+k);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+function L(){return Array.isArray(DB.data.edu4)?DB.data.edu4:(DB.data.edu4=[])}
+/* 처음 한 번: 장영빈 11/9~11/15 */
+function seed(){try{if(typeof DB==='undefined'||!DB.data)return;var d=DB.data;if(d.edu4Seed&&d.edu4Seed['20261109'])return;
+ if(!L().some(function(x){return x&&x.n==='장영빈'&&x.from==='2026-11-09'}))L().push({n:'장영빈',from:'2026-11-09',to:'2026-11-15',note:'4층 근무 사전 교육'});
+ (d.edu4Seed=d.edu4Seed||{})['20261109']=new Date().toISOString();try{DB.save()}catch(e){}}catch(e){}}
+seed();[800,3000].forEach(function(t){setTimeout(seed,t)});
+try{var _ad=SupaSync.adopt;SupaSync.adopt=function(){var r=_ad.apply(this,arguments);setTimeout(seed,0);setTimeout(put,50);return r}}catch(e){}
+
+function staff(){try{return (YSched._staff()||[]).filter(function(p){return p.active!==false&&p.st!=='4층'&&p.st!=='지원'})}catch(e){return []}}
+function md(s){return (+s.slice(5,7))+'/'+(+s.slice(8))}
+function wdays(a,b){var n=0,s=a;for(var i=0;i<62&&s<=b;i++){var w=new Date(s+'T00:00:00').getDay();if(w!==0&&w!==6)n++;s=addD(s,1)}return n}
+function html(){var E=L().slice().sort(function(a,b){return String(a.from).localeCompare(String(b.from))}),T=today();
+ var S=staff(),teams={};S.forEach(function(p){(teams[p.st]=teams[p.st]||[]).push(p.n)});
+ var opts=Object.keys(teams).map(function(t){return '<optgroup label="'+esc(t)+'">'+teams[t].map(function(n){return '<option>'+esc(n)+'</option>'}).join('')+'</optgroup>'}).join('');
+ var mon=addD(T,(8-new Date(T+'T00:00:00').getDay())%7||7),fri=addD(mon,4);
+ return '<div class="e4-h"><b>🎓 4층 교육 인원</b><span>4층 기존 인원은 그대로 두고 아래 사람을 기간 중 <b>평일</b>에 4층(07:30~16:00)으로 추가 편성합니다 · 희망휴무 · 공휴일은 제외 · 주말은 착즙 조출 · 배합지원 · 추가 · 삭제 후 <b>그 주를 다시 편성</b>하면 반영됩니다</span></div>'+
+  '<div class="e4-list">'+(E.length?E.map(function(e,i){var past=e.to<T;return '<div class="e4-it'+(past?' past':'')+'"><b>'+esc(e.n)+'</b><span>'+md(e.from)+' ~ '+md(e.to)+' · 평일 '+wdays(e.from,e.to)+'일'+(e.note?' · '+esc(e.note):'')+(past?' · 지난 일정':'')+'</span><button type="button" onclick="yumEdu4.del('+L().indexOf(e)+')" title="삭제">삭제</button></div>'}).join(''):'<div class="e4-empty">등록된 교육 인원이 없습니다.</div>')+'</div>'+
+  '<div class="e4-add"><select id="e4-n"><option value="">사람 선택</option>'+opts+'</select><input type="date" id="e4-f" value="'+mon+'"><span>~</span><input type="date" id="e4-t" value="'+fri+'"><input id="e4-note" placeholder="메모 (예: 4층 사전 교육)" maxlength="40"><button type="button" class="btn btn-p btn-sm" onclick="yumEdu4.add()">추가</button></div>'}
+var CSS='#e4-box{background:#fff;border:1px solid #E6E9EF;border-left:4px solid #6D50D9;border-radius:12px;padding:12px 14px;margin:0 0 14px;display:flex;flex-direction:column;gap:8px}'+
+ '.e4-h{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}.e4-h b{font-size:14px;color:#2B1F66}.e4-h span{font-size:12px;color:#64748B;line-height:1.6}'+
+ '.e4-list{display:flex;flex-wrap:wrap;gap:6px}.e4-it{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border-radius:999px;background:#F3F0FF;border:1px solid #DDD6FE;font-size:12.5px}.e4-it b{color:#4C1D95}.e4-it span{color:#475569}.e4-it.past{opacity:.55}'+
+ '.e4-it button{border:0;background:#fff;border-radius:999px;padding:2px 10px;font-size:11.5px;color:#B91C1C;cursor:pointer;border:1px solid #FECACA}.e4-empty{font-size:12.5px;color:#94A3B8}'+
+ '.e4-add{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.e4-add select,.e4-add input{height:34px;border:1px solid #CBD5E1;border-radius:8px;padding:0 8px;font:inherit;font-size:13px}.e4-add #e4-note{min-width:180px;flex:1}';
+function put(){try{var root=document.getElementById('ws-root');var h=location.hash||'';if(!root||!/worksched/.test(h)){return}
+ if(!document.getElementById('e4-css')){var st=document.createElement('style');st.id='e4-css';st.textContent=CSS;document.head.appendChild(st)}
+ var box=document.getElementById('e4-box');if(!box){box=document.createElement('div');box.id='e4-box';root.parentNode.insertBefore(box,root)}
+ var sig=JSON.stringify(L())+'|'+staff().length;if(box.getAttribute('data-sig')===sig)return;box.setAttribute('data-sig',sig);box.innerHTML=html()}catch(e){}}
+function toast(m,k){try{U.toast(m,k)}catch(e){alert(m)}}
+window.yumEdu4={
+ add:function(){var n=(document.getElementById('e4-n')||{}).value,f=(document.getElementById('e4-f')||{}).value,t=(document.getElementById('e4-t')||{}).value,nt=((document.getElementById('e4-note')||{}).value||'').trim();
+  if(!n)return toast('교육할 사람을 골라 주세요.','bad');if(!f||!t)return toast('기간(시작일 · 종료일)을 넣어 주세요.','bad');if(t<f)return toast('종료일이 시작일보다 빠릅니다.','bad');
+  if(L().some(function(e){return e.n===n&&!(t<e.from||f>e.to)}))return toast(n+'님은 겹치는 기간에 이미 등록돼 있습니다.','bad');
+  L().push({n:n,from:f,to:t,note:nt||'4층 근무 교육',by:(Auth.user()||{}).name||'',at:new Date().toISOString()});try{DB.save()}catch(e){}
+  var b=document.getElementById('e4-box');if(b)b.removeAttribute('data-sig');put();toast(n+'님 4층 교육('+md(f)+'~'+md(t)+')을 추가했습니다. 그 주를 다시 편성하면 반영됩니다.','ok')},
+ del:function(i){var e=L()[i];if(!e)return;if(!confirm(e.n+'님 4층 교육('+md(e.from)+'~'+md(e.to)+')을 삭제할까요?\n이미 편성된 주는 다시 편성해야 원래 근무로 돌아갑니다.'))return;
+  L().splice(i,1);try{DB.save()}catch(x){}var b=document.getElementById('e4-box');if(b)b.removeAttribute('data-sig');put()},
+ list:function(){return L()}};
+
+/* ───── 주간근무계획표 4층 칸: 「+ 추가」로 그날 4층에 사람 직접 추가 · × 로 되돌리기 (화면 전용 버튼 — 인쇄 · PDF에는 안 나옴) ───── */
+function isSup(){try{var u=Auth.user();return !!u&&u.role==='superadmin'}catch(e){return false}}
+function WPo(k){return ((DB.data.weeklyPlans||{})[k])}
+function bare(x){return String(x||'').replace(/\(.*?\)/g,'').replace(/\s+/g,'')}
+function splitN(v){return String(v||'').split(',').map(function(x){return x.trim()}).filter(function(x){return x&&x!=='-'})}
+function where(W,di,n){var out=[];(W.groups||[]).forEach(function(g){(g.rows||[]).forEach(function(r){if(splitN((r.names||[])[di]).some(function(x){return bare(x)===bare(n)}))out.push({g:g.label,sub:r.sub||''})})});
+ (W.single||[]).forEach(function(x){if(x.label==='휴무자'&&splitN((x.values||[])[di]).some(function(y){return bare(y)===bare(n)}))out.push({g:'휴무자',sub:''})});return out}
+function DL(){return Array.isArray(DB.data.edu4day)?DB.data.edu4day:(DB.data.edu4day=[])}
+function setAsg(n,ds,v){try{var o=DB.data.workSched&&DB.data.workSched.months&&DB.data.workSched.months[ds.slice(0,7)];if(!o||!o.asg)return null;var a=o.asg[n];if(!a)return null;var d=+ds.slice(8),prev=a[d-1]||'';a[d-1]=v;return prev}catch(e){return null}}
+var _eh=window.yumEduHtml;
+function hook(){var f=window.yumEduHtml;if(!f||f.__e4)return !!(f&&f.__e4);
+ var g=function(k,glabel,di){var h=f.apply(this,arguments)||'';
+  try{if(glabel==='4층'&&k&&isSup()){var ds=addD(k,di),man=DL().filter(function(x){return x.ds===ds});
+   h+=man.map(function(x){return '<div class="e4d-x" data-html2canvas-ignore="true"><button type="button" onclick="yumEdu4.dayDel(\''+esc(ds)+'\',\''+esc(x.n)+'\')" title="'+esc(x.n)+' 4층 추가 취소 (원래 자리로)">'+esc(x.n)+' ×</button></div>'}).join('')+
+    '<div class="e4d" data-html2canvas-ignore="true"><button type="button" onclick="yumEdu4.dayAdd(\''+esc(k)+'\','+di+')">+ 추가</button></div>'}}catch(e){}
+  return h};g.__e4=1;window.yumEduHtml=g;return true}
+if(!hook()){var nn=0,iv=setInterval(function(){if(hook()||++nn>40)clearInterval(iv)},250)}
+var CSS2='.e4d button,.e4d-x button{margin-top:4px;border:1px dashed #A78BFA;background:#F5F3FF;color:#5B21B6;border-radius:8px;padding:2px 10px;font-size:11.5px;font-weight:700;cursor:pointer}.e4d-x button{border-style:solid;background:#fff;color:#7C3AED}@media print{.e4d,.e4d-x{display:none!important}}';
+(function(){var st=document.createElement('style');st.textContent=CSS2;document.head.appendChild(st)})();
+function rerender(){try{WeekPlan.goKey(WeekPlan.cur())}catch(e){try{App.render()}catch(x){}}}
+window.yumEdu4.dayAdd=function(k,di){var W=WPo(k);if(!W){toast('이 주 계획표가 아직 없습니다. 먼저 편성해 주세요.','bad');return}
+ var ds=addD(k,di),WDN='월화수목금토일'[di],S=(function(){try{return (YSched._staff()||[]).filter(function(p){return p.active!==false&&p.st!=='4층'})}catch(e){return []}})();
+ var four=splitN(((W.groups||[]).filter(function(g){return g.label==='4층'})[0]||{rows:[{names:[]}]}).rows[0].names[di]).map(bare);
+ var opts=S.filter(function(p){return four.indexOf(bare(p.n))<0}).map(function(p){var w=where(W,di,p.n).map(function(x){return x.g+(x.sub?' '+x.sub:'')}).join(', ')||'계획표에 없음';return '<option value="'+esc(p.n)+'">'+esc(p.n)+' ('+esc(p.st)+' · 지금: '+esc(w)+')</option>'}).join('');
+ var body='<div style="display:flex;flex-direction:column;gap:10px;font-size:13.5px"><div><b>'+md(ds)+'('+WDN+')</b> 4층(07:30~16:00)에 교육 인원을 추가합니다. 4층 기존 인원은 그대로입니다.</div>'+
+  '<label>사람 <select id="e4d-n" style="width:100%;height:38px;margin-top:4px">'+opts+'</select></label>'+
+  '<label>표시 <input id="e4d-l" value="교육" style="width:120px;height:34px;margin-left:6px"> <span style="color:#64748B;font-size:12px">→ 계획표에 「이름(교육)」으로 표시</span></label>'+
+  '<div style="font-size:12.5px;color:#92400E;background:#FFF7ED;border:1px solid #FED7AA;border-radius:8px;padding:8px 10px;line-height:1.6">그 사람은 그날 <b>원래 자리(근무조 · 휴무자)에서 빠집니다.</b> 근무조에서 빠지면 그 자리가 비니, 필요하면 「1팀 지원」 칸이나 다른 사람으로 채워 주세요. 휴무였던 사람이면 그날 근무로 바뀝니다. 「×」로 언제든 되돌릴 수 있습니다.</div></div>';
+ U.modal('🎓 4층 교육 인원 추가',body,{foot:'<button class="btn btn-o btn-sm" onclick="U.closeModal()">취소</button><button class="btn btn-p btn-sm" id="e4d-ok">추가</button>',onopen:function(){var b=document.getElementById('e4d-ok');if(b)b.onclick=function(){
+  var n=(document.getElementById('e4d-n')||{}).value,lab=((document.getElementById('e4d-l')||{}).value||'교육').trim()||'교육';if(!n)return;
+  if(W.confirmed&&!confirm('이 주는 확정된 계획표입니다. 그래도 추가할까요?'))return;
+  var from=where(W,di,n);
+  (W.groups||[]).forEach(function(g){(g.rows||[]).forEach(function(r){var L=splitN((r.names||[])[di]);var L2=L.filter(function(x){return bare(x)!==bare(n)});if(L2.length!==L.length)r.names[di]=L2.join(', ')||'-'})});
+  (W.single||[]).forEach(function(x){if(x.label!=='휴무자')return;var L=splitN((x.values||[])[di]);var L2=L.filter(function(y){return bare(y)!==bare(n)});if(L2.length!==L.length)x.values[di]=L2.join(', ')||'-'});
+  var G4=(W.groups||[]).filter(function(g){return g.label==='4층'})[0];if(!G4){G4={label:'4층',rows:[{sub:'',time:['-','-','-','-','-','-','-'],names:['-','-','-','-','-','-','-']}]};W.groups.push(G4)}
+  var r4=G4.rows[0];var L4=splitN(r4.names[di]);L4.push(n+'('+lab+')');r4.names[di]=L4.join(', ');if(!r4.time[di]||r4.time[di]==='-')r4.time[di]='07:30~16:00';
+  var prev=setAsg(n,ds,'4층교육');
+  DL().push({n:n,ds:ds,k:k,di:di,lab:lab,from:from,prev:prev,by:(Auth.user()||{}).name||'',at:new Date().toISOString()});
+  try{DB.save()}catch(e){}U.closeModal();rerender();toast(n+'님을 '+md(ds)+' 4층('+lab+')에 추가했습니다.','ok')}}})};
+window.yumEdu4.dayDel=function(ds,n){var i=-1;DL().forEach(function(x,j){if(x.ds===ds&&x.n===n)i=j});if(i<0)return;var x=DL()[i],W=WPo(x.k);
+ if(!confirm(n+'님 '+md(ds)+' 4층 추가를 취소하고 원래 자리로 되돌릴까요?'))return;
+ if(W){var di=x.di;var G4=(W.groups||[]).filter(function(g){return g.label==='4층'})[0];if(G4){var r4=G4.rows[0];r4.names[di]=splitN(r4.names[di]).filter(function(y){return bare(y)!==bare(n)}).join(', ')||'-'}
+  (x.from||[]).forEach(function(f){if(f.g==='휴무자'){(W.single||[]).forEach(function(s){if(s.label==='휴무자'){var L=splitN(s.values[di]);L.push(n);s.values[di]=L.join(', ')}});return}
+   (W.groups||[]).forEach(function(g){if(g.label!==f.g)return;(g.rows||[]).forEach(function(r){if((r.sub||'')!==f.sub)return;var L=splitN(r.names[di]);L.push(n);r.names[di]=L.join(', ')})})})}
+ if(x.prev!=null)setAsg(n,ds,x.prev);DL().splice(i,1);try{DB.save()}catch(e){}rerender();toast(n+'님을 원래 자리로 되돌렸습니다.','ok')};
+
+new MutationObserver(function(){if(document.getElementById('ws-root')&&!document.getElementById('e4-box'))put()}).observe(document.documentElement,{childList:true,subtree:true});
+window.addEventListener('hashchange',function(){setTimeout(put,100)});setInterval(put,3000);
+})();
+</script>
+
 </body>
 </html>
