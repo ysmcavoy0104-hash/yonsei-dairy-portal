@@ -13130,7 +13130,7 @@ var st={mix:{},juice:{},pack:{},sterx:{}};
 /* ---------- 공통 도우미 ---------- */
 function esc(x){return String(x==null?'':x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function form(code){return ((DB.data&&DB.data.forms)||[]).filter(function(f){return f.code===code})[0]}
-function dateOf(d){return String((d.data&&d.data.pdate)||d.savedAt||d.updatedAt||d.createdAt||'').slice(0,10)}
+function dateOf(d){var p=d.data&&d.data.pdate;if(p)return String(p).slice(0,10);var g=(d.data&&d.data.grid)||{};if(g.dY&&g.dM&&g.dD)return g.dY+'-'+String(+g.dM).padStart(2,'0')+'-'+String(+g.dD).padStart(2,'0');var r=d.savedAt||d.updatedAt||d.createdAt||'',t=Date.parse(r);if(isNaN(t))return String(r).slice(0,10);var x=new Date(t);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')}
 var DC={};
 function byDate(code){var f=form(code);if(!f)return {};var sig=f.id+':'+(DB.data.docs||[]).length+':'+((DB.data.docs||[])[0]||{}).updatedAt;
  if(DC[code]&&DC[code].sig===sig)return DC[code].m;var m={};
@@ -14582,7 +14582,7 @@ function today(){return new Date(Date.now()+9*3600e3).toISOString().slice(0,10)}
 function addD(s,n){var d=new Date(s+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
 function dw(s){return '일월화수목금토'[new Date(s+'T00:00:00Z').getUTCDay()]}
 function md(s){return (+s.slice(5,7))+'월 '+(+s.slice(8,10))+'일'}
-function dateOf(d){return String((d.data&&d.data.pdate)||d.savedAt||d.updatedAt||d.createdAt||'').slice(0,10)}
+function dateOf(d){var p=d.data&&d.data.pdate;if(p)return String(p).slice(0,10);var g=(d.data&&d.data.grid)||{};if(g.dY&&g.dM&&g.dD)return g.dY+'-'+String(+g.dM).padStart(2,'0')+'-'+String(+g.dD).padStart(2,'0');var r=d.savedAt||d.updatedAt||d.createdAt||'',t=Date.parse(r);if(isNaN(t))return String(r).slice(0,10);var x=new Date(t);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')}
 function G(d){return (d&&d.data&&d.data.grid)||{}}
 function v(d,k){var x=G(d)[k];return x==null?'':String(x).trim()}
 function num(x){if(x==null)return null;var m=String(x).replace(/,/g,'').match(/-?\d+(\.\d+)?/);return m?parseFloat(m[0]):null}
@@ -17898,7 +17898,7 @@ function juice(D,now){var d=docs('FRM-009',D)[0],out=[];
 function mix(D,now){var out=[],L=docs('FRM-012',D).concat(docs('FRM-011',D));
  for(var h=1;h<=5;h++){var d=L.filter(function(x){var v=G(x,'hogi').replace(/\s+/g,''),m=v.match(/^#?(\d)/);return m&&+m[1]===h})[0];
   var prods=[],B=[],mm=MIXL[h][0]/MIXL[h][1]*60;
-  if(d){for(var rr=3;rr<=6;rr++){var p=G(d,'g2_'+rr+'_'+(2*h));if(p)prods.push(p)}
+  if(d){for(var rr=3;rr<=6;rr++){var p=G(d,'g2_'+rr+'_'+(2*h));if(p&&!/^[Oo0○·.\-\s]+$/.test(p))prods.push(p)}
    for(var r=10;r<=24;r++){var tin=tmin(G(d,'g2_'+r+'_1')),tmx=tmin(G(d,'g2_'+r+'_11')),tmv=tmin(G(d,'g2_'+r+'_13'));if(tin==null&&tmx==null&&tmv==null)continue;B.push({tin:tin,tmx:tmx,tmv:tmv})}}
   var mv=now!=null&&B.some(function(b){return b.tmv!=null&&now>=b.tmv&&now<b.tmv+mm}),mixing=B.some(function(b){return b.tmx==null&&b.tmv==null}),waiting=B.some(function(b){return b.tmx!=null&&b.tmv==null});
   var moved=B.filter(function(b){return b.tmv!=null}).length,st,run=false;
@@ -17959,9 +17959,20 @@ function path(x1,y1,x2,y2,mx){return 'M'+x1+' '+y1+' H'+mx+' V'+y2+' H'+x2}
 function link(d,c,mode,badge,bx,by){var s='<path d="'+d+'" class="fm-base"/>';
  if(mode==='flow')s+='<path d="'+d+'" class="fm-flow" stroke="'+c+'"/>';else if(mode==='on')s+='<path d="'+d+'" class="fm-on" stroke="'+c+'"/>';
  if(badge!=null&&mode==='flow')s+='<g><circle cx="'+bx+'" cy="'+by+'" r="8" fill="'+c+'"/><text x="'+bx+'" y="'+(by+3.6)+'" text-anchor="middle" class="fm-b">'+E(badge)+'</text></g>';return s}
+/* 생산계획표(배합팀 포털에서 올린 주간 계획): 그날 멸균 N호기 칸 품목 = 배합 N호기 · 멸균 N호기 계획 품목 */
+function planFor(D){var W=(DB.data&&DB.data.planWeeks)||{},S=(DB.data&&DB.data.planSpec)||{},lbl=(+D.slice(5,7))+'/'+(+D.slice(8)),best=null,out={};
+ Object.keys(W).forEach(function(k){var w=W[k];if(!w||!w.rows||w.rows.indexOf(lbl)<0)return;if(!best||(w.uploadedAt||0)>(best.uploadedAt||0))best=w});if(!best)return out;
+ var cells=best.cells||{};cells=Array.isArray(cells)?cells:Object.keys(cells).map(function(k){return cells[k]});
+ cells.forEach(function(c){if(!c||c.rowLabel!==lbl)return;var m=String(c.colLabel||'').replace(/\s/g,'').match(/^멸균(\d)호기$/);if(!m)return;var sp=S[c.code]||{},nm=String(sp.name||c.name||'').replace(/\[[^\]]*\]/g,'').trim();if(!nm)return;
+  (out[m[1]]=out[m[1]]||[]).push({name:nm,mat:String(sp.material||'')})});return out}
+function toks(s){return String(s||'').split(/[\s·,()\/]+/).map(function(x){return x.replace(/[^가-힣A-Za-z0-9]/g,'')}).filter(function(x){return x.length>=2&&!/^\d+$/.test(x)})}
 function render(D){
  var now=D===today()?(function(){var n=new Date();return n.getHours()*60+n.getMinutes()})():null;
  var J=juice(D,now),M=mix(D,now),S=ster(D,now),P=pack(D,now);
+ /* 일지가 없으면 생산계획표 품목으로 (배합 N호기 · 멸균 N호기) */
+ var PL=planFor(D);
+ M.forEach(function(m){var pl=PL[m.h]||[];m.mats=pl.map(function(x){return x.mat}).join(' ');if(!m.prod&&pl.length){m.prod=pl.map(function(x){return x.name}).join(' · ');m.plan=1;if(/일지 없음/.test(m.st))m.st='생산계획 (일지 전)'}});
+ S.forEach(function(x){var pl=PL[x.h]||[];if(!x.prod&&pl.length&&!/정비|휴지/.test(x.st)){x.prod=pl.map(function(y){return y.name}).join(' · ');x.plan=1;if(/일지 없음/.test(x.st))x.st='생산계획 (일지 전)'}});
  M.forEach(function(m){m.lvl=m.mv?.45:m.run?.85:m.on?.3:0});
  /* 포장(후포장 · 실적) = 충전 호기별 */
  var B=P.map(function(p){return {k:'b'+p.h,h:p.h,t:'포장 '+p.h+'호기',sub:'',prod:p.box!=null?Math.round(p.box).toLocaleString()+' 박스':'',on:p.on,run:p.run,st:p.ea!=null?Math.round(p.ea).toLocaleString()+'개 생산':p.on?'생산 중':'일지 없음'}});
@@ -17971,7 +17982,10 @@ function render(D){
  var WN=['1','2','3','4','D'].map(function(k){var F=J.filter(function(j){return j.wt===k}),on=F.some(function(j){return j.on}),run=F.some(function(j){return j.run});
   return {k:'w'+k,wk:k,lvl:k,t:k==='D'?'데칸타':'WT'+k,sub:F.length?'← #'+F.map(function(j){return j.t.replace(/\D/g,'')}).join(' #'):'',prod:F.map(function(j){return j.prod}).filter(Boolean).join(' · '),on:on,run:run,st:run?'가동 중':on?'오늘 가동':'미가동'}});
  Y.w=ys(WN.length);
- var cj=C('j'),cw=C('w'),cm=C('m'),busX=cw.x+cw.w+30,soyM=M.filter(function(m){return m.soy&&m.on});
+ /* 분리유액을 받는 배합 호기: 두유 제품 · 착즙에서 만드는 제품과 같은 이름(예: 이롬) · 생산계획표 원료가 두유 · 콩 · 원액 */
+ var JT={};J.forEach(function(j){if(j.on)toks(j.prod).forEach(function(t){JT[t]=1})});
+ M.forEach(function(m){if(m.soy)return;var T=toks(m.prod);m.soy=T.some(function(t){return JT[t]})||/두유|콩|원액|분리/.test(m.mats||'')});
+ var cj=C('j'),cw=C('w'),cm=C('m'),busX=cw.x+cw.w+30,soyM=M.filter(function(m){return m.soy&&(m.on||m.plan)});
  J.forEach(function(j,i){var wi=-1;WN.forEach(function(w,k){if(w.wk===j.wt)wi=k});var y1=Y.j[i]+NH/2;
   if(wi<0){links+=link('M'+(cj.x+cj.w)+' '+y1+' H'+(cj.x+cj.w+12),SOY,'',null);return}
   var y2=Y.w[wi]+NH/2,mx=cj.x+cj.w+(cw.x-cj.x-cj.w)/2;links+=link(path(cj.x+cj.w,y1,cw.x,y2,mx),SOY,j.run?'flow':j.on?'on':'',null)});
@@ -17981,13 +17995,19 @@ function render(D){
  links+='<path d="M'+busX+' '+(TOP+8)+' V'+(TOP+RH*6-20)+'" class="fm-base"/>';
  if(wRun.length&&soyM.length){var ya=Math.min.apply(null,WN.map(function(w,i){return w.run?Y.w[i]+NH/2:1e9}).concat(soyM.map(function(m){return Y.m[m.h-1]+NH/2}))),yb=Math.max.apply(null,WN.map(function(w,i){return w.run?Y.w[i]+NH/2:-1}).concat(soyM.map(function(m){return Y.m[m.h-1]+NH/2})));links+='<path d="M'+busX+' '+ya+' V'+yb+'" class="fm-flow" stroke="'+SOY+'"/>'}
  var jRun=wRun;
- M.forEach(function(m,i){if(!m.soy)return;var y=Y.m[i]+NH/2;links+=link('M'+busX+' '+y+' H'+cm.x,SOY,jRun.length&&m.on?'flow':m.on?'on':'',null)});
+ /* 공급 배관은 배합 1~5호기 모두에 연결 (어느 호기로 갈지는 그날 생산에 따라) — 흐름은 분리유액을 받는 호기만 */
+ M.forEach(function(m,i){var y=Y.m[i]+NH/2;links+=link('M'+busX+' '+y+' H'+cm.x,SOY,m.soy&&jRun.length&&(m.on||m.plan)?'flow':m.soy&&(m.on||m.plan)?'on':'',null)});
  /* 배합 N → 멸균 N */
  var cs=C('s');M.forEach(function(m,i){var s=S[i],y1=Y.m[i]+NH/2,y2=Y.s[i]+NH/2,mx=cm.x+cm.w+(cs.x-cm.x-cm.w)/2,c=COL[m.h];
   links+=link(path(cm.x+cm.w,y1,cs.x,y2,mx),c,m.mv?'flow':(m.on&&s.on?'on':''),m.h,mx,(y1+y2)/2)});
  /* 멸균 → 충전 (그날 일지 제품명이 같은 호기) */
- var cp=C('p'),used={};S.forEach(function(s,i){if(!s.prod)return;P.forEach(function(p,j){if(!p.prod||!same(s.prod,p.prod))return;used[p.h]=s.h;var y1=Y.s[i]+NH/2,y2=Y.p[j]+NH/2,mx=cs.x+cs.w+(cp.x-cs.x-cs.w)/2-6+i*3,c=COL[s.h];
-  links+=link(path(cs.x+cs.w,y1,cp.x,y2,mx),c,s.run&&p.run?'flow':(s.on&&p.on?'on':''),s.h,mx,(y1+y2)/2)})});
+ var cp=C('p'),used={},bus2=cs.x+cs.w+(cp.x-cs.x-cs.w)/2;
+ /* 멸균 → 충전 분배 배관 (모든 멸균기 ↔ 모든 충전기 · 어느 충전기로 갈지는 그날 생산계획에 따라) */
+ S.forEach(function(s,i){var y=Y.s[i]+NH/2;links+='<path d="M'+(cs.x+cs.w)+' '+y+' H'+bus2+'" class="fm-base"/>'});
+ P.forEach(function(p,j){var y=Y.p[j]+NH/2;links+='<path d="M'+bus2+' '+y+' H'+cp.x+'" class="fm-base"/>'});
+ links+='<path d="M'+bus2+' '+Math.min(Y.s[0],Y.p[0])+' V'+(Math.max(Y.s[S.length-1],Y.p[P.length-1])+NH)+'" class="fm-base"/>';
+ S.forEach(function(s,i){if(!s.prod)return;P.forEach(function(p,j){if(!p.prod||!same(s.prod,p.prod))return;used[p.h]=s.h;var y1=Y.s[i]+NH/2,y2=Y.p[j]+NH/2,mx=cs.x+cs.w+(cp.x-cs.x-cs.w)/2-6+i*3,c=COL[s.h];
+  links+=link(path(cs.x+cs.w,y1,cp.x,y2,mx),c,(s.run||(s.plan&&p.run))&&p.run?'flow':((s.on||s.plan)&&p.on?'on':''),s.h,mx,(y1+y2)/2)})});
  /* 충전 → 포장 */
  var cb=C('b');P.forEach(function(p,j){var y=Y.p[j]+NH/2,c=used[p.h]?COL[used[p.h]]:'#94A3B8';links+=link('M'+(cp.x+cp.w)+' '+y+' H'+cb.x,c,p.run?'flow':p.on?'on':'',null)});
  [['j',J],['w',WN],['m',M],['s',S],['p',P],['b',B]].forEach(function(a){var c=C(a[0]);a[1].forEach(function(n,i){var col=a[0]==='j'||a[0]==='w'?SOY:a[0]==='m'||a[0]==='s'?COL[n.h]:(used[n.h]?COL[used[n.h]]:'#94A3B8');nodes+=node(n,c.x,Y[a[0]][i],c.w,col,a[0])})});
@@ -17996,7 +18016,7 @@ function render(D){
  var leg='<div class="fm-leg">'+[1,2,3,4,5].map(function(h){return '<span><i style="background:'+COL[h]+'"></i>'+h+'호기 라인</span>'}).join('')+'<span><i style="background:'+SOY+'"></i>분리유액 · 두유 원액</span><span class="fm-legn">점선이 흐르는 구간 = 지금 이송 · 생산 중</span></div>';
  var clock=now!=null?pad(Math.floor(now/60))+':'+pad(now%60):D.slice(5).replace('-','/')+' 기록';
  return '<div class="fm"><div class="fm-top">'+leg+'<b class="fm-clock">'+clock+'</b></div><div class="fm-sc"><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="공정 흐름도">'+head+links+nodes+'</svg></div>'+
-  '<div class="fm-note">각 팀 일지(착즙 작업일보 · 생산작업일보 · 멸균 업무일지 · 포장 생산작업일보)로 그립니다 · 멸균 → 충전은 그날 일지의 제품명이 같은 호기로 연결 · 노드에 마우스를 올리면 자세히</div></div>'}
+  '<div class="fm-note">각 팀 일지(착즙 작업일보 · 생산작업일보 · 멸균 업무일지 · 포장 생산작업일보)와 생산계획표로 그립니다 · 배관은 모든 호기에 연결되어 있고, 색 선은 그날 실제로 이어지는 호기(분리유액 = 두유 제품 · 멸균 → 충전 = 같은 제품) · 노드에 마우스를 올리면 자세히</div></div>'}
 var CSS='.fm{background:#0E1714;border-radius:18px;padding:14px 16px 12px;color:#E5E7EB;box-shadow:0 20px 40px -28px rgba(0,0,0,.7);margin-bottom:18px}'+
  '.fm-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:4px}.fm-leg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:#B5C0BC}.fm-leg i{display:inline-block;width:16px;height:3px;border-radius:2px;margin-right:5px;vertical-align:3px}.fm-legn{color:#7C8A85}'+
  '.fm-clock{font:800 20px/1 ui-monospace,Menlo,Consolas,monospace;color:#F8FAFC;letter-spacing:.04em}.fm-sc{overflow-x:auto}.fm svg{width:100%;min-width:980px;height:auto;display:block}'+
