@@ -221,7 +221,7 @@ body{font-family:'Pretendard','Noto Sans KR',system-ui,sans-serif;letter-spacing
 .tank .bt{font-size:11px;color:#94A3B8}
 .tank .sb{font-size:11px;font-weight:600;color:#64748B;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.7em}
 .tank.off{background:#F8FAFC;border-top-color:#CBD5E1}
-.tbar{height:12px;width:84%}.tbar b{line-height:12px;font-size:9.5px}
+.tbar{height:12px;width:84%}.tbar.ph{visibility:hidden}.tbar b{line-height:12px;font-size:9.5px}
 .fnote{font-size:11.5px;color:#8491A5;line-height:1.5;padding:0 2px;cursor:help}
 .fnote::before{content:'ⓘ ';color:#A5B1C2}
 .nodoc{font-size:12.5px;background:#F8FAFC;border:1px dashed #E2E8F0;border-radius:10px;padding:10px}
@@ -585,15 +585,20 @@ function renderLive(){
    el.innerHTML=head+'<div class="prog" role="progressbar" aria-valuenow="'+pct+'" aria-valuemin="0" aria-valuemax="100" aria-label="배치 진행률 '+pct+'%"><div style="--pw:'+pct+'%"></div></div>'+plan+
     '<div class="lf">'+lfTop(x)+'</div><div class="tanks">'+x.tanks.map(function(t){var border=t.off?'#CBD5E1':t.lv==='red'?'var(--redb)':t.lv==='amber'||t.lv==='pred'?'var(--amb)':t.color;
      return '<button type="button" class="tank '+(t.lv==='red'?'alert':t.lv==='amber'?'warn':'')+(t.off?' off':'')+(SEL===t.id?' sel':'')+'" style="--tc:'+border+'" data-t="'+t.id+'" aria-label="'+t.id+' 탱크 '+t.state+'">'+
-     '<span class="id">'+t.id+'</span>'+(t.prog!=null&&!t.off?'<span class="tbar'+(t.prog>=1?' done':'')+'" title="이송 진행 '+Math.round(t.prog*100)+'%"><i style="--p:'+Math.max(8,Math.round(t.prog*100))+'%"></i><b>'+(t.progTxt?t.progTxt+' '+Math.round(t.prog*100)+'%':t.prog>=1?'이송 완료':Math.round(t.prog*100)+'%')+'</b></span>':'')+tankSvg(t,x.P.product)+'<span class="st" style="color:'+(t.off?'var(--mute)':t.color)+'">'+t.state+'</span><span class="bt">'+(t.batch?t.batch.label:'-')+'</span><span class="sb" data-sub style="color:'+(t.lv==='red'?'var(--red)':t.lv?'var(--ready)':'var(--mute)')+'">'+esc(t.sub)+'</span></button>'}).join('')+'</div><div class="lf lfb">'+lfBot(x)+'</div>'+body+
+     '<span class="id">'+t.id+'</span>'+(!(t.prog!=null&&!t.off)&&x.tanks.some(function(u){return u.prog!=null&&!u.off})?'<span class="tbar ph" aria-hidden="true"></span>':'')+(t.prog!=null&&!t.off?'<span class="tbar'+(t.prog>=1?' done':'')+'" title="이송 진행 '+Math.round(t.prog*100)+'%"><i style="--p:'+Math.max(8,Math.round(t.prog*100))+'%"></i><b>'+(t.progTxt?t.progTxt+' '+Math.round(t.prog*100)+'%':t.prog>=1?'이송 완료':Math.round(t.prog*100)+'%')+'</b></span>':'')+tankSvg(t,x.P.product)+'<span class="st" style="color:'+(t.off?'var(--mute)':t.color)+'">'+t.state+'</span><span class="bt">'+(t.batch?t.batch.label:'-')+'</span><span class="sb" data-sub style="color:'+(t.lv==='red'?'var(--red)':t.lv?'var(--ready)':'var(--mute)')+'">'+esc(t.sub)+'</span></button>'}).join('')+'</div><div class="lf lfb">'+lfBot(x)+'</div>'+body+
     '<div class="steps"><span class="t">다음 할 일</span><div data-steps></div><span class="f" data-foot></span></div>';
    el.dataset.sig=sig}
   else{el.querySelector('.lhw').outerHTML=head;el.querySelector('.prog div').style.setProperty('--pw',pct+'%');
    x.tanks.forEach(function(t){var b=el.querySelector('[data-t="'+t.id+'"]');if(!b)return;b.querySelector('[data-sub]').textContent=t.sub;var p=b.querySelector('[data-wave]');if(p&&t.level)p.setAttribute('d',wave(80-66*t.level,t.sp===1?2.6:1.4,74))})}
   el.querySelector('[data-steps]').innerHTML=x.steps.length?x.steps.map(function(s){return '<div class="r"><b style="color:'+(s.u?'var(--red)':'var(--ink)')+'">'+(s.at<=V.m+.5?'지금':hh(s.at))+'</b><span style="color:'+(s.u?'var(--red)':'var(--ink)')+'">'+esc(s.text)+'</span></div>'}).join(''):'<div class="r"><span class="note">진행 중인 작업이 없습니다.</span></div>';
   el.querySelector('[data-foot]').textContent=x.foot});
- renderCrew();renderDetail();renderHandover();renderTodos();renderRules();
+ renderCrew();renderDetail();renderHandover();renderTodos();renderRules();alignTanks();
 }
+/* 나란히 놓인 호기 카드끼리 탱크 그림 높이를 맞춤 (카드 머리 글 줄 수가 달라도 반듯하게) */
+function alignTanks(){try{var Ls=[].slice.call(document.querySelectorAll('#rooms .line'));Ls.forEach(function(l){var t=l.querySelector('.tanks');if(t)t.style.marginTop=''});
+ var rows={};Ls.forEach(function(l){var t=l.querySelector('.tanks');if(!t||!l.offsetParent)return;var k=Math.round(l.getBoundingClientRect().top);(rows[k]=rows[k]||[]).push(t)});
+ Object.keys(rows).forEach(function(k){var R=rows[k];if(R.length<2)return;var tops=R.map(function(t){var v=t.querySelector('svg[width="72"]')||t;return v.getBoundingClientRect().top}),mx=Math.max.apply(null,tops);R.forEach(function(t,i){var d=Math.round(mx-tops[i]);if(d>0)t.style.marginTop=d+'px'})})}catch(e){}}
+window.addEventListener('resize',function(){clearTimeout(window.__alT);window.__alT=setTimeout(alignTanks,150)});
 document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('[data-t]');if(!b)return;SEL=SEL===b.dataset.t?null:b.dataset.t;document.querySelectorAll('.line').forEach(function(l){l.dataset.sig=''});renderLive();var d=document.getElementById('detail');if(SEL&&d.firstChild)d.scrollIntoView({behavior:'smooth',block:'nearest'})});
 function specFor(p){var S=(DATA&&DATA.planSpec)||{},n=String(p||'').replace(/\s+/g,'');if(!n)return null;var best=null;Object.keys(S).forEach(function(c){var s=S[c]||{},sn=String(s.name||'').replace(/\s+/g,'');if(!sn)return;if(sn.indexOf(n)>=0||n.indexOf(sn.split('[')[0])>=0){if(!best)best=Object.assign({code:c},s)}});return best}
 function renderDetail(){
