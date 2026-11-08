@@ -17966,6 +17966,8 @@ function planFor(D){var W=(DB.data&&DB.data.planWeeks)||{},S=(DB.data&&DB.data.p
  cells.forEach(function(c){if(!c||c.rowLabel!==lbl)return;var m=String(c.colLabel||'').replace(/\s/g,'').match(/^멸균(\d)호기$/);if(!m)return;var sp=S[c.code]||{},nm=String(sp.name||c.name||'').replace(/\[[^\]]*\]/g,'').trim();if(!nm)return;
   (out[m[1]]=out[m[1]]||[]).push({name:nm,mat:String(sp.material||'')})});return out}
 function toks(s){return String(s||'').split(/[\s·,()\/]+/).map(function(x){return x.replace(/[^가-힣A-Za-z0-9]/g,'')}).filter(function(x){return x.length>=2&&!/^\d+$/.test(x)})}
+/* 밸브 기호: 열림(색) · 닫힘(회색 · 본관과 떨어진 배관) */
+function vlv(x,y,open,c){return '<g transform="translate('+x+' '+y+')"><path d="M-5 -4 L5 4 L5 -4 L-5 4 Z" fill="'+(open?c:'#1B2421')+'" stroke="'+(open?c:'#4B5A55')+'" stroke-width="1.2" stroke-linejoin="round"/>'+(open?'':'<line x1="0" y1="-7" x2="0" y2="7" stroke="#4B5A55" stroke-width="1.4"/>')+'</g>'}
 function render(D){
  var now=D===today()?(function(){var n=new Date();return n.getHours()*60+n.getMinutes()})():null;
  var J=juice(D,now),M=mix(D,now),S=ster(D,now),P=pack(D,now);
@@ -17986,31 +17988,43 @@ function render(D){
  var JT={};J.forEach(function(j){if(j.on)toks(j.prod).forEach(function(t){JT[t]=1})});
  M.forEach(function(m){if(m.soy)return;var T=toks(m.prod);m.soy=T.some(function(t){return JT[t]})||/두유|콩|원액|분리/.test(m.mats||'')});
  var cj=C('j'),cw=C('w'),cm=C('m'),busX=cw.x+cw.w+30,soyM=M.filter(function(m){return m.soy&&(m.on||m.plan)});
- J.forEach(function(j,i){var wi=-1;WN.forEach(function(w,k){if(w.wk===j.wt)wi=k});var y1=Y.j[i]+NH/2;
+ var JL=[];J.forEach(function(j,i){var wi=-1;WN.forEach(function(w,k){if(w.wk===j.wt)wi=k});var y1=Y.j[i]+NH/2;
   if(wi<0){links+=link('M'+(cj.x+cj.w)+' '+y1+' H'+(cj.x+cj.w+12),SOY,'',null);return}
-  var y2=Y.w[wi]+NH/2,mx=cj.x+cj.w+(cw.x-cj.x-cj.w)/2;links+=link(path(cj.x+cj.w,y1,cw.x,y2,mx),SOY,j.run?'flow':j.on?'on':'',null)});
+  var y2=Y.w[wi]+NH/2,mx=cj.x+cj.w+(cw.x-cj.x-cj.w)/2;JL.push([wi,path(cj.x+cj.w,y1,cw.x,y2,mx),j.run?'flow':j.on?'on':''])});
  /* WT · 데칸타 → 배합 (분리유액 · 두유 원액 공급 헤더) */
- var wRun=WN.filter(function(w){return w.run});
- WN.forEach(function(w,i){var y=Y.w[i]+NH/2;links+=link('M'+(cw.x+cw.w)+' '+y+' H'+busX,SOY,w.run&&soyM.length?'flow':w.on?'on':'',null)});
+ /* 어느 WT · 데칸타가 어느 배합 호기로 가는지: 제품명이 겹치는 것끼리만 잇기 (모르면 잇지 않음) */
+ var WP=WN.map(function(w){var T={};J.forEach(function(j){if(j.wt===w.wk&&j.on)toks(j.prod).forEach(function(t){T[t]=1})});return T});
+ var rcvI=[];M.forEach(function(m,i){if(m.soy&&(m.on||m.plan))rcvI.push(i)});
+ var wm=[],wU={},mU={};
+ rcvI.forEach(function(mi){var T=toks(M[mi].prod);WN.forEach(function(w,wi){if(w.on&&T.some(function(t){return WP[wi][t]})){wm.push([wi,mi]);wU[wi]=1;mU[mi]=1}})});
+ var wF=[],mF=rcvI.filter(function(i){return !mU[i]});WN.forEach(function(w,i){if(w.on&&!wU[i])wF.push(i)});
+ if(wF.length===1&&mF.length===1){wm.push([wF[0],mF[0]]);wU[wF[0]]=1;mU[mF[0]]=1}
+ /* 빈쿠커 → WT 선도 그 WT가 보내는 배합 호기 색으로 (한 호기로만 갈 때) */
+ JL.forEach(function(a){var d=wm.filter(function(q){return q[0]===a[0]}),c=d.length===1?(COL[M[d[0][1]].h]||SOY):SOY;links+=link(a[1],c,a[2],null)});
+ /* 짝마다 따로 배관(레인)을 그림: 나가는 선은 칸 위쪽, 들어가는 선은 칸 아래쪽 → 서로 겹치지 않음 (교차할 때는 끊어서 그림) */
+ var nP=wm.length,gapL=cw.x+cw.w,gapR=cm.x,laneX=function(k){return Math.round(busX+(k-(nP-1)/2)*20)};
+ WN.forEach(function(w,i){var y=Y.w[i]+NH/2;if(!wU[i])links+=link('M'+gapL+' '+y+' H'+(busX-10),SOY,w.on?'on':'',null)+vlv(busX-18,y,false)});
  links+='<path d="M'+busX+' '+(TOP+8)+' V'+(TOP+RH*6-20)+'" class="fm-base"/>';
- if(wRun.length&&soyM.length){var ya=Math.min.apply(null,WN.map(function(w,i){return w.run?Y.w[i]+NH/2:1e9}).concat(soyM.map(function(m){return Y.m[m.h-1]+NH/2}))),yb=Math.max.apply(null,WN.map(function(w,i){return w.run?Y.w[i]+NH/2:-1}).concat(soyM.map(function(m){return Y.m[m.h-1]+NH/2})));links+='<path d="M'+busX+' '+ya+' V'+yb+'" class="fm-flow" stroke="'+SOY+'"/>'}
- var jRun=wRun;
- /* 공급 배관은 배합 1~5호기 모두에 연결 (어느 호기로 갈지는 그날 생산에 따라) — 흐름은 분리유액을 받는 호기만 */
- M.forEach(function(m,i){var y=Y.m[i]+NH/2;links+=link('M'+busX+' '+y+' H'+cm.x,SOY,m.soy&&jRun.length&&(m.on||m.plan)?'flow':m.soy&&(m.on||m.plan)?'on':'',null)});
+ M.forEach(function(m,i){var y=Y.m[i]+NH/2;if(!mU[i])links+='<path d="M'+(busX+10)+' '+y+' H'+gapR+'" class="fm-base"/>'+vlv(busX+18,y,false)});
+ wm.forEach(function(q,k){var w=WN[q[0]],x=laneX(k),dy=nP>1?5:0,ya=Y.w[q[0]]+NH/2-dy,yb=Y.m[q[1]]+NH/2+dy,d='M'+gapL+' '+ya+' H'+x+' V'+yb+' H'+gapR;
+  var c=COL[M[q[1]].h]||SOY;links+='<path d="'+d+'" fill="none" stroke="#0E1714" stroke-width="9" stroke-linejoin="round"/>'+link(d,c,w.run?'flow':'on',M[q[1]].h,x,(ya+yb)/2)+vlv(gapL+14,ya,true,c)+vlv(gapR-14,yb,true,c)});
  /* 배합 N → 멸균 N */
  var cs=C('s');M.forEach(function(m,i){var s=S[i],y1=Y.m[i]+NH/2,y2=Y.s[i]+NH/2,mx=cm.x+cm.w+(cs.x-cm.x-cm.w)/2,c=COL[m.h];
   links+=link(path(cm.x+cm.w,y1,cs.x,y2,mx),c,m.mv?'flow':(m.on&&s.on?'on':''),m.h,mx,(y1+y2)/2)});
  /* 멸균 → 충전 (그날 일지 제품명이 같은 호기) */
  var cp=C('p'),used={},bus2=cs.x+cs.w+(cp.x-cs.x-cs.w)/2;
  /* 멸균 → 충전 분배 배관 (모든 멸균기 ↔ 모든 충전기 · 어느 충전기로 갈지는 그날 생산계획에 따라) */
- S.forEach(function(s,i){var y=Y.s[i]+NH/2;links+='<path d="M'+(cs.x+cs.w)+' '+y+' H'+bus2+'" class="fm-base"/>'});
- P.forEach(function(p,j){var y=Y.p[j]+NH/2;links+='<path d="M'+bus2+' '+y+' H'+cp.x+'" class="fm-base"/>'});
+ /* 같은 제품으로 이어지는 멸균기 → 충전기 짝 */
+ var pairs=[];S.forEach(function(sx,i){if(!sx.prod)return;P.forEach(function(px,j){if(!px.prod||!same(sx.prod,px.prod))return;pairs.push([i,j]);used[px.h]=sx.h})});
+ var sOn={},pOn={};pairs.forEach(function(q){sOn[q[0]]=1;pOn[q[1]]=1});
+ S.forEach(function(sx,i){var y=Y.s[i]+NH/2;links+=sOn[i]?'<path d="M'+(cs.x+cs.w)+' '+y+' H'+bus2+'" class="fm-base"/>':'<path d="M'+(cs.x+cs.w)+' '+y+' H'+(bus2-10)+'" class="fm-base"/>'+vlv(bus2-18,y,false)});
+ P.forEach(function(px,j){var y=Y.p[j]+NH/2;links+=pOn[j]?'<path d="M'+bus2+' '+y+' H'+cp.x+'" class="fm-base"/>':'<path d="M'+(bus2+10)+' '+y+' H'+cp.x+'" class="fm-base"/>'+vlv(bus2+18,y,false)});
  links+='<path d="M'+bus2+' '+Math.min(Y.s[0],Y.p[0])+' V'+(Math.max(Y.s[S.length-1],Y.p[P.length-1])+NH)+'" class="fm-base"/>';
- S.forEach(function(s,i){if(!s.prod)return;P.forEach(function(p,j){if(!p.prod||!same(s.prod,p.prod))return;used[p.h]=s.h;var y1=Y.s[i]+NH/2,y2=Y.p[j]+NH/2,mx=cs.x+cs.w+(cp.x-cs.x-cs.w)/2-6+i*3,c=COL[s.h];
-  links+=link(path(cs.x+cs.w,y1,cp.x,y2,mx),c,(s.run||(s.plan&&p.run))&&p.run?'flow':((s.on||s.plan)&&p.on?'on':''),s.h,mx,(y1+y2)/2)})});
+ pairs.forEach(function(q){var i=q[0],j=q[1],sx=S[i],px=P[j],y1=Y.s[i]+NH/2,y2=Y.p[j]+NH/2,mx=bus2,c=COL[sx.h];
+  links+=link(path(cs.x+cs.w,y1,cp.x,y2,mx),c,(sx.run||(sx.plan&&px.run))&&px.run?'flow':((sx.on||sx.plan)&&px.on?'on':''),sx.h,mx,(y1+y2)/2)+vlv(bus2+18,y2,true,c)});
  /* 충전 → 포장 */
  var cb=C('b');P.forEach(function(p,j){var y=Y.p[j]+NH/2,c=used[p.h]?COL[used[p.h]]:'#94A3B8';links+=link('M'+(cp.x+cp.w)+' '+y+' H'+cb.x,c,p.run?'flow':p.on?'on':'',null)});
- [['j',J],['w',WN],['m',M],['s',S],['p',P],['b',B]].forEach(function(a){var c=C(a[0]);a[1].forEach(function(n,i){var col=a[0]==='j'||a[0]==='w'?SOY:a[0]==='m'||a[0]==='s'?COL[n.h]:(used[n.h]?COL[used[n.h]]:'#94A3B8');nodes+=node(n,c.x,Y[a[0]][i],c.w,col,a[0])})});
+ [['j',J],['w',WN],['m',M],['s',S],['p',P],['b',B]].forEach(function(a){var c=C(a[0]);a[1].forEach(function(n,i){var wd=a[0]==='w'?wm.filter(function(q){return q[0]===i}):[],col=wd.length===1?(COL[M[wd[0][1]].h]||SOY):a[0]==='j'||a[0]==='w'?SOY:a[0]==='m'||a[0]==='s'?COL[n.h]:(used[n.h]?COL[used[n.h]]:'#94A3B8');nodes+=node(n,c.x,Y[a[0]][i],c.w,col,a[0])})});
  var head=COLS.map(function(c){return '<text x="'+(c.x+c.w/2)+'" y="'+(TOP-22)+'" text-anchor="middle" class="fm-h">'+c.t+'</text>'}).join('');
  var H=TOP+RH*6+6;
  var leg='<div class="fm-leg">'+[1,2,3,4,5].map(function(h){return '<span><i style="background:'+COL[h]+'"></i>'+h+'호기 라인</span>'}).join('')+'<span><i style="background:'+SOY+'"></i>분리유액 · 두유 원액</span><span class="fm-legn">점선이 흐르는 구간 = 지금 이송 · 생산 중</span></div>';
