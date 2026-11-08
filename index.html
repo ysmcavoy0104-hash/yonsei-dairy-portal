@@ -7558,6 +7558,43 @@ function checkTableHtml(){
  return '<div class="wsx-lg" style="margin-bottom:6px">'+(anyConf?'🔒 확정된 주: <b>'+cw.join(', ')+'</b> — 「확정 휴무」는 확정된 주까지의 실제 휴무 개수, 「휴일 총합」은 편성된 전체 휴무입니다. (하계휴가 「하」는 휴무 개수에 넣지 않습니다)':'아직 확정된 주가 없습니다. 주간근무계획표에서 「✔ 확정」을 누르면 「확정 휴무」에 반영됩니다.')+'</div>'+'<div class="wsx-tw"><table class="ws-grid">'+dayHead('<th style="min-width:60px" title="확정된 주의 휴무만">확정 휴무</th><th style="min-width:60px">휴일 총합</th>')+'<tbody>'+rows+'</tbody></table></div>';
 }
 function rerenderStats(){var box=$('#ws-check');if(box)box.innerHTML=checkTableHtml()}
+/* ---------- 휴일체크표 ↔ 주간근무계획표 대조 (2026-11-08) ----------
+   휴일체크표는 「편성 결과(o.asg)」로 그려지고, 주간근무계획표는 나중에 직접 고칠 수 있어 둘이 어긋날 수 있음
+   → 이 달의 주간근무계획표가 있는 주마다 「휴무자」 칸과 근무 칸을 읽어, 휴일체크표와 다른 사람 · 날짜를 보여 주고
+     「주간근무계획표 기준으로 맞추기」를 누르면 근무 기록(o.asg)을 계획표대로 고친 뒤 휴일체크표 · 휴무 개수를 다시 계산 */
+function wcBare(x){return String(x||'').replace(/\(.*?\)/g,'').replace(/\s+/g,'')}
+function wcSplit(v){return String(v||'').split(/[,\n]/).map(function(x){return x.trim()}).filter(function(x){return x&&x!=='-'})}
+function wcPlanDays(){var o=M(CUR_YM),staff=[];try{staff=(window.YSched&&YSched._staff?YSched._staff():[]).filter(function(p){return p.active!==false})}catch(e){}
+ var ST={};staff.forEach(function(p){ST[wcBare(p.n)]=p});var out=[];
+ weekList().forEach(function(w){var W=(DB.data.weeklyPlans||{})[w.key];if(!W)return;
+  for(var i=0;i<7;i++){var d=w.s+i;if(d<1||d>daysInMonth(CUR_YM))continue;var day={d:d,wk:w.lab,conf:!!W.confirmed,v:{}};
+   (W.groups||[]).forEach(function(g){(g.rows||[]).forEach(function(r){wcSplit((r.names||[])[i]).forEach(function(nm){var b=wcBare(nm),p=ST[b];if(!p)return;var v;
+     if(g.label==='오전')v='오전';else if(g.label==='오후')v='오후';else if(g.label==='중간')v=p.st==='배합'?'정상':(p.st==='착즙'?'배합지원':'정상');
+     else if(g.label==='4층')v=p.st==='4층'?'정상':'4층교육';else if(g.label==='정상')v='정상';else v='근무';day.v[p.n]=v})})});
+   (W.single||[]).forEach(function(x){if(x.label!=='휴무자')return;wcSplit((x.values||[])[i]).forEach(function(nm){var p=ST[wcBare(nm)];if(p)day.v[p.n]='휴무'})});
+   out.push(day)}});
+ return out}
+function wcDiff(){var o=M(CUR_YM),A=o.asg||{},D=wcPlanDays(),out=[];
+ D.forEach(function(day){Object.keys(day.v).forEach(function(n){var plan=day.v[n],cur=(A[n]||[])[day.d-1]||'';
+  var po=plan==='휴무',co=cur==='휴무';if(po!==co)out.push({n:n,d:day.d,plan:plan,cur:cur||'(없음)',conf:day.conf,wk:day.wk})})});
+ return out}
+var WCLAB={'오전':'오전','정상':'중간·정상','오후':'오후','배합지원':'배합지원','4층교육':'4층(교육)','근무':'근무','휴무':'휴무','(없음)':'기록 없음'};
+function wcHtml(){var o=M(CUR_YM);if(!o.result)return '';var X=wcDiff(),days=wcPlanDays().length;
+ if(!days)return '<div class="wc-box ok">이 달 주간근무계획표가 아직 없어 대조할 것이 없습니다.</div>';
+ if(!X.length)return '<div class="wc-box ok">✔ 주간근무계획표('+days+'일)와 휴일체크표의 휴무가 모두 일치합니다.</div>';
+ var by={};X.forEach(function(x){(by[x.n]=by[x.n]||[]).push(x)});
+ return '<div class="wc-box"><div class="wc-h"><b>⚠ 주간근무계획표와 다른 휴무 '+X.length+'건 · '+Object.keys(by).length+'명</b><button class="btn btn-p btn-sm" onclick="WorkSched.wcFix()">주간근무계획표 기준으로 맞추기</button></div>'+
+  '<div class="wc-l">'+Object.keys(by).map(function(n){return '<div><b>'+esc(n)+'</b>'+by[n].map(function(x){return '<span class="'+(x.plan==='휴무'?'p':'m')+'" title="'+esc(x.wk)+(x.conf?' · 확정된 주':'')+'">'+x.d+'일: 계획표 '+(WCLAB[x.plan]||x.plan)+' · 체크표 '+(WCLAB[x.cur]||x.cur)+(x.conf?' 🔒':'')+'</span>'}).join('')+'</div>'}).join('')+'</div>'+
+  '<div class="wc-n">주간근무계획표(실제 배포된 근무표)를 기준으로 봅니다 · 🔒 = 확정된 주 · 맞추기를 누르면 근무 기록을 계획표대로 고치고 휴일체크표 · 휴무 개수 · 확정 휴무를 다시 계산합니다 (계획표는 바꾸지 않음)</div></div>'}
+function wcFix(){var o=M(CUR_YM),X=wcDiff();if(!X.length){U.toast('고칠 것이 없습니다.','ok');return}
+ if(!confirm('휴일체크표를 주간근무계획표 기준으로 '+X.length+'건 고칠까요?\n(근무 기록만 고치고, 주간근무계획표는 그대로 둡니다)'))return;
+ o.asg=o.asg||{};var N=daysInMonth(CUR_YM);X.forEach(function(x){var a=o.asg[x.n]=o.asg[x.n]||[];while(a.length<N)a.push('');a[x.d-1]=x.plan;o.planned=o.planned||{};o.planned[x.d]=1});
+ recalc(CUR_YM,null,null,null);try{DB.save()}catch(e){}
+ try{var box=$('#ws-root');if(box)box.innerHTML=innerView()}catch(e){rerenderStats()}
+ U.toast('휴일체크표를 주간근무계획표에 맞췄습니다 ('+X.length+'건).','ok')}
+var _wcT=checkTableHtml;checkTableHtml=function(){return wcHtml()+_wcT.apply(this,arguments)};
+(function(){var st=document.createElement('style');st.textContent='.wc-box{border:1px solid #FDBA74;background:#FFF7ED;border-radius:10px;padding:10px 12px;margin:0 0 10px;font-size:12.5px;color:#7C2D12}.wc-box.ok{border-color:#86EFAC;background:#F0FDF4;color:#14532D}.wc-h{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:center;margin-bottom:6px}.wc-l{display:flex;flex-direction:column;gap:4px}.wc-l>div{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center}.wc-l b{min-width:54px}.wc-l span{padding:2px 8px;border-radius:999px;background:#fff;border:1px solid #FED7AA}.wc-l span.p{border-color:#A7F3D0;background:#ECFDF5;color:#065F46}.wc-n{margin-top:6px;color:#9A3412;font-size:11.5px}';document.head.appendChild(st)})();
+
 
 /* ---------- 화면 ---------- */
 function holidayChipsHtml(){
@@ -7749,7 +7786,7 @@ function view(){
  return '<div class="wsx"><div id="ws-root">'+innerView()+'</div></div>';
 }
 
-window.WorkSched={view:view,paint:paint,goResult:goResult,plan:plan,openWeek:openWeek,selWeek:selWeek,syncTotal:syncTotal,resetTeam:resetTeam,recalc:recalc,toggleMaint:toggleMaint,cur:function(){return CUR_YM},pickWish:pickWish,setTarget:setTarget,setReq:setReq,setTeamReq:setTeamReq,toggleDetail:toggleDetail,gotoMonth:gotoMonth,solve:solve,openAddHoliday:openAddHoliday,addHoliday:addHoliday,removeHoliday:removeHoliday};
+window.WorkSched={wcFix:wcFix,wcDiff:wcDiff,view:view,paint:paint,goResult:goResult,plan:plan,openWeek:openWeek,selWeek:selWeek,syncTotal:syncTotal,resetTeam:resetTeam,recalc:recalc,toggleMaint:toggleMaint,cur:function(){return CUR_YM},pickWish:pickWish,setTarget:setTarget,setReq:setReq,setTeamReq:setTeamReq,toggleDetail:toggleDetail,gotoMonth:gotoMonth,solve:solve,openAddHoliday:openAddHoliday,addHoliday:addHoliday,removeHoliday:removeHoliday};
 })();
 </script>
 <script id="weekplanjs">
