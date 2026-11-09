@@ -18143,6 +18143,9 @@ function render(D){
  M.forEach(function(m,i){var y=Y.m[i]+NH/2;if(!mU[i])links+='<path d="M'+(busX+10)+' '+y+' H'+gapR+'" class="fm-base"/>'+vlv(busX+18,y,false)});
  wm.forEach(function(q,k){var w=WN[q[0]],fl=w.run||(w.on&&(M[q[1]].run||M[q[1]].mv)),x=laneX(k),dy=nP>1?5:0,ya=Y.w[q[0]]+NH/2-dy,yb=Y.m[q[1]]+NH/2+dy,d='M'+gapL+' '+ya+' H'+x+' V'+yb+' H'+gapR;
   var c=COL[M[q[1]].h]||SOY;links+='<path d="'+d+'" fill="none" stroke="#0E1714" stroke-width="9" stroke-linejoin="round"/>'+link(d,c,fl?'flow':'on',M[q[1]].h,x,(ya+yb)/2)+vlv(gapL+14,ya,true,c)+vlv(gapR-14,yb,true,c)});
+ /* 선이 흐르는 착즙 구간은 노드도 가동 중으로 (테두리 · 오른쪽 위 불) */
+ wm.forEach(function(q){var w=WN[q[0]],m=M[q[1]];if(w.on&&(w.run||m.run||m.mv)){w.run=true;if(!/가동 중/.test(w.st))w.st='가동 중';J.forEach(function(j){if(j.wt===w.wk&&j.on){j.run=true;if(!/가동 중/.test(j.st))j.st='가동 중'}})}});
+ M.forEach(function(m){if(m.mv)m.run=true});   /* 이송 중(추정 포함)인 배합 호기도 테두리 · 불 켜기 */
  /* 배합 N → 멸균 N */
  var cs=C('s');M.forEach(function(m,i){var s=S[i],y1=Y.m[i]+NH/2,y2=Y.s[i]+NH/2,mx=cm.x+cm.w+(cs.x-cm.x-cm.w)/2,c=COL[m.h];
   links+=link(path(cm.x+cm.w,y1,cs.x,y2,mx),c,m.mv?'flow':(m.on&&s.on?'on':''),m.h,mx,(y1+y2)/2)});
