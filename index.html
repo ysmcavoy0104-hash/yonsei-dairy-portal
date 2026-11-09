@@ -17942,7 +17942,8 @@ function juice(D,now){var d=docs('FRM-009',D)[0],out=[];
   for(var h=0;h<=24;h++){var v=d?G(d,'ax'+n+'_'+h):'';hrs.push(v);if(v)on++}
   var hh=now!=null?Math.floor(now/60):-1,last=-1;hrs.forEach(function(v,i){if(v)last=i});
   /* 지금 시각 칸이 체크됐거나, 일지를 아직 못 채운 경우(마지막 체크가 바로 앞 시간) 가동 중으로 */
-  var run=now!=null?(!!hrs[hh]||(last>=0&&last===hh-1)):on>0;
+  var first=-1;hrs.forEach(function(v,i){if(v&&first<0)first=i});
+  var run=now!=null?(!!hrs[hh]||(last>=0&&last===hh-1)||(first>=0&&hh>=first&&hh<=last)):on>0;
   out.push({k:'j'+n,n:n,wt:n===4?'D':String(wt||'').replace(/\D/g,''),t:'빈쿠커 #'+(bk||n),sub:n===4?'→ 데칸타':(wt?'→ WT'+String(wt).replace(/\D/g,''):''),prod:nm,on:on>0,run:run,st:run?(now!=null?'가동 중':'가동 '+on+'시간'):on?'가동 '+on+'시간':'미가동'})}
  return out}
 function mix(D,now){var out=[],L=docs('FRM-012',D).concat(docs('FRM-011',D)),f11=form('FRM-011');
@@ -18133,13 +18134,14 @@ function render(D){
  var wF=[],mF=rcvI.filter(function(i){return !mU[i]});WN.forEach(function(w,i){if(w.on&&!wU[i])wF.push(i)});
  if(wF.length===1&&mF.length===1){wm.push([wF[0],mF[0]]);wU[wF[0]]=1;mU[mF[0]]=1}
  /* 빈쿠커 → WT 선도 그 WT가 보내는 배합 호기 색으로 (한 호기로만 갈 때) */
- JL.forEach(function(a){var d=wm.filter(function(q){return q[0]===a[0]}),c=d.length===1?(COL[M[d[0][1]].h]||SOY):SOY;links+=link(a[1],c,a[2],null)});
+ /* 빈쿠커 → WT 선: 빈쿠커가 지금 가동 중이거나, 오늘 가동했고 그 WT가 보내는 배합 호기가 지금 진행(혼합 · 이송) 중이면 흐름 */
+ JL.forEach(function(a){var d=wm.filter(function(q){return q[0]===a[0]}),c=d.length===1?(COL[M[d[0][1]].h]||SOY):SOY,md=a[2]==='on'&&d.some(function(q){return M[q[1]].run||M[q[1]].mv})?'flow':a[2];links+=link(a[1],c,md,null)});
  /* 짝마다 따로 배관(레인)을 그림: 나가는 선은 칸 위쪽, 들어가는 선은 칸 아래쪽 → 서로 겹치지 않음 (교차할 때는 끊어서 그림) */
  var nP=wm.length,gapL=cw.x+cw.w,gapR=cm.x,laneX=function(k){return Math.round(busX+(k-(nP-1)/2)*20)};
  WN.forEach(function(w,i){var y=Y.w[i]+NH/2;if(!wU[i])links+=link('M'+gapL+' '+y+' H'+(busX-10),SOY,w.on?'on':'',null)+vlv(busX-18,y,false)});
  links+='<path d="M'+busX+' '+(TOP+8)+' V'+(TOP+RH*6-20)+'" class="fm-base"/>';
  M.forEach(function(m,i){var y=Y.m[i]+NH/2;if(!mU[i])links+='<path d="M'+(busX+10)+' '+y+' H'+gapR+'" class="fm-base"/>'+vlv(busX+18,y,false)});
- wm.forEach(function(q,k){var w=WN[q[0]],fl=w.run||(w.on&&M[q[1]].run),x=laneX(k),dy=nP>1?5:0,ya=Y.w[q[0]]+NH/2-dy,yb=Y.m[q[1]]+NH/2+dy,d='M'+gapL+' '+ya+' H'+x+' V'+yb+' H'+gapR;
+ wm.forEach(function(q,k){var w=WN[q[0]],fl=w.run||(w.on&&(M[q[1]].run||M[q[1]].mv)),x=laneX(k),dy=nP>1?5:0,ya=Y.w[q[0]]+NH/2-dy,yb=Y.m[q[1]]+NH/2+dy,d='M'+gapL+' '+ya+' H'+x+' V'+yb+' H'+gapR;
   var c=COL[M[q[1]].h]||SOY;links+='<path d="'+d+'" fill="none" stroke="#0E1714" stroke-width="9" stroke-linejoin="round"/>'+link(d,c,fl?'flow':'on',M[q[1]].h,x,(ya+yb)/2)+vlv(gapL+14,ya,true,c)+vlv(gapR-14,yb,true,c)});
  /* 배합 N → 멸균 N */
  var cs=C('s');M.forEach(function(m,i){var s=S[i],y1=Y.m[i]+NH/2,y2=Y.s[i]+NH/2,mx=cm.x+cm.w+(cs.x-cm.x-cm.w)/2,c=COL[m.h];
