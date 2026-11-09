@@ -18073,9 +18073,9 @@ function render(D){
  /* 대략 가동 표시 (일지 · 팀 자료가 없을 때): 오늘 생산계획에 품목이 있으면 계획 시작 시각(없으면 06:00)부터 22:00까지 「생산 중 · 계획 기준」 */
  if(now!=null)S.forEach(function(x){if(!x.plan||x.run)return;var pl=PL[x.h]||[],st=null;pl.forEach(function(y){var t=tmin(String(y.time||'').split(/[~\-]/)[0]);if(t!=null&&(st==null||t<st))st=t});if(st==null)st=360;
   if(now>=st&&now<22*60){x.run=true;x.on=true;x.est=1;x.st='생산 중 · 계획 기준'}else{x.on=true;x.st=now<st?'계획 '+String(Math.floor(st/60)).padStart(2,'0')+':'+String(st%60).padStart(2,'0')+' 시작':'계획 종료'}});
- /* 충전 · 포장: 포장팀 공개 생산 실적(최근 생산일)의 호기별 품목으로 멸균기와 짝을 지어, 짝 멸균기가 돌면 「가동 중 · 추정」 */
+ /* 충전 · 포장: 포장팀 공개 생산 실적(최근 생산일)에 품목이 있는 호기는 멸균처럼 06:00~22:00 「생산 중 · 계획 기준」 · 같은 품목 멸균기가 돌면 그 멸균기와 이어서 표시 */
  var RP=packRecent(D);P.forEach(function(p){if(p.on||p.prod||p.live)return;var r=RP[p.h];if(!r)return;p.prod=r.items.join(' · ');p.est=1;p.sub='최근 '+r.date.slice(5).replace('-','/');p.st='대기'});
- if(now!=null)P.forEach(function(p){if(!p.est)return;var s0=S.filter(function(x){return x.run&&x.prod&&same(x.prod,p.prod)})[0];if(s0){p.on=true;p.run=true;p.st='가동 중 · 추정 (멸균 '+s0.h+'호기)'}});
+ if(now!=null)P.forEach(function(p){if(!p.est)return;var s0=S.filter(function(x){return x.run&&x.prod&&same(x.prod,p.prod)})[0];p.on=true;if(s0){p.run=true;p.st='생산 중 · 추정 (멸균 '+s0.h+'호기)'}else if(now>=360&&now<22*60){p.run=true;p.st='생산 중 · 계획 기준'}else p.st=now<360?'06:00 시작 예정':'생산 종료'});
  /* 멸균 N호기가 멸균 · 생산 중이면 배합 N호기는 지금 이송 중 (일지에 이송 시각을 적기 전이라도) */
  M.forEach(function(m,i){var x=S[i];if(now!=null&&!m.mv&&x&&x.run){m.mv=true;m.est=1;m.st='이송 중 (멸균 가동 · 추정)'}});
  M.forEach(function(m){m.lvl=m.mv?.45:m.run?.85:m.on?.3:0});
