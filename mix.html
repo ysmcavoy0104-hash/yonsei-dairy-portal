@@ -483,6 +483,7 @@ function sterNow(h){var D=today(),m=nowMin();
    var cs=T('cs1');if(ins(T('ps1'),T('pe1'))&&!ins(cs,T('ce1')))return {run:true,src:'멸균 업무일지',t:T('ps1')};if(ins(T('s1'),T('e1')))return {run:true,src:'멸균 업무일지',t:T('s1')}}}}catch(e){}
  if(SFD&&SFD.d===D){var hit=null;SFD.rows.forEach(function(r0){if(hit||!r0||typeof r0!=='object')return;var r=sfFlat(r0);var dt=sfGet(r,/^(date|day|workDate|work_date|날짜|일자|생산일자)$/i);if(dt&&String(dt).slice(0,10)!==D)return;
    var u=sfGet(r,/(^|\.)(unit|hogi|호기|line|machine|ster|sterilizer|equip)$/i);if(+(String(u==null?'':u).match(/\d/)||[0])[0]!==h)return;
+   var sv=sfGet(r,/(^|\.)(status|state|상태)$/i);if(sv!=null){var tv=String(sv).replace(/\s/g,'');if(/생산|가동|충전|멸균|run|prod|ster/i.test(tv)&&!/cip|세척/i.test(tv)){hit={run:true,src:'멸균팀 포털',t:null}}return}
    Object.keys(r).forEach(function(k){if(hit||!/(start|begin|시작|from|_s$|In$)/i.test(k)||/cip/i.test(k))return;var a=sfMin(r[k],D);if(a==null)return;var base=k.replace(/(start|begin|시작|from|_s$|In$)/i,'');
     var ek=Object.keys(r).filter(function(x){return x!==k&&x.replace(/(end|finish|종료|to|_e$|Out$)/i,'')===base&&/(end|finish|종료|to|_e$|Out$)/i.test(x)})[0],b=ek?sfMin(r[ek],D):null;
     if(m>=a&&(b==null||m<b))hit={run:true,src:'멸균팀 포털',t:a}})});if(hit)return hit}

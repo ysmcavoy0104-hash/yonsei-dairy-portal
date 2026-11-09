@@ -18011,6 +18011,8 @@ function sterExt(D,now){var c=sterFeed(D),out={};if(!c||!c.rows)return out;
   var it=sfGet(r,/(^|\.)(product|item|productName|item_name|itemName|품목|제품|name)$/i);if(it&&o.items.indexOf(String(it))<0)o.items.push(String(it));
   var q=parseFloat(String(sfGet(r,/(totalL|qtyL|liters|litre|volume|생산량|prodL|productionL|amountL)/i)||'').replace(/[^\d.]/g,''));if(isFinite(q))o.qty+=q;
   var nt=sfGet(r,/(note|remark|특이|memo)/i);if(nt)o.note.push(String(nt));
+  /* 상태 칸이 있으면 그대로 사용 (예: status: 생산중 · 멸균중 · CIP · 정지 · 대기) */
+  var sv=sfGet(r,/(^|\.)(status|state|상태)$/i);if(sv!=null)o.status=String(sv);
   /* 시작 · 종료 짝 찾기 (멸균 · 생산 · CIP) */
   var kinds=[['cip',/cip/i],['prod',/(prod|생산|fill)/i],['ster',/(ster|멸균|heat)/i]];
   Object.keys(r).forEach(function(k){if(!/(start|begin|시작|from|_s$|In$)/i.test(k))return;var a=sfMin(r[k],D);if(a==null)return;
@@ -18021,7 +18023,7 @@ function sterExt(D,now){var c=sterFeed(D),out={};if(!c||!c.rows)return out;
   if(now!=null){var cur=o.seg.filter(function(x){return now>=x.a&&(x.b==null||now<x.b)}).sort(function(x,y){return y.a-x.a})[0];
    if(cur){st=cur.k==='cip'?'CIP':cur.k==='ster'?'멸균 중':'생산 중';run=cur.k!=='cip'}
    else if(o.seg.length){var last=Math.max.apply(null,o.seg.map(function(x){return x.b==null?x.a:x.b}));st=now>=last?'종료':'시작 전'}}
-  else st='생산 '+o.n+'건';o.st=st;o.run=run});
+  else st='생산 '+o.n+'건';if(now!=null&&o.status){var t=o.status.replace(/\s/g,'');if(/생산|가동|충전|run|prod/i.test(t)){st='생산 중';run=true}else if(/멸균|ster|heat/i.test(t)){st='멸균 중';run=true}else if(/cip|세척/i.test(t)){st='CIP';run=false}else if(/정지|stop|정비|고장/i.test(t)){st='정지';run=false}else if(/대기|wait|idle|종료|end/i.test(t)){st=t.slice(0,8);run=false}}o.st=st;o.run=run});
  return out}
 window.yumSterFeed=function(D){return sterFeed(D||today())};
 /* 포장팀 포털 공개 자료(하루 한 번 갱신): 호기별 날짜 · 제품 · 생산량 — 우리 포장 일지가 없는 지난 날짜에 사용 */
