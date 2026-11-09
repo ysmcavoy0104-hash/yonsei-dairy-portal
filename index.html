@@ -17082,7 +17082,7 @@ function qs(k){var m=(location.hash||'').match(new RegExp('[?&]'+k+'=([^&]*)'));
 var TEAMS=[
  {k:'juice',n:'착즙팀',ic:'❖',c:'#D97706',dash:'#/juice',url:'https://soyline.netlify.app',link:{fn:'https://qehezkmwoyshqybnsvdz.supabase.co/functions/v1/portal-link',key:'sb_publishable_BCVOp1rKwrw5c4n424eyIg_m-hhqpB2',into:'https://soyline.netlify.app/#/link-in?token_hash='},d:'착즙 · 분리액 생산 현황 (착즙팀 자체 포털 · 연계 게스트로 보기 전용 입장)'},
  {k:'mix',n:'배합팀',ic:'⚗',c:'#2563EB',url:'mix.html',dash:'#/mix',d:'호기 · 탱크별 혼합 · 이송 · CIP 실시간 현황, 품질 이상 주의, 기록 누락 알림, 관리 분석, 생산계획표 변환'},
- {k:'ster',n:'멸균팀',ic:'♨',c:'#0F8F7C',dash:'#/ster',url:'https://myeolgyun-portal.vercel.app',d:'호기별 가동률 · 생산 달성률 · 멸균 · CIP · 알람 · 정비 이력 (멸균팀 자체 포털)'},
+ {k:'ster',n:'멸균팀',ic:'♨',c:'#0F8F7C',dash:'#/ster',url:'https://myeolgyun-portal.vercel.app',link:{post:'https://myeolgyun-portal.vercel.app/api/auth/link'},d:'호기별 가동률 · 생산 달성률 · 멸균 · CIP · 알람 · 정비 이력 (멸균팀 자체 포털 · 연계 게스트로 보기 전용 입장)'},
  {k:'pack',n:'포장팀',ic:'▣',c:'#6D50D9',dash:'#/pack',url:'https://jaehyun3163-blip.github.io/yonsei/?ro=1#home',d:'호기별 생산 · 정지 · 가동률 현황 (포장팀 자체 포털 · 보기 전용 입장)'}];
 var PACKAPI='https://jaehyun3163-blip.github.io/yonsei/api/';
 var EN={mix:'Blending',juice:'Extraction',ster:'Sterilization',pack:'Packaging'};
@@ -17117,6 +17117,10 @@ function linkIn(t){
     if(!r0||!r0.ok)throw new Error(r0&&/invalid/i.test(r0.msg||'')?'비밀번호가 맞지 않습니다.':'서버 응답이 늦어 다시 연결하지 못했습니다. 잠시 뒤 다시 눌러 주세요.');
     msg('<b style="font-size:18px">'+t.n+' 업무포털로 이동하는 중…</b>');ses=await srvSession();
     if(!ses||!ses.access_token)throw new Error('서버 로그인 정보를 받지 못했습니다. 잠시 뒤 다시 눌러 주세요.')}
+   /* 멸균팀(Next.js · Vercel): 로그인 토큰을 그 팀 입구로 form POST (GET 아님) → 멸균팀 서버가 우리 Supabase에 직접 확인 */
+   if(t.link.post){var f=document.createElement('form');f.method='POST';f.action=t.link.post;f.target=(w&&!w.closed)?'yum_'+t.k:'_blank';
+    [['token',ses.access_token],['portal',window.SUPA_URL]].forEach(function(kv){var i=document.createElement('input');i.type='hidden';i.name=kv[0];i.value=kv[1];f.appendChild(i)});
+    document.body.appendChild(f);f.submit();f.remove();return}
    var ctl=new AbortController(),to=setTimeout(function(){ctl.abort()},20000);
    var r=await fetch(t.link.fn,{method:'POST',signal:ctl.signal,headers:{'Content-Type':'application/json',apikey:t.link.key},body:JSON.stringify({portal_url:window.SUPA_URL,token:ses.access_token})});
    clearTimeout(to);var j=await r.json().catch(function(){return null});
