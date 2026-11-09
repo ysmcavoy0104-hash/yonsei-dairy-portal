@@ -17774,14 +17774,15 @@ var LP=null,T=null;new MutationObserver(function(){var p=el(KEYS[0]);if(p&&p!==L
 </script>
 
 <script>
-/* 작성 중인 일지 자동 임시저장 (2026-11-06)
-   · 입력이 멈춘 뒤 40초 (같은 문서는 최소 2분 간격) · 화면을 떠나거나 창을 내릴 때 → 임시저장
+/* 작성 중인 일지 자동 임시저장 (2026-11-06 · 2026-11-09 강화)
+   · 칸 하나를 다 쓰고 넘어갈 때마다(값 확정) 3초 뒤 임시저장 (같은 문서는 최소 20초 간격)
+   · 계속 쓰고 있어도 3분마다 강제 임시저장 · 입력이 20초 멈춰도 임시저장 · 화면을 떠나거나 창을 내릴 때 → 임시저장
    · 다른 컴퓨터에서도 일지함 「임시저장」 · 배합팀 현황판에서 작성 중인 내용을 볼 수 있음
    · 이미 「저장하기」한 문서를 고치는 중이면 자동으로 저장하지 않음 (저장은 직접) */
 (function(){
 'use strict';
 if(window.__YUM_LIVESAVE__)return;window.__YUM_LIVESAVE__=1;
-var IDLE=30000,GAP=120000,dirty=false,lastEdit=0,lastAuto=0,quiet=false;
+var IDLE=20000,GAP=20000,FORCE=180000,dirty=false,lastEdit=0,lastAuto=0,quiet=false,CT=null;
 function curDoc(){try{var id=window.__yumDocId||(window.__CURDOC&&window.__CURDOC.id);return id?(DB.data.docs||[]).filter(function(d){return d.id===id})[0]:null}catch(e){return null}}
 /* 작성 화면(#/doc-new) 또는 문서 화면에서 「수정하기」로 바로 고치는 중 */
 function onForm(){var p=document.getElementById('docpaper');if(!p||!p.querySelector('[data-gk],[data-k]'))return false;
@@ -17789,7 +17790,9 @@ function onForm(){var p=document.getElementById('docpaper');if(!p||!p.querySelec
  return !!(window.__yumInline&&window.__yumInline===location.hash)}
 function canAuto(){if(!onForm())return false;var d=curDoc();if(d&&d.status!=='temp')return false;try{return !!Auth.user()}catch(e){return false}}
 document.addEventListener('input',function(e){if(!e.isTrusted)return;var t=e.target;if(t&&t.closest&&t.closest('#docpaper')){dirty=true;lastEdit=Date.now()}},true);
-document.addEventListener('change',function(e){if(!e.isTrusted)return;var t=e.target;if(t&&t.closest&&t.closest('#docpaper')){dirty=true;lastEdit=Date.now()}},true);
+document.addEventListener('change',function(e){if(!e.isTrusted)return;var t=e.target;if(t&&t.closest&&t.closest('#docpaper')){dirty=true;lastEdit=Date.now();
+ /* 칸 하나 입력 완료 → 3초 뒤 임시저장 (최소 20초 간격) */
+ clearTimeout(CT);CT=setTimeout(function(){var w=GAP-(Date.now()-lastAuto);if(w>0){CT=setTimeout(function(){run('칸 입력')},w)}else run('칸 입력')},3000)}},true);
 /* 자동 저장 때는 「임시저장되었습니다」 알림을 띄우지 않음 */
 try{var _t=U.toast;U.toast=function(m){if(quiet&&/임시저장/.test(String(m||'')))return;return _t.apply(this,arguments)}}catch(e){}
 function run(why){
@@ -17799,7 +17802,7 @@ function run(why){
  var st=document.getElementById('yum-save-state');if(st){var n=new Date();st.textContent='자동 임시저장 '+String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')+' · 다른 컴퓨터에서도 보임'}
  console.log('[자동 임시저장]',why);
 }
-setInterval(function(){var n=Date.now();if(dirty&&n-lastEdit>=IDLE&&n-lastAuto>=GAP)run('입력 멈춤')},10000);
+setInterval(function(){var n=Date.now();if(!dirty||n-lastAuto<GAP)return;if(n-lastEdit>=IDLE)run('입력 멈춤');else if(n-lastAuto>=FORCE)run('3분 경과')},5000);
 document.addEventListener('visibilitychange',function(){if(document.hidden)run('창 내림')});
 window.addEventListener('pagehide',function(){run('페이지 닫음')});
 /* 메뉴로 다른 화면에 갈 때 (화면이 바뀌기 전에) */
@@ -17808,6 +17811,26 @@ try{var _go=App.go;App.go=function(){try{run('화면 이동')}catch(e){}return _
 try{var _p=Doc.persist;Doc.persist=function(){dirty=false;return _p.apply(this,arguments)}}catch(e){}
 try{var _c=Doc.cancelDraft;if(_c)Doc.cancelDraft=function(){dirty=false;return _c.apply(this,arguments)}}catch(e){}
 window.yumLiveSave=run;
+/* 새 버전 자동 적용 (2026-11-09): 작성 화면을 며칠씩 켜 두면 고친 기능(자동 임시저장 등)이 안 들어가던 문제
+   · 5분마다 사이트 파일이 바뀌었는지만 확인(내용은 안 받음) → 바뀌었으면 쓰던 일지를 임시저장하고 새로고침 → 그 일지를 다시 열어 줌
+   · 이미 「저장하기」한 문서를 고치는 중이면 그 작업이 끝날 때까지 기다림 */
+var BASE=null,UPD=false;
+function verOf(r){return r.headers.get('etag')||r.headers.get('last-modified')||''}
+function verCheck(){if(UPD||!/^https?:/.test(location.protocol))return;
+ fetch(location.href.split('#')[0],{method:'HEAD',cache:'no-store'}).then(function(r){var v=verOf(r);if(!v||!r.ok)return;if(!BASE){BASE=v;return}if(v!==BASE)apply()}).catch(function(){})}
+function apply(){
+ if(onForm()){var d=curDoc();
+  if(d&&d.status!=='temp')return;                       /* 저장 완료 문서 수정 중 → 다음 확인 때 다시 */
+  if(dirty||!d){var hasVal=false;try{document.querySelectorAll('#docpaper input,#docpaper textarea').forEach(function(e){if(e.value&&e.type!=='hidden')hasVal=true})}catch(e){}
+   if(hasVal){dirty=true;run('새 버전 적용 전')}}
+  d=curDoc();if(d)try{sessionStorage.setItem('yum_resume',d.id)}catch(e){}}
+ UPD=true;var st=document.getElementById('yum-save-state');if(st)st.textContent='새 버전으로 바꾸는 중… (쓰던 일지는 임시저장됨)';
+ setTimeout(function(){location.reload()},5000)}
+window.__yumVerCheck=verCheck;setTimeout(verCheck,20000);setInterval(function(){if(!document.hidden)verCheck()},300000);
+/* 새로고침 뒤: 쓰던 일지 다시 열기 */
+(function resume(){var id=null;try{id=sessionStorage.getItem('yum_resume')}catch(e){}if(!id)return;var n=0,iv=setInterval(function(){n++;
+  try{if(typeof Doc!=='undefined'&&Doc.edit&&Auth.user()&&(DB.data.docs||[]).some(function(d){return d.id===id})){clearInterval(iv);sessionStorage.removeItem('yum_resume');App.show('app');Doc.edit(id);return}}catch(e){}
+  if(n>60){clearInterval(iv);try{sessionStorage.removeItem('yum_resume')}catch(e){}}},500)})();
 })();
 </script>
 
