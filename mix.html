@@ -403,7 +403,10 @@ function today(){return dstr(new Date())}
 
 /* ───────── 일지 해석 ───────── */
 /* 생산작업일보 1건 → 배치 목록 (시각은 '오늘 0시' 기준 분, 자정 넘김 처리) */
+/* 멸균유 생산작업일보(FRM-011): 1~3호기 품목 칸 위치가 다르고(1호기 5 · 2호기 7 · 3호기 9열), 배치 표는 SILO TK 칸 때문에 홀수 배치(1B · 3B …)만 한 칸 밀림 */
+function is011(doc){var f=form('FRM-011');return !!(f&&doc&&doc.formId===f.id)}
 function parseLineDoc(doc,L,off){
+ if(is011(doc))return parse011(doc,L,off);
  var prods=[];for(var rr=3;rr<=6;rr++){var nm=G(doc,'g2_'+rr+'_'+(2*L.h)),n=num(G(doc,'g2_'+rr+'_'+(2*L.h+1)));if(nm)prods.push({nm:nm,n:n||0})}
  function prodFor(i){var c=0;for(var k=0;k<prods.length;k++){c+=prods[k].n;if(i<c)return prods[k].nm}return prods.length?prods[prods.length-1].nm:''}
  var roll=0,prev=null;function abs(t){if(t==null)return null;var a=t+roll+off;if(prev!=null&&a<prev-360){roll+=1440;a+=1440}prev=a;return a}
@@ -415,6 +418,18 @@ function parseLineDoc(doc,L,off){
  var planned=prods.reduce(function(a,p){return a+p.n},0);
  return {prods:prods,product:prods.map(function(p){return p.nm}).join(' · '),planned:planned,batches:out};
 }
+function parse011(doc,L,off){
+ var pc=2*L.h+3,prods=[];for(var rr=3;rr<=6;rr++){var nm=G(doc,'g2_'+rr+'_'+pc),n=num(G(doc,'g2_'+rr+'_'+(pc+1)));if(nm&&!/^[OoXx0○·.\-\s]+$/.test(nm))prods.push({nm:nm,n:n||0})}
+ function prodFor(i){var c=0;for(var k=0;k<prods.length;k++){c+=prods[k].n;if(i<c)return prods[k].nm}return prods.length?prods[prods.length-1].nm:''}
+ var roll=0,prev=null;function abs(t){if(t==null)return null;var a=t+roll+off;if(prev!=null&&a<prev-360){roll+=1440;a+=1440}prev=a;return a}
+ var out=[];
+ for(var r=10;r<=24;r++){var i=r-10,o=(i%2===0)?1:0,c=function(n){return G(doc,'g2_'+r+'_'+(n+o))};
+  var has=[1,2,3,4,5,6,7].some(function(n){return c(n)!==''});if(!has)continue;
+  var tmov=abs(tmin(c(6)));
+  out.push({i:i,label:(i+1)+'B',tin:null,tmix:tmov,tmov:tmov,conc:'',ph:'',inW:'',brix0:'',adj:'',brix:'',lvl:c(2),temp:c(3),mixer:c(5),mover:c(7),pbrix:'',silo:c(1),prod:prodFor(i)})}
+ var planned=prods.reduce(function(a,p){return a+p.n},0);
+ return {prods:prods,product:prods.map(function(p){return p.nm}).join(' · '),planned:planned,batches:out};
+}
 /* CIP 일보 → 탱크(행)별 CIP 기록 */
 function cipEvents(code,pre,row,s,e,dates){
  var out=[];dates.forEach(function(ds,di){var off=(new Date(ds+'T00:00:00')-new Date(today()+'T00:00:00'))/60000;
@@ -423,8 +438,8 @@ function cipEvents(code,pre,row,s,e,dates){
  return out.sort(function(x,y){return x.s-y.s});
 }
 function hogiOf(d){var h=G(d,'hogi').replace(/\s+/g,''),m=h.match(/^#?(\d)/);if(m)return +m[1];
- var on=[];for(var k=1;k<=5;k++){for(var rr=3;rr<=6;rr++){if(G(d,'g2_'+rr+'_'+(2*k))){on.push(k);break}}}return on.length===1?on[0]:null}
-function lineDoc(L,ds){var a=docsOf('FRM-012').filter(function(d){return docDate(d)===ds&&hogiOf(d)===L.h});return a.length?latest(a):null}
+ var x11=is011(d),on=[];for(var k=1;k<=(x11?3:5);k++){for(var rr=3;rr<=6;rr++){var v=G(d,'g2_'+rr+'_'+(x11?2*k+3:2*k));if(v&&!/^[OoXx0○·.\-\s]+$/.test(v)){on.push(k);break}}}return on.length===1?on[0]:null}
+function lineDoc(L,ds){var a=docsOf('FRM-012').concat(L.h<=3?docsOf('FRM-011'):[]).filter(function(d){return docDate(d)===ds&&hogiOf(d)===L.h});return a.length?latest(a):null}
 function moveMinOf(L){return L.cap/L.rate*60}
 
 /* ───────── 일지 없을 때 기준 시간표로 자동 표시 ─────────
