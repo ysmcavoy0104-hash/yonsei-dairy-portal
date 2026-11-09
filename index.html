@@ -8167,7 +8167,7 @@ function view(){
   '<div id="wp-root">'+(CUR?innerView():'<div class="empty">등록된 근무계획표가 없습니다.</div>')+'</div>'+
   '</div>';
 }
-window.WeekPlan={cur:function(){return CUR},view:view,edStart:edStart,edCancel:edCancel,edSave:edSave,edSet:edSet,confirmWeek:confirmWeek,unconfirmWeek:unconfirmWeek,edPick:edPick,edPut:edPut,edSup:edSup,setKey:function(k){CUR=k},goKey:function(k){EDIT=null;CUR=k;var box=$('#wp-root');if(box)box.innerHTML=innerView()},_D:D,gotoWeek:gotoWeek,printWeek:printWeek,pdfWeek:pdfWeek};
+window.WeekPlan={isEditing:function(){return !!EDIT},cur:function(){return CUR},view:view,edStart:edStart,edCancel:edCancel,edSave:edSave,edSet:edSet,confirmWeek:confirmWeek,unconfirmWeek:unconfirmWeek,edPick:edPick,edPut:edPut,edSup:edSup,setKey:function(k){CUR=k},goKey:function(k){EDIT=null;CUR=k;var box=$('#wp-root');if(box)box.innerHTML=innerView()},_D:D,gotoWeek:gotoWeek,printWeek:printWeek,pdfWeek:pdfWeek};
 })();
 </script>
 <script id="sterilji">
@@ -18258,16 +18258,27 @@ var _eh=window.yumEduHtml;
 function hook(){var f=window.yumEduHtml;if(!f||f.__e4)return !!(f&&f.__e4);
  var g=function(k,glabel,di){var h=f.apply(this,arguments)||'';
   try{if(glabel==='4층'&&k&&isSup()){var ds=addD(k,di),man=DL().filter(function(x){return x.ds===ds});
-   var base=String(h).replace(/<[^>]*>/g,' ');h+='<style>@media print{.e4d,.e4d-x,.e4d-x button{display:none!important}.e4d-x.ps{display:block!important}.e4d-x.ps .e4d-nm{border:0!important;background:none!important;padding:0!important;color:inherit!important;font-weight:inherit!important}.e4d-x .e4d-pl{display:inline!important}}</style>'+man.map(function(x){var inB=base.indexOf(x.n)>=0;try{var W0=WPo(k);if(W0&&where(W0,di,x.n).some(function(q){return /4층/.test(q.g+q.sub)}))inB=true}catch(e){}return '<div class="e4d-x'+(inB?'':' ps')+'"><span class="e4d-nm">'+esc(x.n)+'('+esc(x.lab||'교육')+')</span><button type="button" data-html2canvas-ignore="true" onclick="yumEdu4.dayDel(\''+esc(ds)+'\',\''+esc(x.n)+'\')" title="'+esc(x.n)+' 4층 추가 취소 (원래 자리로)">×</button></div>'}).join('')+
-    '<div class="e4d" data-html2canvas-ignore="true"><button type="button" onclick="yumEdu4.dayAdd(\''+esc(k)+'\','+di+')">+ 추가</button></div>'}}catch(e){}
+   /* 「+ 추가」 · 「×」 는 주간근무계획표 「✎ 수정하기」 중일 때만 */
+   var EDN=!!(window.WeekPlan&&WeekPlan.isEditing&&WeekPlan.isEditing());
+   var base=String(h).replace(/<[^>]*>/g,' ');
+   h+=man.map(function(x){var inB=base.indexOf(x.n)>=0;try{var W0=WPo(k);if(W0&&where(W0,di,x.n).some(function(q){return /4층/.test(q.g+q.sub)}))inB=true}catch(e){}
+     if(inB&&!EDN)return '';
+     return '<div class="e4d-x">'+(inB?'':'<span class="e4d-nm">'+esc(x.n)+'('+esc(x.lab||'교육')+')</span>')+(EDN?'<button type="button" data-html2canvas-ignore="true" onclick="yumEdu4.dayDel(\''+esc(ds)+'\',\''+esc(x.n)+'\')" title="'+esc(x.n)+' 4층 추가 취소 (원래 자리로)">'+(inB?esc(x.n)+' ':'')+'×</button>':'')+'</div>'}).join('')+
+    (EDN?'<div class="e4d" data-html2canvas-ignore="true"><button type="button" onclick="yumEdu4.dayAdd(\''+esc(k)+'\','+di+')">+ 추가</button></div>':'')}}catch(e){}
   return h};g.__e4=1;window.yumEduHtml=g;return true}
 if(!hook()){var nn=0,iv=setInterval(function(){if(hook()||++nn>40)clearInterval(iv)},250)}
+/* 「✎ 수정하기」 화면: 4층 줄 각 날짜 칸에 「+ 추가」, 추가한 사람에는 「×」 */
+function edDecor(){try{if(!(window.WeekPlan&&WeekPlan.isEditing&&WeekPlan.isEditing())||!isSup())return;var root=document.getElementById('wp-root');if(!root)return;var k=WeekPlan.cur();if(!k)return;
+ [].forEach.call(root.querySelectorAll('tr'),function(tr){var c0=tr.cells[0];if(!c0||!/^4층/.test(c0.textContent.trim()))return;var cs=[].filter.call(tr.cells,function(td){return td.classList.contains('wpe-cell')});
+  cs.forEach(function(td,di){if(td.querySelector('.e4d'))return;var ds=addD(k,di),man=DL().filter(function(x){return x.ds===ds}),txt=td.textContent;
+   var h=man.filter(function(x){return txt.indexOf(x.n)<0}).map(function(x){return '<div class="e4d-x"><span class="e4d-nm">'+esc(x.n)+'('+esc(x.lab||'교육')+')</span><button type="button" onclick="yumEdu4.dayDel(\''+esc(ds)+'\',\''+esc(x.n)+'\')" title="4층 추가 취소">×</button></div>'}).join('');
+   var d=document.createElement('div');d.setAttribute('data-html2canvas-ignore','true');d.innerHTML=h+'<div class="e4d"><button type="button" onclick="yumEdu4.dayAdd(\''+esc(k)+'\','+di+')">+ 추가</button></div>';td.appendChild(d)})})}catch(e){}}
+setInterval(edDecor,700);
 var CSS2='.e4d button{margin-top:4px;border:1px dashed #A78BFA;background:#F5F3FF;color:#5B21B6;border-radius:8px;padding:2px 10px;font-size:11.5px;font-weight:700;cursor:pointer}'+
- /* 4층에 추가한 사람은 다른 이름과 똑같은 글씨로 · 「+ 추가」와 「×」는 칸에 마우스를 올렸을 때만 (화면 · 인쇄 · PDF에 안 보임) */
- '.e4d-x{display:block}.e4d-x .e4d-nm{font:inherit;color:inherit}.e4d-x:not(.ps){display:none}'+
- '.e4d,.e4d-x button{display:none}td:hover>.e4d,td:hover .e4d{display:block}td:hover .e4d-x{display:block}td:hover .e4d-x button{display:inline;margin:0 0 0 4px;padding:0 4px;border:0;background:none;color:#7C3AED;font-size:13px;line-height:1;cursor:pointer}'+
- '@media print{.e4d,.e4d-x button,.e4d-x:not(.ps){display:none!important}}';
+ '.e4d-x{display:block}.e4d-x .e4d-nm{font:inherit;color:inherit}.e4d-x button{margin:0 0 0 4px;padding:0 4px;border:0;background:none;color:#7C3AED;font-size:12px;line-height:1;cursor:pointer}'+
+ '@media print{.e4d,.e4d-x button{display:none!important}}';
 (function(){var st=document.createElement('style');st.textContent=CSS2;document.head.appendChild(st)})();
+function edOn(){return !!(window.WeekPlan&&WeekPlan.isEditing&&WeekPlan.isEditing())}
 function rerender(){try{WeekPlan.goKey(WeekPlan.cur())}catch(e){try{App.render()}catch(x){}}}
 window.yumEdu4.dayAdd=function(k,di){var W=WPo(k);if(!W){toast('이 주 계획표가 아직 없습니다. 먼저 편성해 주세요.','bad');return}
  var ds=addD(k,di),WDN='월화수목금토일'[di],S=(function(){try{return (YSched._staff()||[]).filter(function(p){return p.active!==false&&p.st!=='4층'})}catch(e){return []}})();
@@ -18287,13 +18298,13 @@ window.yumEdu4.dayAdd=function(k,di){var W=WPo(k);if(!W){toast('이 주 계획�
   var r4=G4.rows[0];var L4=splitN(r4.names[di]);L4.push(n+'('+lab+')');r4.names[di]=L4.join(', ');if(!r4.time[di]||r4.time[di]==='-')r4.time[di]='07:30~16:00';
   var prev=setAsg(n,ds,'4층교육');
   DL().push({n:n,ds:ds,k:k,di:di,lab:lab,from:from,prev:prev,by:(Auth.user()||{}).name||'',at:new Date().toISOString()});
-  try{DB.save()}catch(e){}U.closeModal();rerender();toast(n+'님을 '+md(ds)+' 4층('+lab+')에 추가했습니다.','ok')}}})};
+  try{DB.save()}catch(e){}U.closeModal();if(edOn()){try{WeekPlan.edSet(n,di,'4층교육')}catch(e){}}else rerender();toast(n+'님을 '+md(ds)+' 4층('+lab+')에 추가했습니다.','ok')}}})};
 window.yumEdu4.dayDel=function(ds,n){var i=-1;DL().forEach(function(x,j){if(x.ds===ds&&x.n===n)i=j});if(i<0)return;var x=DL()[i],W=WPo(x.k);
  if(!confirm(n+'님 '+md(ds)+' 4층 추가를 취소하고 원래 자리로 되돌릴까요?'))return;
  if(W){var di=x.di;var G4=(W.groups||[]).filter(function(g){return g.label==='4층'})[0];if(G4){var r4=G4.rows[0];r4.names[di]=splitN(r4.names[di]).filter(function(y){return bare(y)!==bare(n)}).join(', ')||'-'}
   (x.from||[]).forEach(function(f){if(f.g==='휴무자'){(W.single||[]).forEach(function(s){if(s.label==='휴무자'){var L=splitN(s.values[di]);L.push(n);s.values[di]=L.join(', ')}});return}
    (W.groups||[]).forEach(function(g){if(g.label!==f.g)return;(g.rows||[]).forEach(function(r){if((r.sub||'')!==f.sub)return;var L=splitN(r.names[di]);L.push(n);r.names[di]=L.join(', ')})})})}
- if(x.prev!=null)setAsg(n,ds,x.prev);DL().splice(i,1);try{DB.save()}catch(e){}rerender();toast(n+'님을 원래 자리로 되돌렸습니다.','ok')};
+ if(x.prev!=null)setAsg(n,ds,x.prev);DL().splice(i,1);try{DB.save()}catch(e){}if(edOn()){try{WeekPlan.edSet(n,x.di,x.prev||'')}catch(e){}}else rerender();toast(n+'님을 원래 자리로 되돌렸습니다.','ok')};
 
 new MutationObserver(function(){if(document.getElementById('ws-root')&&!document.getElementById('e4-box'))put()}).observe(document.documentElement,{childList:true,subtree:true});
 window.addEventListener('hashchange',function(){setTimeout(put,100)});setInterval(put,3000);
