@@ -371,7 +371,7 @@ function planToday(h){var W=(DATA&&DATA.planWeeks)||{},S=(DATA&&DATA.planSpec)||
  if(!best)return {week:false,items:[],maint:false};var cells=best.cells||{};cells=Array.isArray(cells)?cells:Object.keys(cells).map(function(k){return cells[k]});
  var col='멸균'+h+'호기',isCol=function(c){return String(c.colLabel||'').replace(/\s/g,'')===col};
  var maint=(best.maint||[]).some(function(m){return m.rowLabel===lbl&&isCol(m)});
- var items=cells.filter(function(c){return c&&c.rowLabel===lbl&&String(c.colLabel||'').replace(/\s/g,'')==='멸균'+h+'호기'}).map(function(c){var sp=S[c.code]||{};return {code:c.code,batch:+c.batch||0,time:c.time||'',name:String(sp.name||c.name||'').replace(/\[[^\]]*\]/g,'').trim()}});
+ var items=cells.filter(function(c){return c&&c.rowLabel===lbl&&String(c.colLabel||'').replace(/\s/g,'')==='멸균'+h+'호기'}).map(function(c){var sp=S[c.code]||{};return {code:c.code,batch:+c.batch||0,time:c.time||'',name:String(sp.name||c.name||'').replace(/\[[^\]]*\]/g,'').trim()||('품목 '+c.code)}});
  return {week:true,items:items,maint:maint}}
 
 /* ───────── 공통 ───────── */
@@ -718,7 +718,7 @@ var SILOFR=null,SFT=null,SFDONE=0;
 function siloFrameCalc(){try{var f=document.getElementById('planFrame'),w=f&&f.contentWindow;if(!w||!w.SiloPlan||!w.SiloPlan._plan)return false;
  var P=w.SiloPlan._plan();if(!P||!P.lots){SFDONE=1;return 'none'}
  SILOFR={key:P.key,at:Date.now(),days:P.days||{},lots:P.lots.filter(function(l){return l.silo}).map(function(l){return {silo:l.silo,cls:l.cls,kind:l.kind||'',type:l.type||'',lf:!!l.lf,enzyme:!!l.enzyme,qty:Math.round(+l.qty||0),a:l.cls==='milk'?(l.recv||l.use):(l.prod||l.use),b:l.use,line:l.line||'',products:(l.products||[]).slice(0,6)}})};return true}catch(e){return false}}
-function siloFrameLoad(){var f=document.getElementById('planFrame');if(!f.getAttribute('src'))f.setAttribute('src','index.html?embed=1#/planconv');
+function siloFrameLoad(){var f=document.getElementById('planFrame');if(!f.getAttribute('src'))f.setAttribute('src','index.html?embed=1&v='+Date.now()+'#/planconv');
  clearInterval(SFT);var n=0;SFT=setInterval(function(){n++;if(siloFrameCalc()||n>60){clearInterval(SFT);SFDONE=1;if(TAB==='silo')render()}},1000)}
 function siloSrc(){return SILOFR&&SILOFR.lots?SILOFR:(DATA&&DATA.siloNow)}
 function siloLots(id){var N=siloSrc();if(!N||!N.lots)return [];return N.lots.filter(function(l){return l.silo===id}).sort(function(a,b){return String(a.a).localeCompare(String(b.a))})}

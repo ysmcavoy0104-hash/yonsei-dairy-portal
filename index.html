@@ -6934,6 +6934,9 @@ function extractFromPage(items){
   if(codeRe.test(it.text))bget(r,c).codes.push(it);
   else if(batchRe.test(it.text))bget(r,c).batches.push(it);
   else if(timeRe.test(it.text))bget(r,c).times.push(it);
+  else if(/^\d{1,2}:\d{2}\s*~\s*\d{1,2}:\d{2}$/.test(String(it.text||'').trim())){var _tt=String(it.text).trim().split(/\s*~\s*/);bget(r,c).times.push(Object.assign({},it,{text:_tt[0]}),Object.assign({},it,{text:_tt[1],top:it.top+0.01}))}
+  else if(/^\d{1,2}:\d{2}\s*~$/.test(String(it.text||'').trim()))bget(r,c).times.push(Object.assign({},it,{text:String(it.text).replace(/\s*~\s*$/,'').trim()}))
+  else if(/^~\s*\d{1,2}:\d{2}$/.test(String(it.text||'').trim()))bget(r,c).times.push(Object.assign({},it,{text:String(it.text).replace(/^~\s*/,'').trim(),top:it.top+0.01}));
   else if(/^[1-6]$/.test(String(it.text||'').trim()))bget(r,c).fills.push(it);
   else if(/정\s*비/.test(String(it.text||'')))bget(r,c).maint=1;
  });
@@ -18061,7 +18064,7 @@ function link(d,c,mode,badge,bx,by){var s='<path d="'+d+'" class="fm-base"/>';
 function planFor(D){var W=(DB.data&&DB.data.planWeeks)||{},S=(DB.data&&DB.data.planSpec)||{},lbl=(+D.slice(5,7))+'/'+(+D.slice(8)),best=null,out={};
  Object.keys(W).forEach(function(k){var w=W[k];if(!w||!w.rows||w.rows.indexOf(lbl)<0)return;if(!best||(w.uploadedAt||0)>(best.uploadedAt||0))best=w});if(!best)return out;
  var cells=best.cells||{};cells=Array.isArray(cells)?cells:Object.keys(cells).map(function(k){return cells[k]});
- cells.forEach(function(c){if(!c||c.rowLabel!==lbl)return;var m=String(c.colLabel||'').replace(/\s/g,'').match(/^멸균(\d)호기$/);if(!m)return;var sp=S[c.code]||{},nm=String(sp.name||c.name||'').replace(/\[[^\]]*\]/g,'').trim();if(!nm)return;
+ cells.forEach(function(c){if(!c||c.rowLabel!==lbl)return;var m=String(c.colLabel||'').replace(/\s/g,'').match(/^멸균(\d)호기$/);if(!m)return;var sp=S[c.code]||{},nm=String(sp.name||c.name||'').replace(/\[[^\]]*\]/g,'').trim();if(!nm)nm='품목 '+c.code;
   (out[m[1]]=out[m[1]]||[]).push({name:nm,short:String(c.name||'').trim(),mat:String(sp.material||''),time:String(c.time||''),filler:c.filler||null})});return out}
 function toks(s){return String(s||'').split(/[\s·,()\/]+/).map(function(x){return x.replace(/[^가-힣A-Za-z0-9]/g,'')}).filter(function(x){return x.length>=2&&!/^\d+$/.test(x)})}
 /* 밸브 기호: 열림(색) · 닫힘(회색 · 본관과 떨어진 배관) */
