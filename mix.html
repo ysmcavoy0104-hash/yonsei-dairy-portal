@@ -462,6 +462,31 @@ function simTank(L,prod,i,m){
  return o}
 
 /* ───────── 현황 계산 ───────── */
+/* ───────── 멸균 가동 → 배합 이송 추정 (2026-11-09) ─────────
+   배합 N호기는 멸균 N호기로만 보냄 → 멸균 N호기가 멸균 · 생산 중이면 배합 N호기는 지금 이송 중
+   · 근거: ① 부문포털 멸균 업무일지(FRM-016) ② 멸균팀 업무포털 업무일지(읽기 전용 · ster-proxy · 4분마다)
+   · 일지에 이송 시각을 적기 전이라도 「이송 대기」 탱크 중 가장 먼저 혼합이 끝난 탱크를 「이송 중(추정)」으로 표시 */
+var SFD=null,SFAT=0,SFBUSY=false;
+function sfRows(j){if(Array.isArray(j))return j;if(!j||typeof j!=='object')return [];var ks=['rows','data','items','journal','list','records','result'];for(var i=0;i<ks.length;i++){if(Array.isArray(j[ks[i]]))return j[ks[i]];if(j[ks[i]]&&typeof j[ks[i]]==='object'){var r=sfRows(j[ks[i]]);if(r.length)return r}}for(var k in j)if(Array.isArray(j[k])&&j[k].length&&typeof j[k][0]==='object')return j[k];return []}
+function sfFlat(r,pre,o){o=o||{};for(var k in r){var v=r[k],kk=(pre?pre+'.':'')+k;if(v&&typeof v==='object'&&!Array.isArray(v))sfFlat(v,kk,o);else o[kk]=v}return o}
+function sfGet(o,re){for(var k in o){if(re.test(k)&&o[k]!=null&&o[k]!=='')return o[k]}return null}
+function sfMin(v,D){if(v==null)return null;var s=String(v).trim(),mm=/^(\d{4}-\d{2}-\d{2})[T\s](\d{1,2}):(\d{2})/.exec(s);if(mm){if(mm[1]!==D)return mm[1]<D?-1:1441;return (+mm[2])*60+(+mm[3])}return tmin(s)}
+function sterFeedLoad(){if(SFBUSY||!SB||Date.now()-SFAT<4*60e3)return;SFBUSY=true;(async function(){try{
+  var g=await SB.auth.getSession(),ses=g&&g.data&&g.data.session;if(!ses)return;var D=today();
+  var r=await fetch(SUPA_URL+'/functions/v1/ster-proxy',{method:'POST',headers:{'Content-Type':'application/json',apikey:SUPA_ANON,Authorization:'Bearer '+ses.access_token},body:JSON.stringify({path:'data',set:'journal',from:D,to:D})});
+  var j=await r.json().catch(function(){return null});SFAT=Date.now();if(r.ok&&j&&!j.error){SFD={d:D,rows:sfRows(j)};document.querySelectorAll('.line').forEach(function(l){l.dataset.sig=''});render()}
+ }catch(e){console.warn('[멸균팀 자료]',e)}finally{SFBUSY=false}})()}
+/* 멸균 h호기 지금 가동(멸균 · 생산) 중인지 → {run, src, t} */
+function sterNow(h){var D=today(),m=nowMin();
+ try{var f=form('FRM-016');if(f){var ds=(DATA.docs||[]).filter(function(d){return d.formId===f.id&&!d.deleted&&d.status!=='deleted'&&docDate(d)===D}).concat(liveDocs(f.id).filter(function(d){return docDate(d)===D}));var d=latest(ds);
+  if(d){var p='s'+h+'_',T=function(k){return tmin(G(d,p+k))},ins=function(a,b){return a!=null&&m>=a&&(b==null||m<b)};
+   var cs=T('cs1');if(ins(T('ps1'),T('pe1'))&&!ins(cs,T('ce1')))return {run:true,src:'멸균 업무일지',t:T('ps1')};if(ins(T('s1'),T('e1')))return {run:true,src:'멸균 업무일지',t:T('s1')}}}}catch(e){}
+ if(SFD&&SFD.d===D){var hit=null;SFD.rows.forEach(function(r0){if(hit||!r0||typeof r0!=='object')return;var r=sfFlat(r0);var dt=sfGet(r,/^(date|day|workDate|work_date|날짜|일자|생산일자)$/i);if(dt&&String(dt).slice(0,10)!==D)return;
+   var u=sfGet(r,/(^|\.)(unit|hogi|호기|line|machine|ster|sterilizer|equip)$/i);if(+(String(u==null?'':u).match(/\d/)||[0])[0]!==h)return;
+   Object.keys(r).forEach(function(k){if(hit||!/(start|begin|시작|from|_s$|In$)/i.test(k)||/cip/i.test(k))return;var a=sfMin(r[k],D);if(a==null)return;var base=k.replace(/(start|begin|시작|from|_s$|In$)/i,'');
+    var ek=Object.keys(r).filter(function(x){return x!==k&&x.replace(/(end|finish|종료|to|_e$|Out$)/i,'')===base&&/(end|finish|종료|to|_e$|Out$)/i.test(x)})[0],b=ek?sfMin(r[ek],D):null;
+    if(m>=a&&(b==null||m<b))hit={run:true,src:'멸균팀 포털',t:a}})});if(hit)return hit}
+ return null}
 function computeLive(){
  var T=today(),Y=addDays(T,-1),m=nowMin(),cats=CATS(SUMMER);
  var flags=[],missing=[],lines=[],notes=[];
@@ -509,6 +534,13 @@ function computeLive(){
    if(c&&!c.kind&&c.s>=-60)missing.push({room:L.room,where:L.h+'호기 '+id,what:'CIP 시작 기록은 있는데 CIP 종류 미선택',form:'CIP 및 살균 작업 일보 · CIP 종류'});
    if(c&&c.e==null&&m-c.s>120)missing.push({room:L.room,where:L.h+'호기 '+id,what:'CIP 시작 후 2시간이 지났는데 종료 시각 미입력',form:'CIP 및 살균 작업 일보 · 종료시간'});
    return o});
+  /* 멸균이 가동 중인데 이송 중인 탱크가 없으면 → 가장 먼저 혼합이 끝난 「이송 대기」 탱크를 이송 중(추정)으로 */
+  var SN=pstat==='정비'?null:sterNow(L.h);
+  if(SN&&SN.run&&!tanks.some(function(t){return t.state==='이송 중'})){
+   var cand=tanks.filter(function(t){return t.state==='이송 대기'||t.state==='배합 완료'}).sort(function(a,b){return ((a.batch&&a.batch.tmix)||0)-((b.batch&&b.batch.tmix)||0)})[0];
+   if(cand){var wasLv=cand.lv;var t0=SN.t!=null&&SN.t<=m?SN.t:m,end=Math.max(t0+mm,m+10),pg=Math.max(0,Math.min(1,(m-t0)/mm));cand.state='이송 중';cand.color='var(--move)';cand.sp=2;cand.level=Math.max(.04,.95*(1-pg));cand.est=true;cand.lv='';cand.msg='';cand.prog=pg;cand.progTxt='추정';cand.eta=end;
+    cand.sub='멸균 '+L.h+'호기 가동 중'+(SN.t!=null?' ('+hh(SN.t)+'~)':'')+' · 추정';cand.title='근거: '+SN.src+' — 일지에 이송 시각을 적으면 실제 기록으로 바뀝니다';
+    if(wasLv)flags=flags.filter(function(f){return f.text.indexOf(L.h+'호기 '+cand.id+' ')!==0})}}
   /* 배치 기록 누락 */
   if(doc&&off===0){P.batches.forEach(function(b){var w=L.h+'호기 '+b.label;
    if(b.tmix!=null&&!b.brix)missing.push({room:L.room,where:w,what:'혼합 완료 시각은 있는데 최종 Brix 미입력',form:'제품생산작업일보 · 최종 Brix'});
@@ -831,6 +863,7 @@ function boot(){
  setInterval(function(){if(document.visibilityState==='visible')pull(false)},60000);
  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')pull(false)});
  tick();setInterval(tick,1000);
+ setTimeout(sterFeedLoad,4000);setInterval(function(){if(document.visibilityState==='visible')sterFeedLoad()},60000);
  setInterval(function(){if(['old','new','silo'].indexOf(TAB)>=0)render()},15000);
  window.addEventListener('storage',function(e){if(e.key===DBKEY&&e.newValue){try{DATA=JSON.parse(e.newValue);render()}catch(x){}}});
 }
