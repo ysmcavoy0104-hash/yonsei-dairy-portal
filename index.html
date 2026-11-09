@@ -18073,6 +18073,9 @@ function render(D){
  /* ── 일지 · 팀 자료가 없을 때: 오늘 생산계획표로 가동 표시 ──
     멸균: 계획 시간(예 09:00~22:00, 밤샘 15:35~10:00)에 「생산 중 · 계획」
     충전 · 포장: 계획 품목을 포장팀 생산 실적(올해)에서 그 품목을 만든 충전 호기로 찾아 연결 → 짝 멸균기 계획 시간 동안 「생산 중 · 계획」 */
+ /* 오늘 생산계획표가 올라와 있으면: 계획에 없는 호기(배합 · 멸균)는 돌리지 않음 (일지 · 다른 팀 자료 · 추정 모두) */
+ if(Object.keys(PL).length){[1,2,3,4,5].forEach(function(h){if((PL[h]||[]).length)return;var m=M[h-1],x=S[h-1];
+  if(m){m.mv=false;m.run=false;m.on=false;m.soy=false;m.st='오늘 생산계획 없음'}if(x){x.run=false;x.on=false;x.prod='';x.st='오늘 생산계획 없음'}})}
  var inWin=function(pl){var any=false,hit=false;pl.forEach(function(y){var t=String(y.time||'').split(/\s*[~\-]\s*/),a=tmin(t[0]),b=tmin(t[1]||'');if(a==null)return;any=true;if(b==null)b=22*60;if(b<=a)b+=1440;if((now>=a&&now<b)||(now+1440>=a&&now+1440<b))hit=true});
   if(!any)return now>=360&&now<22*60;return hit};
  if(now!=null)S.forEach(function(x){if(!x.plan||x.run)return;var pl=PL[x.h]||[];x.on=true;if(inWin(pl)){x.run=true;x.est=1;x.st='생산 중 · 계획 '+(pl[0]&&pl[0].time||'')}else x.st='계획 '+(pl[0]&&pl[0].time||'')+' (지금 아님)'});

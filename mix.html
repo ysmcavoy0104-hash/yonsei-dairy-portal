@@ -535,7 +535,7 @@ function computeLive(){
    if(c&&c.e==null&&m-c.s>120)missing.push({room:L.room,where:L.h+'호기 '+id,what:'CIP 시작 후 2시간이 지났는데 종료 시각 미입력',form:'CIP 및 살균 작업 일보 · 종료시간'});
    return o});
   /* 멸균이 가동 중인데 이송 중인 탱크가 없으면 → 가장 먼저 혼합이 끝난 「이송 대기」 탱크를 이송 중(추정)으로 */
-  var SN=pstat==='정비'?null:sterNow(L.h);
+  var SN=(pstat==='정비'||(PW.week&&!PL.length))?null:sterNow(L.h);   /* 오늘 생산계획에 없는 호기는 추정하지 않음 */
   if(SN&&SN.run&&!tanks.some(function(t){return t.state==='이송 중'})){
    var cand=tanks.filter(function(t){return t.state==='이송 대기'||t.state==='배합 완료'}).sort(function(a,b){return ((a.batch&&a.batch.tmix)||0)-((b.batch&&b.batch.tmix)||0)})[0];
    if(cand){var wasLv=cand.lv;var t0=SN.t!=null&&SN.t<=m?SN.t:m,end=Math.max(t0+mm,m+10),pg=Math.max(0,Math.min(1,(m-t0)/mm));cand.state='이송 중';cand.color='var(--move)';cand.sp=2;cand.level=Math.max(.04,.95*(1-pg));cand.est=true;cand.lv='';cand.msg='';cand.prog=pg;cand.progTxt='추정';cand.eta=end;
