@@ -18311,5 +18311,65 @@ window.addEventListener('hashchange',function(){setTimeout(put,100)});setInterva
 })();
 </script>
 
+<script>
+/* 11월 3주(11/9~11/15) 주간근무계획표를 「ver9」 수정본대로 한 번 적용 (2026-11-09)
+   · 관리자가 로그인한 첫 화면에서 한 번만 (DB.data._fixes.wk3v9 로 표시) → 서버에 올라가 전 직원에게 같게 보임
+   · 주간근무계획표(표시)와 휴일체크표 근무 기록(o.asg)을 함께 맞추고, 자동 편성이 덮어쓰지 않도록 확정 */
+(function(){
+'use strict';
+var KEY='2026-11-09',YM='2026-11',D0=9;
+function sp(a){return a.map(function(x){return x||'-'})}
+var T6=function(a,b){return [a,a,a,a,a,a,b]};
+var G=[
+ {label:'오전',rows:[
+  {sub:'배합',time:T6('06:00~15:00','07:00~16:00'),names:['조성빈,김승기','조의석,이범직','조의석,이상민','표상욱,이상민','표상욱,김승기','윤인기,표상욱','윤인기,표상욱']},
+  {sub:'착즙',time:T6('05:30~14:30','07:00~16:00'),names:['황용식,목진웅','황용식,이원석','황용식,이원석','황용식,이원석','황용식,이원석','이원석,목진웅','이원석,목진웅']}]},
+ {label:'중간',rows:[
+  {sub:'배합',time:['07:00~16:00','07:00~16:00','07:00~16:00','07:00~16:00','07:00~16:00','07:00~16:00','07:00~16:00'],names:['윤인기,정웅,장영빈','윤인기,이상민,김민성','윤인기,김민성,이범직','정웅,김민성,이범직,장영빈','정웅,이범직','조성빈,정웅,이범직,김승기','조성빈,정웅,김민성,김승기']}]},
+ {label:'오후',rows:[
+  {sub:'배합',time:T6('16:00~','07:00~16:00'),names:['표상욱,김용찬','표상욱,김용찬','조성빈,김용찬,김승기','조성빈,김용찬','조의석,김민성','조의석,이상민,김용찬','조의석,이상민,김용찬']},
+  {sub:'착즙',time:T6('14:30~23:00','07:00~16:00'),names:['채승엽,이연우','채승엽,이연우','채승엽,목진웅','이연우,목진웅','채승엽,이연우','채승엽,이연우','채승엽,이연우']}]},
+ {label:'4층',rows:[{sub:'',time:['07:30~16:00','07:30~16:00','07:30~16:00','07:30~16:00','07:30~16:00','-','-'],names:['우정균,김진명','우정균,김진명,장영빈(교육)','우정균,김진명','우정균,김진명','우정균,김진명,장영빈(교육)','-','-']}]},
+ {label:'정상',rows:[{sub:'',time:['07:00~16:00','07:00~16:00','07:00~16:00','07:00~16:00','07:00~16:00','-','-'],names:['임성주','이인철,임성주','이인철,임성주','이인철,임성주','이인철,임성주','-','-']}]}];
+var S1=[
+ {label:'휴무자',values:['이인철,조의석,이원석,이상민,김민성,이범직','조성빈,정웅,목진웅,김승기','이연우,정웅,표상욱,장영빈','윤인기,채승엽,김승기','윤인기,조성빈,이상민,목진웅,김용찬','황용식,우정균,이인철,임성주,김진명,김민성,장영빈','황용식,우정균,이인철,임성주,김진명,이범직,장영빈']},
+ {label:'배합 근무',values:['주간 교대 2','주간 교대 2','주간 교대 2','주간 교대 2','주간 교대 2','주간 교대 2','주간 교대 2']},
+ {label:'착즙 근무',values:['주간 교대 2','주간 교대 2','주간 교대 2','주간 교대 2','주간 교대 2','주간 교대 2','주간 교대 2']},
+ {label:'1팀 지원',values:['-','-','-','-','-','1명','-']}];
+function bare(x){return String(x||'').replace(/\(.*?\)/g,'').replace(/\s+/g,'')}
+function split(v){return String(v||'').split(/[,\n]/).map(function(x){return x.trim()}).filter(function(x){return x&&x!=='-'})}
+function apply(){
+ var u=null;try{u=Auth.user()}catch(e){}if(!u)return false;
+ var sup=false;try{sup=(typeof isSuper==='function'&&isSuper())||/^(superadmin|super|admin)$/.test(String(u.role||''))}catch(e){}if(!sup)return false;
+ DB.data._fixes=DB.data._fixes||{};if(DB.data._fixes.wk3v9)return true;
+ var E0=((DB.data.weeklyPlans||{})[KEY]||{}).edited;if(E0&&E0.by==='주간근무계획표 ver9 반영')return true;   /* 이미 반영됨 */
+ if(E0&&String(E0.at||'')>'2026-11-10T00:00')return true;   /* 그 뒤에 직접 고친 게 있으면 덮어쓰지 않음 */
+ var WP=DB.data.weeklyPlans=DB.data.weeklyPlans||{},old=WP[KEY]||{},now=new Date().toISOString();
+ var W=JSON.parse(JSON.stringify(old));W.range='11월 9일 ~ 11월 15일';W.dayLabels=['9(월)','10(화)','11(수)','12(목)','13(금)','14(토)','15(일)'];
+ W.groups=JSON.parse(JSON.stringify(G));W.single=JSON.parse(JSON.stringify(S1));W.supMan={5:'1명'};
+ W.edited={at:now,by:'주간근무계획표 ver9 반영'};W.confirmed={at:now,by:(u.name||'')+' (ver9)'};W._u=now;
+ /* 휴일체크표 근무 기록도 같게 (주간근무계획표 대조와 같은 규칙) */
+ var staff=[];try{staff=(YSched._staff()||[]).filter(function(p){return p.active!==false})}catch(e){}
+ var ST={};staff.forEach(function(p){ST[bare(p.n)]=p});
+ var WS=DB.data.workSched=DB.data.workSched||{months:{}};WS.months=WS.months||{};var o=WS.months[YM];
+ if(o){o.asg=o.asg||{};o.planned=o.planned||{};var N=30;
+  for(var i=0;i<7;i++){var d=D0+i,v={};
+   W.groups.forEach(function(g){g.rows.forEach(function(r){split(r.names[i]).forEach(function(nm){var p=ST[bare(nm)];if(!p)return;var x;
+    if(g.label==='오전')x='오전';else if(g.label==='오후')x='오후';else if(g.label==='중간')x=p.st==='배합'?'정상':(p.st==='착즙'?'배합지원':'정상');
+    else if(g.label==='4층')x=p.st==='4층'?'정상':'4층교육';else x='정상';v[p.n]=x})})});
+   split(W.single[0].values[i]).forEach(function(nm){var p=ST[bare(nm)];if(p)v[p.n]='휴무'});
+   Object.keys(v).forEach(function(n){var a=o.asg[n]=o.asg[n]||[];while(a.length<N)a.push('');a[d-1]=v[n]});o.planned[d]=1}
+  try{WorkSched.recalc(YM,null,null,null)}catch(e){console.warn('[3주 ver9] 휴일체크표 다시 계산 실패',e)}}
+ WP[KEY]=W;DB.data._fixes.wk3v9=now;
+ try{DB.save()}catch(e){}try{if(window.SupaSync&&SupaSync.on())SupaSync.queuePush()}catch(e){}
+ try{U.toast('11월 3주 주간근무계획표를 ver9 수정본으로 반영했습니다 (확정).','ok')}catch(e){}
+ try{if(/weekplan|worksched/.test(location.hash))App.render()}catch(e){}
+ console.log('[3주 ver9] 반영 완료');return true}
+window.yumWk3v9=apply;
+/* 로그인 · 서버 자료를 받은 뒤 (첫 받기에 덮이지 않게 15초 뒤부터) */
+var n=0,iv=setInterval(function(){n++;if(n<3)return;try{if(apply()||n>120)clearInterval(iv)}catch(e){if(n>120)clearInterval(iv)}},5000);
+})();
+</script>
+
 </body>
 </html>
