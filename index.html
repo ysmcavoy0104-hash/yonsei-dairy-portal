@@ -9105,7 +9105,7 @@ Views.journalsTeam=function(team){
   var box=document.createElement('div');box.innerHTML=html;
   var grid=box.querySelector('.jgrid');if(!grid)return html;
   var H=harvest();
-  var forms=(DB.data.forms||[]).filter(function(f){if(f.active===false)return false;var t=teamOfForm(f);return t===team||(team!=='공통'&&t==='공통')});try{var _ix={};(DB.data.forms||[]).forEach(function(f,i){_ix[f.id]=i});forms.sort(function(a,b){var ta=teamOfForm(a)===team?0:1,tb=teamOfForm(b)===team?0:1;if(ta!==tb)return ta-tb;if(team==='포장팀')return _ix[a.id]-_ix[b.id];return String(a.code).localeCompare(String(b.code))})}catch(e){}
+  var forms=(DB.data.forms||[]).filter(function(f){if(f.active===false)return false;var t=teamOfForm(f);return t===team||(team!=='공통'&&t==='공통')});try{var _ix={};(DB.data.forms||[]).forEach(function(f,i){_ix[f.id]=i});forms.sort(function(a,b){var ta=teamOfForm(a)===team?0:1,tb=teamOfForm(b)===team?0:1;if(ta!==tb)return ta-tb;var na=String(a.name||'').replace(/^\[[^\]]*\]\s*/,''),nb=String(b.name||'').replace(/^\[[^\]]*\]\s*/,'');return na.localeCompare(nb,'ko')})}catch(e){}
   var ch=forms.map(function(f){return H.cards[f.code]||''}).join('');
   grid.innerHTML=ch||'<div class="jc"><h4>등록된 양식이 없습니다</h4><p>관리자 &gt; 양식관리에서 등록하세요.</p></div>';
   var ids=forms.map(function(f){return f.id});
@@ -11942,13 +11942,16 @@ var SEC={
  dash:   {en:'DASHBOARD',            ic:'▦', a:'#3062D8', d:'#12245A', s:'#EDF2FD', rgb:'48,98,216'},
  plan:   {en:'PRODUCTION',           ic:'⚙', a:'#0F8F7C', d:'#0A3F3A', s:'#E5F5F1', rgb:'15,143,124'},
  work:   {en:'WORKFORCE',            ic:'◷', a:'#6D50D9', d:'#2B1F66', s:'#F0EDFC', rgb:'109,80,217'},
- journal:{en:'DOCUMENTS · APPROVAL', ic:'✎', a:'#C27A2C', d:'#53300F', s:'#FBF1E3', rgb:'194,122,44'},
+ data:   {en:'RESOURCES',            ic:'📋', a:'#B45309', d:'#4A2A0A', s:'#FDF3E7', rgb:'180,83,9'},
+ talk:   {en:'TEAM TALK',            ic:'💬', a:'#0E7490', d:'#083344', s:'#E6F6FA', rgb:'14,116,144'},
+ ai:     {en:'AI ASSISTANT',         ic:'✦', a:'#7C3AED', d:'#2E1065', s:'#F3EEFE', rgb:'124,58,237'},
+ journal:{en:'JOURNALS · APPROVAL', ic:'✎', a:'#C27A2C', d:'#53300F', s:'#FBF1E3', rgb:'194,122,44'},
  ref:    {en:'RESOURCES · SAFETY',   ic:'▣', a:'#C2425D', d:'#561526', s:'#FCECEF', rgb:'194,66,93'},
  notice: {en:'NOTICE',               ic:'📢', a:'#D9822B', d:'#5A300A', s:'#FDF2E6', rgb:'217,130,43'},
  admin:  {en:'SYSTEM',               ic:'⚑', a:'#56657F', d:'#1E2638', s:'#EEF0F4', rgb:'86,101,127'},
  me:     {en:'MY PROFILE',           ic:'◉', a:'#B08A3E', d:'#3A2D10', s:'#F8F1E2', rgb:'176,138,62'}
 };
-var EXTRA={'#/safety':'ref','#/ndash':'dash','#/reports':'dash','#/report-admin':'dash','#/doc':'journal','#/doc-new':'journal','#/profile':'me','#/oplogs':'dash'};
+var EXTRA={'#/safety':'ref','#/ndash':'data','#/reports':'data','#/report-admin':'data','#/doc':'journal','#/doc-new':'journal','#/profile':'me','#/oplogs':'data'};
 
 /* 모든 영역의 메뉴(다른 확장 모듈이 추가한 메뉴 포함)를 모은다 */
 function collect(){
@@ -11962,12 +11965,12 @@ function collect(){
  A.baseRoute=keep;
  /* 지연·정비 기록표는 대시보드의 「지연·정비 기록 · 작성」 바로 아래로 */
  var mv=null;out.forEach(function(sc){sc.items=sc.items.filter(function(n){if(n.k==='#/oplogs'){mv=mv||n;return false}return true})});
- if(mv){var ds=out.filter(function(sc){return sc.id==='dash'})[0];if(ds){var i=-1;ds.items.forEach(function(n,k){if(n.k==='#/ndash')i=k});ds.items.splice(i>=0?i+1:ds.items.length,0,mv)}}
+ if(mv){var ds=out.filter(function(sc){return sc.id==='data'})[0];if(ds){var i=-1;ds.items.forEach(function(n,k){if(n.k==='#/ndash')i=k});ds.items.splice(i>=0?i+1:ds.items.length,0,mv)}}
  /* 공지사항은 대시보드에서 빼서 따로 */
  var nt=null;out.forEach(function(sc){sc.items=sc.items.filter(function(n){if(n.k==='#/notice'){nt=nt||n;return false}return true})});
  if(nt){var di=-1;out.forEach(function(sc,i){if(sc.id==='dash')di=i});out.splice(di+1,0,{id:'notice',t:'공지사항',i:nt.i,items:[nt]})}
  /* 메뉴마다 맨 앞(= 메뉴를 누르면 바로 열리는 화면) */
- var FIRST={plan:'#/planconv',work:'#/weekplan',journal:'#/docs',ref:'#/safenews'};
+ var FIRST={plan:'#/planconv',work:'#/weekplan',journal:'#/journals',ref:'#/safenews'};
  out.forEach(function(sc){var f=FIRST[sc.id];if(!f)return;var i=-1;sc.items.forEach(function(n,k){if(n.k===f)i=k});if(i>0)sc.items.unshift(sc.items.splice(i,1)[0])});
  /* 시스템: 관리자가 아니어도 메뉴는 보이고, 들어가면 「관리자 외 접근 제한」 안내 */
  if(!out.some(function(sc){return sc.id==='admin'}))out.push({id:'admin',t:'시스템',i:'⚑',items:[{k:'#/admin',t:'시스템관리 (관리자 전용)',i:'🔒'}]});
@@ -17177,7 +17180,11 @@ App.navItems=function(){
  var S=[
   {id:'plan',t:'팀 포털',i:'⊞',items:[{k:'#/teams',t:'팀 포털 전체',i:'⊞'}].concat(TEAMS.map(function(t){return {k:'#/teams?t='+t.k,t:t.n+' 포털',i:t.ic,act:t.url?"yumOpenTeam('"+t.k+"')":"App.go('#/teams?t="+t.k+"')"}}))},
   {id:'dash',t:'대시보드',i:'▦',items:[{k:'#/overview',t:'대시보드 전체보기',i:'◉'},{k:'#/dash',t:'팀별 현황',i:'▦'},{k:'#/juice',t:'착즙 대시보드',i:'❖'},{k:'#/mix',t:'배합 대시보드',i:'⚗'},{k:'#/ster',t:'멸균 대시보드',i:'♨'},{k:'#/pack',t:'포장 대시보드',i:'▣'},{k:'#/notice',t:'인사이트',i:'📢'}]},
-  {id:'journal',t:'자료',i:'✎',items:[{k:'#/journals',t:'일지 작성',i:'✎'},{k:'#/approval',t:'전자결재',i:'✓',c:pend||undefined},{k:'#/docs',t:'문서관리',i:'▤'},{k:'#/reports',t:'업무 보고서함',i:'📋'},{k:'#/ndash',t:'지연·정비 기록',i:'◈'},{k:'#/notebooklm',t:'설비 매뉴얼 AI (NotebookLM)',i:'✦',act:'NB.open()'},{k:'#/talk',t:'부서톡',i:'💬'},{k:'#/ai',t:'AI 업무도우미',i:'✦'}]},
+  /* 2026-11-10 메뉴 정리: 일지(작성 · 문서함 · 결재) / 자료(보고서 · 지연·정비 · 설비 매뉴얼) / 부서톡 / AI 비서 */
+  {id:'journal',t:'일지',i:'✎',items:[{k:'#/journals',t:'일지 작성',i:'✎'},{k:'#/docs',t:'문서관리 (일지함)',i:'▤'},{k:'#/approval',t:'전자결재',i:'✓',c:pend||undefined}]},
+  {id:'data',t:'자료',i:'📋',items:[{k:'#/reports',t:'업무 보고서함',i:'📋'},{k:'#/ndash',t:'지연·정비 기록',i:'◈'},{k:'#/notebooklm',t:'설비 매뉴얼 AI (NotebookLM)',i:'✦',act:'NB.open()'}]},
+  {id:'talk',t:'부서톡',i:'💬',items:[{k:'#/talk',t:'부서톡',i:'💬'}]},
+  {id:'ai',t:'AI 비서',i:'✦',items:[{k:'#/ai',t:'AI 업무도우미',i:'✦'}]},
   {id:'ref',t:'안전',i:'⚠',items:[{k:'#/safenews',t:'안전 소식 · 점검',i:'⚠'}]}
  ];
  if(isSuper()){S.push({id:'work',t:'근무',i:'◷',items:[{k:'#/weekplan',t:'주간근무계획표',i:'▤'},{k:'#/worksched',t:'근무스케쥴 (근무편성)',i:'◷'}]});
@@ -18451,11 +18458,55 @@ function fix(){try{var u=Auth.user();if(!u||!/^(superadmin|admin)$/.test(u.role|
  DB.data._fixes=DB.data._fixes||{};var ch=false,now=new Date().toISOString();
  if(!DB.data._fixes.noTemp){var n=0;(DB.data.docs||[]).forEach(function(d){if(d&&d.status==='temp'&&hasVal(d)){d.status='saved';d.savedAt=d.savedAt||d.updatedAt||now;n++}});DB.data._fixes.noTemp=now;ch=true;console.log('[임시저장 없앰] 저장완료로 옮김 '+n+'건')}
  if(!DB.data._fixes.frm010){var folders=DB.data.jfolders||[];(DB.data.forms||[]).forEach(function(f){if(!f||f.code!=='FRM-010')return;
-   f.active=true;delete f.retired;delete f.hidden;if(f.jfolder&&!folders.some(function(x){return x.id===f.jfolder}))f.jfolder='';if(f.jteam&&f.jteam!=='착즙팀')f.jteam='';});
+   f.active=true;delete f.retired;delete f.hidden;if(f.jfolder&&!folders.some(function(x){return x.id===f.jfolder}))f.jfolder='';});
   DB.data._fixes.frm010=now;ch=true;console.log('[원액생산작업일보] 복원')}
  if(ch){try{DB.save()}catch(e){}try{if(window.SupaSync&&SupaSync.on())SupaSync.queuePush()}catch(e){}}
  return true}catch(e){return false}}
 var k=0,iv=setInterval(function(){k++;if(k<3)return;if(fix()||k>120)clearInterval(iv)},5000);
+})();
+</script>
+
+<script>
+/* 일지 정리 (2026-11-10)
+   ① 「공통」 · 잘못 분류된 양식을 팀으로: 원액 · 두유액(원액) CCP · 멸균유 제품생산작업일보 · 가공2팀 공통 양식 → 배합팀 / 가공1팀 양식 → 멸균(가공1팀)
+   ② 작성중 / 저장완료: 결재란에 서명이 없고 인쇄한 적도 없으면 「작성중」 (문서관리 · 일지함에 표시) */
+(function(){
+'use strict';
+if(window.__YUM_JORG__)return;window.__YUM_JORG__=1;
+var MAP={'FRM-010':'배합팀','FRM-041':'배합팀','FRM-011':'배합팀','FRM-013':'배합팀','FRM-022':'배합팀','FRM-044':'배합팀','FRM-018':'멸균팀'};
+function guess(f){var n=String(f.name||'');
+ if(/원액/.test(n))return '배합팀';if(/가공\s*1팀|1팀|계량/.test(n))return '멸균팀';if(/가공\s*2팀|2팀/.test(n))return '배합팀';
+ if(/포장/.test(n))return '포장팀';if(/착즙|빈쿠커|설탕/.test(n))return '착즙팀';if(/배합|혼합/.test(n))return '배합팀';if(/멸균|Aseptic|HACCP 일보/.test(n))return '멸균팀';return null}
+function teamOf(f){try{return window.yumJFTeamOf?yumJFTeamOf(f):(f.jteam||'공통')}catch(e){return '공통'}}
+function fix(){try{var u=Auth.user();if(!u||!/^(superadmin|admin)$/.test(u.role||''))return false;
+ if(window.SupaSync&&SupaSync.on&&SupaSync.on()&&!SupaSync.adopted)return false;
+ DB.data._fixes=DB.data._fixes||{};if(DB.data._fixes.jorg1)return true;var n=0;
+ (DB.data.forms||[]).forEach(function(f){if(!f)return;var t=MAP[f.code];if(!t&&teamOf(f)==='공통')t=guess(f);if(t&&f.jteam!==t){f.jteam=t;f.jfolder='';f.jmovedAt=new Date().toISOString();n++}
+  /* 폴더 위치 기록(jplace)도 같이 바꿔야 다른 화면이 예전 위치로 되돌리지 않음 */
+  if(t&&DB.data.jplace){DB.data.jplace[f.id]={t:t,fo:'',at:f.jmovedAt||new Date().toISOString()}}});
+ DB.data._fixes.jorg1=new Date().toISOString();try{DB.save()}catch(e){}try{if(window.SupaSync&&SupaSync.on())SupaSync.queuePush()}catch(e){}
+ console.log('[일지 정리] 팀 분류 '+n+'종');try{if(/journals|docs/.test(location.hash))App.render()}catch(e){}return true}catch(e){return false}}
+var k=0,iv=setInterval(function(){k++;if(k<3)return;if(fix()||k>120)clearInterval(iv)},5000);
+
+/* ── 작성중 / 저장완료 ── */
+function signed(d){var s=d&&d.signs;if(!s)return false;return Object.keys(s).some(function(k){var v=s[k];return v&&(typeof v!=='object'||v.img||v.name||v.src||v.data||Object.keys(v).length)})}
+function writing(d){return d&&['temp','saved','draft'].indexOf(d.status)>=0&&!signed(d)&&!d.printedAt}
+window.yumDocWriting=writing;
+try{docStatusLabel.temp='작성중'}catch(e){}
+function withPhase(fn){return function(){var all=DB.data.docs,sv=DB.save,out;
+ DB.data.docs=(all||[]).map(function(d){return writing(d)&&d.status!=='temp'?Object.assign({},d,{status:'temp'}):d});DB.save=function(){};
+ try{out=fn.apply(this,arguments)}finally{DB.data.docs=all;DB.save=sv}
+ if(typeof out==='string')out=out.replace(/>임시저장 <span/g,'>작성중 <span').replace(/임시저장 (\d+) · 저장완료/g,'작성중 $1 · 저장완료');return out}}
+function hook(){try{if(Views.docs&&!Views.docs.__ph){var a=withPhase(Views.docs);a.__ph=1;Views.docs=a}if(Views.journalsTeam&&!Views.journalsTeam.__ph){var b=withPhase(Views.journalsTeam);b.__ph=1;Views.journalsTeam=b}}catch(e){}}
+hook();setTimeout(hook,1500);setTimeout(hook,5000);
+/* 인쇄하면 「인쇄함」 표시 → 저장완료로 */
+function mark(id){try{var d=(DB.data.docs||[]).filter(function(x){return x.id===id})[0];if(!d||d.printedAt)return;d.printedAt=new Date().toISOString();DB.save();if(window.SupaSync&&SupaSync.on())SupaSync.queuePush()}catch(e){}}
+function wrapPrint(){try{var p=window.yumPrint;if(p&&!p.__pm){var w=function(id){mark(id);return p.apply(this,arguments)};w.__pm=1;window.yumPrint=w}
+ var q=window.yumPrintDraft;if(q&&!q.__pm){var w2=function(){try{if(window.yumLiveSave)yumLiveSave('인쇄 전')}catch(e){}var id=window.__yumDocId||(window.__CURDOC&&window.__CURDOC.id);if(id)mark(id);return q.apply(this,arguments)};w2.__pm=1;window.yumPrintDraft=w2}}catch(e){}}
+wrapPrint();setTimeout(wrapPrint,1500);setTimeout(wrapPrint,5000);
+/* 일지함 단순하게: 「미분류」 · 「공통 양식」 칩 숨김 (모든 양식이 팀으로 분류됨) */
+setInterval(function(){try{[].forEach.call(document.querySelectorAll('.jfchip'),function(c){if(/미분류|공통 양식/.test(c.textContent)&&c.style.display!=='none')c.style.display='none'});
+ [].forEach.call(document.querySelectorAll('#main .pgt-sub,#main p'),function(e){if(/\(공통 양식 포함\)/.test(e.textContent))e.textContent=e.textContent.replace(/\s*\(공통 양식 포함\)/,'')})}catch(e){}},700);
 })();
 </script>
 
