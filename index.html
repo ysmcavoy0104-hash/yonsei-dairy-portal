@@ -17780,42 +17780,50 @@ var LP=null,T=null;new MutationObserver(function(){var p=el(KEYS[0]);if(p&&p!==L
 </script>
 
 <script>
-/* 작성 중인 일지 자동 임시저장 (2026-11-06 · 2026-11-09 강화)
-   · 칸 하나를 다 쓰고 넘어갈 때마다(값 확정) 3초 뒤 임시저장 (같은 문서는 최소 20초 간격)
-   · 계속 쓰고 있어도 3분마다 강제 임시저장 · 입력이 20초 멈춰도 임시저장 · 화면을 떠나거나 창을 내릴 때 → 임시저장
-   · 다른 컴퓨터에서도 일지함 「임시저장」 · 배합팀 현황판에서 작성 중인 내용을 볼 수 있음
-   · 이미 「저장하기」한 문서를 고치는 중이면 자동으로 저장하지 않음 (저장은 직접) */
+/* 일지 실시간 저장 (2026-11-10 · 임시저장 없앰)
+   · 칸 하나를 쓰고 넘어갈 때마다 3초 뒤 저장 (같은 문서는 최소 20초 간격) · 계속 쓰는 중이어도 1분마다 · 입력이 10초 멈춰도 · 화면을 떠나거나 창을 내릴 때
+   · 저장되는 문서는 처음부터 「저장완료」 → 문서관리 · 대시보드 · 다른 컴퓨터에 바로 보임 (쓰는 동안에는 실시간 전달로 몇 초 안에 현황판 반영)
+   · 「저장하기」는 다 쓴 뒤 마무리하고 닫는 버튼 · 결재가 진행된 문서(결재 중 · 완료)는 자동 저장하지 않음 */
 (function(){
 'use strict';
 if(window.__YUM_LIVESAVE__)return;window.__YUM_LIVESAVE__=1;
-var IDLE=20000,GAP=20000,FORCE=180000,dirty=false,lastEdit=0,lastAuto=0,quiet=false,CT=null;
+var IDLE=10000,GAP=20000,FORCE=60000,dirty=false,lastEdit=0,lastAuto=0,quiet=false,CT=null;
 function curDoc(){try{var id=window.__yumDocId||(window.__CURDOC&&window.__CURDOC.id);return id?(DB.data.docs||[]).filter(function(d){return d.id===id})[0]:null}catch(e){return null}}
 /* 작성 화면(#/doc-new) 또는 문서 화면에서 「수정하기」로 바로 고치는 중 */
 function onForm(){var p=document.getElementById('docpaper');if(!p||!p.querySelector('[data-gk],[data-k]'))return false;
  if(/^#\/doc-new/.test(location.hash||'')&&document.querySelector('.formactions'))return true;
  return !!(window.__yumInline&&window.__yumInline===location.hash)}
-function canAuto(){if(!onForm())return false;var d=curDoc();if(d&&d.status!=='temp')return false;try{return !!Auth.user()}catch(e){return false}}
+var OKST=['temp','saved','draft'];
+function canAuto(){if(!onForm())return false;var d=curDoc();if(d&&OKST.indexOf(d.status||'temp')<0)return false;try{return !!Auth.user()}catch(e){return false}}
 document.addEventListener('input',function(e){if(!e.isTrusted)return;var t=e.target;if(t&&t.closest&&t.closest('#docpaper')){dirty=true;lastEdit=Date.now()}},true);
 document.addEventListener('change',function(e){if(!e.isTrusted)return;var t=e.target;if(t&&t.closest&&t.closest('#docpaper')){dirty=true;lastEdit=Date.now();
- /* 칸 하나 입력 완료 → 3초 뒤 임시저장 (최소 20초 간격) */
  clearTimeout(CT);CT=setTimeout(function(){var w=GAP-(Date.now()-lastAuto);if(w>0){CT=setTimeout(function(){run('칸 입력')},w)}else run('칸 입력')},3000)}},true);
-/* 자동 저장 때는 「임시저장되었습니다」 알림을 띄우지 않음 */
-try{var _t=U.toast;U.toast=function(m){if(quiet&&/임시저장/.test(String(m||'')))return;return _t.apply(this,arguments)}}catch(e){}
+/* 자동 저장 때는 알림 · 사용 기록을 남기지 않음 */
+try{var _t=U.toast;U.toast=function(m){if(quiet&&/임시저장|저장되었|저장 완료/.test(String(m||'')))return;return _t.apply(this,arguments)}}catch(e){}
+try{var _lg=Auth.log;if(_lg)Auth.log=function(u,type){if(quiet&&/DOC_TEMP|DOC_SAVE/.test(String(type||'')))return;return _lg.apply(this,arguments)}}catch(e){}
 function run(why){
  if(!dirty||!canAuto())return;
- try{quiet=true;Doc.persist('temp')}catch(e){console.warn('[자동 임시저장]',e)}finally{setTimeout(function(){quiet=false},300)}
+ var d=curDoc();if(d&&d.status!=='temp')d.status='temp';   /* (저장 후 화면이 닫히지 않도록 잠깐 바꿨다가 아래에서 저장완료로) */
+ try{quiet=true;Doc.persist('temp')}catch(e){console.warn('[실시간 저장]',e)}finally{setTimeout(function(){quiet=false},300)}
+ d=curDoc();
+ if(d){var now=new Date().toISOString();d.status='saved';d.savedAt=d.savedAt||now;
+  /* 문서 이력은 「자동 저장」 한 줄로 묶음 (저장할 때마다 줄이 늘지 않게) */
+  try{var A=d.audit||[],L=A[A.length-1],P=A[A.length-2];if(L&&/임시저장/.test(L.action||'')){L.action='자동 저장';L.detail='작성 중 실시간 저장';if(P&&P.action==='자동 저장'&&P.actor===L.actor){P.at=L.at;A.pop()}}}catch(e){}
+  try{DB.save()}catch(e){}}
  dirty=false;lastAuto=Date.now();
- var st=document.getElementById('yum-save-state');if(st){var n=new Date();st.textContent='자동 임시저장 '+String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')+' · 다른 컴퓨터에서도 보임'}
- console.log('[자동 임시저장]',why);
+ var st=document.getElementById('yum-save-state');if(st){var n=new Date();st.textContent='✓ 자동 저장 '+String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')+':'+String(n.getSeconds()).padStart(2,'0')+' · 대시보드 · 다른 컴퓨터에 반영'}
+ console.log('[실시간 저장]',why);
 }
-setInterval(function(){var n=Date.now();if(!dirty||n-lastAuto<GAP)return;if(n-lastEdit>=IDLE)run('입력 멈춤');else if(n-lastAuto>=FORCE)run('3분 경과')},5000);
+setInterval(function(){var n=Date.now();if(!dirty||n-lastAuto<GAP)return;if(n-lastEdit>=IDLE)run('입력 멈춤');else if(n-lastAuto>=FORCE)run('1분 경과')},4000);
 document.addEventListener('visibilitychange',function(){if(document.hidden)run('창 내림')});
 window.addEventListener('pagehide',function(){run('페이지 닫음')});
-/* 메뉴로 다른 화면에 갈 때 (화면이 바뀌기 전에) */
 try{var _go=App.go;App.go=function(){try{run('화면 이동')}catch(e){}return _go.apply(this,arguments)}}catch(e){}
-/* 저장 · 취소하면 대기 표시 지움 */
 try{var _p=Doc.persist;Doc.persist=function(){dirty=false;return _p.apply(this,arguments)}}catch(e){}
 try{var _c=Doc.cancelDraft;if(_c)Doc.cancelDraft=function(){dirty=false;return _c.apply(this,arguments)}}catch(e){}
+/* 「임시저장」 버튼 없앰 · 안내 문구 바꿈 */
+(function(){var st=document.createElement('style');st.textContent='#yum-btn-temp,#yum-inl-temp{display:none!important}';document.head.appendChild(st)})();
+setInterval(function(){try{var b=document.querySelector('.formactions'),n=b&&b.nextElementSibling;if(n&&n.tagName==='DIV'&&/임시저장/.test(n.textContent))n.innerHTML='입력하는 대로 <b>자동 저장</b>되어 문서관리 · 대시보드 · 다른 컴퓨터에 바로 반영됩니다 · 다 쓰면 <b>저장하기</b>로 마무리하세요.';
+ var sv=document.getElementById('yum-btn-save');if(sv&&sv.textContent==='저장하기')sv.textContent='저장하고 닫기'}catch(e){}},1000);
 window.yumLiveSave=run;
 /* 새 버전 자동 적용 (2026-11-09): 작성 화면을 며칠씩 켜 두면 고친 기능(자동 임시저장 등)이 안 들어가던 문제
    · 5분마다 사이트 파일이 바뀌었는지만 확인(내용은 안 받음) → 바뀌었으면 쓰던 일지를 임시저장하고 새로고침 → 그 일지를 다시 열어 줌
@@ -17826,7 +17834,7 @@ function verCheck(){if(UPD||!/^https?:/.test(location.protocol))return;
  fetch(location.href.split('#')[0],{method:'HEAD',cache:'no-store'}).then(function(r){var v=verOf(r);if(!v||!r.ok)return;if(!BASE){BASE=v;return}if(v!==BASE)apply()}).catch(function(){})}
 function apply(){
  if(onForm()){var d=curDoc();
-  if(d&&d.status!=='temp')return;                       /* 저장 완료 문서 수정 중 → 다음 확인 때 다시 */
+  if(d&&['temp','saved','draft'].indexOf(d.status)<0)return;   /* 결재 중인 문서 수정 중 → 다음 확인 때 다시 */
   if(dirty||!d){var hasVal=false;try{document.querySelectorAll('#docpaper input,#docpaper textarea').forEach(function(e){if(e.value&&e.type!=='hidden')hasVal=true})}catch(e){}
    if(hasVal){dirty=true;run('새 버전 적용 전')}}
   d=curDoc();if(d)try{sessionStorage.setItem('yum_resume',d.id)}catch(e){}}
@@ -18373,6 +18381,81 @@ function apply(){
 window.yumWk3v9=apply;
 /* 로그인 · 서버 자료를 받은 뒤 (첫 받기에 덮이지 않게 15초 뒤부터) */
 var n=0,iv=setInterval(function(){n++;if(n<3)return;try{if(apply()||n>120)clearInterval(iv)}catch(e){if(n>120)clearInterval(iv)}},5000);
+})();
+</script>
+
+<script>
+/* 2026-11-10
+   ① 문서관리: 검색(문서명 · 번호 · 양식 · 작성자 · 내용) + 기간(오늘 · 이번 주 · 이번 달 · 지난달 · 날짜 지정)
+   ② 임시저장 없앰: 남아 있는 임시저장 문서(내용 있는 것)를 저장완료로 한 번 옮김 · 「임시저장」 탭은 남은 게 있을 때만
+   ③ 원액생산작업일보(FRM-010)가 일지 목록에서 안 보이던 것 복원 (꺼짐 · 없는 폴더 · 다른 팀 지정 풀기) */
+(function(){
+'use strict';
+if(window.__YUM_DOCFIND__)return;window.__YUM_DOCFIND__=1;
+function pad(n){return String(n).padStart(2,'0')}
+function ymd(t){return t.getFullYear()+'-'+pad(t.getMonth()+1)+'-'+pad(t.getDate())}
+function q(){var m=/\?(.*)$/.exec(location.hash||'');return new URLSearchParams(m?m[1]:'')}
+function dayOf(d){var g=(d.data&&d.data.grid)||{};var p=d.data&&d.data.pdate;if(p)return String(p).slice(0,10);if(g.dY&&g.dM&&g.dD)return g.dY+'-'+pad(+g.dM)+'-'+pad(+g.dD);
+ var t=Date.parse(d.createdAt||'');return isNaN(t)?'':ymd(new Date(t))}
+function range(per,dd){var n=new Date(),T=ymd(n);
+ if(per==='today')return [T,T];
+ if(per==='week'){var w=(n.getDay()+6)%7,a=new Date(n);a.setDate(n.getDate()-w);var b=new Date(a);b.setDate(a.getDate()+6);return [ymd(a),ymd(b)]}
+ if(per==='month')return [T.slice(0,8)+'01',T.slice(0,8)+'31'];
+ if(per==='last'){var l=new Date(n.getFullYear(),n.getMonth()-1,1),s=ymd(l);return [s,s.slice(0,8)+'31']}
+ if(per==='date'&&dd)return [dd,dd];
+ return null}
+var FN={};function formName(id){if(FN[id]!==undefined)return FN[id];var f=(DB.data.forms||[]).filter(function(x){return x.id===id})[0];return FN[id]=f?(f.code+' '+f.name):''}
+function uname(id){try{return userName(id)||''}catch(e){return ''}}
+function textOf(d){if(d.__ft&&d.__fv===d.updatedAt)return d.__ft;var t=[d.title,d.docNo,formName(d.formId),uname(d.authorId)].join(' ');
+ try{var g=(d.data&&d.data.grid)||{};Object.keys(g).forEach(function(k){var v=g[k];if(v!=null&&v!==''&&typeof v!=='object')t+=' '+v})}catch(e){}
+ try{Object.defineProperty(d,'__ft',{value:t.toLowerCase(),configurable:true,writable:true,enumerable:false});Object.defineProperty(d,'__fv',{value:d.updatedAt,configurable:true,writable:true,enumerable:false})}catch(e){}return t.toLowerCase()}
+function match(d,kw,R){if(R){var x=dayOf(d);if(!x||x<R[0]||x>R[1])return false}
+ if(kw){var t=textOf(d);return kw.split(/\s+/).filter(Boolean).every(function(w){return t.indexOf(w)>=0})}return true}
+var PER=[['all','전체 기간'],['today','오늘'],['week','이번 주'],['month','이번 달'],['last','지난달'],['date','날짜 지정']];
+function bar(kw,per,dd,n,tot){
+ return '<div class="df-bar"><div class="df-s"><span>🔍</span><input id="df-q" type="search" placeholder="문서명 · 문서번호 · 양식 · 작성자 · 내용(제품명 등) 검색" value="'+String(kw||'').replace(/"/g,'&quot;')+'"></div>'+
+  '<div class="df-p">'+PER.map(function(p){return '<button class="'+(p[0]===per?'on':'')+'" onclick="yumDF.per(\''+p[0]+'\')">'+p[1]+'</button>'}).join('')+
+  (per==='date'?'<input type="date" id="df-d" value="'+(dd||ymd(new Date()))+'" onchange="yumDF.set({d:this.value})">':'')+'</div>'+
+  ((kw||per!=='all')?'<div class="df-n">'+n+'건 / 전체 '+tot+'건 <a href="javascript:void 0" onclick="yumDF.set({q:\'\',per:\'all\',d:\'\'})">조건 지우기</a></div>':'')+'</div>'}
+function go(p){var Q=q();Object.keys(p).forEach(function(k){if(p[k])Q.set(k,p[k]);else Q.delete(k)});var h='#/docs?'+Q.toString();
+ /* 주소만 바꾸고 목록만 다시 그림 (검색칸 입력 중에도 바로 반영) */
+ try{history.replaceState(null,'',location.pathname+location.search+h);var M=document.getElementById('main');if(M){M.innerHTML=Views.docs(Q.get('tab')||'all');return}}catch(e){}
+ location.hash=h}
+var T=null;
+window.yumDF={per:function(v){go({per:v==='all'?'':v})},set:go};
+document.addEventListener('input',function(e){if(e.target&&e.target.id==='df-q'){var v=e.target.value;clearTimeout(T);T=setTimeout(function(){try{sessionStorage.setItem('yum_dfq_focus','1')}catch(x){}go({q:v.trim()});var i=document.getElementById('df-q');if(i){i.focus();var L=i.value.length;i.setSelectionRange(L,L)}},350)}});
+var _v=Views.docs;
+Views.docs=function(tab){
+ var Q=q(),kw=String(Q.get('q')||'').trim().toLowerCase(),per=Q.get('per')||'all',dd=Q.get('d')||'',R=range(per,dd);
+ var all=DB.data.docs||[],tot=all.length,html;
+ if(kw||R){var keep=all.filter(function(d){return match(d,kw,R)}),tl=window.yumTrashList,trash=null;
+  try{DB.data.docs=keep;if(tl){window.yumTrashList=function(){return tl().filter(function(d){return match(d,kw,R)})}}html=_v.apply(this,arguments)}finally{DB.data.docs=all;if(tl)window.yumTrashList=tl}
+  html=html.replace('<div class="tabs">',bar(Q.get('q')||'',per,dd,keep.length,tot)+'<div class="tabs">')}
+ else{html=_v.apply(this,arguments);html=html.replace('<div class="tabs">',bar('',per,dd,tot,tot)+'<div class="tabs">')}
+ /* 임시저장 탭: 남은 문서가 있을 때만 */
+ if(!all.some(function(d){return d.status==='temp'}))html=html.replace(/<button class="[^"]*" onclick="App\.go\('#\/docs\?tab=temp[^"]*">임시저장[\s\S]*?<\/button>/,'');
+ html=html.replace('임시저장 = 작성 중인 문서(수정 가능, 대시보드 미반영) · 저장완료 = 저장이 끝난 문서(대시보드에 실시간 반영) · ','일지는 쓰는 대로 자동 저장되어 바로 보입니다 · 위 검색 · 기간으로 찾을 수 있습니다 · ');
+ return html};
+/* 검색칸에 쓰다가 화면이 다시 그려져도 커서 유지 */
+setInterval(function(){try{if(sessionStorage.getItem('yum_dfq_focus')){var i=document.getElementById('df-q');if(i){sessionStorage.removeItem('yum_dfq_focus');i.focus();var L=i.value.length;i.setSelectionRange(L,L)}}}catch(e){}},150);
+var css='.df-bar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin:2px 0 12px;padding:10px 12px;background:#fff;border:1px solid var(--line,#E3E7EF);border-radius:12px}'+
+ '.df-s{flex:1 1 320px;display:flex;align-items:center;gap:6px;border:1px solid #D5DCE6;border-radius:10px;padding:0 10px;height:38px;background:#F8FAFC}.df-s input{flex:1;border:0;background:none;outline:0;font-size:14px;height:36px}'+
+ '.df-p{display:flex;flex-wrap:wrap;gap:5px;align-items:center}.df-p button{border:1px solid #D5DCE6;background:#fff;border-radius:999px;padding:6px 12px;font-size:12.5px;font-weight:700;color:#334155;cursor:pointer}.df-p button.on{background:#1E3A8A;border-color:#1E3A8A;color:#fff}.df-p input{height:32px;border:1px solid #D5DCE6;border-radius:8px;padding:0 8px}'+
+ '.df-n{font-size:12.5px;color:#475569;width:100%}.df-n a{margin-left:8px;font-weight:700}';
+(function(){var st=document.createElement('style');st.textContent=css;document.head.appendChild(st)})();
+
+/* ── 한 번만 (최고관리자가 열면): 임시저장 → 저장완료 · 원액생산작업일보 복원 ── */
+function hasVal(d){var g=(d.data&&d.data.grid)||{};return Object.keys(g).some(function(k){var v=g[k];return !/^(dY|dM|dD|hogi)$/.test(k)&&v!=null&&String(v).trim()!==''&&!/^[OX]$/.test(String(v))})}
+function fix(){try{var u=Auth.user();if(!u||!/^(superadmin|admin)$/.test(u.role||''))return false;
+ if(window.SupaSync&&SupaSync.on&&SupaSync.on()&&!SupaSync.adopted)return false;
+ DB.data._fixes=DB.data._fixes||{};var ch=false,now=new Date().toISOString();
+ if(!DB.data._fixes.noTemp){var n=0;(DB.data.docs||[]).forEach(function(d){if(d&&d.status==='temp'&&hasVal(d)){d.status='saved';d.savedAt=d.savedAt||d.updatedAt||now;n++}});DB.data._fixes.noTemp=now;ch=true;console.log('[임시저장 없앰] 저장완료로 옮김 '+n+'건')}
+ if(!DB.data._fixes.frm010){var folders=DB.data.jfolders||[];(DB.data.forms||[]).forEach(function(f){if(!f||f.code!=='FRM-010')return;
+   f.active=true;delete f.retired;delete f.hidden;if(f.jfolder&&!folders.some(function(x){return x.id===f.jfolder}))f.jfolder='';if(f.jteam&&f.jteam!=='착즙팀')f.jteam='';});
+  DB.data._fixes.frm010=now;ch=true;console.log('[원액생산작업일보] 복원')}
+ if(ch){try{DB.save()}catch(e){}try{if(window.SupaSync&&SupaSync.on())SupaSync.queuePush()}catch(e){}}
+ return true}catch(e){return false}}
+var k=0,iv=setInterval(function(){k++;if(k<3)return;if(fix()||k>120)clearInterval(iv)},5000);
 })();
 </script>
 
