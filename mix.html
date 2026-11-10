@@ -687,6 +687,10 @@ function renderCrew(){var box=document.getElementById('crew');if(!box)return;
  W.groups.forEach(function(g){(g.rows||[]).forEach(function(r){if(r.sub&&r.sub!=='배합')return;var t=(r.time||[])[dow]||'',nm=(r.names||[])[dow]||'';if(!nm||nm==='-')return;
   var sp=span(t),on=sp&&((nowM>=sp[0]&&nowM<sp[1])||(nowM+1440>=sp[0]&&nowM+1440<sp[1]));rows.push({label:g.label+(r.sub?'':''),sub:r.sub,time:t,names:nm.split(/\s*,\s*/).filter(Boolean),on:!!on})})});
  var off=((W.single||[]).filter(function(x){return x.label==='휴무자'})[0]||{values:[]}).values[dow]||'';
+ /* 신입사원 (교육 중) — 주간근무계획표 칸에는 없고 신입 명단(trainees)에 있음 */
+ try{var ds=dstr(d0),offL=off.split(/\s*,\s*/),tg={};(DATA.trainees||[]).forEach(function(x){if(!x||!x.n||x.off===true||(x.from&&ds<x.from)||(x.to&&ds>x.to))return;if(x.team&&!/배합/.test(x.team))return;if(offL.indexOf(x.n)>=0)return;
+   var tm=x.time||'08:00~17:00';(x.times||[]).forEach(function(r){if(r&&r.from&&r.from<=ds&&r.time)tm=r.time});(tg[tm]=tg[tm]||[]).push(x.n)});
+  Object.keys(tg).forEach(function(tm){var sp=span(tm),on=sp&&((nowM>=sp[0]&&nowM<sp[1])||(nowM+1440>=sp[0]&&nowM+1440<sp[1]));rows.push({label:'신입사원',sub:'교육',time:tm,names:tg[tm],on:!!on})})}catch(e){}
  var DOW='월화수목금토일';
  box.innerHTML='<section class="card"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:baseline"><h2>금일 근무자 · '+(d0.getMonth()+1)+'/'+d0.getDate()+' ('+DOW[dow]+')</h2><span class="note">근무 탭의 주간근무계획표('+esc(W.range||'')+') 기준 · 지금 근무 중인 조는 강조</span></div>'+
   '<div class="crew">'+rows.map(function(r){return '<div class="cr'+(r.on?' on':'')+'"><div class="ch"><b>'+esc(r.label)+(r.sub?' · '+esc(r.sub):'')+'</b><span>'+esc(r.time||'')+'</span>'+(r.on?'<i>근무 중</i>':'')+'</div><div class="cn">'+r.names.map(function(x){return '<span>'+esc(x)+'</span>'}).join('')+'</div></div>'}).join('')+
