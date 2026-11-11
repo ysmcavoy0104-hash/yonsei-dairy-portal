@@ -18296,7 +18296,9 @@ function render(D){
  var cj=C('j'),cw=C('w'),cm=C('m'),busX=cw.x+cw.w+30,soyM=M.filter(function(m){return m.soy&&(m.on||m.plan)});
  var JL=[];J.forEach(function(j,i){var wi=-1;WN.forEach(function(w,k){if(w.wk===j.wt)wi=k});var y1=Y.j[i]+NH/2;
   if(wi<0){links+=link('M'+(cj.x+cj.w)+' '+y1+' H'+(cj.x+cj.w+12),SOY,'',null);return}
-  var y2=Y.w[wi]+NH/2,mx=cj.x+cj.w+(cw.x-cj.x-cj.w)/2;JL.push([wi,path(cj.x+cj.w,y1,cw.x,y2,mx),j.run?'flow':j.on?'on':''])});
+  /* 빈쿠커마다 세로 줄기 위치를 조금씩 달리 (한 줄기에 겹치면 뒤에 그린 선이 앞 선을 가림) */
+  var gw=cw.x-cj.x-cj.w,nJ=J.length||1,mx=Math.round(cj.x+cj.w+gw*(i+1)/(nJ+1));
+  var y2=Y.w[wi]+NH/2;JL.push([wi,path(cj.x+cj.w,y1,cw.x,y2,mx),j.run?'flow':j.on?'on':''])});
  /* WT · 데칸타 → 배합 (분리유액 · 두유 원액 공급 헤더) */
  /* 어느 WT · 데칸타가 어느 배합 호기로 가는지: 제품명이 겹치는 것끼리만 잇기 (모르면 잇지 않음) */
  var WP=WN.map(function(w){var T={};J.forEach(function(j){if(j.wt===w.wk&&j.on)toks(j.prod).forEach(function(t){T[t]=1})});return T});
@@ -18307,7 +18309,9 @@ function render(D){
  if(wF.length===1&&mF.length===1){wm.push([wF[0],mF[0]]);wU[wF[0]]=1;mU[mF[0]]=1}
  /* 빈쿠커 → WT 선도 그 WT가 보내는 배합 호기 색으로 (한 호기로만 갈 때) */
  /* 빈쿠커 → WT 선: 빈쿠커가 지금 가동 중이거나, 오늘 가동했고 그 WT가 보내는 배합 호기가 지금 진행(혼합 · 이송) 중이면 흐름 */
- JL.forEach(function(a){var d=wm.filter(function(q){return q[0]===a[0]}),c=d.length===1?(COL[M[d[0][1]].h]||SOY):SOY,md=a[2]==='on'&&d.some(function(q){return M[q[1]].run||M[q[1]].mv})?'flow':a[2];links+=link(a[1],c,md,null)});
+ /* 흐르는 선은 마지막에 그려서 다른 선 위로 */
+ var JLs=JL.map(function(a){var d=wm.filter(function(q){return q[0]===a[0]}),c=d.length===1?(COL[M[d[0][1]].h]||SOY):SOY,md=a[2]==='on'&&d.some(function(q){return M[q[1]].run||M[q[1]].mv})?'flow':a[2];return [a[1],c,md]});
+ JLs.filter(function(x){return x[2]!=='flow'}).concat(JLs.filter(function(x){return x[2]==='flow'})).forEach(function(x){links+=link(x[0],x[1],x[2],null)});
  /* 짝마다 따로 배관(레인)을 그림: 나가는 선은 칸 위쪽, 들어가는 선은 칸 아래쪽 → 서로 겹치지 않음 (교차할 때는 끊어서 그림) */
  var nP=wm.length,gapL=cw.x+cw.w,gapR=cm.x,laneX=function(k){return Math.round(busX+(k-(nP-1)/2)*20)};
  WN.forEach(function(w,i){var y=Y.w[i]+NH/2;if(!wU[i])links+=link('M'+gapL+' '+y+' H'+(busX-10),SOY,w.on?'on':'',null)+vlv(busX-18,y,false)});
