@@ -18304,7 +18304,8 @@ function render(D){
  var WP=WN.map(function(w){var T={};J.forEach(function(j){if(j.wt===w.wk&&j.on)toks(j.prod).forEach(function(t){T[t]=1})});return T});
  var rcvI=[];M.forEach(function(m,i){if(m.soy&&(m.on||m.plan))rcvI.push(i)});
  var wm=[],wU={},mU={};
- rcvI.forEach(function(mi){var T=toks(M[mi].prod);WN.forEach(function(w,wi){if(w.on&&T.some(function(t){return WP[wi][t]})){wm.push([wi,mi]);wU[wi]=1;mU[mi]=1}})});
+ var WJ=WN.map(function(w){return J.filter(function(j){return j.wt===w.wk&&j.on&&j.prod}).map(function(j){return j.prod})});
+ rcvI.forEach(function(mi){var T=toks(M[mi].prod);WN.forEach(function(w,wi){if(w.on&&(T.some(function(t){return WP[wi][t]})||WJ[wi].some(function(pp){return same(pp,M[mi].prod)}))){wm.push([wi,mi]);wU[wi]=1;mU[mi]=1}})});
  var wF=[],mF=rcvI.filter(function(i){return !mU[i]});WN.forEach(function(w,i){if(w.on&&!wU[i])wF.push(i)});
  if(wF.length===1&&mF.length===1){wm.push([wF[0],mF[0]]);wU[wF[0]]=1;mU[mF[0]]=1}
  /* 빈쿠커 → WT 선도 그 WT가 보내는 배합 호기 색으로 (한 호기로만 갈 때) */
@@ -18314,9 +18315,10 @@ function render(D){
  JLs.filter(function(x){return x[2]!=='flow'}).concat(JLs.filter(function(x){return x[2]==='flow'})).forEach(function(x){links+=link(x[0],x[1],x[2],null)});
  /* 짝마다 따로 배관(레인)을 그림: 나가는 선은 칸 위쪽, 들어가는 선은 칸 아래쪽 → 서로 겹치지 않음 (교차할 때는 끊어서 그림) */
  var nP=wm.length,gapL=cw.x+cw.w,gapR=cm.x,laneX=function(k){return Math.round(busX+(k-(nP-1)/2)*20)};
- WN.forEach(function(w,i){var y=Y.w[i]+NH/2;if(!wU[i])links+=link('M'+gapL+' '+y+' H'+(busX-10),SOY,w.on?'on':'',null)+vlv(busX-18,y,false)});
+ WN.forEach(function(w,i){var y=Y.w[i]+NH/2;if(!wU[i])links+=w.run?link('M'+gapL+' '+y+' H'+busX,SOY,'flow',null)+vlv(busX-18,y,true,SOY):link('M'+gapL+' '+y+' H'+(busX-10),SOY,w.on?'on':'',null)+vlv(busX-18,y,false)});
+ var hdrRun=WN.some(function(w,i){return !wU[i]&&w.run});
  links+='<path d="M'+busX+' '+(TOP+8)+' V'+(TOP+RH*6-20)+'" class="fm-base"/>';
- M.forEach(function(m,i){var y=Y.m[i]+NH/2;if(!mU[i])links+='<path d="M'+(busX+10)+' '+y+' H'+gapR+'" class="fm-base"/>'+vlv(busX+18,y,false)});
+ M.forEach(function(m,i){var y=Y.m[i]+NH/2;if(mU[i])return;if(hdrRun&&m.soy&&(m.run||m.mv))links+=link('M'+busX+' '+y+' H'+gapR,SOY,'flow',null)+vlv(busX+18,y,true,SOY);else links+='<path d="M'+(busX+10)+' '+y+' H'+gapR+'" class="fm-base"/>'+vlv(busX+18,y,false)});
  wm.forEach(function(q,k){var w=WN[q[0]],fl=w.run||(w.on&&(M[q[1]].run||M[q[1]].mv)),x=laneX(k),dy=nP>1?5:0,ya=Y.w[q[0]]+NH/2-dy,yb=Y.m[q[1]]+NH/2+dy,d='M'+gapL+' '+ya+' H'+x+' V'+yb+' H'+gapR;
   var c=COL[M[q[1]].h]||SOY;links+='<path d="'+d+'" fill="none" stroke="#0E1714" stroke-width="9" stroke-linejoin="round"/>'+link(d,c,fl?'flow':'on',M[q[1]].h,x,(ya+yb)/2)+vlv(gapL+14,ya,true,c)+vlv(gapR-14,yb,true,c)});
  /* 선이 흐르는 착즙 구간은 노드도 가동 중으로 (테두리 · 오른쪽 위 불) */
@@ -18338,7 +18340,7 @@ function render(D){
   links+=link(path(cs.x+cs.w,y1,cp.x,y2,mx),c,(sx.run||(sx.plan&&px.run))&&px.run?'flow':((sx.on||sx.plan)&&px.on?'on':''),sx.h,mx,(y1+y2)/2)+vlv(bus2+18,y2,true,c)});
  /* 충전 → 포장 */
  var cb=C('b');P.forEach(function(p,j){var y=Y.p[j]+NH/2,c=used[p.h]?COL[used[p.h]]:'#94A3B8';links+=link('M'+(cp.x+cp.w)+' '+y+' H'+cb.x,c,p.run?'flow':p.on?'on':'',null)});
- [['j',J],['w',WN],['m',M],['s',S],['p',P],['b',B]].forEach(function(a){var c=C(a[0]);a[1].forEach(function(n,i){var wd=a[0]==='w'?wm.filter(function(q){return q[0]===i}):[],col=wd.length===1?(COL[M[wd[0][1]].h]||SOY):a[0]==='j'||a[0]==='w'?SOY:a[0]==='m'||a[0]==='s'?COL[n.h]:(used[n.h]?COL[used[n.h]]:'#94A3B8');nodes+=node(n,c.x,Y[a[0]][i],c.w,col,a[0])})});
+ [['j',J],['w',WN],['m',M],['s',S],['p',P],['b',B]].forEach(function(a){var c=C(a[0]);a[1].forEach(function(n,i){var wd=a[0]==='w'?wm.filter(function(q){return q[0]===i}):[],col=wd.length===1?(COL[M[wd[0][1]].h]||SOY):a[0]==='j'?(function(){var wi=-1;WN.forEach(function(w,k){if(w.wk===n.wt)wi=k});var d=wm.filter(function(q){return q[0]===wi});return d.length===1?(COL[M[d[0][1]].h]||SOY):SOY})():a[0]==='w'?SOY:a[0]==='m'||a[0]==='s'?COL[n.h]:(used[n.h]?COL[used[n.h]]:'#94A3B8');nodes+=node(n,c.x,Y[a[0]][i],c.w,col,a[0])})});
  var head=COLS.map(function(c){return '<text x="'+(c.x+c.w/2)+'" y="'+(TOP-22)+'" text-anchor="middle" class="fm-h">'+c.t+'</text>'}).join('');
  var H=TOP+RH*6+6;
  var leg='<div class="fm-leg">'+[1,2,3,4,5].map(function(h){return '<span><i style="background:'+COL[h]+'"></i>'+h+'호기 라인</span>'}).join('')+'<span><i style="background:'+SOY+'"></i>분리유액 · 두유 원액</span><span class="fm-legn">점선이 흐르는 구간 = 지금 이송 · 생산 중</span></div>';
