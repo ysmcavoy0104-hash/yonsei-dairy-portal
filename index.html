@@ -18510,7 +18510,11 @@ var k=0,iv=setInterval(function(){k++;if(k<3)return;if(fix()||k>120)clearInterva
 
 /* ── 작성중 / 저장완료 ── */
 function signed(d){var s=d&&d.signs;if(!s)return false;return Object.keys(s).some(function(k){var v=s[k];return v&&(typeof v!=='object'||v.img||v.name||v.src||v.data||Object.keys(v).length)})}
-function writing(d){return d&&['temp','saved','draft'].indexOf(d.status)>=0&&!signed(d)&&!d.printedAt}
+/* 기준 시각 이전에 저장된 일지는 예전 규칙 그대로 「저장완료」 (서명·인쇄 규칙은 이후 새로 쓰는 일지부터) */
+var PH_CUT=Date.parse('2026-11-11T00:00:00+09:00');
+function legacy(d){var t=Date.parse(d.createdAt||d.savedAt||d.updatedAt||'');return isFinite(t)&&t<PH_CUT}
+function writing(d){if(!d)return false;if(d.status==='temp'||d.status==='draft')return true;
+ return d.status==='saved'&&!legacy(d)&&!signed(d)&&!d.printedAt}
 window.yumDocWriting=writing;
 try{docStatusLabel.temp='작성중'}catch(e){}
 function withPhase(fn){return function(){var all=DB.data.docs,sv=DB.save,out;
@@ -18530,7 +18534,11 @@ var TC={'착즙팀':['❖','#D98A1F','빈쿠커 · WT · 원료'],'배합팀':['
 function tcount(t){try{return (DB.data.forms||[]).filter(function(f){return f&&f.active!==false&&teamOf(f)===t}).length}catch(e){return 0}}
 function bar(cur){var u=me0();var can=!!(u&&(/^(superadmin|admin)$/.test(u.role||'')||u.title==='팀장'||u.title==='부문장'));
  return '<div class="jt-bar">'+Object.keys(TC).map(function(t){var c=TC[t],on=t===cur,mine=u&&u.team===t,lock=!can&&!mine&&cur;
-  return '<button class="jt-b'+(on?' on':'')+(lock?' lock':'')+'" style="--c:'+c[1]+'" '+(lock?'disabled title="소속 팀 일지만 작성할 수 있습니다"':'onclick="App.go(\'#/journals?team='+encodeURIComponent(t)+'\')"')+'><span class="ic">'+c[0]+'</span><span class="tx"><b>'+t+(mine?' <i>내 팀</i>':'')+'</b><small>'+c[2]+' · 양식 '+tcount(t)+'종</small></span></button>'}).join('')+'</div>'}
+  return '<button class="jt-b'+(on?' on':'')+(lock?' lock':'')+'" style="--c:'+c[1]+'" '+(lock?'disabled title="소속 팀 일지만 작성할 수 있습니다"':'onclick="yumJTGo(\''+t+'\')"')+'><span class="ic">'+c[0]+'</span><span class="tx"><b>'+t+(mine?' <i>내 팀</i>':'')+'</b><small>'+c[2]+' · 양식 '+tcount(t)+'종</small></span></button>'}).join('')+'</div>'}
+window.yumJTGo=function(t){try{sessionStorage.removeItem('yum_jfsel:'+t)}catch(e){}App.go('#/journals?team='+encodeURIComponent(t))};
+/* 다른 화면에서 팀 일지함으로 들어오면 항상 「전체」 양식부터 */
+var lastH=location.hash;window.addEventListener('hashchange',function(){var h=location.hash,m=/^#\/journals\?(?:.*&)?team=([^&]+)/.exec(h),pm=/^#\/journals\?(?:.*&)?team=([^&]+)/.exec(lastH||'');lastH=h;
+ if(!m||(pm&&pm[1]===m[1]))return;var t=decodeURIComponent(m[1]);try{if(sessionStorage.getItem('yum_jfsel:'+t)&&sessionStorage.getItem('yum_jfsel:'+t)!=='all'){sessionStorage.removeItem('yum_jfsel:'+t);setTimeout(function(){try{yumJF.pick('all')}catch(e){}},60)}}catch(e){}});
 function me0(){try{return Auth.user()}catch(e){return null}}
 function hookJ(){try{
  if(Views.journalsTeam&&!Views.journalsTeam.__jt){var j=Views.journalsTeam,w=function(team){var h=j.apply(this,arguments);if(typeof h!=='string')return h;
@@ -18807,6 +18815,107 @@ App.render=function(){var p=(location.hash||'').split('?')[0];if(p===ROUTE){if(!
  if(!canKPI()){M.innerHTML='<div class="panel" style="max-width:560px;margin:40px auto;text-align:center;line-height:1.8"><div style="font-size:32px">🔒</div><h2>팀장 전용 화면입니다</h2>KPI · 인시생산성 · 근태 · 노무비 화면은 팀장 · 부문장 · 관리자만 볼 수 있습니다.</div>';try{this.buildSidebar();this.refreshChrome()}catch(e){}return}
  try{M.innerHTML=view();anim()}catch(e){console.error(e);M.innerHTML='<div class="panel">화면 오류: '+E(e.message)+'</div>'}try{this.buildSidebar();this.refreshChrome()}catch(e){}try{window.scrollTo(0,0)}catch(e){}return}return _r.apply(this,arguments)};
 window.yumKPICan=canKPI;
+/*kp_pro*/
+/* ── KPI 디자인 v2: 고급 · 전문가형 (그라데이션 링 · 오로라 머리 · 스크롤 등장 · 섹션 바로가기) ── */
+var KPN=0;
+ring=function(pct,size,stroke,col,label,sub){var r=(size-stroke)/2,c=2*Math.PI*r,o=c*(1-Math.max(0,Math.min(1,pct))),id='kpg'+(++KPN),cx=size/2;
+ return '<svg class="kp-ring" width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'"><defs><linearGradient id="'+id+'" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7FB4FF"/><stop offset=".55" stop-color="#4C7DFF"/><stop offset="1" stop-color="#9B7BFF"/></linearGradient>'+
+  '<filter id="'+id+'f" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="5"/></filter></defs>'+
+  '<circle cx="'+cx+'" cy="'+cx+'" r="'+(r+stroke/2+6)+'" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="1" stroke-dasharray="2 6" class="kp-rtick"/>'+
+  '<circle cx="'+cx+'" cy="'+cx+'" r="'+r+'" fill="none" stroke="var(--kp-track)" stroke-width="'+stroke+'"/>'+
+  '<circle class="kp-arc kp-glow" cx="'+cx+'" cy="'+cx+'" r="'+r+'" fill="none" stroke="url(#'+id+')" stroke-width="'+stroke+'" stroke-linecap="round" stroke-dasharray="'+c+'" stroke-dashoffset="'+c+'" data-off="'+o+'" transform="rotate(-90 '+cx+' '+cx+')" filter="url(#'+id+'f)" opacity=".55"/>'+
+  '<circle class="kp-arc" cx="'+cx+'" cy="'+cx+'" r="'+r+'" fill="none" stroke="url(#'+id+')" stroke-width="'+stroke+'" stroke-linecap="round" stroke-dasharray="'+c+'" stroke-dashoffset="'+c+'" data-off="'+o+'" transform="rotate(-90 '+cx+' '+cx+')"/>'+
+  '<text x="50%" y="'+(sub?'47%':'53%')+'" text-anchor="middle" dominant-baseline="middle" class="kp-rt" data-count="'+label+'">0</text>'+(sub?'<text x="50%" y="66%" text-anchor="middle" class="kp-rs">'+E(sub)+'</text>':'')+'</svg>'};
+spark=function(vals,w,h,col,target){var pts=vals.map(function(v,i){return v==null?null:[i,v]}).filter(Boolean);if(pts.length<2)return '';
+ var xs=vals.length-1||1,arr=pts.map(function(p){return p[1]}).concat(target!=null?[target]:[]),mn=Math.min.apply(null,arr),mx=Math.max.apply(null,arr);if(mx===mn){mx+=1;mn-=1}
+ var X=function(i){return 4+i/xs*(w-8)},Y=function(v){return h-4-(v-mn)/(mx-mn)*(h-10)},id='kps'+(++KPN);
+ var d=pts.map(function(p,k){return (k?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)}).join(' '),lp=pts[pts.length-1];
+ var area=d+' L'+X(lp[0]).toFixed(1)+' '+h+' L'+X(pts[0][0]).toFixed(1)+' '+h+' Z';
+ return '<svg class="kp-sp" width="100%" height="'+h+'" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none"><defs><linearGradient id="'+id+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:'+col+';stop-opacity:.22"/><stop offset="1" style="stop-color:'+col+';stop-opacity:0"/></linearGradient></defs>'+
+  (target!=null?'<line x1="0" x2="'+w+'" y1="'+Y(target)+'" y2="'+Y(target)+'" class="kp-tg"/>':'')+'<path d="'+area+'" fill="url(#'+id+')" class="kp-area"/>'+
+  '<path d="'+d+'" class="kp-line" stroke="'+col+'" pathLength="1"/><circle cx="'+X(lp[0])+'" cy="'+Y(lp[1])+'" r="6" fill="'+col+'" class="kp-pulse"/><circle cx="'+X(lp[0])+'" cy="'+Y(lp[1])+'" r="3.5" fill="'+col+'" class="kp-dot"/></svg>'};
+var _bars=bars;bars=function(){var s=_bars.apply(this,arguments);if(!s)return s;var id='kpb'+(++KPN);
+ s=s.replace(/(<svg class="kp-bars"[^>]*>)/,'$1<defs><linearGradient id="'+id+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".32"/><stop offset=".6" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>');
+ return s.replace(/<rect ([^>]*?)fill="[^"]*" class="kp-bar"([^>]*)\/>/g,function(m,a,b){return m+'<rect '+a+'fill="url(#'+id+')" class="kp-bar kp-bsh"'+b+' pointer-events="none"/>'})};
+var KICK={'00':'TEAM SCORECARD','01':'PERFORMANCE','02':'PRODUCTIVITY','03':'ATTENDANCE','04':'WORK LOG','05':'MAN-HOURS','06':'LABOR COST'};
+var _view=view;view=function(){var h=_view.apply(this,arguments);
+ h=h.replace('<div class="kp-hero">','<div class="kp-hero"><div class="kp-aur" aria-hidden="true"><i></i><i></i><i></i></div><div class="kp-gbg" aria-hidden="true"></div>');
+ h=h.replace('<div class="kp-eye">','<div class="kp-eye"><span class="kp-live"><i></i>LIVE</span>');
+ h=h.replace(/<h2 class="kp-h2"><span class="kp-sn">(\d\d)<\/span>/g,function(m,n){return '<h2 class="kp-h2" id="kp-sec'+n+'"><span class="kp-sn">'+n+'</span><span class="kp-kick">'+(KICK[n]||'')+'</span>'});
+ return h};
+/* 스크롤하면 하나씩 나타남 · 숫자 · 막대 · 선은 화면에 들어올 때 움직임 */
+anim=function(){var M=$i('main');if(!M)return;var red=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+ function count(root){[].forEach.call(root.querySelectorAll('[data-count]'),function(el){var raw=el.getAttribute('data-count');if(raw===''||el.__c)return;el.__c=1;var v=parseFloat(raw),d=+(el.getAttribute('data-dec')||0);if(!isFinite(v))return;if(d===0&&raw.indexOf('.')>0&&Math.abs(v)<100)d=1;
+  if(red){el.textContent=fmt(v,d);return}var t0=performance.now();(function st(t){var p=Math.min(1,(t-t0)/1400),e=1-Math.pow(1-p,4);el.textContent=fmt(v*e,d);if(p<1)requestAnimationFrame(st)})(t0)})}
+ function show(el){if(el.classList.contains('in'))return;el.classList.add('in');count(el);[].forEach.call(el.querySelectorAll('.kp-arc'),function(c){c.style.strokeDashoffset=c.getAttribute('data-off')})}
+ var T=[].slice.call(M.querySelectorAll('.kp-hero,.kp-ex,.kp-tc,.kp-card,.kp-panel,.kp-tile,.kp-h2,.kp-xw'));
+ M.classList.add('kp-go');
+ if(!('IntersectionObserver' in window)||red){T.forEach(show);return}
+ var io=new IntersectionObserver(function(es){var k=0;es.forEach(function(e){if(e.isIntersecting){var el=e.target;el.style.setProperty('--d',(k++*70)+'ms');show(el);io.unobserve(el)}})},{rootMargin:'0px 0px -8% 0px',threshold:.08});
+ T.forEach(function(el){io.observe(el)});
+ /* 섹션 바로가기 (스크롤 위치 따라 표시) */
+ var hs=[].slice.call(M.querySelectorAll('.kp-h2[id]'));if(hs.length>2){var nav=document.createElement('nav');nav.className='kp-nav';
+  nav.innerHTML=hs.map(function(x){var n=x.querySelector('.kp-sn').textContent,t=x.cloneNode(true);[].forEach.call(t.querySelectorAll('small,.kp-sel,.kp-sn,.kp-kick,button'),function(z){z.remove()});return '<a href="javascript:void 0" data-k="'+x.id+'"><b>'+n+'</b>'+E(t.textContent.trim().replace(/\s*\(.*$/,''))+'</a>'}).join('');
+  var ex=M.querySelector('.kp-exec')||M.querySelector('.kp-hero');ex.parentNode.insertBefore(nav,ex.nextSibling);try{var hb=0;[].forEach.call(document.querySelectorAll('header,nav,[class*=top],[class*=bar],[class*=head],[class*=strip]'),function(z){var cs=getComputedStyle(z);if((cs.position==='fixed'||cs.position==='sticky')&&!z.closest('.kp')){var r=z.getBoundingClientRect();if(r.top<90&&r.width>innerWidth*0.4&&r.bottom<200&&r.bottom>hb)hb=r.bottom}});if(hb)nav.style.setProperty('--kp-navtop',(hb+8)+'px')}catch(_){}
+  nav.onclick=function(e){var a=e.target.closest('a');if(!a)return;var t=$i(a.getAttribute('data-k'));if(t)window.scrollTo({top:t.getBoundingClientRect().top+scrollY-120,behavior:'smooth'})};
+  var spy=function(){if(!document.body.contains(nav)){removeEventListener('scroll',spy);return}var cur=hs[0].id;hs.forEach(function(x){if(x.getBoundingClientRect().top<180)cur=x.id});[].forEach.call(nav.children,function(a){a.classList.toggle('on',a.getAttribute('data-k')===cur)})};
+  addEventListener('scroll',spy,{passive:true});spy()}
+ /* 머리 숫자는 마우스 따라 살짝 빛남 */
+ var hero=M.querySelector('.kp-hero');if(hero&&!red)hero.addEventListener('pointermove',function(e){var r=hero.getBoundingClientRect();hero.style.setProperty('--mx',((e.clientX-r.left)/r.width*100).toFixed(1)+'%');hero.style.setProperty('--my',((e.clientY-r.top)/r.height*100).toFixed(1)+'%')})};
+function cssPro(){if($i('kp-css2'))return;var s=document.createElement('style');s.id='kp-css2';s.textContent=
+ '.kp{--kp-gold:#C9A85C;--kp-acc1:#4C7DFF;--kp-acc2:#8B6CFF;gap:18px;letter-spacing:-.005em}'+
+ /* 머리 */
+ '.kp-hero{position:relative;overflow:hidden;isolation:isolate;padding:30px 34px;border-radius:24px;background:#070F22;border:1px solid rgba(140,170,255,.16);box-shadow:0 30px 60px -30px rgba(7,15,34,.65),inset 0 1px 0 rgba(255,255,255,.06)}'+
+ '.kp-hero>*{position:relative;z-index:2}.kp-hero .kp-aur,.kp-hero .kp-gbg{position:absolute;inset:0;z-index:0;pointer-events:none}'+
+ '.kp-aur i{position:absolute;width:520px;height:520px;border-radius:50%;filter:blur(70px);opacity:.55;mix-blend-mode:screen;animation:kpaur 14s ease-in-out infinite alternate}'+
+ '.kp-aur i:nth-child(1){background:#2F5BFF;left:-160px;top:-260px}.kp-aur i:nth-child(2){background:#7A4DFF;right:-120px;top:-200px;animation-duration:18s;opacity:.4}.kp-aur i:nth-child(3){background:#00B3A4;left:35%;bottom:-380px;animation-duration:22s;opacity:.28}'+
+ '@keyframes kpaur{0%{transform:translate(0,0) scale(1)}50%{transform:translate(60px,30px) scale(1.12)}100%{transform:translate(-40px,50px) scale(.95)}}'+
+ '.kp-gbg{background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);background-size:36px 36px;-webkit-mask-image:radial-gradient(ellipse at 70% 40%,#000 0%,transparent 75%);mask-image:radial-gradient(ellipse at 70% 40%,#000 0%,transparent 75%)}'+
+ '.kp-hero:before{content:"";position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(420px circle at var(--mx,80%) var(--my,30%),rgba(120,160,255,.14),transparent 60%)}'+
+ '.kp-hero:after{z-index:1;background:linear-gradient(110deg,transparent 35%,rgba(255,255,255,.07) 48%,transparent 60%);animation:kpsh 5s ease-in-out .6s infinite}'+
+ '.kp-eye{display:flex;align-items:center;gap:10px;font-size:11.5px;letter-spacing:.16em;color:#9DB0D6}.kp-live{display:inline-flex;align-items:center;gap:6px;padding:3px 9px 3px 8px;border-radius:999px;background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.35);color:#6EE7B7;font-size:10.5px;letter-spacing:.14em}'+
+ '.kp-live i{width:7px;height:7px;border-radius:50%;background:#34D399;box-shadow:0 0 0 0 rgba(52,211,153,.7);animation:kplv 1.8s infinite}@keyframes kplv{70%{box-shadow:0 0 0 7px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}'+
+ '.kp-hero h1{font-size:30px;font-weight:800;letter-spacing:-.02em;margin:10px 0 14px;background:linear-gradient(90deg,#fff 0%,#DCE6FF 60%,#B9C8FF 100%);-webkit-background-clip:text;background-clip:text;color:transparent}'+
+ '.kp-meta span{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08)}'+
+ '.kp-rt{font-size:38px;font-weight:800;letter-spacing:-.03em}.kp-arc{transition:stroke-dashoffset 1.8s cubic-bezier(.16,1,.3,1)}.kp-rtick{transform-origin:center;transform-box:fill-box;animation:kpspin 40s linear infinite}@keyframes kpspin{to{transform:rotate(360deg)}}'+
+ '.kp-sl i{display:flex;justify-content:space-between;gap:16px;padding:3px 0;border-bottom:1px dashed rgba(255,255,255,.08)}.kp-sl b{font-size:13px;letter-spacing:.1em;color:#9DB0D6;font-weight:700}'+
+ /* 요약 줄 */
+ '.kp-exec{gap:14px}.kp-ex{position:relative;overflow:hidden;border:1px solid var(--kp-line);border-left:1px solid var(--kp-line);border-radius:18px;padding:18px 20px 16px;background:var(--kp-card);box-shadow:0 1px 2px rgba(15,23,42,.04),0 12px 30px -24px rgba(15,23,42,.35);transition:transform .25s,box-shadow .25s}'+
+ '.kp-ex:before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,var(--kp-acc1),var(--kp-acc2))}.kp-ex.good:before{background:linear-gradient(90deg,#10B981,#34D399)}.kp-ex.warn:before{background:linear-gradient(90deg,#F59E0B,#EF4444)}'+
+ '.kp-ex:hover,.kp-card:hover,.kp-tc:hover{transform:translateY(-3px);box-shadow:0 1px 2px rgba(15,23,42,.04),0 22px 40px -26px rgba(30,60,140,.45)}'+
+ '.kp-ex small{letter-spacing:.06em;text-transform:uppercase}.kp-ex b{font-size:34px;font-weight:800;letter-spacing:-.03em}'+
+ /* 등장 애니메이션 (스크롤) */
+ '.kp-ex,.kp-tc,.kp-card,.kp-panel,.kp-tile,.kp-h2,.kp-xw{opacity:0;transform:translateY(18px);animation:none;transition:opacity .7s cubic-bezier(.16,1,.3,1) var(--d,0ms),transform .7s cubic-bezier(.16,1,.3,1) var(--d,0ms),box-shadow .25s}'+
+ '.kp-ex.in,.kp-tc.in,.kp-card.in,.kp-panel.in,.kp-tile.in,.kp-h2.in,.kp-xw.in{opacity:1;transform:none}.kp-ex.in:hover,.kp-card.in:hover,.kp-tc.in:hover{transform:translateY(-3px)}'+
+ '.kp-hero{opacity:0;transform:scale(.985);transition:opacity .9s ease,transform .9s cubic-bezier(.16,1,.3,1)}.kp-hero.in{opacity:1;transform:none}'+
+ '.kp-go .kp-bar{animation:none}.in .kp-bar{animation:kpgrow 1s cubic-bezier(.16,1,.3,1) var(--d) forwards}.kp-go .kp-bv{animation:none}.in .kp-bv{animation:kpfade .4s 1s forwards}'+
+ '.kp-go .kp-line{animation:none}.in .kp-line{animation:kpdraw 1.6s cubic-bezier(.65,0,.35,1) .25s forwards}.kp-area{opacity:0}.in .kp-area{animation:kpfade .9s ease 1s forwards}'+
+ '.kp-pulse{opacity:0;transform-box:fill-box;transform-origin:center}.in .kp-pulse{animation:kppl 2.2s ease-out 1.8s infinite}@keyframes kppl{0%{opacity:.45;transform:scale(.6)}100%{opacity:0;transform:scale(2.4)}}'+
+ '.kp-track i{transition:width 1.4s cubic-bezier(.16,1,.3,1) .3s}.kp-card:not(.in) .kp-track i,.kp-tc:not(.in) .kp-track i{width:0!important}'+
+ /* 섹션 머리 */
+ '.kp-h2{margin:22px 0 0;padding:0 0 10px;font-size:19px;letter-spacing:-.01em;border-bottom:1px solid var(--kp-line);position:relative;scroll-margin-top:120px}'+
+ '.kp-h2:after{content:"";position:absolute;left:0;bottom:-1px;width:64px;height:2px;background:linear-gradient(90deg,var(--kp-acc1),var(--kp-acc2));transform:scaleX(0);transform-origin:left;transition:transform .9s cubic-bezier(.16,1,.3,1) .2s}.kp-h2.in:after{transform:scaleX(1)}'+
+ '.kp-sn{background:linear-gradient(135deg,#0B1A3C,#24407F);font-variant-numeric:tabular-nums;box-shadow:0 4px 10px -6px rgba(11,26,60,.8)}'+
+ '.kp-kick{font-size:10.5px;font-weight:800;letter-spacing:.2em;color:var(--kp-acc1);margin-right:6px;opacity:.9}'+
+ /* 카드 */
+ '.kp-grid{gap:14px}.kp-card{position:relative;overflow:hidden;border-radius:18px;padding:18px 18px 16px;gap:10px;box-shadow:0 1px 2px rgba(15,23,42,.04),0 12px 30px -26px rgba(15,23,42,.4)}'+
+ '.kp-card:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(180deg,var(--kp-acc1),var(--kp-acc2));opacity:.85}.kp-card:has(.lv1):before{background:linear-gradient(180deg,#10B981,#059669)}.kp-card:has(.lv4):before,.kp-card:has(.lv5):before{background:linear-gradient(180deg,#F59E0B,#EF4444)}'+
+ '.kp-no{background:linear-gradient(135deg,#0B1A3C,#2A4A92);border-radius:8px}.kp-cv b{font-size:26px;letter-spacing:-.03em}.kp-lv{border:1px solid transparent}.kp-lv.lv1{border-color:#A7E9CB}.kp-lv.lv4,.kp-lv.lv5{border-color:#F8CF9B}'+
+ '.kp-track{height:6px}.kp-track i{background-image:linear-gradient(90deg,rgba(255,255,255,.0),rgba(255,255,255,.35))!important;background-blend-mode:overlay;box-shadow:0 0 12px -2px currentColor}'+
+ '.kp-panel,.kp-tile,.kp-tc{border-radius:18px;box-shadow:0 1px 2px rgba(15,23,42,.04),0 12px 30px -26px rgba(15,23,42,.4)}.kp-panel{padding:18px 20px}.kp-tile{padding:16px 18px;position:relative;overflow:hidden}'+
+ '.kp-tile:after{content:"";position:absolute;right:-30px;top:-30px;width:90px;height:90px;border-radius:50%;background:radial-gradient(circle,rgba(76,125,255,.12),transparent 70%)}.kp-tile b{font-size:28px;letter-spacing:-.03em}'+
+ '.kp-tc{position:relative;overflow:hidden;padding:18px 20px;transition:transform .25s,box-shadow .25s}.kp-tc b{font-size:34px;font-weight:800;letter-spacing:-.03em}.kp-tc:after{content:"→";position:absolute;right:18px;top:16px;color:var(--kp-mute);transition:transform .2s}.kp-tc:hover:after{transform:translateX(4px);color:var(--kp-acc1)}'+
+ '.kp-t th{font-size:11px;letter-spacing:.06em;text-transform:uppercase}.kp-t tbody tr{transition:background .15s}.kp-t tbody tr:hover{background:rgba(76,125,255,.05)}'+
+ '.kp-bsh{mix-blend-mode:normal}.kp-bars .kp-gl{stroke-dasharray:2 4}'+
+ /* 바로가기 */
+ '.kp-nav{position:sticky;top:var(--kp-navtop,118px);z-index:60;z-index:20;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding:6px;border-radius:14px;background:color-mix(in srgb,var(--kp-card) 82%,transparent);-webkit-backdrop-filter:blur(14px) saturate(1.4);backdrop-filter:blur(14px) saturate(1.4);border:1px solid var(--kp-line);box-shadow:0 10px 30px -22px rgba(15,23,42,.5)}'+
+ '.kp-nav::-webkit-scrollbar{display:none}.kp-nav a{flex:none;display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border-radius:10px;font-size:12.5px;font-weight:700;color:var(--kp-sub);text-decoration:none;white-space:nowrap;transition:background .2s,color .2s}'+
+ '.kp-nav a b{font-size:10.5px;color:var(--kp-mute);font-variant-numeric:tabular-nums}.kp-nav a:hover{background:rgba(76,125,255,.08);color:var(--kp-ink)}.kp-nav a.on{background:linear-gradient(135deg,#0B1A3C,#2A4A92);color:#fff}.kp-nav a.on b{color:#9DB8FF}'+
+ '@media (max-width:640px){.kp-hero{padding:22px 20px}.kp-hero h1{font-size:22px}.kp-ex b{font-size:26px}.kp-nav{top:56px}}'+
+ '@media (prefers-reduced-motion:reduce){.kp-aur i,.kp-rtick,.kp-live i,.kp-hero:after,.in .kp-pulse{animation:none!important}.kp-ex,.kp-tc,.kp-card,.kp-panel,.kp-tile,.kp-h2,.kp-xw,.kp-hero{opacity:1!important;transform:none!important;transition:none!important}}';
+ document.head.appendChild(s)}
+var _css=css;css=function(){_css();cssPro()};
+
 /* 하루에 한 번 다시 계산 (자정 넘으면 화면이 열려 있어도 새 날짜 기준으로) */
 var DAY=ymd(new Date());setInterval(function(){var d=ymd(new Date());if(d!==DAY){DAY=d;rr()}},60000);
 
