@@ -260,7 +260,7 @@
         var titles = [];
         if (wt && wt.blocks) wt.blocks.forEach(function (b) { (b.rows || []).forEach(function (r) { (r || []).forEach(function (c) { var t = cellText(c); if (/^멸균\s*\d\s*호기/.test(t)) titles.push(t.replace(/\s+/g, ' ')); }); }); });
         for (var s = 1; s <= 6; s++) {
-          var p = 's' + s + '_', nm = titles[s - 1] || ('멸균 ' + s + '호기'), run = hoursOf(grid[p + 'run']), qty = num(grid[p + 'qty']), bat = num(grid[p + 'batch']);
+          var p = 's' + s + '_', nm = titles[s - 1] || ('멸균 ' + s + '호기'), run = hoursOf(grid[p + 'run']); if (run != null && run > 24) run = null; var qty = num(grid[p + 'qty']), bat = num(grid[p + 'batch']);
           if (!run && !qty && !bat && !grid[p + 'item']) continue;
           var S = R.ster[nm] = R.ster[nm] || { run: 0, qty: 0, batch: 0, days: 0, items: {} };
           S.run += run || 0; S.qty += qty || 0; S.batch += bat || 0; S.days++;
@@ -401,7 +401,8 @@
       '<div style="margin-top:10px">' + body + '</div></td></tr></table>';
   }
   function two(a, b) {
-    return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse"><tr><td valign="top" width="50%" style="padding-right:7px">' + a + '</td><td valign="top" width="50%" style="padding-left:7px">' + b + '</td></tr></table>';
+    var cell = function (x) { return '<div class="yr-col" style="display:inline-block;vertical-align:top;width:100%;max-width:356px;margin:0 3px;text-align:left">' + x + '</div>'; };
+    return '<div style="font-size:0;line-height:0;text-align:center;margin:0 -3px">' + cell(a) + (b ? cell(b) : '') + '</div>';
   }
   function chg(cur, prev, lowerIsBetter, unit) {
     var d = delta(cur, prev);
@@ -485,8 +486,9 @@
   function table(head, rows, opts) {
     opts = opts || {};
     if (!rows.length) return '<div style="font-size:13px;color:' + C.mute + '">' + (opts.empty || '기록 없음') + '</div>';
-    return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:12.5px"><tr>' + head.map(function (x) { return '<th align="left" style="background:' + C.soft + ';color:' + C.mute + ';font-weight:700;padding:7px 8px;border-bottom:1px solid ' + C.line + ';white-space:nowrap">' + x + '</th>'; }).join('') + '</tr>' +
-      rows.map(function (r) { return '<tr>' + r.map(function (x) { return '<td valign="top" style="padding:7px 8px;border-bottom:1px solid #EEF1F5">' + x + '</td>'; }).join('') + '</tr>'; }).join('') + '</table>';
+    var wide = head.length >= 5;
+    return '<div style="' + (wide ? 'overflow-x:auto;-webkit-overflow-scrolling:touch;' : '') + 'width:100%"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:12.5px;' + (wide ? 'min-width:' + (head.length * 64) + 'px' : '') + '"><tr>' + head.map(function (x) { return '<th align="left" style="background:' + C.soft + ';color:' + C.mute + ';font-weight:700;padding:7px 8px;border-bottom:1px solid ' + C.line + ';white-space:nowrap">' + x + '</th>'; }).join('') + '</tr>' +
+      rows.map(function (r) { return '<tr>' + r.map(function (x) { return '<td valign="top" style="padding:7px 8px;border-bottom:1px solid #EEF1F5;word-break:keep-all">' + x + '</td>'; }).join('') + '</tr>'; }).join('') + '</table></div>';
   }
   function chip(t, bg, fg) { return '<span style="display:inline-block;padding:2px 8px;border-radius:999px;background:' + bg + ';color:' + fg + ';font-size:11.5px;font-weight:700;white-space:nowrap">' + t + '</span>'; }
   function light(level) { return level === 2 ? chip('주의', C.redBg, C.red) : level === 1 ? chip('관찰', C.amberBg, '#B8701A') : chip('양호', C.greenBg, C.green); }
@@ -562,16 +564,13 @@
       var h = x ? Math.max(2, Math.round(x / mx * 24)) : 1; return '<td valign="bottom" style="padding:0 1px;vertical-align:bottom"><div style="height:' + h + 'px;background:' + (x ? color : '#E4E8EF') + ';opacity:' + (i === v.length - 1 ? 1 : 0.55) + ';border-radius:2px 2px 0 0;font-size:0;line-height:0">&nbsp;</div></td>'; }).join('') + '</tr></table>';
   }
   function tiles(items) {
-    var out = '', w = Math.floor(100 / 4);
-    for (var i = 0; i < items.length; i += 4) {
-      out += '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:6px 0;margin-top:10px"><tr>' + items.slice(i, i + 4).map(function (k) {
-        return '<td valign="top" width="' + w + '%" style="background:' + V.card + ';border:1px solid ' + V.line + ';border-radius:14px;padding:13px 14px 11px;font-family:' + FONT + '">' +
-          '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="font-size:11px;color:' + V.mute + ';font-weight:800;letter-spacing:.02em"><span style="display:inline-block;width:7px;height:7px;border-radius:2px;background:' + (k.color || V.navy) + ';margin-right:6px;vertical-align:1px"></span>' + esc(k.label) + '</td><td align="right">' + (k.badge || '') + '</td></tr></table>' +
-          '<div style="font-size:24px;font-weight:800;color:' + V.ink + ';margin-top:6px;line-height:1.1;white-space:nowrap;letter-spacing:-.5px">' + k.value + '</div>' +
-          '<div style="font-size:11.5px;color:' + V.sub + ';margin-top:5px;line-height:1.45;min-height:16px">' + (k.sub || '&nbsp;') + '</div>' + (k.spark || '') + '</td>'; }).join('') +
-        (items.length - i < 4 ? new Array(4 - (items.length - i) + 1).join('<td width="' + w + '%"></td>') : '') + '</tr></table>';
-    }
-    return out;
+    return '<div style="font-size:0;line-height:0;text-align:center;margin:10px -4px 0">' + items.map(function (k) {
+      return '<div class="yr-tile" style="display:inline-block;vertical-align:top;width:46%;max-width:172px;min-width:140px;margin:0 4px 8px;box-sizing:border-box;background:' + V.card + ';border:1px solid ' + V.line + ';border-radius:14px;padding:12px 13px 10px;text-align:left;font-family:' + FONT + ';line-height:1.4">' +
+        '<div style="font-size:11px;color:' + V.mute + ';font-weight:800;line-height:1.35"><span style="display:inline-block;width:7px;height:7px;border-radius:2px;background:' + (k.color || V.navy) + ';margin-right:6px;vertical-align:1px"></span>' + esc(k.label) + '</div>' +
+        (k.badge ? '<div style="margin-top:5px;line-height:1">' + k.badge + '</div>' : '') +
+        '<div style="font-size:22px;font-weight:800;color:' + V.ink + ';margin-top:6px;line-height:1.15;letter-spacing:-.4px;word-break:keep-all">' + k.value + '</div>' +
+        '<div style="font-size:11.5px;color:' + V.sub + ';margin-top:5px;line-height:1.45;word-break:keep-all">' + (k.sub || '&nbsp;') + '</div>' + (k.spark || '') + '</div>';
+    }).join('') + '</div>';
   }
   function nv(x, s) { return x == null || x === 0 && s === 'z' ? '<span style="font-size:15px;color:#9AA4B5;font-weight:700">기록 없음</span>' : s; }
   function u(t) { return '<span style="font-size:13px;color:' + V.mute + ';font-weight:700;margin-left:2px">' + t + '</span>'; }
@@ -595,19 +594,19 @@
     var series = function (f) { return M.days.map(f); };
     var SN = 0, S = function (t, s) { SN++; return sec((SN < 10 ? '0' : '') + SN, t, s); };
 
-    var h = '<div style="font-family:' + FONT + ';color:' + V.ink + ';max-width:760px;margin:0 auto;background:' + V.bg + ';padding:16px;border-radius:20px">';
+    var h = '<div style="font-family:' + FONT + ';color:' + V.ink + ';max-width:760px;width:100%;box-sizing:border-box;margin:0 auto;background:' + V.bg + ';padding:12px 10px;border-radius:18px;overflow:hidden;-webkit-text-size-adjust:100%">';
     /* ── 머리 ── */
-    h += '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-radius:18px;background:' + V.navy + ';background-image:linear-gradient(125deg,#050C1F 0%,#0B1B3A 45%,#1D3A7A 100%)"><tr><td style="padding:24px 26px 20px;color:#fff;font-family:' + FONT + '">' +
+    h += '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-radius:18px;background:' + V.navy + ';background-image:linear-gradient(125deg,#050C1F 0%,#0B1B3A 45%,#1D3A7A 100%)"><tr><td style="padding:20px 18px 16px;color:#fff;font-family:' + FONT + '">' +
       '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td valign="top"><div style="font-size:11px;letter-spacing:.2em;color:' + V.gold + ';font-weight:800">YONSEI MILK · AMBIENT PRODUCTION DIVISION</div>' +
-      '<div style="font-size:28px;font-weight:800;margin-top:8px;letter-spacing:-.6px">' + KN + ' 업무 보고</div>' +
+      '<div style="font-size:28px;font-weight:800;margin-top:8px;letter-spacing:-.6px;color:#FFFFFF">' + KN + ' 업무 보고</div>' +
       '<div style="font-size:13.5px;margin-top:6px;color:#B9C6E4">' + esc(P.label) + (many ? ' · ' + nd + '일' : '') + ' · 상온제품생산부문</div></td>' +
-      '<td align="right" valign="top" style="white-space:nowrap"><div style="display:inline-block;padding:5px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.28);font-size:10.5px;font-weight:800;letter-spacing:.14em;color:#DCE4F5">' + EN + ' REPORT</div>' +
+      '<td align="right" valign="top"><div style="display:inline-block;padding:5px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.28);font-size:10.5px;font-weight:800;letter-spacing:.14em;color:#DCE4F5">' + EN + ' REPORT</div>' +
       '<div style="margin-top:10px"><span style="display:inline-block;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.1);font-size:12.5px;font-weight:800;color:#fff"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + ST[1] + ';margin-right:6px"></span>' + ST[0] + '</span></div></td></tr></table>' +
-      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;border-collapse:separate;border-spacing:0"><tr>' + status.map(function (x, i) {
+      '<div style="font-size:0;line-height:0;margin:18px -3px 0;text-align:center">' + status.map(function (x, i) {
         var col = x.lv === 2 ? '#FF8A8A' : x.lv === 1 ? '#FFC870' : '#7EE0A8', ld = (L.byDiv[x.dv] || {});
-        return (i ? '<td style="width:2%"></td>' : '') + '<td width="32%" valign="top" style="padding:11px 13px;background:#1A2C55;background:rgba(255,255,255,.07);border-radius:12px;border-left:3px solid ' + col + '"><div style="font-size:11px;color:#AFC0E3;font-weight:700">' + x.dv + ' · ' + DIVSUB[x.dv] + '</div>' +
+        return '<div style="display:inline-block;vertical-align:top;width:100%;max-width:226px;margin:0 3px 6px;box-sizing:border-box;line-height:1.4;text-align:left;color:#FFFFFF;font-family:' + FONT + ';padding:11px 13px;background:#1A2C55;background:rgba(255,255,255,.07);border-radius:12px;border-left:3px solid ' + col + '"><div style="font-size:11px;color:#AFC0E3;font-weight:700">' + x.dv + ' · ' + DIVSUB[x.dv] + '</div>' +
           '<div style="font-size:15.5px;font-weight:800;margin-top:3px">' + (x.s.n ? '지연 ' + x.s.n + '건 · ' + hrs(x.s.min) : '지연 없음') + '</div>' +
-          '<div style="font-size:11px;color:#AFC0E3;margin-top:3px">정비 ' + x.s.maint + '건' + (ld.h ? ' · 투입 ' + f1(ld.h, 0) + 'h' : '') + '</div></td>'; }).join('') + '</tr></table></td></tr></table>';
+          '<div style="font-size:11px;color:#AFC0E3;margin-top:3px">정비 ' + x.s.maint + '건' + (ld.h ? ' · 투입 ' + f1(ld.h, 0) + 'h' : '') + '</div></div>'; }).join('') + '</div></td></tr></table>';
 
     /* ── 한눈에 보기 ── */
     var bl = [];
@@ -636,16 +635,16 @@
     ]);
 
     /* ── 02 공정 흐름 ── */
-    var stage = function (c, nm, rows) { return '<td valign="top" width="23%" style="background:' + V.card + ';border:1px solid ' + V.line + ';border-top:3px solid ' + c + ';border-radius:12px;padding:11px 12px;font-family:' + FONT + '"><div style="font-size:12px;font-weight:800;color:' + c + '">' + nm + '</div>' + rows.map(function (r) { return '<div style="margin-top:6px"><div style="font-size:10.5px;color:' + V.mute + '">' + r[0] + '</div><div style="font-size:14.5px;font-weight:800;color:' + V.ink + ';white-space:nowrap">' + r[1] + '</div></div>'; }).join('') + '</td>'; };
-    var arrow = '<td width="2.6%" align="center" valign="middle" style="color:#B8C1D1;font-size:14px;font-weight:800">›</td>';
+    var stage = function (c, nm, rows) { return '<div style="display:inline-block;vertical-align:top;width:46%;max-width:172px;min-width:140px;margin:0 4px 8px;box-sizing:border-box;text-align:left;line-height:1.4;background:' + V.card + ';border:1px solid ' + V.line + ';border-top:3px solid ' + c + ';border-radius:12px;padding:11px 12px;font-family:' + FONT + '"><div style="font-size:12px;font-weight:800;color:' + c + '">' + nm + '</div>' + rows.map(function (r) { return '<div style="margin-top:6px"><div style="font-size:10.5px;color:' + V.mute + '">' + r[0] + '</div><div style="font-size:14.5px;font-weight:800;color:' + V.ink + '">' + r[1] + '</div></div>'; }).join('') + '</div>'; };
+    var arrow = '';
     var stopN = J.stops.length;
     var vu = function (x, un, dg) { return x == null || isNaN(x) ? '<span style="color:#9AA4B5">—</span>' : f1(x, dg) + un; };
     h += S('공정 흐름', '착즙 → 배합 → 멸균 → 포장 · 저장된 일지 기준');
-    h += '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;border-collapse:separate;border-spacing:0"><tr>' +
-      stage(PC.juice, '❖ 착즙', [['대두 사용량', vu(PJ.use, ' kg')], ['원액 생산', vu(PJ.raw, ' kg')], ['분리액 생산 · 중단', PJ.prodH == null && PJ.stopH == null ? vu(null) : f1(PJ.prodH) + 'h · ' + f1(PJ.stopH) + 'h']]) + arrow +
-      stage(PC.mix, '⚗ 배합', [['배치', vu(PM.nb, ' 배치')], ['평균 최종 Brix', vu(PM.b1, '', 2)], ['점검 X', (PM.x || 0) + '건']]) + arrow +
-      stage(PC.ster, '♨ 멸균', [['적산량', fmtQty(sterQ)], ['가동 시간', f1(sterRun, 1) + 'h'], ['정지 기록', stopN + '건']]) + arrow +
-      stage(PC.pack, '▣ 포장', [['생산량', vu(PK.ea, ' 개')], ['불량팩', vu(PK.waste, ' 개')], ['점검 불량(X)', (PK.bad || 0) + '건']]) + '</tr></table>';
+    h += '<div style="font-size:0;line-height:0;text-align:center;margin:12px -4px 0">' +
+      stage(PC.juice, '① ❖ 착즙', [['대두 사용량', vu(PJ.use, ' kg')], ['원액 생산', vu(PJ.raw, ' kg')], ['분리액 생산 · 중단', PJ.prodH == null && PJ.stopH == null ? vu(null) : f1(PJ.prodH) + 'h · ' + f1(PJ.stopH) + 'h']]) + arrow +
+      stage(PC.mix, '② ⚗ 배합', [['배치', vu(PM.nb, ' 배치')], ['평균 최종 Brix', vu(PM.b1, '', 2)], ['점검 X', (PM.x || 0) + '건']]) + arrow +
+      stage(PC.ster, '③ ♨ 멸균', [['적산량', fmtQty(sterQ)], ['가동 시간', f1(sterRun, 1) + 'h'], ['정지 기록', stopN + '건']]) + arrow +
+      stage(PC.pack, '④ ▣ 포장', [['생산량', vu(PK.ea, ' 개')], ['불량팩', vu(PK.waste, ' 개')], ['점검 불량(X)', (PK.bad || 0) + '건']]) + '</div>';
 
     /* ── 03 확인 필요 사항 ── */
     var act = [];
@@ -729,9 +728,9 @@
     var KP = M.K || [];
     if (kind === 'monthly' && KP.some(function (k) { return !k.none; })) {
       h += S('KPI 현황', '팀장이 올린 KPI 실적 엑셀 기준');
-      h += '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;border-collapse:separate;border-spacing:0"><tr>' + KP.map(function (k, i) {
-        return (i ? '<td style="width:2%"></td>' : '') + '<td width="32%" valign="top" style="background:' + V.card + ';border:1px solid ' + V.line + ';border-radius:12px;padding:12px 14px;font-family:' + FONT + '"><div style="font-size:12px;font-weight:800;color:' + V.sub + '">' + esc(k.label) + '</div>' +
-          (k.none ? '<div style="font-size:13px;color:' + V.mute + ';margin-top:8px">KPI 실적 엑셀 대기</div>' : '<div style="font-size:26px;font-weight:800;margin-top:4px">' + f1(k.score, 1) + '<span style="font-size:12px;color:' + V.mute + '"> / 100</span></div><div style="height:6px;background:#EEF1F6;border-radius:4px;margin-top:6px"><div style="width:' + Math.max(2, Math.min(100, Math.round(k.score))) + '%;height:6px;background:' + V.accent + ';border-radius:4px;font-size:0">&nbsp;</div></div><div style="font-size:11.5px;color:' + V.sub + ';margin-top:7px">Lev.1 ' + k.lv1 + ' / ' + k.n + ' · 관리 필요 <b style="color:' + (k.warn.length ? V.bad : V.good) + '">' + k.warn.length + '</b></div>') + '</td>'; }).join('') + '</tr></table>';
+      h += '<div style="font-size:0;line-height:0;text-align:center;margin:12px -3px 0">' + KP.map(function (k, i) {
+        return '<div style="display:inline-block;vertical-align:top;width:100%;max-width:226px;margin:0 3px 8px;box-sizing:border-box;text-align:left;line-height:1.4;background:' + V.card + ';border:1px solid ' + V.line + ';border-radius:12px;padding:12px 14px;font-family:' + FONT + '"><div style="font-size:12px;font-weight:800;color:' + V.sub + '">' + esc(k.label) + '</div>' +
+          (k.none ? '<div style="font-size:13px;color:' + V.mute + ';margin-top:8px">KPI 실적 엑셀 대기</div>' : '<div style="font-size:26px;font-weight:800;margin-top:4px">' + f1(k.score, 1) + '<span style="font-size:12px;color:' + V.mute + '"> / 100</span></div><div style="height:6px;background:#EEF1F6;border-radius:4px;margin-top:6px"><div style="width:' + Math.max(2, Math.min(100, Math.round(k.score))) + '%;height:6px;background:' + V.accent + ';border-radius:4px;font-size:0">&nbsp;</div></div><div style="font-size:11.5px;color:' + V.sub + ';margin-top:7px">Lev.1 ' + k.lv1 + ' / ' + k.n + ' · 관리 필요 <b style="color:' + (k.warn.length ? V.bad : V.good) + '">' + k.warn.length + '</b></div>') + '</div>'; }).join('') + '</div>';
       var wl = []; KP.forEach(function (k) { (k.warn || []).forEach(function (x) { wl.push([k.k, x]); }); });
       if (wl.length) h += box('관리 필요 KPI 항목 (Lev.4~5)', table(['팀', '항목', '점수'], wl.map(function (x) { return [chip(x[0], '#F1F3F8', V.sub), esc(x[1].name), '<b style="color:' + V.bad + '">' + f1(x[1].score, 1) + '</b> / ' + f1(x[1].w, 0)]; })));
     }

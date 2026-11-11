@@ -20,8 +20,7 @@ if (env.SMTP_HOST) env.SMTP_HOST = env.SMTP_HOST.replace(/^[a-z]+:\/\//i, '').re
 const FORCE = process.argv.includes('--force') || env.FORCE === 'true';
 const DRY = process.argv.includes('--dry-run') || env.DRY_RUN === 'true';
 
-const RUNLOG = [];
-function log(...a) { console.log('[daily-report]', ...a); RUNLOG.push(a.map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).join(' ').slice(0, 300)); }
+function log(...a) { console.log('[daily-report]', ...a); }
 function need(k) { if (!env[k]) throw new Error(`GitHub Secret ${k} 이(가) 없습니다.`); return env[k]; }
 
 const SB = need('SUPABASE_URL').replace(/\/$/, '');
@@ -66,13 +65,9 @@ function loadTemplates() {
     const html = fs.readFileSync('index.html', 'utf8');
     const m = html.match(/var T=(\{"FRM-[\s\S]*?\});\n(?:var NEWF|function)/);
     if (m) return JSON.parse(m[1].replace(/<\\\//g, '</'));
-    /* 파일 크기를 줄이려고 반복 서식(st)을 표로 모아 둔 형식 */
-    const z = html.match(/var T=\(function\(S,o\)\{[\s\S]*?return o\}\)\((\[[\s\S]*?\]),(\{"FRM-[\s\S]*?\})\);\n(?:var NEWF|function)/);
-    if (z) {
-      const S = JSON.parse(z[1].replace(/<\\\//g, '</')), T = JSON.parse(z[2].replace(/<\\\//g, '</'));
-      const w = (x) => { if (Array.isArray(x)) x.forEach(w); else if (x && typeof x === 'object') for (const k in x) { const v = x[k]; if (k === 'st' && typeof v === 'number') x[k] = S[v]; else if (v && typeof v === 'object') w(v); } };
-      w(T); return T;
-    }
+    /* 포털 빌드가 양식의 글꼴·선 모양을 압축해 넣은 형태: var T=(function(S,o){...})([...],{...}); */
+    const i = html.indexOf('var T=(function(S,o)');
+    if (i >= 0) { const j = html.indexOf('\n', i); const T = new Function('return ' + html.slice(i + 6, j).replace(/;\s*$/, ''))(); if (T && T['FRM-014']) return T; }
   } catch (e) { log('일지 양식 읽기 실패 — 포털 데이터의 양식 사용', e.message); }
   return null;
 }
@@ -143,8 +138,8 @@ function due(data, cfg, now) {
   const today = Core.kstDate(0, now);
   const dow = new Date(today + 'T00:00:00Z').getUTCDay();
   const hour = cfg.hour == null ? 7 : +cfg.hour;
-  /* GitHub 예약 실행은 몇 시간씩 늦거나 건너뛸 때가 많아(예: 01:28 → 06:14 → 그다음 없음), 정한 시각 이후 그날 안에는 아직 안 보낸 보고를 이어서 보냄 */
-  const inWin = (h) => kstHour >= h;
+  /* GitHub 예약 실행은 늦거나 건너뛸 때가 있어, 정한 시각부터 6시간 안에는 아직 안 보낸 보고를 이어서 보냄 */
+  const inWin = (h) => kstHour >= h && kstHour < h + 6;
   const done = (s) => !!(s && (s.at || (s.tries || 0) >= 3));   /* 보냈거나, 메일 실패가 3번 쌓였으면 그날은 그만 */
   const out = [];
   const KIND = (env.KIND || '').toLowerCase();
@@ -157,7 +152,7 @@ function due(data, cfg, now) {
     const target = Core.kstDate(-1, now);
     if (inWin(hour) && days.indexOf(dow) >= 0 && !done(data.dailyReports?.[target]?.sent)) out.push('daily');
     else if (done(data.dailyReports?.[target]?.sent)) log(`일일: ${target} 보고는 이미 처리됨`, JSON.stringify(data.dailyReports[target].sent));
-    else log(`일일: 보낼 때가 아님 (지금 ${kstHour}시 · ${'일월화수목금토'[dow]}요일, 설정 ${hour}시 이후 · 발송 요일 ${days.map((d) => '일월화수목금토'[d]).join('')})`);
+    else log(`일일: 보낼 때가 아님 (지금 ${kstHour}시 · ${'일월화수목금토'[dow]}요일, 설정 ${hour}시~${hour + 5}시)`);
   } else log('일일 보고 자동 발송이 꺼져 있습니다');
   const W = cfg.weekly || {}, Mo = cfg.monthly || {};
   if (W.enabled !== false && (cfg.enabled || W.enabled)) {
@@ -298,10 +293,10 @@ async function main() {
   const NF = loadNotionFinal(), TPL = loadTemplates();
   /* 인사이트: 일일 보고 시각(설정)에 매일, 또는 수동 실행에서 kind에 insight를 고른 경우 */
   const kstHour = (now.getUTCHours() + 9) % 24, hour = cfg.hour == null ? 7 : +cfg.hour;
-  const wantIns = FORCE ? /insight/.test(env.KIND || '') : ((cfg.insights || {}).enabled !== false && kstHour >= hour && String((data.insights || {}).lastD || '') < Core.kstDate(-1, now));
+  const wantIns = FORCE ? /insight/.test(env.KIND || '') : ((cfg.insights || {}).enabled !== false && kstHour === hour && String((data.insights || {}).lastD || '') < Core.kstDate(-1, now));
   if (wantIns) { try { await runInsights(data, cfg, NF, TPL, now); data = await readState(); } catch (e) { console.error('[daily-report] 인사이트 실패:', e.message); process.exitCode = 1; } }
   /* 업계 안전 뉴스: 하루 한 번 (보고서 발송 시각) 또는 수동 실행 kind=news */
-  const wantNews = FORCE ? /news/.test(env.KIND || '') : (kstHour >= hour && String((data.safetyNews || {}).updatedAt || '').slice(0, 10) < Core.kstDate(0, now));
+  const wantNews = FORCE ? /news/.test(env.KIND || '') : (kstHour === hour && String((data.safetyNews || {}).updatedAt || '').slice(0, 10) < Core.kstDate(0, now));
   if (wantNews) { try { await runNews(cfg, now); data = await readState(); } catch (e) { console.error('[daily-report] 안전 뉴스 실패:', e.message); } }
   if (!kinds.length) { log('이번 시각에 보낼 보고서가 없습니다'); return; }
   let fail = 0;
@@ -313,19 +308,4 @@ async function main() {
   if (fail) process.exitCode = 1;
 }
 
-/* 실행 결과를 포털 데이터(reportRun)에 남김 — 포털 「보고서 자동화 관리 → 발송 상태 · 점검」에서 확인
-   (비밀 값은 넣지 않고 「있음/없음」만) · 저장 횟수를 줄이려고 발송 시각부터 6시간 안 · 보낸 것이 있거나 실패했을 때만 */
-async function saveRun(now, err) {
-  try {
-    if (DRY) return;
-    const data = await readState(), cfg = data.reportCfg || {};
-    const kstHour = (now.getUTCHours() + 9) % 24, hour = cfg.hour == null ? 7 : +cfg.hour;
-    const inWin = kstHour >= hour && kstHour < hour + 3;
-    if (!inWin && !err && !FORCE && !RUNLOG.some((l) => /완료|실패/.test(l))) return;
-    data.reportRun = { at: new Date().toISOString(), ok: !err && !process.exitCode, force: FORCE, kstHour, err: err ? String(err).slice(0, 300) : '',
-      log: RUNLOG.slice(-14), has: { smtpHost: !!env.SMTP_HOST, smtpUser: !!env.SMTP_USER, smtpPass: !!env.SMTP_PASS, mailFrom: !!env.MAIL_FROM, ai: !!(env.ANTHROPIC_API_KEY || env.OPENAI_API_KEY), vapid: !!env.VAPID_PRIVATE_KEY, portalUrl: !!env.PORTAL_URL } };
-    await fetch(`${SB}/rest/v1/app_state?id=eq.1`, { method: 'PATCH', headers: { ...sbHeaders, Prefer: 'return=minimal' }, body: JSON.stringify({ data, updated_at: new Date().toISOString() }) });
-  } catch (e) { console.error('[daily-report] 실행 기록 저장 실패:', e.message); }
-}
-const NOW0 = env.NOW ? new Date(env.NOW) : new Date();
-main().then(() => saveRun(NOW0, '')).catch(async (e) => { console.error('[daily-report] 실패:', e.message); await saveRun(NOW0, e.message); process.exit(1); });
+main().catch((e) => { console.error('[daily-report] 실패:', e.message); process.exit(1); });
