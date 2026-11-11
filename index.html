@@ -18084,7 +18084,8 @@ document.addEventListener('keydown',function(ev){
 (function(){
 'use strict';
 if(window.yumFlowMap)return;
-var COL={1:'#60A5FA',2:'#F472B6',3:'#FACC15',4:'#5EEAD4',5:'#FB923C',6:'#A78BFA'},SOY='#E0B04A';
+/* 분리유액 공용 배관(어느 배합 호기로 가는지 아직 모름)은 호기 색과 헷갈리지 않게 은백색 */
+var COL={1:'#60A5FA',2:'#F472B6',3:'#FACC15',4:'#5EEAD4',5:'#FB923C',6:'#A78BFA'},SOY='#CBD5E1';
 var MIXL={1:[6000,5000],2:[10000,6000],3:[6000,6000],4:[8000,8000],5:[6000,6000]};
 function pad(n){return String(n).padStart(2,'0')}
 function today(){var n=new Date();return n.getFullYear()+'-'+pad(n.getMonth()+1)+'-'+pad(n.getDate())}
@@ -18305,7 +18306,9 @@ function render(D){
  var rcvI=[];M.forEach(function(m,i){if(m.soy&&(m.on||m.plan))rcvI.push(i)});
  var wm=[],wU={},mU={};
  var WJ=WN.map(function(w){return J.filter(function(j){return j.wt===w.wk&&j.on&&j.prod}).map(function(j){return j.prod})});
- rcvI.forEach(function(mi){var T=toks(M[mi].prod);WN.forEach(function(w,wi){if(w.on&&(T.some(function(t){return WP[wi][t]})||WJ[wi].some(function(pp){return same(pp,M[mi].prod)}))){wm.push([wi,mi]);wU[wi]=1;mU[mi]=1}})});
+ /* 이름 비슷한 정도: 두 글자씩 끊어 겹치는 비율 (예: 뼈생각호두칼마디 ↔ 뼈를 생각한 호두 칼마디 두유 = 56%) */
+ var sim=function(a,b){a=norm(a).replace(/두유$/,'');b=norm(b).replace(/두유$/,'');if(a.length<2||b.length<2)return 0;var A={},n=0,i;for(i=0;i<a.length-1;i++){var k=a.substr(i,2);A[k]=(A[k]||0)+1}for(i=0;i<b.length-1;i++){var k2=b.substr(i,2);if(A[k2]){A[k2]--;n++}}return 2*n/((a.length-1)+(b.length-1))};
+ rcvI.forEach(function(mi){var T=toks(M[mi].prod);WN.forEach(function(w,wi){if(w.on&&(T.some(function(t){return WP[wi][t]})||WJ[wi].some(function(pp){return same(pp,M[mi].prod)||sim(pp,M[mi].prod)>=0.45}))){wm.push([wi,mi]);wU[wi]=1;mU[mi]=1}})});
  var wF=[],mF=rcvI.filter(function(i){return !mU[i]});WN.forEach(function(w,i){if(w.on&&!wU[i])wF.push(i)});
  if(wF.length===1&&mF.length===1){wm.push([wF[0],mF[0]]);wU[wF[0]]=1;mU[mF[0]]=1}
  /* 빈쿠커 → WT 선도 그 WT가 보내는 배합 호기 색으로 (한 호기로만 갈 때) */
@@ -18318,6 +18321,9 @@ function render(D){
  WN.forEach(function(w,i){var y=Y.w[i]+NH/2;if(!wU[i])links+=w.run?link('M'+gapL+' '+y+' H'+busX,SOY,'flow',null)+vlv(busX-18,y,true,SOY):link('M'+gapL+' '+y+' H'+(busX-10),SOY,w.on?'on':'',null)+vlv(busX-18,y,false)});
  var hdrRun=WN.some(function(w,i){return !wU[i]&&w.run});
  links+='<path d="M'+busX+' '+(TOP+8)+' V'+(TOP+RH*6-20)+'" class="fm-base"/>';
+ /* 공용 배관도 흐르게: 짝 없이 가동 중인 WT ↔ 받는 배합 호기 사이 세로 구간 */
+ if(hdrRun){var ys2=[];WN.forEach(function(w,i){if(!wU[i]&&w.run)ys2.push(Y.w[i]+NH/2)});M.forEach(function(m,i){if(!mU[i]&&m.soy&&(m.run||m.mv))ys2.push(Y.m[i]+NH/2)});
+  if(ys2.length>1){var y0=Math.min.apply(null,ys2),y9=Math.max.apply(null,ys2);links+=link('M'+busX+' '+y0+' V'+y9,SOY,'flow',null)}}
  M.forEach(function(m,i){var y=Y.m[i]+NH/2;if(mU[i])return;if(hdrRun&&m.soy&&(m.run||m.mv))links+=link('M'+busX+' '+y+' H'+gapR,SOY,'flow',null)+vlv(busX+18,y,true,SOY);else links+='<path d="M'+(busX+10)+' '+y+' H'+gapR+'" class="fm-base"/>'+vlv(busX+18,y,false)});
  wm.forEach(function(q,k){var w=WN[q[0]],fl=w.run||(w.on&&(M[q[1]].run||M[q[1]].mv)),x=laneX(k),dy=nP>1?5:0,ya=Y.w[q[0]]+NH/2-dy,yb=Y.m[q[1]]+NH/2+dy,d='M'+gapL+' '+ya+' H'+x+' V'+yb+' H'+gapR;
   var c=COL[M[q[1]].h]||SOY;links+='<path d="'+d+'" fill="none" stroke="#0E1714" stroke-width="9" stroke-linejoin="round"/>'+link(d,c,fl?'flow':'on',M[q[1]].h,x,(ya+yb)/2)+vlv(gapL+14,ya,true,c)+vlv(gapR-14,yb,true,c)});
@@ -18343,7 +18349,7 @@ function render(D){
  [['j',J],['w',WN],['m',M],['s',S],['p',P],['b',B]].forEach(function(a){var c=C(a[0]);a[1].forEach(function(n,i){var wd=a[0]==='w'?wm.filter(function(q){return q[0]===i}):[],col=wd.length===1?(COL[M[wd[0][1]].h]||SOY):a[0]==='j'?(function(){var wi=-1;WN.forEach(function(w,k){if(w.wk===n.wt)wi=k});var d=wm.filter(function(q){return q[0]===wi});return d.length===1?(COL[M[d[0][1]].h]||SOY):SOY})():a[0]==='w'?SOY:a[0]==='m'||a[0]==='s'?COL[n.h]:(used[n.h]?COL[used[n.h]]:'#94A3B8');nodes+=node(n,c.x,Y[a[0]][i],c.w,col,a[0])})});
  var head=COLS.map(function(c){return '<text x="'+(c.x+c.w/2)+'" y="'+(TOP-22)+'" text-anchor="middle" class="fm-h">'+c.t+'</text>'}).join('');
  var H=TOP+RH*6+6;
- var leg='<div class="fm-leg">'+[1,2,3,4,5].map(function(h){return '<span><i style="background:'+COL[h]+'"></i>'+h+'호기 라인</span>'}).join('')+'<span><i style="background:'+SOY+'"></i>분리유액 · 두유 원액</span><span class="fm-legn">점선이 흐르는 구간 = 지금 이송 · 생산 중</span></div>';
+ var leg='<div class="fm-leg">'+[1,2,3,4,5].map(function(h){return '<span><i style="background:'+COL[h]+'"></i>'+h+'호기 라인</span>'}).join('')+'<span><i style="background:'+SOY+'"></i>분리유액 공용 배관 (배합 호기 미확인)</span><span class="fm-legn">점선이 흐르는 구간 = 지금 이송 · 생산 중</span></div>';
  var clock=now!=null?pad(Math.floor(now/60))+':'+pad(now%60):D.slice(5).replace('-','/')+' 기록';
  return '<div class="fm"><div class="fm-top">'+leg+'<b class="fm-clock">'+clock+'</b></div><div class="fm-sc"><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="공정 흐름도">'+head+links+nodes+'</svg></div>'+
   '<div class="fm-note">각 팀 일지(착즙 작업일보 · 생산작업일보 · 멸균 업무일지 · 포장 생산작업일보)와 생산계획표로 그립니다 · 배관은 모든 호기에 연결되어 있고, 색 선은 그날 실제로 이어지는 호기(분리유액 = 두유 제품 · 멸균 → 충전 = 같은 제품) · 노드에 마우스를 올리면 자세히</div></div>'}
