@@ -17197,7 +17197,7 @@ App.navItems=function(){
   {id:'plan',t:'팀 포털',i:'⊞',items:[{k:'#/teams',t:'팀 포털 전체',i:'⊞'}].concat(TEAMS.map(function(t){return {k:'#/teams?t='+t.k,t:t.n+' 포털',i:t.ic,act:t.url?"yumOpenTeam('"+t.k+"')":"App.go('#/teams?t="+t.k+"')"}}))},
   {id:'dash',t:'대시보드',i:'▦',items:[{k:'#/overview',t:'대시보드 전체보기',i:'◉'},{k:'#/dash',t:'팀별 현황',i:'▦'},{k:'#/juice',t:'착즙 대시보드',i:'❖'},{k:'#/mix',t:'배합 대시보드',i:'⚗'},{k:'#/ster',t:'멸균 대시보드',i:'♨'},{k:'#/pack',t:'포장 대시보드',i:'▣'},{k:'#/notice',t:'인사이트',i:'📢'}]},
   /* 2026-11-10 메뉴 정리: 일지(작성 · 문서함 · 결재) / 자료(보고서 · 지연·정비 · 설비 매뉴얼) / 부서톡 / AI 비서 */
-  {id:'journal',t:'일지',i:'✎',items:[{k:'#/journals',t:'일지 작성',i:'✎'},{k:'#/docs',t:'문서관리 (일지함)',i:'▤'},{k:'#/approval',t:'전자결재',i:'✓',c:pend||undefined}]},
+  {id:'journal',t:'일지',i:'✎',items:[{k:'#/journals',t:'일지 작성',i:'✎'},{k:'#/docs',t:'문서관리 (일지함)',i:'▤'},{k:'#/approval',t:'전자결재 (잠정 중단)',i:'⏸'}]},
   {id:'data',t:'자료',i:'📋',items:[{k:'#/reports',t:'업무 보고서함',i:'📋'},{k:'#/ndash',t:'지연·정비 기록',i:'◈'},{k:'#/notebooklm',t:'설비 매뉴얼 AI (NotebookLM)',i:'✦',act:'NB.open()'}]},
   {id:'talk',t:'부서톡',i:'💬',items:[{k:'#/talk',t:'부서톡',i:'💬'}]},
   /* KPI · 인시 · 근태 (팀장 · 부문장 · 관리자만) */
@@ -19298,6 +19298,31 @@ var css=document.createElement('style');css.textContent=
  '@media (max-width:640px){.yjn-b span small{display:none}.yjn-d{min-width:0}#yjn-side{left:12px;width:auto}}'+
  '@media print{#yjn-nav,#yjn-side{display:none!important}html.yjn-on #nf-fields{display:block!important}}';
 document.head.appendChild(css);
+})();
+</script>
+
+<script>
+/* 전자결재 잠정 중단 (2026-11-11) — 「전자결재」로 들어오면 안내만 보여 줌 · 기존 결재 기록은 지우지 않음 */
+(function(){
+'use strict';
+if(window.__YUM_APPRSTOP__)return;window.__YUM_APPRSTOP__=1;
+var _r=App.render;
+App.render=function(){var p=(location.hash||'').split('?')[0];
+ if(p!=='#/approval')return _r.apply(this,arguments);
+ var u=null;try{u=Auth.user()}catch(e){}if(!u)return _r.apply(this,arguments);
+ this.baseRoute='#/approval';var M=document.getElementById('main');if(!M)return _r.apply(this,arguments);
+ M.innerHTML='<div class="ap-stop"><div class="ap-ic" aria-hidden="true">⏸</div><div class="ap-eye">ELECTRONIC APPROVAL · SUSPENDED</div><h1>전자결재 잠정 중단</h1>'+
+  '<p>전자결재 기능은 현재 <b>잠정 중단</b>되었습니다.<br>재개 일정은 별도로 공지하겠습니다.</p>'+
+  '<ul><li>일지 작성 · 실시간 저장 · 인쇄는 그대로 이용할 수 있습니다.</li><li>이전에 진행된 결재 기록은 지워지지 않고 문서관리(일지함)에서 그대로 볼 수 있습니다.</li></ul>'+
+  '<div class="ap-btns"><button class="btn btn-p" onclick="App.go(\'#/journals\')">일지 작성으로</button><button class="btn btn-o" onclick="App.go(\'#/docs\')">문서관리 (일지함)</button></div></div>';
+ try{this.buildSidebar();this.refreshChrome()}catch(e){}try{window.scrollTo(0,0)}catch(e){}};
+var st=document.createElement('style');st.textContent=
+ '.ap-stop{max-width:620px;margin:48px auto;padding:40px 36px 34px;text-align:center;background:#fff;border:1px solid var(--line,#dfe3ea);border-radius:22px;box-shadow:0 24px 50px -36px rgba(15,23,42,.5);animation:apin .5s cubic-bezier(.16,1,.3,1)}@keyframes apin{from{opacity:0;transform:translateY(12px)}}'+
+ '.ap-ic{width:68px;height:68px;margin:0 auto 14px;border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:30px;color:#fff;background:linear-gradient(135deg,#B45309,#F59E0B);box-shadow:0 12px 24px -12px rgba(180,83,9,.8)}'+
+ '.ap-eye{font-size:11px;letter-spacing:.18em;font-weight:800;color:#B45309}.ap-stop h1{margin:8px 0 12px;font-size:26px;font-weight:800;color:#0F172A}.ap-stop p{font-size:15px;line-height:1.75;color:#334155;margin:0 0 16px}.ap-stop p b{color:#B45309}'+
+ '.ap-stop ul{text-align:left;margin:0 auto 22px;padding:14px 18px 14px 34px;max-width:470px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:14px;font-size:13.5px;line-height:1.8;color:#57534E}'+
+ '.ap-btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}';
+document.head.appendChild(st);
 })();
 </script>
 
