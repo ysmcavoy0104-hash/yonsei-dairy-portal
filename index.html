@@ -19434,6 +19434,8 @@ if(window.__YUM_APPRSTOP__)return;window.__YUM_APPRSTOP__=1;
 var _r=App.render;
 App.render=function(){var p=(location.hash||'').split('?')[0];
  if(p!=='#/approval')return _r.apply(this,arguments);
+ /* 일지 「저장하고 닫기」 뒤에 가는 임시 · 저장 완료 문서함은 그대로 (전자결재 화면만 막음) */
+ var tb=((location.hash||'').match(/[?&]tab=([^&]*)/)||[])[1]||'';if(tb==='saved'||tb==='temp')return _r.apply(this,arguments);
  var u=null;try{u=Auth.user()}catch(e){}if(!u)return _r.apply(this,arguments);
  this.baseRoute='#/approval';var M=document.getElementById('main');if(!M)return _r.apply(this,arguments);
  M.innerHTML='<div class="ap-stop"><div class="ap-ic" aria-hidden="true">⏸</div><div class="ap-eye">ELECTRONIC APPROVAL · SUSPENDED</div><h1>전자결재 잠정 중단</h1>'+
