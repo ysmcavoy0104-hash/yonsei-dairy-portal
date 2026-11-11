@@ -8540,7 +8540,7 @@ function pdf(){var root=document.querySelector('#ster-dash .sd');if(!root){alert
   return parts.reduce(function(pr,el){return pr.then(function(){return window.html2canvas(el,{scale:2,backgroundColor:'#ffffff'}).then(function(cv){var w=PW-2*M,h=w*cv.height/cv.width;
    var natH=w*cv.height/cv.width,imgs=(natH<=PH-2*M)?[cv]:strips(cv);imgs.forEach(function(c2){var h=w*c2.height/c2.width;if(y+h>PH-M){doc.addPage();y=M}doc.addImage(c2.toDataURL('image/jpeg',0.92),'JPEG',(PW-w)/2,y,w,h);y+=h+4});y+=2})})},Promise.resolve()).then(function(){doc.save('멸균기_가동분석_'+(state.date||'')+'.pdf')})
  }).catch(function(e){alert('PDF 생성 실패: '+e.message)}).then(function(){if(tools)tools.style.visibility='';if(msg.parentNode)msg.parentNode.removeChild(msg)})}
-window.SterDash={build:build,pdf:pdf,ids:function(){return cfg().ster||DEF_IDS},write:function(){var f=window.SterIlji&&SterIlji.form();App.go('#/doc-new'+(f?'?form='+f.id:''))},sample:SAMPLE,view:view,paint:paint,setup:setup,
+window.SterDash={data:function(d){d=d||state.date;try{if(window.SterIlji){var B=SterIlji.byDate();if(B[d]){var raw=SterIlji.toRaw(B[d]);if(stdCache)raw.std=stdCache;return build(raw)}}}catch(e){}return state.cache[d]||null},build:build,pdf:pdf,ids:function(){return cfg().ster||DEF_IDS},write:function(){var f=window.SterIlji&&SterIlji.form();App.go('#/doc-new'+(f?'?form='+f.id:''))},sample:SAMPLE,view:view,paint:paint,setup:setup,
  pick:function(v){state.date=v;paint(false)},reload:function(f){state.cache={};state.dates=null;state.ndates=null;var b=document.getElementById('ster-dash');if(b)b.removeAttribute('data-r');paint(!!f)},
  relink:function(){var c=cfg();c.ster=null;try{DB.save()}catch(e){}state.dates=null;state.cache={};paint(true)},
  toggleAdmin:function(){var a=document.getElementById('sd-admin');if(!a)return;if(a.style.display==='none'){a.innerHTML=adminHtml();a.style.display=''}else a.style.display='none'}};
@@ -19819,6 +19819,249 @@ var st=document.createElement('style');st.textContent=
  '.dxm-m{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px;padding-top:9px;border-top:1px dashed #E4E8EF}.dxm-m span{display:flex;flex-direction:column;font-size:12px;font-weight:700;color:#0F172A;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dxm-m small{font-size:10.5px;font-weight:700;color:#94A3B8}.dxm-m .dx-r{color:#B91C1C}.dxm-m .dx-g{color:#047857}.dxm-m span:first-child:nth-last-child(3){grid-column:1/-1}'+
  '@media (max-width:760px){.dx-tabs{top:58px}.dxb-g{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}.dxm-v b{font-size:22px}}'+
  '@media print{.dx-tabs,.dxb{display:none!important}.dx-hide{display:block!important}.pd-row.dx-hide{display:grid!important}}';
+document.head.appendChild(st);
+})();
+</script>
+
+<script>
+/* 팀 대시보드 「컨트롤 룸」 (2026-11-11) — 착즙 · 배합 · 멸균 · 포장
+   데이터: 포털 일지(배합팀 포털과 같은 서버 자료) · 멸균팀 포털(ster-proxy 경유 · 기존 멸균 대시보드가 만든 호기별 모델) · 포장팀 포털 공개 KPI · 정지 자료
+   구성: 머리(실시간 시계 · 날짜 · 자료 연결 상태) → 핵심 숫자(14일 추이 · 7일 평균 대비) → 팀별 대표 그림 → 14일 추이 · 알림 · 원인 TOP
+   기존 화면은 「상세 분석」 버튼으로 그대로 볼 수 있음 */
+(function(){
+'use strict';
+if(window.__YUM_TEAMCC__)return;window.__YUM_TEAMCC__=1;
+var TM={
+ juice:{r:'#/juice',name:'착즙',en:'EXTRACTION CONTROL ROOM',team:'착즙팀',div:'가공2팀',a:'#F59E0B',b:'#FB7185'},
+ mix:{r:'#/mix',name:'배합',en:'BLENDING CONTROL ROOM',team:'배합팀',div:'가공2팀',a:'#A78BFA',b:'#60A5FA'},
+ ster:{r:'#/ster',name:'멸균',en:'STERILIZATION CONTROL ROOM',team:'멸균팀',div:'가공1팀',a:'#2DD4BF',b:'#38BDF8'},
+ pack:{r:'#/pack',name:'포장',en:'PACKAGING CONTROL ROOM',team:'포장팀',div:'포장팀',a:'#60A5FA',b:'#22D3EE'}};
+var HC={1:'#60A5FA',2:'#F472B6',3:'#FACC15',4:'#5EEAD4',5:'#FB923C',6:'#A78BFA',A:'#60A5FA',B:'#F472B6',C:'#FACC15',D:'#5EEAD4',E:'#FB923C',F:'#A78BFA'};
+var WD='일월화수목금토';
+function team(){var r=(location.hash||'').split('?')[0];for(var k in TM)if(TM[k].r===r)return k;return null}
+function $(s,r){return (r||document).querySelector(s)}
+function $$(s,r){return [].slice.call((r||document).querySelectorAll(s))}
+function E(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function pad(n){return ('0'+n).slice(-2)}
+function kst(off){var t=new Date(Date.now()+9*3600e3+(off||0)*864e5);return t.toISOString().slice(0,10)}
+function addD(d,n){var t=new Date(d+'T00:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10)}
+function md(d){return (+d.slice(5,7))+'/'+(+d.slice(8))}
+function wd(d){return WD[new Date(d+'T00:00:00Z').getUTCDay()]}
+function num(v){var m=String(v==null?'':v).replace(/,/g,'').match(/-?\d+(\.\d+)?/);return m?parseFloat(m[0]):null}
+function fm(v,d){return v==null||isNaN(v)?'—':(+v).toLocaleString('ko-KR',{maximumFractionDigits:d==null?0:d,minimumFractionDigits:0})}
+function sum(a){return a.reduce(function(s,x){return s+(+x||0)},0)}
+function hhmm(m){m=Math.round(m);return pad(Math.floor(m/60)%24)+':'+pad(m%60)}
+var ST={};function S(t){return ST[t]=ST[t]||{d:kst(0),det:false}}
+try{var sv=JSON.parse(sessionStorage.getItem('yum_cc')||'{}');Object.keys(sv).forEach(function(k){ST[k]={d:kst(0),det:!!sv[k].det}})}catch(e){}
+function saveST(){try{var o={};Object.keys(ST).forEach(function(k){o[k]={det:ST[k].det}});sessionStorage.setItem('yum_cc',JSON.stringify(o))}catch(e){}}
+/* ───── 자료 ───── */
+function core(){return window.YumReportCore}
+function NF(){return window.__YUM_NOTION_FINAL__||{delay:[],maint:[]}}
+var AC={};
+function range(D){var k='R'+D+'|'+sig();if(AC[k])return AC[k];var C=core();if(!C)return null;var P={kind:'weekly',key:'cc',label:'',from:addD(D,-13),to:D,pFrom:addD(D,-27),pTo:addD(D,-14)};
+ try{AC={};AC[k]=C.analyze(DB.data,NF(),P,{});return AC[k]}catch(e){console.warn('[컨트롤 룸]',e);return null}}
+function day(D){var k='D'+D+'|'+sig();if(AC[k])return AC[k];var C=core();if(!C)return null;try{AC[k]=C.analyze(DB.data,NF(),C.period('daily',D),{});return AC[k]}catch(e){return null}}
+function sig(){var d=(DB.data&&DB.data.docs)||[],mx='';for(var i=0;i<d.length;i++){var u=d[i]&&d[i].updatedAt;if(u&&u>mx)mx=u}return d.length+':'+mx+':'+(((DB.data&&DB.data.opLogs)||[]).length)}
+function form(code){return ((DB.data&&DB.data.forms)||[]).filter(function(f){return f&&f.code===code})[0]||null}
+function gday(d){var g=(d&&d.data&&d.data.grid)||{};if(g.dY&&g.dM&&g.dD)return g.dY+'-'+pad(+g.dM)+'-'+pad(+g.dD);return String((d&&d.data&&d.data.pdate)||(d&&d.updatedAt)||'').slice(0,10)}
+function docsOf(code,D){var f=form(code);if(!f)return [];return ((DB.data&&DB.data.docs)||[]).filter(function(d){return d&&d.formId===f.id&&!d.deleted&&d.status!=='deleted'&&gday(d)===D}).sort(function(a,b){return String(b.updatedAt||'').localeCompare(String(a.updatedAt||''))})}
+function G(d,k){var v=((d&&d.data&&d.data.grid)||{})[k];return v==null?'':String(v).trim()}
+function tmin(s){var m=/^(\d{1,2}):?(\d{2})$/.exec(String(s||'').trim());return m?(+m[1])*60+(+m[2]):null}
+function delaysOf(R,t,D){return ((R&&R.delays)||[]).filter(function(x){return (x.team===t.team||(!x.team&&x.div===t.div))&&(!D||x.d===D)})}
+/* 포장팀 포털 KPI (공개 · 하루 한 번 갱신) */
+var PK=null,PKB=false;
+function packKpi(){if(PK||PKB)return PK;PKB=true;var base='https://jaehyun3163-blip.github.io/yonsei/api/';
+ try{var c=JSON.parse(sessionStorage.getItem('yum_packkpi')||'null');if(c&&c.d&&c.d.k){PK=c.d}}catch(e){}
+ (async function(){try{var k=await (await fetch(base+'kpi/latest.json',{cache:'no-store'})).json();var st=[];try{var y=String(k.month||'').slice(0,4);var sd=await (await fetch(base+'data/stops/'+y+'.json',{cache:'no-store'})).json();st=(sd.rows||[]).filter(function(r){return String(r.date||'').slice(0,7)===k.month})}catch(e){}
+  var agg={};st.forEach(function(r){var key=(r.equipment||'기타')+(r.problem?' · '+r.problem:(r.location?' · '+r.location:''));var a=agg[key]=agg[key]||{k:key,min:0,n:0};a.min+=(+r.min||0);a.n++});
+  PK={k:k,top:Object.keys(agg).map(function(x){return agg[x]}).sort(function(a,b){return b.min-a.min}).slice(0,6),stopN:st.length};try{sessionStorage.setItem('yum_packkpi',JSON.stringify({at:Date.now(),d:PK}))}catch(e){}paint(true)}catch(e){PK=PK||{err:String(e&&e.message||e)}}finally{PKB=false}})();return PK}
+/* 멸균: 기존 멸균 대시보드가 만든 호기별 모델 */
+function sterModel(D){try{if(window.SterDash&&SterDash.data){var x=SterDash.data(D);if(x&&x.units)return x}}catch(e){}return null}
+function sterFeedOk(D){try{var c=window.yumSterFeed&&yumSterFeed(D);return c?(c.ok?'ok':'err'):'wait'}catch(e){return 'wait'}}
+/* ───── 그림 조각 ───── */
+function spark(vals,col,w,h){w=w||120;h=h||34;var v=vals.map(function(x){return x==null?null:+x}),pts=v.map(function(x,i){return x==null?null:[i,x]}).filter(Boolean);if(pts.length<2)return '<div class="cc-sp0"></div>';
+ var mx=Math.max.apply(null,pts.map(function(p){return p[1]})),mn=Math.min.apply(null,pts.map(function(p){return p[1]}).concat([0]));if(mx===mn)mx=mn+1;
+ var X=function(i){return 2+i/(v.length-1)*(w-4)},Y=function(x){return h-3-(x-mn)/(mx-mn)*(h-8)},d=pts.map(function(p,k){return (k?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)}).join(' '),lp=pts[pts.length-1],id='g'+Math.random().toString(36).slice(2,8);
+ return '<svg class="cc-sp" viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none"><defs><linearGradient id="'+id+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="'+col+'" stop-opacity=".35"/><stop offset="1" stop-color="'+col+'" stop-opacity="0"/></linearGradient></defs><path d="'+d+' L'+X(lp[0])+' '+h+' L'+X(pts[0][0])+' '+h+' Z" fill="url(#'+id+')"/><path class="cc-ln" d="'+d+'" fill="none" stroke="'+col+'" stroke-width="1.8" stroke-linejoin="round" pathLength="1"/><circle cx="'+X(lp[0])+'" cy="'+Y(lp[1])+'" r="2.6" fill="'+col+'"/></svg>'}
+function ring(p,col,size,label,sub){size=size||88;var r=size/2-7,C=2*Math.PI*r,v=Math.max(0,Math.min(1,p||0));
+ return '<svg class="cc-ring" width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'"><circle cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="7"/><circle class="cc-arc" cx="'+size/2+'" cy="'+size/2+'" r="'+r+'" fill="none" stroke="'+col+'" stroke-width="7" stroke-linecap="round" stroke-dasharray="'+C.toFixed(1)+'" stroke-dashoffset="'+C.toFixed(1)+'" data-off="'+(C*(1-v)).toFixed(1)+'" transform="rotate(-90 '+size/2+' '+size/2+')" style="filter:drop-shadow(0 0 6px '+col+')"/><text x="50%" y="'+(sub?'47%':'54%')+'" text-anchor="middle" dominant-baseline="middle" class="cc-rt">'+E(label)+'</text>'+(sub?'<text x="50%" y="68%" text-anchor="middle" class="cc-rs">'+E(sub)+'</text>':'')+'</svg>'}
+function delta(cur,avg,lowerBetter){if(cur==null||!avg)return '';var d=Math.round((cur-avg)/avg*100);if(!isFinite(d)||d===0)return '<span class="cc-dl n">7일 평균과 같음</span>';var good=lowerBetter?d<0:d>0;return '<span class="cc-dl '+(good?'g':'r')+'">'+(d>0?'▲ ':'▼ ')+Math.abs(d)+'%<i> vs 7일 평균</i></span>'}
+function avg7(arr){var a=arr.slice(-8,-1).filter(function(x){return x!=null&&x!==0});return a.length?sum(a)/a.length:null}
+function kpi(k,t){return '<div class="cc-k" style="--kc:'+(k.c||t.a)+'"><div class="cc-kl">'+E(k.l)+'</div><div class="cc-kv"><b data-n="'+(k.v==null?'':k.v)+'" data-d="'+(k.d||0)+'">'+(k.v==null?'—':'0')+'</b><small>'+E(k.u||'')+'</small></div>'+
+ '<div class="cc-ks">'+(k.s||'')+(k.tr?delta(k.v,avg7(k.tr),k.lb):'')+'</div>'+(k.tr?spark(k.tr,k.c||t.a):'<div class="cc-sp0"></div>')+'</div>'}
+function card(title,sub,body,cls){return '<section class="cc-c '+(cls||'')+'"><header><b>'+title+'</b>'+(sub?'<span>'+sub+'</span>':'')+'</header>'+body+'</section>'}
+function bars(rows,col,unit){if(!rows.length)return '<div class="cc-empty">기록 없음</div>';var mx=Math.max.apply(null,rows.map(function(r){return r[1]}).concat([1]));
+ return '<div class="cc-bars">'+rows.map(function(r,i){return '<div class="cc-br"><span class="l" title="'+E(r[0])+'"><i>'+(i+1)+'</i>'+E(r[0])+'</span><span class="t"><i style="--w:'+(r[1]/mx*100).toFixed(1)+'%;--c:'+(r[3]||col)+'"></i></span><span class="v">'+E(r[2]||fm(r[1])+(unit||''))+'</span></div>'}).join('')+'</div>'}
+function trend(labels,ser,unit,col,hi){if(!ser.some(function(v){return +v>0}))return '<div class="cc-empty">최근 14일 기록 없음</div>';var W=640,H=170,L=38,B=22,T=14,n=labels.length,mx=Math.max.apply(null,ser.map(function(v){return +v||0}).concat([1]))*1.15,bw=(W-L-6)/n,g='';
+ for(var k=0;k<=3;k++){var y=T+(H-T-B)*(1-k/3);g+='<line x1="'+L+'" x2="'+W+'" y1="'+y+'" y2="'+y+'" class="cc-gl"/><text x="'+(L-6)+'" y="'+(y+4)+'" text-anchor="end" class="cc-ax">'+fm(mx*k/3,mx<6?1:0)+'</text>'}
+ labels.forEach(function(lb,i){var v=+ser[i]||0,x=L+i*bw+bw*.18,w=bw*.64,h=(H-T-B)*v/mx,y=H-B-h;g+='<g><title>'+E(lb)+' · '+fm(v,1)+(unit||'')+'</title><rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+Math.max(0,h)+'" rx="4" fill="'+(i===hi?col:'rgba(255,255,255,.16)')+'" class="cc-tb" style="--d:'+(i*35)+'ms"/>'+(i===hi&&v?'<text x="'+(x+w/2)+'" y="'+(y-6)+'" text-anchor="middle" class="cc-tv">'+fm(v,v%1?1:0)+'</text>':'')+'</g>';if(i%2===0||i===n-1)g+='<text x="'+(x+w/2)+'" y="'+(H-6)+'" text-anchor="middle" class="cc-ax'+(i===hi?' hi':'')+'">'+E(lb)+'</text>'});
+ return '<svg class="cc-tr" viewBox="0 0 '+W+' '+H+'" width="100%">'+g+'</svg>'}
+function alerts(list){if(!list.length)return '<div class="cc-ok">✓ 확인할 항목이 없습니다</div>';return '<div class="cc-al">'+list.slice(0,7).map(function(a){return '<div class="cc-a '+a[0]+'"><i></i><div><b>'+a[1]+'</b><span>'+a[2]+'</span></div></div>'}).join('')+'</div>'}
+/* ───── 팀별 ───── */
+function days14(D){var a=[];for(var i=13;i>=0;i--)a.push(addD(D,-i));return a}
+function common(t,D,R,Dy){var ds=days14(D),dl=ds.map(function(d){return Math.round(sum(delaysOf(R,t,d).map(function(x){return x.min}))/6)/10});
+ var devs=((Dy&&Dy.J&&Dy.J.devs)||[]).filter(function(x){return x.team===t.team}),notes=((Dy&&Dy.J&&Dy.J.notes)||[]).filter(function(x){return x.team===t.team}),dToday=delaysOf(R,t,D);
+ var reasons={};delaysOf(R,t).forEach(function(x){var k=x.reason||'(사유 없음)';reasons[k]=(reasons[k]||0)+(+x.min||0)});
+ var rtop=Object.keys(reasons).map(function(k){return [k,reasons[k],fm(reasons[k]/60,1)+'h']}).sort(function(a,b){return b[1]-a[1]}).slice(0,6);
+ var al=[];dToday.filter(function(x){return (+x.min||0)>=60}).sort(function(a,b){return b.min-a.min}).slice(0,3).forEach(function(x){al.push(['r',(x.hogi||'')+' '+fm(x.min)+'분 지연',E((x.reason||'')+(x.product?' · '+x.product:''))])});
+ var byForm={};devs.forEach(function(x){byForm[x.form]=(byForm[x.form]||0)+1});Object.keys(byForm).sort(function(a,b){return byForm[b]-byForm[a]}).slice(0,3).forEach(function(f){al.push(['a','기준 이탈 '+byForm[f]+'건',E(f)])});
+ notes.slice(0,2).forEach(function(n){al.push(['i',E(n.form),E(n.text)])});
+ return {ds:ds,labels:ds.map(md),dl:dl,devs:devs,notes:notes,dToday:dToday,rtop:rtop,al:al}}
+/* 착즙 */
+function viewJuice(t,D,R,Dy,cm){var PR=(R&&R.PR)||{},J=PR.juice||{},x=J[D]||{},ser=function(k){return cm.ds.map(function(d){return (J[d]||{})[k]==null?null:J[d][k]})};
+ var K=[{l:'대두 사용량',v:x.use,u:'kg',tr:ser('use'),c:'#F59E0B'},{l:'분리액 생산',v:x.prodH,u:'시간',tr:ser('prodH'),c:'#34D399',s:x.stopH?'중단 '+fm(x.stopH)+'시간 · ':''},{l:'원액 생산',v:x.raw,u:'kg',tr:ser('raw'),c:'#60A5FA'},{l:'원액 T.S',v:x.ts,u:'',d:2,tr:ser('ts'),c:'#A78BFA',s:'기준 10±0.2 · '},{l:'부산물률',v:x.rate,u:'%',d:1,tr:ser('rate'),c:'#FB7185',lb:1},{l:'기준 이탈',v:cm.devs.length,u:'건',c:cm.devs.length?'#F87171':'#34D399',lb:1}];
+ /* 빈쿠커 24시간 */
+ var d9=docsOf('FRM-009',D)[0],CL={a:['#64748B','메인드럼 히터'],b:['#34D399','분리액 생산'],c:['#F87171','배합요청 중단'],d:['#94A3B8','생산 종료'],e:['#22D3EE','생산 재시작'],f:['#A78BFA','호기 변경'],g:['#FBBF24','탈피실 자동'],h:['#F87171','일시 중단'],j:['#FB7185','멸균요청 중단']};
+ var heat='<div class="cc-hm"><div class="cc-hmh"><span></span>'+Array.from({length:25},function(_,i){return '<i>'+(i%3===0?i:'')+'</i>'}).join('')+'</div>';
+ var used={};for(var n=1;n<=4;n++){var nm=d9?(G(d9,'bk'+n)?'빈쿠커 '+G(d9,'bk'+n):'빈쿠커 #'+n):'빈쿠커 #'+n,row='',on=0;
+  for(var h=0;h<=24;h++){var v=d9?G(d9,'ax'+n+'_'+h).toLowerCase().replace(/[^a-j]/g,'').slice(0,1):'';if(v){on++;used[v]=1}row+='<i style="--c:'+(v&&CL[v]?CL[v][0]:'rgba(255,255,255,.05)')+';--d:'+(h*18+n*40)+'ms" title="'+E(nm+' '+h+'시 '+(v&&CL[v]?CL[v][1]:''))+'">'+(v?v:'')+'</i>'}
+  heat+='<div class="cc-hmr"><span><b>'+E(nm)+'</b><small>'+on+'시간 · '+(d9&&G(d9,'nm'+n)?E(G(d9,'nm'+n)):'')+'</small></span>'+row+'</div>'}
+ heat+='</div><div class="cc-lg">'+Object.keys(CL).filter(function(k){return used[k]}).map(function(k){return '<span><i style="background:'+CL[k][0]+'"></i>'+k+' '+CL[k][1]+'</span>'}).join('')+'</div>';
+ /* 공정 흐름 */
+ var st=function(ic,l,v,u,c,s){return '<div class="cc-fs" style="--c:'+c+'"><em>'+ic+'</em><small>'+l+'</small><b data-n="'+(v==null?'':v)+'">'+(v==null?'—':'0')+'</b><span>'+u+'</span>'+(s?'<p>'+s+'</p>':'')+'</div>'};
+ var flow='<div class="cc-flow">'+st('🫘','대두 투입',x.use,'kg','#F59E0B')+'<div class="cc-fa"><i></i></div>'+st('♨','분리액 생산',x.prodH,'시간','#34D399',x.stopH?'중단 '+fm(x.stopH)+'h':'')+'<div class="cc-fa"><i></i></div>'+st('🥛','원액',x.raw,'kg','#60A5FA',x.ts!=null?'T.S '+fm(x.ts,2):'')+'<div class="cc-fa"><i></i></div>'+st('🍬','설탕 용해',x.sug,'kg','#A78BFA')+'</div>'+
+  '<div class="cc-by"><span>♻ 부산물</span><b>'+fm(x.by)+' kg</b><i style="--w:'+Math.min(100,(x.rate||0)).toFixed(0)+'%"></i><em>'+(x.rate!=null?fm(x.rate,1)+'% (대두 대비)':'—')+'</em></div>';
+ return {K:K,sig:card('공정 흐름','대두 → 분리액 → 원액 · 오늘',flow,'w5')+card('빈쿠커 24시간','착즙공정일보 작업 현황 칸 기준',heat,'w7'),tr:{l:'대두 사용량 (kg)',v:ser('use'),u:'kg'}}}
+/* 배합 */
+function mixTanks(D){var L=docsOf('FRM-012',D),T={};
+ L.forEach(function(d){var hv=G(d,'hogi').match(/(\d)/),h=hv?+hv[1]:null;if(!h){for(var k=1;k<=5;k++){for(var rr=3;rr<=6;rr++){var q=G(d,'g2_'+rr+'_'+(2*k));if(q&&!/^[OoXx0○·.\-\s]+$/.test(q)){h=k;break}}if(h)break}}if(!h||T[h])return;
+  var pr=[];for(var r3=3;r3<=6;r3++){var p=G(d,'g2_'+r3+'_'+(2*h));if(p&&!/^[OoXx0○·.\-\s]+$/.test(p))pr.push(p)}
+  var B=[];for(var r=10;r<=24;r++){var a=tmin(G(d,'g2_'+r+'_1')),x=tmin(G(d,'g2_'+r+'_11')),m=tmin(G(d,'g2_'+r+'_13')),bx=num(G(d,'g2_'+r+'_8'));if(a==null&&x==null&&m==null)continue;B.push({a:a,x:x,m:m,brix:bx,n:B.length+1})}
+  T[h]={h:h,prod:pr.join(' · '),B:B}});return T}
+var CAP={1:6000,2:10000,3:6000,4:8000,5:6000};
+function viewMix(t,D,R,Dy,cm){var PR=(R&&R.PR)||{},MX=PR.mix||{},x=MX[D]||{},ser=function(k){return cm.ds.map(function(d){return (MX[d]||{})[k]==null?null:MX[d][k]})},T=mixTanks(D);
+ var moved=0,totB=0;Object.keys(T).forEach(function(h){totB+=T[h].B.length;moved+=T[h].B.filter(function(b){return b.m!=null}).length});
+ var K=[{l:'배합 배치',v:totB||x.nb,u:'B',tr:ser('nb'),c:'#A78BFA',s:Object.keys(T).length?Object.keys(T).length+'개 호기 · ':''},{l:'이송 완료',v:moved,u:'/ '+totB+'B',c:'#60A5FA'},{l:'호기별 생산량',v:x.q,u:'Batch',d:1,tr:ser('q'),c:'#22D3EE'},{l:'평균 최종 Brix',v:x.b1,u:'',d:2,tr:ser('b1'),c:'#FBBF24'},{l:'점검 X',v:x.x,u:'건',c:x.x?'#F87171':'#34D399',lb:1},{l:'기준 이탈',v:cm.devs.length,u:'건',c:cm.devs.length?'#F87171':'#34D399',lb:1}];
+ var mxB=Math.max.apply(null,Object.keys(T).map(function(h){return T[h].B.length}).concat([1]));
+ var tanks='<div class="cc-tanks">'+[1,2,3,4,5].map(function(h,i){var o=T[h],n=o?o.B.length:0,mv=o?o.B.filter(function(b){return b.m!=null}).length:0,lv=n?Math.max(.12,n/mxB):0,c=HC[h],now=o&&o.B.some(function(b){return b.m==null});
+  var br=o?o.B.map(function(b){return b.brix}).filter(function(v){return v!=null}):[],ab=br.length?sum(br)/br.length:null;
+  return '<div class="cc-tank'+(now?' on':'')+'" style="--c:'+c+';--lv:'+(lv*100).toFixed(0)+'%;--d:'+(i*120)+'ms"><div class="cc-tk"><div class="cc-liq"'+(n?'':' data-e')+'><i></i><i></i></div><span class="cc-tkn">'+(n?n+'<small>B</small>':'—')+'</span></div><b>배합 '+h+'호기</b><small>'+fm(CAP[h])+'TK'+(now?' · <em>진행 중</em>':n?' · 완료':' · 대기')+'</small><p title="'+E(o?o.prod:'')+'">'+(o&&o.prod?E(o.prod):'<span class="mu">품목 없음</span>')+'</p><div class="cc-tkm"><span>이송 <b>'+mv+'/'+n+'</b></span><span>Brix <b>'+(ab!=null?fm(ab,2):'—')+'</b></span></div></div>'}).join('')+'</div>';
+ /* 배치 타임라인 */
+ var all=[];Object.keys(T).forEach(function(h){T[h].B.forEach(function(b){all.push(b.a,b.x,b.m)})});all=all.filter(function(v){return v!=null});
+ var t0=all.length?Math.floor(Math.min.apply(null,all)/60)*60:360,t1=all.length?Math.ceil((Math.max.apply(null,all)+60)/60)*60:1440;if(t1-t0<240)t1=t0+240;
+ var X=function(v){return (v-t0)/(t1-t0)*100};
+ var gt='<div class="cc-gt">'+Object.keys(T).sort().map(function(h){return '<div class="cc-gr"><span style="--c:'+HC[h]+'">'+h+'호기</span><div class="cc-gtr">'+T[h].B.map(function(b,k){var s='';if(b.a!=null&&b.x!=null)s+='<i class="mx" style="left:'+X(b.a)+'%;width:'+Math.max(.6,X(b.x)-X(b.a))+'%;--c:'+HC[h]+';--d:'+(k*60)+'ms" title="'+b.n+'B 혼합 '+hhmm(b.a)+'~'+hhmm(b.x)+'"></i>';if(b.x!=null&&b.m!=null)s+='<i class="wt" style="left:'+X(b.x)+'%;width:'+Math.max(.6,X(b.m)-X(b.x))+'%" title="'+b.n+'B 이송 대기 '+hhmm(b.x)+'~'+hhmm(b.m)+'"></i>';if(b.m!=null)s+='<i class="mv" style="left:'+X(b.m)+'%" title="'+b.n+'B 이송 '+hhmm(b.m)+'"></i>';return s}).join('')+'</div></div>'}).join('')+
+  '<div class="cc-gax">'+(function(){var s='';for(var m=t0;m<=t1;m+=120)s+='<i style="left:'+X(m)+'%">'+hhmm(m)+'</i>';return s})()+'</div></div><div class="cc-lg"><span><i style="background:#A78BFA"></i>혼합</span><span><i style="background:rgba(251,191,36,.5)"></i>이송 대기</span><span><i style="background:#fff;border-radius:50%"></i>이송</span></div>';
+ return {K:K,sig:card('배합 탱크','호기별 배치 · 이송 · 품목',tanks,'w12')+(Object.keys(T).length?card('배치 타임라인','유입 → 혼합 완료 → 이송',gt,'w12'):''),tr:{l:'배합 배치 (B)',v:ser('nb'),u:'B'}}}
+/* 멸균 */
+var SC={'생산':'#38BDF8','멸균':'#34D399','멸균 후 대기':'#FBBF24','정지':'#F87171','중간 CIP':'#A78BFA','중간 CIP 후 대기':'#F472B6','멸균깨짐 후 CIP':'#B45309','CIP 전 대기':'#FB7185','CIP':'#22C55E','추가 CIP':'#64748B'};
+function viewSter(t,D,R,Dy,cm){var d=sterModel(D),K=[],sig='';
+ if(d){var T=d.T||{},on=d.on||[];
+  K=[{l:'총 생산량',v:T.q,u:'L',c:'#38BDF8'},{l:'CAPA 가동율 (순생산)',v:T.netR!=null?T.netR*100:null,u:'%',d:1,c:'#2DD4BF'},{l:'순생산 비율',v:T.ratio!=null?T.ratio*100:null,u:'%',d:1,c:'#A78BFA'},{l:'스케쥴 이상',v:(T.sBad||0)+(T.eBad||0),u:'건',c:(T.sBad||T.eBad)?'#F87171':'#34D399',lb:1,s:'시작 '+(T.sBad||0)+' · 종료 '+(T.eBad||0)+' · '},{l:'멸균 후 대기',v:T.wAvg,u:'분',d:0,c:'#FBBF24',lb:1,s:'최대 '+fm(T.wMax)+'분'+(T.wMaxH?' ('+E(T.wMaxH)+')':'')+' · '},{l:'정지 합계',v:T.stop,u:'분',c:'#F87171',lb:1}];
+  var x0=360,x1=1650,X=function(v){return (Math.max(x0,Math.min(x1,v))-x0)/(x1-x0)*100},nowM=(function(){var n=new Date(Date.now()+9*3600e3);return n.getUTCHours()*60+n.getUTCMinutes()})(),showNow=D===kst(0)&&nowM>=x0&&nowM<=x1;
+  var g='<div class="cc-gant">'+(d.units||[]).map(function(u,i){var r=u.netR!=null?u.netR:null;
+   return '<div class="cc-gu"><div class="cc-gh"><b>'+E(u.h)+'</b><small>'+E(u.eq||u.item||'')+'</small></div><div class="cc-gb">'+(u.segs||[]).map(function(x,k){var a=X(x.s),b=X(x.e);if(b<=a)return '';return '<i style="left:'+a+'%;width:'+(b-a)+'%;--c:'+(SC[x.g]||'#64748B')+';--d:'+(i*90+k*25)+'ms" title="'+E(u.h+' '+x.g+' '+x.a+'~'+x.b+' ('+x.m+'분)'+(x.why?' · '+x.why:''))+'"></i>'}).join('')+'</div>'+
+    '<div class="cc-gx">'+ring(r||0,r==null?'#475569':r>=.9?'#34D399':r>=.7?'#FBBF24':'#F87171',54,r==null?'—':Math.round(r*100)+'%')+'<div><span class="cc-j '+(u.sj==='정상'?'g':u.sj?'r':'n')+'">멸균 '+(u.sj||'—')+'</span><span class="cc-j '+(u.sBad||u.eBad?'r':u.on?'g':'n')+'">스케쥴 '+(u.on?(u.sBad||u.eBad?'이상':'정상'):'—')+'</span><em>'+fm(u.q)+' L</em></div></div></div>'}).join('')+
+   '<div class="cc-gax2">'+(function(){var s='';for(var m=360;m<=1620;m+=120)s+='<i style="left:'+X(m)+'%">'+hhmm(m)+'</i>';return s})()+'</div>'+(showNow?'<div class="cc-now" style="left:calc(var(--gl) + (100% - var(--gl) - var(--gr)) * '+(X(nowM)/100).toFixed(4)+')"><span>지금 '+hhmm(nowM)+'</span></div>':'')+'</div>'+
+   '<div class="cc-lg">'+Object.keys(SC).filter(function(k){return (d.units||[]).some(function(u){return (u.segs||[]).some(function(x){return x.g===k})})}).map(function(k){return '<span><i style="background:'+SC[k]+'"></i>'+k+'</span>'}).join('')+'</div>';
+  sig=card('멸균기 가동 타임라인','06:00 ~ 익일 03:30 · 오른쪽 = CAPA 가동율(순생산) · 판정',g,'w12');
+  var par=(T.par||[]).slice(0,6).map(function(p){return [p.k,p.m,fm(p.m)+'분 · 누적 '+Math.round(p.cum*100)+'%']});cm.rtop=par.length?par:cm.rtop;cm.rtt='정지 원인 파레토';
+ }else{var J=(Dy&&Dy.J&&Dy.J.ster)||{};var ks=Object.keys(J);K=[{l:'멸균 적산량',v:sum(ks.map(function(k){return J[k].qty})),u:'',c:'#38BDF8'},{l:'가동 시간',v:sum(ks.map(function(k){return J[k].run>24?0:J[k].run})),u:'h',d:1,c:'#2DD4BF'},{l:'배치',v:sum(ks.map(function(k){return J[k].batch})),u:'',c:'#A78BFA'},{l:'정지 기록',v:((Dy&&Dy.J&&Dy.J.stops)||[]).length,u:'건',c:'#F87171',lb:1},{l:'기준 이탈',v:cm.devs.length,u:'건',c:cm.devs.length?'#F87171':'#34D399',lb:1}];
+  sig=card('멸균기 상태','멸균 대시보드 자료를 불러오는 중 · 우선 포털 멸균 업무일지 기준','<div class="cc-mg">'+ks.map(function(k,i){var o=J[k];return '<div class="cc-mc" style="--c:'+HC[i+1]+'"><b>'+E(k)+'</b><span>'+fm(o.qty)+'</span><small>적산량 · 배치 '+fm(o.batch)+'</small></div>'}).join('')+(ks.length?'':'<div class="cc-empty">이 날 멸균 업무일지가 없습니다</div>')+'</div>','w12')}
+ return {K:K,sig:sig,tr:{l:'지연 시간 (h)',v:cm.dl,u:'h'}}}
+/* 포장 */
+function viewPack(t,D,R,Dy,cm){var PR=(R&&R.PR)||{},PKd=PR.pack||{},x=PKd[D]||{},ser=function(k){return cm.ds.map(function(d){return (PKd[d]||{})[k]==null?null:PKd[d][k]})},P=packKpi(),M={};
+ ((P&&P.k&&P.k.machines)||[]).forEach(function(m){M[m.machine]=m});
+ var K=[{l:'포장 생산량',v:x.ea,u:'개',tr:ser('ea'),c:'#60A5FA',s:x.box!=null?fm(x.box)+' Box · ':''},{l:'B호기 가동률',v:x.rate,u:'%',d:1,tr:ser('rate'),c:'#22D3EE'},{l:'정지',v:x.stopN,u:'회',tr:ser('stopN'),c:'#F87171',lb:1,s:x.stopMin!=null?fm(x.stopMin)+'분 · ':''},{l:'밀봉 불량팩',v:x.waste,u:'개',tr:ser('waste'),c:'#FB7185',lb:1},{l:'점검 불량(X)',v:x.bad,u:'건',c:x.bad?'#F87171':'#34D399',lb:1},{l:'이번 달 가동률',v:P&&P.k&&P.k.total?P.k.total.availability_pct:null,u:'%',d:1,c:'#A78BFA',s:'포장팀 포털 · '+(P&&P.k?E(String(P.k.data_until||'').slice(5).replace('-','/'))+'까지 · ':'불러오는 중 · ')}];
+ var ln=x.ln||{},mx=Math.max.apply(null,'ABCDEF'.split('').map(function(h){return +ln[h]||0}).concat([1]));
+ var mat='<div class="cc-lines">'+'ABCDEF'.split('').map(function(h,i){var q=ln[h],m=M[h]||{},av=m.availability_pct,w=(x.wasteBy||{})[h],b=(x.badBy||{})[h];
+  return '<div class="cc-line'+(q?' on':'')+'" style="--c:'+HC[h]+';--d:'+(i*90)+'ms"><div class="cc-lh"><b>'+h+'</b><span>'+h+'호기</span>'+(q?'<em class="g">생산</em>':'<em>기록 없음</em>')+'</div>'+
+   '<div class="cc-lq"><b data-n="'+(q==null?'':q)+'">'+(q==null?'—':'0')+'</b><small>개 오늘</small></div><div class="cc-lb"><i style="--w:'+((+q||0)/mx*100).toFixed(1)+'%"></i></div>'+
+   '<div class="cc-lr">'+ring(av!=null?av/100:0,av==null?'#475569':av>=85?'#34D399':av>=75?'#FBBF24':'#F87171',62,av==null?'—':fm(av,0)+'%','이번 달')+'<div><span>정지 <b>'+(m.stop_min!=null?fm(m.stop_min)+'분':'—')+'</b><small>이번 달</small></span><span>불량팩 <b>'+(w!=null?fm(w):'—')+'</b><small>오늘</small></span>'+(b?'<span class="r">점검 X <b>'+b+'</b></span>':'')+'</div></div></div>'}).join('')+'</div>';
+ if(P&&P.top&&P.top.length){cm.rtop=P.top.map(function(r){return [r.k,r.min,fm(r.min)+'분 · '+r.n+'회']});cm.rtt='정지 원인 TOP · 이번 달 (포장팀 포털)'}
+ return {K:K,sig:card('라인 매트릭스','A~F호기 · 오늘 생산(포털 일지) × 이번 달 가동률 · 정지(포장팀 포털)',mat,'w12'),tr:{l:'포장 생산량 (개)',v:ser('ea'),u:'개'}}}
+/* ───── 그리기 ───── */
+var LAST='';
+function view(tk){var t=TM[tk],s=S(tk),D=s.d,R=range(D),Dy=day(D);if(!R)return '<div class="cc-load">자료를 준비하는 중…</div>';
+ var cm=common(t,D,R,Dy),V=(tk==='juice'?viewJuice:tk==='mix'?viewMix:tk==='ster'?viewSter:viewPack)(t,D,R,Dy,cm);
+ var nDocs=((Dy&&Dy.J&&Dy.J.byForm)?Object.keys(Dy.J.byForm).map(function(k){return Dy.J.byForm[k]}).filter(function(f){return f.team===t.team}).reduce(function(a,f){return a+(f.n||0)},0):0);
+ var src='<span class="cc-src '+(nDocs?'ok':'n')+'"><i></i>포털 일지 '+nDocs+'건</span>';
+ if(tk==='ster'){var fs=sterFeedOk(D),md0=sterModel(D);src+='<span class="cc-src '+(fs==='ok'?'ok':fs==='err'?'bad':'n')+'"><i></i>멸균팀 포털 '+(fs==='ok'?'연동':fs==='err'?'연결 오류':'확인 중')+'</span><span class="cc-src '+(md0?'ok':'n')+'"><i></i>가동 분석 '+(md0?(md0.src==='sample'?'예시':'준비됨'):'불러오는 중')+'</span>'}
+ if(tk==='pack'){var P=packKpi();src+='<span class="cc-src '+(P&&P.k?'ok':P&&P.err?'bad':'n')+'"><i></i>포장팀 포털 '+(P&&P.k?'KPI '+E(String(P.k.data_until||'').slice(5).replace('-','/'))+'까지':P&&P.err?'연결 오류':'불러오는 중')+'</span>'}
+ var dchips='<div class="cc-days">'+[0,1,2,3,4,5,6].map(function(i){var d=kst(-i);return '<button data-d="'+d+'" class="'+(d===D?'on':'')+'">'+(i===0?'오늘':i===1?'어제':md(d))+'<small>'+wd(d)+'</small></button>'}).join('')+'</div>';
+ var h='<div class="cc" data-t="'+tk+'" style="--a:'+t.a+';--b:'+t.b+'">';
+ h+='<header class="cc-hero"><div class="cc-aur"><i></i><i></i></div><div class="cc-hl"><div class="cc-eye"><span class="cc-live"><i></i>LIVE</span>'+t.en+'</div><h1>'+t.name+' <em>컨트롤 룸</em></h1><div class="cc-srcs">'+src+'</div></div>'+
+  '<div class="cc-hr"><div class="cc-clock"><b id="cc-clk">--:--:--</b><span>'+(+D.slice(5,7))+'월 '+(+D.slice(8))+'일 ('+wd(D)+')'+(D!==kst(0)?' · 지난 날짜':'')+'</span></div>'+dchips+
+  '<div class="cc-act"><a class="cc-btn" href="#/journals?team='+encodeURIComponent(t.team)+'">✎ 일지 작성</a><button class="cc-btn ghost" data-act="det">'+(s.det?'컨트롤 룸으로 ▴':'상세 분석 (기존 화면) ▾')+'</button></div></div></header>';
+ h+='<div class="cc-ks">'+V.K.map(function(k){return kpi(k,t)}).join('')+'</div>';
+ h+='<div class="cc-g">'+V.sig+
+  card('14일 추이',E(V.tr.l)+' · 오늘 강조',trend(cm.labels,V.tr.v.map(function(v){return v==null?0:v}),V.tr.u,t.a,13)+(tk!=='ster'&&cm.dl.some(function(v){return v>0})?'<div class="cc-tr2"><small>지연 시간 (h)</small>'+trend(cm.labels,cm.dl,'h','#F87171',13).replace('class="cc-tr"','class="cc-tr sm"')+'</div>':''),'w7')+
+  card('알림 · 인사이트',E(md(D))+' · '+t.team,alerts(cm.al),'w5')+
+  card(cm.rtt||'지연 원인 TOP · 최근 14일',cm.rtt?'':t.team+' 지연 기록',bars(cm.rtop,t.a),'w12')+
+  '</div></div>';
+ return h}
+function paint(force){var tk=team(),M=document.getElementById('main');if(!tk||!M){document.documentElement.classList.remove('cc-mode');return}
+ var panel=$('#main > .panel');if(!panel)return;var s=S(tk);document.documentElement.classList.add('cc-mode');M.classList.toggle('cc-det',!!s.det);
+ var box=$('#cc-root',M);if(!box){box=document.createElement('div');box.id='cc-root';panel.parentNode.insertBefore(box,panel)}
+ var key=tk+'|'+s.d+'|'+s.det+'|'+sig()+'|'+(tk==='ster'?(sterModel(s.d)?1:0)+sterFeedOk(s.d):'')+'|'+(tk==='pack'?(PK&&PK.k?1:0):'');if(!force&&key===LAST&&box.firstChild)return;LAST=key;
+ try{box.innerHTML=view(tk)}catch(e){console.error('[컨트롤 룸]',e);box.innerHTML='<div class="cc-load">컨트롤 룸을 그리지 못했습니다: '+E(e.message)+'</div>';return}
+ anim(box)}
+function anim(box){var red=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;requestAnimationFrame(function(){box.querySelector('.cc')&&box.querySelector('.cc').classList.add('in');
+ $$('.cc-arc',box).forEach(function(a){a.style.strokeDashoffset=a.getAttribute('data-off')});
+ $$('[data-n]',box).forEach(function(b){var raw=b.getAttribute('data-n');if(raw===''||red){if(raw!=='')b.textContent=fm(+raw,+(b.getAttribute('data-d')||0));return}var v=+raw,d=+(b.getAttribute('data-d')||(v%1?1:0)),t0=performance.now();(function st(t){var p=Math.min(1,(t-t0)/1200),e=1-Math.pow(1-p,4);b.textContent=fm(v*e,d);if(p<1)requestAnimationFrame(st);else b.textContent=fm(v,d)})(t0)})})}
+/* 시계 */
+setInterval(function(){var c=document.getElementById('cc-clk');if(!c)return;var n=new Date(Date.now()+9*3600e3);c.textContent=pad(n.getUTCHours())+':'+pad(n.getUTCMinutes())+':'+pad(n.getUTCSeconds())},1000);
+/* 누르기 */
+document.addEventListener('click',function(e){var r=e.target.closest&&e.target.closest('#cc-root [data-d],#cc-root [data-act]');if(!r)return;var tk=team();if(!tk)return;var s=S(tk);
+ if(r.hasAttribute('data-d')){s.d=r.getAttribute('data-d');try{if(tk==='ster'&&window.SterDash)SterDash.pick(s.d);else if(window.yumProcDash)yumProcDash.pick(tk,s.d)}catch(x){}paint(true)}
+ else if(r.getAttribute('data-act')==='det'){s.det=!s.det;saveST();paint(true);if(s.det){var p=$('#main > .panel');if(p)setTimeout(function(){window.scrollTo({top:p.getBoundingClientRect().top+scrollY-120,behavior:'smooth'})},80)}}});
+var T=null;new MutationObserver(function(){if(!team())return;clearTimeout(T);T=setTimeout(function(){paint(false)},250)}).observe(document.documentElement,{childList:true,subtree:true});
+window.addEventListener('hashchange',function(){LAST='';setTimeout(function(){paint(true)},200)});window.addEventListener('yum-sterfeed',function(){paint(false)});
+setInterval(function(){if(team())paint(false)},20000);
+window.yumCC={paint:paint};
+var st=document.createElement('style');st.textContent=
+ 'html.cc-mode #main > .panel{display:none}html.cc-mode #main.cc-det > .panel{display:block}html.cc-mode #main{background:transparent}'+
+ '#cc-root{margin:0 0 18px}.cc{--bg:#070B14;--card:rgba(255,255,255,.035);--ln:rgba(255,255,255,.08);--tx:#E6ECF5;--mu:#8A97AD;color:var(--tx);background:radial-gradient(1200px 500px at 0% 0%,color-mix(in srgb,var(--a) 14%,transparent),transparent 60%),radial-gradient(900px 500px at 100% 0%,color-mix(in srgb,var(--b) 12%,transparent),transparent 60%),linear-gradient(180deg,#0A1020,#070B14 40%);border-radius:24px;padding:18px;border:1px solid rgba(255,255,255,.06);box-shadow:0 30px 60px -36px rgba(0,0,0,.8);font-variant-numeric:tabular-nums}'+
+ '.cc-hero{position:relative;overflow:hidden;display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:flex-end;padding:22px 22px 18px;border-radius:18px;background:rgba(255,255,255,.03);border:1px solid var(--ln)}'+
+ '.cc-aur{position:absolute;inset:0;pointer-events:none}.cc-aur i{position:absolute;width:420px;height:420px;border-radius:50%;filter:blur(80px);opacity:.35;animation:ccau 16s ease-in-out infinite alternate}.cc-aur i:nth-child(1){background:var(--a);left:-120px;top:-260px}.cc-aur i:nth-child(2){background:var(--b);right:-100px;top:-240px;animation-duration:20s}@keyframes ccau{to{transform:translate(60px,40px) scale(1.1)}}'+
+ '.cc-hl,.cc-hr{position:relative}.cc-eye{display:flex;align-items:center;gap:10px;font-size:11px;font-weight:800;letter-spacing:.22em;color:var(--mu)}.cc-live{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;border:1px solid rgba(52,211,153,.4);background:rgba(52,211,153,.1);color:#6EE7B7;letter-spacing:.14em}.cc-live i{width:7px;height:7px;border-radius:50%;background:#34D399;animation:ccpl 1.6s infinite}@keyframes ccpl{0%{box-shadow:0 0 0 0 rgba(52,211,153,.7)}70%{box-shadow:0 0 0 8px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}'+
+ '.cc-hero h1{margin:8px 0 10px;font-size:34px;font-weight:900;letter-spacing:-.03em;color:#fff}.cc-hero h1 em{font-style:normal;background:linear-gradient(90deg,var(--a),var(--b));-webkit-background-clip:text;background-clip:text;color:transparent}'+
+ '.cc-srcs{display:flex;flex-wrap:wrap;gap:6px}.cc-src{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid var(--ln);color:#C7D2E3}.cc-src i{width:7px;height:7px;border-radius:50%;background:#64748B}.cc-src.ok i{background:#34D399;box-shadow:0 0 8px #34D399}.cc-src.bad i{background:#F87171}'+
+ '.cc-hr{display:flex;flex-direction:column;align-items:flex-end;gap:10px}.cc-clock{text-align:right}.cc-clock b{display:block;font-size:30px;font-weight:800;letter-spacing:.04em;color:#fff;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}.cc-clock span{font-size:12px;color:var(--mu)}'+
+ '.cc-days{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end}.cc-days button{display:flex;flex-direction:column;align-items:center;min-width:44px;padding:5px 8px;border-radius:10px;border:1px solid var(--ln);background:rgba(255,255,255,.03);color:#C7D2E3;font:700 12px inherit;cursor:pointer}.cc-days button small{font-size:10px;color:var(--mu)}.cc-days button.on{background:linear-gradient(135deg,var(--a),var(--b));color:#0B1020;border-color:transparent}.cc-days button.on small{color:#0B1020}'+
+ '.cc-act{display:flex;gap:6px}.cc-btn{padding:8px 13px;border-radius:10px;font:800 12.5px inherit;text-decoration:none;color:#0B1020;background:linear-gradient(135deg,var(--a),var(--b));border:0;cursor:pointer}.cc-btn.ghost{background:rgba(255,255,255,.06);color:#E6ECF5;border:1px solid var(--ln)}'+
+ '.cc-ks{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin:12px 0}.cc-k{position:relative;overflow:hidden;padding:13px 14px 8px;border-radius:16px;background:var(--card);border:1px solid var(--ln);opacity:0;transform:translateY(10px)}.cc.in .cc-k{opacity:1;transform:none;transition:all .6s cubic-bezier(.16,1,.3,1)}'+
+ '.cc-k:before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--kc);box-shadow:0 0 14px var(--kc)}.cc-kl{font-size:11.5px;font-weight:700;color:var(--mu)}.cc-kv{margin-top:4px}.cc-kv b{font-size:28px;font-weight:900;letter-spacing:-.03em;color:#fff}.cc-kv small{font-size:12px;color:var(--mu);margin-left:3px;font-weight:700}'+
+ '.cc-ks .cc-ks,.cc-k .cc-ks{display:block;margin:2px 0 4px;font-size:11px;color:var(--mu);min-height:15px}.cc-dl{font-weight:800}.cc-dl i{font-style:normal;font-weight:600;color:var(--mu)}.cc-dl.g{color:#34D399}.cc-dl.r{color:#F87171}.cc-dl.n{color:var(--mu)}'+
+ '.cc-sp{display:block;width:100%;height:34px}.cc-sp0{height:34px}.cc-ln{stroke-dasharray:1;stroke-dashoffset:1}.cc.in .cc-ln{animation:ccdr 1.4s cubic-bezier(.65,0,.35,1) .3s forwards}@keyframes ccdr{to{stroke-dashoffset:0}}'+
+ '.cc-g{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px}.cc-c{grid-column:span 12;padding:15px 16px;border-radius:18px;background:var(--card);border:1px solid var(--ln);min-width:0;opacity:0;transform:translateY(14px)}.cc.in .cc-c{opacity:1;transform:none;transition:all .7s cubic-bezier(.16,1,.3,1) .1s}'+
+ '.cc-c.w7{grid-column:span 7}.cc-c.w5{grid-column:span 5}.cc-c>header{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:12px}.cc-c>header b{font-size:15px;color:#fff;letter-spacing:-.01em}.cc-c>header span{font-size:11.5px;color:var(--mu)}'+
+ '.cc-empty,.cc-ok,.cc-load{padding:24px 8px;text-align:center;color:var(--mu);font-size:13px}.cc-ok{color:#6EE7B7;font-weight:700}.cc-load{background:#0A1020;border-radius:20px;color:#C7D2E3}.mu{color:var(--mu)}'+
+ '.cc-ring .cc-arc{transition:stroke-dashoffset 1.4s cubic-bezier(.16,1,.3,1) .3s}.cc-rt{font-size:13px;font-weight:800;fill:#fff;font-family:inherit}.cc-rs{font-size:9px;fill:#8A97AD;font-family:inherit}'+
+ '.cc-lg{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:10px;font-size:11px;color:var(--mu)}.cc-lg i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;vertical-align:-1px}'+
+ '.cc-tr{display:block}.cc-tr.sm{height:110px}.cc-gl{stroke:rgba(255,255,255,.06)}.cc-ax{font-size:10px;fill:#8A97AD;font-family:inherit}.cc-ax.hi{fill:#fff;font-weight:800}.cc-tv{font-size:11px;font-weight:800;fill:#fff;font-family:inherit}.cc-tb{transform-box:fill-box;transform-origin:bottom;transform:scaleY(0)}.cc.in .cc-tb{animation:ccgr .8s cubic-bezier(.16,1,.3,1) var(--d) forwards}@keyframes ccgr{to{transform:scaleY(1)}}.cc-tr2{margin-top:8px}.cc-tr2 small{font-size:11px;color:var(--mu)}'+
+ '.cc-al{display:flex;flex-direction:column;gap:8px}.cc-a{display:flex;gap:10px;padding:9px 11px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid var(--ln)}.cc-a>i{flex:none;width:8px;height:8px;border-radius:50%;margin-top:5px;background:#60A5FA}.cc-a.r>i{background:#F87171;box-shadow:0 0 8px #F87171}.cc-a.a>i{background:#FBBF24}.cc-a b{display:block;font-size:13px;color:#fff}.cc-a span{font-size:12px;color:#AAB6CA;line-height:1.5}'+
+ '.cc-bars{display:flex;flex-direction:column;gap:7px}.cc-br{display:grid;grid-template-columns:minmax(120px,32%) 1fr 130px;gap:10px;align-items:center;font-size:12.5px}.cc-br .l{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#D5DEEB}.cc-br .l i{font-style:normal;display:inline-block;width:18px;font-weight:800;color:var(--a)}.cc-br .t{height:10px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden}.cc-br .t i{display:block;height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--c),color-mix(in srgb,var(--c) 40%,#fff));box-shadow:0 0 12px var(--c);transition:width 1.2s cubic-bezier(.16,1,.3,1) .3s}.cc.in .cc-br .t i{width:var(--w)}.cc-br .v{text-align:right;color:#AAB6CA;font-size:11.5px}'+
+ /* 착즙 */
+ '.cc-flow{display:flex;align-items:stretch;gap:0}.cc-fs{flex:1;min-width:0;text-align:center;padding:12px 6px;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid color-mix(in srgb,var(--c) 40%,transparent);box-shadow:inset 0 0 24px -12px var(--c)}.cc-fs em{font-style:normal;font-size:20px}.cc-fs small{display:block;font-size:11px;color:var(--mu);margin-top:2px}.cc-fs b{display:block;font-size:22px;font-weight:900;color:#fff}.cc-fs span{font-size:11px;color:var(--mu)}.cc-fs p{margin:4px 0 0;font-size:10.5px;color:var(--c)}'+
+ '.cc-fa{flex:none;width:22px;position:relative}.cc-fa i{position:absolute;left:0;right:0;top:50%;height:2px;background:repeating-linear-gradient(90deg,var(--a) 0 6px,transparent 6px 10px);background-size:20px 2px;animation:ccfl 1s linear infinite}@keyframes ccfl{to{background-position:20px 0}}'+
+ '.cc-by{display:grid;grid-template-columns:auto auto 1fr auto;gap:10px;align-items:center;margin-top:12px;padding:10px 12px;border-radius:12px;background:rgba(251,113,133,.06);border:1px solid rgba(251,113,133,.2);font-size:12.5px}.cc-by span{color:#FDA4AF;font-weight:700}.cc-by b{color:#fff}.cc-by i{height:8px;border-radius:999px;background:linear-gradient(90deg,#FB7185 var(--w),rgba(255,255,255,.06) var(--w))}.cc-by em{font-style:normal;color:var(--mu);font-size:11.5px}'+
+ '.cc-hm{display:flex;flex-direction:column;gap:4px;overflow-x:auto}.cc-hmh,.cc-hmr{display:grid;grid-template-columns:150px repeat(25,minmax(14px,1fr));gap:3px;align-items:center}.cc-hmh i{font-style:normal;font-size:10px;color:var(--mu);text-align:center}.cc-hmr span{display:flex;flex-direction:column;min-width:0}.cc-hmr span b{font-size:12.5px;color:#fff}.cc-hmr span small{font-size:10.5px;color:var(--mu);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'+
+ '.cc-hmr i{display:flex;align-items:center;justify-content:center;height:24px;border-radius:5px;background:var(--c);font-style:normal;font-size:10px;font-weight:800;color:rgba(0,0,0,.55);opacity:0;transform:scale(.6)}.cc.in .cc-hmr i{opacity:1;transform:none;transition:all .4s cubic-bezier(.16,1,.3,1) var(--d)}'+
+ /* 배합 */
+ '.cc-tanks{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}.cc-tank{display:flex;flex-direction:column;align-items:center;text-align:center;padding:12px 8px;border-radius:16px;background:rgba(255,255,255,.02);border:1px solid var(--ln);min-width:0}.cc-tank.on{border-color:color-mix(in srgb,var(--c) 55%,transparent);box-shadow:0 0 30px -14px var(--c)}'+
+ '.cc-tk{position:relative;width:86px;height:120px;border-radius:14px 14px 22px 22px;border:2px solid rgba(255,255,255,.18);background:rgba(255,255,255,.03);overflow:hidden;margin-bottom:10px}.cc-liq{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(180deg,color-mix(in srgb,var(--c) 85%,#fff),var(--c));box-shadow:0 0 20px var(--c);transition:height 1.6s cubic-bezier(.16,1,.3,1) var(--d)}.cc.in .cc-liq{height:var(--lv)}'+
+ '.cc-liq i{position:absolute;left:0;width:200%;height:8px;top:-7px;background:radial-gradient(circle at 8px 9px,color-mix(in srgb,var(--c) 85%,#fff) 7px,transparent 7.5px) repeat-x;background-size:16px 8px;opacity:.9;animation:ccwv 2.4s linear infinite}.cc-liq i+i{opacity:.45;top:-5px;animation-duration:3.8s;animation-direction:reverse}.cc-tank:not(.on) .cc-liq i{animation-play-state:paused}.cc-liq[data-e] {display:none}@keyframes ccwv{to{transform:translateX(-50%)}}'+
+ '.cc-tkn{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:900;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.6)}.cc-tkn small{font-size:12px;margin-left:2px}.cc-tank>b{font-size:14px;color:#fff}.cc-tank>small{font-size:11px;color:var(--mu)}.cc-tank>small em{font-style:normal;color:#6EE7B7;font-weight:800}.cc-tank p{margin:6px 0;font-size:11.5px;color:#C7D2E3;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cc-tkm{display:flex;gap:10px;font-size:11px;color:var(--mu)}.cc-tkm b{color:#fff}'+
+ '.cc-gt{position:relative}.cc-gr{display:grid;grid-template-columns:56px 1fr;gap:8px;align-items:center;margin-bottom:6px}.cc-gr>span{font-size:12px;font-weight:800;color:var(--c)}.cc-gtr{position:relative;height:22px;border-radius:7px;background:rgba(255,255,255,.04)}.cc-gtr i{position:absolute;top:3px;bottom:3px;border-radius:5px}.cc-gtr i.mx{background:var(--c);box-shadow:0 0 10px var(--c);transform-origin:left;transform:scaleX(0)}.cc.in .cc-gtr i.mx{transform:none;transition:transform .7s cubic-bezier(.16,1,.3,1) var(--d)}.cc-gtr i.wt{background:rgba(251,191,36,.45)}.cc-gtr i.mv{width:8px;height:8px;top:7px;margin-left:-4px;border-radius:50%;background:#fff;box-shadow:0 0 8px #fff}'+
+ '.cc-gax{position:relative;height:16px;margin-left:64px}.cc-gax i{position:absolute;font-style:normal;font-size:10px;color:var(--mu);transform:translateX(-50%)}'+
+ /* 멸균 */
+ '.cc-gant{position:relative;--gl:120px;--gr:190px}.cc-gu{display:grid;grid-template-columns:var(--gl) 1fr var(--gr);gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05)}.cc-gh b{display:block;font-size:14px;color:#fff}.cc-gh small{font-size:11px;color:var(--mu)}'+
+ '.cc-gb{position:relative;height:30px;border-radius:8px;background:rgba(255,255,255,.04);overflow:hidden}.cc-gb i{position:absolute;top:4px;bottom:4px;border-radius:5px;background:var(--c);box-shadow:0 0 12px -2px var(--c);transform-origin:left;transform:scaleX(0)}.cc.in .cc-gb i{transform:none;transition:transform .8s cubic-bezier(.16,1,.3,1) var(--d)}'+
+ '.cc-gx{display:flex;align-items:center;gap:8px}.cc-gx>div{display:flex;flex-direction:column;gap:3px}.cc-gx em{font-style:normal;font-size:12px;font-weight:800;color:#fff}.cc-j{font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:999px;white-space:nowrap}.cc-j.g{background:rgba(52,211,153,.14);color:#6EE7B7}.cc-j.r{background:rgba(248,113,113,.16);color:#FCA5A5}.cc-j.n{background:rgba(255,255,255,.06);color:var(--mu)}'+
+ '.cc-gax2{position:relative;height:18px;margin:4px var(--gr) 0 calc(var(--gl) + 10px)}.cc-gax2 i{position:absolute;font-style:normal;font-size:10px;color:var(--mu);transform:translateX(-50%)}'+
+ '.cc-now{position:absolute;top:0;bottom:18px;width:2px;margin-left:10px;background:linear-gradient(180deg,#fff,rgba(255,255,255,.2));box-shadow:0 0 12px #fff}.cc-now span{position:absolute;top:-4px;left:6px;font-size:10.5px;font-weight:800;color:#0B1020;background:#fff;border-radius:6px;padding:1px 6px;white-space:nowrap}'+
+ '.cc-mg{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}.cc-mc{padding:12px;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid var(--ln);border-top:3px solid var(--c)}.cc-mc b{display:block;color:#fff;font-size:13px}.cc-mc span{display:block;font-size:22px;font-weight:900;color:#fff}.cc-mc small{color:var(--mu);font-size:11px}'+
+ /* 포장 */
+ '.cc-lines{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}.cc-line{padding:12px;border-radius:16px;background:rgba(255,255,255,.02);border:1px solid var(--ln);opacity:.75}.cc-line.on{opacity:1;border-color:color-mix(in srgb,var(--c) 45%,transparent);box-shadow:0 0 30px -16px var(--c)}'+
+ '.cc-lh{display:flex;align-items:center;gap:6px}.cc-lh>b{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:var(--c);color:#0B1020;font-weight:900}.cc-lh span{font-size:12px;color:#C7D2E3;font-weight:700}.cc-lh em{margin-left:auto;font-style:normal;font-size:10px;font-weight:800;padding:2px 6px;border-radius:999px;background:rgba(255,255,255,.06);color:var(--mu)}.cc-lh em.g{background:rgba(52,211,153,.14);color:#6EE7B7}'+
+ '.cc-lq{margin-top:10px}.cc-lq b{font-size:26px;font-weight:900;color:#fff}.cc-lq small{font-size:11px;color:var(--mu);margin-left:4px}.cc-lb{height:6px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden;margin:6px 0 10px}.cc-lb i{display:block;height:100%;width:0;background:var(--c);box-shadow:0 0 10px var(--c);transition:width 1.2s cubic-bezier(.16,1,.3,1) var(--d)}.cc.in .cc-lb i{width:var(--w)}'+
+ '.cc-lr{display:flex;align-items:center;gap:8px}.cc-lr>div{display:flex;flex-direction:column;gap:3px;min-width:0}.cc-lr span{font-size:11px;color:var(--mu);white-space:nowrap}.cc-lr span b{color:#fff;margin-left:3px}.cc-lr span small{margin-left:3px;font-size:9.5px;opacity:.7}.cc-lr span.r b{color:#FCA5A5}'+
+ '@media (max-width:1200px){.cc-lines{grid-template-columns:repeat(3,minmax(0,1fr))}.cc-tanks{grid-template-columns:repeat(3,minmax(0,1fr))}}'+
+ '@media (max-width:900px){.cc-c.w7,.cc-c.w5{grid-column:span 12}.cc-hr{align-items:flex-start}.cc-gant{--gl:70px;--gr:120px}.cc-gx .cc-ring{display:none}}'+
+ '@media (max-width:640px){.cc-ks{grid-template-columns:1fr 1fr;gap:8px}.cc-k{padding:10px 10px 4px}.cc-kv b{font-size:22px}.cc-hero{padding:16px 14px}.cc-clock b{font-size:22px}.cc-act{width:100%}.cc-btn{flex:1;text-align:center}.cc-days button{min-width:38px;padding:4px 6px}.cc-br{grid-template-columns:minmax(80px,38%) 1fr 84px}.cc{padding:10px;border-radius:16px}.cc-hero h1{font-size:26px}.cc-lines,.cc-tanks{grid-template-columns:repeat(2,minmax(0,1fr))}.cc-flow{flex-direction:column}.cc-fa{width:auto;height:16px}.cc-fa i{top:0;bottom:0;left:50%;width:2px;height:auto}}'+
+ '@media (prefers-reduced-motion:reduce){.cc *{animation:none!important;transition:none!important}.cc-k,.cc-c{opacity:1!important;transform:none!important}}'+
+ '@media print{html.cc-mode #main > .panel{display:block!important}#cc-root{display:none}}';
 document.head.appendChild(st);
 })();
 </script>
