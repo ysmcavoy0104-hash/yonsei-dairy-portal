@@ -19192,5 +19192,113 @@ function css(){if($i('kp-css'))return;var s=document.createElement('style');s.id
  window.addEventListener('scroll',upd,{passive:true});setInterval(upd,800);
  el.onclick=function(){window.scrollBy({top:window.innerHeight*0.85,behavior:'smooth'})}})();
 </script>
+<script>
+/* 일지 작성 화면 (2026-11-11)
+   ① 오른쪽 위 「◀ 전날 · 다음날 ▶」 — 같은 일지의 앞뒤 날짜로 바로 이동 (있으면 그 일지 열기 · 없으면 그 날짜로 새로 작성)
+   ② 오른쪽 빈 곳에 「이 일지의 기록」 — 달력 · 최근 기록 · 빠진 날 · 마지막 기록일 */
+(function(){
+'use strict';
+if(window.__YUM_JNAV__)return;window.__YUM_JNAV__=1;
+function $i(id){return document.getElementById(id)}
+function E(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function pad(n){return String(n).padStart(2,'0')}
+function ymd(t){return t.getFullYear()+'-'+pad(t.getMonth()+1)+'-'+pad(t.getDate())}
+function addD(ds,n){var t=new Date(ds+'T00:00:00');t.setDate(t.getDate()+n);return ymd(t)}
+var WD='일월화수목금토';
+function wd(ds){return WD[new Date(ds+'T00:00:00').getDay()]}
+function md(ds){return (+ds.slice(5,7))+'/'+(+ds.slice(8))}
+function Q(){var h=location.hash||'',i=h.indexOf('?'),o={};if(i>=0)h.slice(i+1).split('&').forEach(function(kv){var p=kv.split('=');o[p[0]]=decodeURIComponent(p[1]||'')});return o}
+function onEditor(){return (location.hash||'').split('?')[0]==='#/doc-new'}
+function formId(){var s=$i('nf-form');return (s&&s.value)||window.__PICKFORM||Q().form||null}
+function form(){var id=formId();return (DB.data.forms||[]).filter(function(f){return f.id===id})[0]||null}
+/* 일지 날짜: 양식의 년 · 월 · 일 칸 → 날짜 칸 → 처음 만든 날 */
+function dayOf(d){var g=(d&&d.data&&d.data.grid)||{};
+ if(g.dY&&g.dM&&g.dD&&+g.dM>=1&&+g.dM<=12&&+g.dD>=1&&+g.dD<=31)return g.dY+'-'+pad(+g.dM)+'-'+pad(+g.dD);
+ var dt=d&&d.data||{};var c=[dt.pdate,dt.date,dt.workDate,g.date,g.pdate];for(var i=0;i<c.length;i++){var m=/^(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})/.exec(String(c[i]||''));if(m)return m[1]+'-'+pad(+m[2])+'-'+pad(+m[3])}
+ var t=Date.parse(d&&d.createdAt||'');return isNaN(t)?null:ymd(new Date(t))}
+function docsOf(fid){var by={};(DB.data.docs||[]).forEach(function(d){if(!d||d.formId!==fid||d.deleted||d.status==='deleted')return;var ds=dayOf(d);if(!ds)return;(by[ds]=by[ds]||[]).push(d)});
+ Object.keys(by).forEach(function(k){by[k].sort(function(a,b){return String(b.updatedAt||'')<String(a.updatedAt||'')?-1:1})});return by}
+function st(d){var s=d.status;if(s==='completed')return ['결재완료','ok'];if(s==='pending'||s==='in_progress')return ['결재중','ap'];if(s==='rejected')return ['반려','bad'];
+ try{if(window.yumDocWriting&&yumDocWriting(d))return ['작성중','wr']}catch(e){}return ['저장완료','ok']}
+function who(d){try{var u=(DB.data.users||[]).filter(function(x){return x&&x.id===d.authorId})[0];return (u&&u.name)||d.authorName||''}catch(e){return ''}}
+/* 지금 화면의 날짜 */
+function fieldDay(){var p=$i('docpaper');if(!p)return null;var g=function(k){var e=p.querySelector('[data-gk="'+k+'"]');return e?String(e.value||'').trim():''};var y=g('dY'),m=g('dM'),d=g('dD');
+ if(y&&m&&d&&+m>=1&&+m<=12&&+d>=1&&+d<=31)return y+'-'+pad(+m)+'-'+pad(+d);var di=p.querySelector('input[type="date"]');if(di&&di.value)return di.value;return null}
+function curDay(){var q=Q(),d=window.__CURDOC;return fieldDay()||(d&&q.edit===d.id?dayOf(d):null)||q.day||ymd(new Date())}
+/* 이동 */
+function go(ds){var f=form();if(!f)return;try{if(window.yumLiveSave&&window.yumFormBusy&&yumFormBusy())yumLiveSave('다른 날짜로 이동 전')}catch(e){}
+ var L=docsOf(f.id)[ds];setTimeout(function(){App.go(L&&L.length?'#/doc-new?edit='+L[0].id:'#/doc-new?form='+f.id+'&day='+ds)},60)}
+window.yumJNav={go:go,step:function(n){go(addD(curDay(),n))},cal:function(n){CAL=n===0?null:addM(CAL||curDay().slice(0,7),n);paint(true)},open:function(){document.documentElement.classList.toggle('yjn-open')}};
+function addM(ym,n){var y=+ym.slice(0,4),m=+ym.slice(5,7)-1+n;y+=Math.floor(m/12);m=((m%12)+12)%12;return y+'-'+pad(m+1)}
+/* 새로 작성: 날짜 칸 채우기 (자동 저장은 직접 입력해야 시작) */
+var APPLIED='';
+function applyDay(){var q=Q();if(!q.day||q.edit)return;var key=location.hash;if(APPLIED===key)return;var p=$i('docpaper');if(!p||!p.querySelector('input,select'))return;
+ var y=q.day.slice(0,4),m=String(+q.day.slice(5,7)),d=String(+q.day.slice(8));
+ function set(){if(window.__yumTouched)return;var ok=false;[['dY',y],['dM',m],['dD',d]].forEach(function(x){var e=p.querySelector('[data-gk="'+x[0]+'"]');if(e){e.value=x[1];ok=true;try{e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}))}catch(_){}}});
+  if(!ok){var di=p.querySelector('input[type="date"]');if(di){di.value=q.day;try{di.dispatchEvent(new Event('change',{bubbles:true}))}catch(_){}}}
+  var w=p.querySelector('select[data-gk="dow"]');if(w){w.value=wd(q.day);w.setAttribute('data-auto','1')}}
+ APPLIED=key;set();[400,1200,2100].forEach(function(t){setTimeout(function(){if(location.hash===key)set()},t)})}
+/* 그리기 */
+var CAL=null,SIG='';
+function navHTML(){var ds=curDay(),f=form(),by=f?docsOf(f.id):{},has=function(x){return !!(by[x]&&by[x].length)},pv=addD(ds,-1),nx=addD(ds,1),td=ymd(new Date());
+ return '<button class="yjn-b" onclick="yumJNav.step(-1)" title="'+md(pv)+' ('+wd(pv)+') '+(has(pv)?'기록 열기':'새로 작성')+'"><i>◀</i><span>전날<small>'+md(pv)+(has(pv)?' · 기록 있음':' · 새로 작성')+'</small></span></button>'+
+  '<div class="yjn-d"><b>'+(+ds.slice(5,7))+'월 '+(+ds.slice(8))+'일 ('+wd(ds)+')</b><small>'+(ds===td?'오늘':ds===addD(td,-1)?'어제':ds>td?'앞으로':'')+(has(ds)?(ds===td||ds===addD(td,-1)||ds>td?' · ':'')+'기록 '+by[ds].length+'건':'')+'</small></div>'+
+  '<button class="yjn-b" onclick="yumJNav.step(1)" title="'+md(nx)+' ('+wd(nx)+') '+(has(nx)?'기록 열기':'새로 작성')+'"><span>다음날<small>'+md(nx)+(has(nx)?' · 기록 있음':' · 새로 작성')+'</small></span><i>▶</i></button>'+
+  (ds!==td?'<button class="yjn-t" onclick="yumJNav.go(\''+td+'\')">오늘</button>':'')+'<button class="yjn-t yjn-lt" onclick="yumJNav.open()">기록 목록</button>'}
+function sideHTML(){var f=form();if(!f)return '';var by=docsOf(f.id),days=Object.keys(by).sort(),td=ymd(new Date()),ds=curDay(),ym=CAL||ds.slice(0,7),y=+ym.slice(0,4),m=+ym.slice(5,7),N=new Date(y,m,0).getDate(),first=new Date(y,m-1,1).getDay();
+ var lastDs=days.filter(function(x){return x<=td}).pop(),gap=lastDs?Math.round((new Date(td+'T00:00:00')-new Date(lastDs+'T00:00:00'))/864e5):null;
+ var inM=days.filter(function(x){return x.slice(0,7)===ym}),miss=[];for(var d=1;d<=N;d++){var x=ym+'-'+pad(d);if(x>=td)break;if(!by[x])miss.push(x)}
+ var h='<div class="yjn-h"><b>이 일지의 기록</b><small>'+E(f.code)+' · '+E(String(f.name||'').slice(0,22))+'</small><button class="yjn-x" onclick="yumJNav.open()" title="닫기">✕</button></div>';
+ h+='<div class="yjn-last"><div><small>마지막 기록</small><b>'+(lastDs?md(lastDs)+' ('+wd(lastDs)+')':'아직 없음')+'</b><em>'+(gap==null?'':gap===0?'오늘까지 기록됨':gap===1?'어제까지 기록됨':gap+'일 전')+'</em></div><div><small>지금까지</small><b>'+days.length+'<i>일</i></b><em>'+(days.length?md(days[0])+' 부터':'')+'</em></div></div>';
+ /* 달력 */
+ h+='<div class="yjn-cal"><div class="yjn-ch"><button onclick="yumJNav.cal(-1)">‹</button><b>'+y+'년 '+m+'월</b><button onclick="yumJNav.cal(1)">›</button></div><div class="yjn-g">'+WD.split('').map(function(w,i){return '<span class="w'+(i===0?' sun':i===6?' sat':'')+'">'+w+'</span>'}).join('');
+ for(var k=0;k<first;k++)h+='<span></span>';
+ for(var d2=1;d2<=N;d2++){var x2=ym+'-'+pad(d2),L=by[x2],c=L?(st(L[0])[1]==='wr'?'wr':'ok'):(x2<td?'no':'fu');if(x2===td)c+=' td';if(x2===ds)c+=' cur';
+  h+='<button class="d '+c+'" onclick="yumJNav.go(\''+x2+'\')" title="'+md(x2)+' ('+wd(x2)+') '+(L?st(L[0])[0]+(L.length>1?' · '+L.length+'건':''):x2>td?'':'기록 없음 · 눌러서 작성')+'">'+d2+(L&&L.length>1?'<i>'+L.length+'</i>':'')+'</button>'}
+ h+='</div><div class="yjn-lg"><span><i class="ok"></i>저장완료</span><span><i class="wr"></i>작성중</span><span><i class="no"></i>기록 없음</span></div>'+
+  '<div class="yjn-sum">'+m+'월 <b>'+inM.length+'일</b> 기록'+(miss.length?' · 빠진 날 <b class="bad">'+miss.length+'일</b>':(inM.length?' · 빠진 날 없음':''))+'</div></div>';
+ if(miss.length&&miss.length<=12)h+='<div class="yjn-miss"><small>빠진 날 (눌러서 작성)</small><div>'+miss.map(function(x){return '<button onclick="yumJNav.go(\''+x+'\')">'+md(x)+' '+wd(x)+'</button>'}).join('')+'</div></div>';
+ /* 최근 기록 */
+ var rec=days.slice().reverse().slice(0,30);
+ h+='<div class="yjn-rl"><small>최근 기록 '+(days.length>30?'(최근 30일)':'')+'</small>'+(rec.length?rec.map(function(x){var L=by[x],d0=L[0],s=st(d0),cur=x===ds;
+   return '<button class="yjn-r'+(cur?' cur':'')+'" onclick="yumJNav.go(\''+x+'\')"><span class="dt"><b>'+md(x)+'</b><i>'+wd(x)+'</i></span><span class="mt"><em class="'+s[1]+'">'+s[0]+'</em>'+(L.length>1?'<em class="n">'+L.length+'건</em>':'')+'<small>'+E(who(d0))+(d0.updatedAt?(who(d0)?' · ':'')+new Date(d0.updatedAt).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'')+'</small></span></button>'}).join(''):'<div class="yjn-e">아직 저장된 기록이 없습니다</div>')+'</div>';
+ return h}
+function paint(force){if(!onEditor())return;var f=form(),nf=$i('nf-fields'),hr=document.querySelector('#main .hrow');if(!f||!nf||!$i('docpaper')){return}
+ document.documentElement.classList.add('yjn-on');
+ var nav=$i('yjn-nav');if(!nav&&hr){nav=document.createElement('div');nav.id='yjn-nav';hr.appendChild(nav)}
+ var side=$i('yjn-side');if(!side){side=document.createElement('aside');side.id='yjn-side';nf.appendChild(side)}else if(side.parentNode!==nf)nf.appendChild(side);
+ var d=(DB.data.docs||[]).filter(function(x){return x&&x.formId===f.id}),mx='';d.forEach(function(x){if(x.updatedAt>mx)mx=x.updatedAt});
+ var s=f.id+'|'+curDay()+'|'+d.length+'|'+mx+'|'+CAL+'|'+ymd(new Date());if(!force&&s===SIG&&nav&&nav.innerHTML)return;SIG=s;
+ if(nav)nav.innerHTML=navHTML();side.innerHTML=sideHTML()}
+var LH='';
+setInterval(function(){try{if(!onEditor()){document.documentElement.classList.remove('yjn-on','yjn-open');LH='';return}if(location.hash!==LH){LH=location.hash;CAL=null;SIG=''}applyDay();paint(false)}catch(e){console.warn('[일지 이동]',e)}},500);
+document.addEventListener('input',function(e){var k=e.target&&e.target.getAttribute&&e.target.getAttribute('data-gk');if(k==='dM'||k==='dD'||k==='dY'||(e.target&&e.target.type==='date'))setTimeout(function(){paint(false)},30)},true);
+var css=document.createElement('style');css.textContent=
+ '#yjn-nav{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.hrow:has(#yjn-nav){display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}'+
+ '.yjn-b{display:flex;align-items:center;gap:10px;padding:8px 14px;border-radius:12px;border:1px solid var(--line,#dfe3ea);background:#fff;cursor:pointer;font:inherit;color:#0F172A;transition:transform .12s,box-shadow .15s,border-color .15s}.yjn-b:hover{border-color:#C27A2C;box-shadow:0 8px 18px -12px rgba(194,122,44,.8);transform:translateY(-1px)}'+
+ '.yjn-b i{font-style:normal;font-size:13px;color:#C27A2C}.yjn-b span{display:flex;flex-direction:column;align-items:flex-start;font-size:14.5px;font-weight:800;line-height:1.15}.yjn-b span small{font-size:11px;font-weight:600;color:#64748B;margin-top:2px}'+
+ '.yjn-d{display:flex;flex-direction:column;align-items:center;padding:6px 14px;border-radius:12px;background:linear-gradient(135deg,#5A300A,#C27A2C);color:#fff;min-width:132px}.yjn-d b{font-size:16px;white-space:nowrap}.yjn-d small{font-size:11px;opacity:.85;min-height:13px}'+
+ '.yjn-t{padding:9px 13px;border-radius:12px;border:1px solid var(--line,#dfe3ea);background:#fff;font:700 13px inherit;cursor:pointer;color:#334155}.yjn-t:hover{border-color:#C27A2C;color:#C27A2C}.yjn-lt{display:none}'+
+ 'html.yjn-on #nf-fields{display:grid;grid-template-columns:minmax(0,1fr) 280px;column-gap:16px;align-items:start}html.yjn-on #nf-fields>*{grid-column:1;min-width:0}'+
+ '#yjn-side{grid-column:2!important;grid-row:1/span 30;position:sticky;top:122px;max-height:calc(100vh - 140px);overflow:auto;background:#fff;border:1px solid var(--line,#dfe3ea);border-radius:16px;padding:14px;box-shadow:0 14px 30px -26px rgba(15,23,42,.45);font-size:13px;scrollbar-width:thin}'+
+ '.yjn-h{display:flex;flex-direction:column;gap:2px;position:relative;padding-bottom:10px;border-bottom:1px solid #EEF1F5}.yjn-h b{font-size:15px}.yjn-h small{color:#64748B;font-size:11.5px}.yjn-x{display:none;position:absolute;right:0;top:0;border:0;background:none;font-size:16px;cursor:pointer;color:#64748B}'+
+ '.yjn-last{display:grid;grid-template-columns:1.3fr 1fr;gap:8px;margin:12px 0}.yjn-last>div{background:#FBF7F2;border:1px solid #F1E5D6;border-radius:12px;padding:9px 11px;display:flex;flex-direction:column;gap:1px}.yjn-last small{font-size:11px;color:#8A6A44;font-weight:700}.yjn-last b{font-size:16px;color:#0F172A}.yjn-last b i{font-style:normal;font-size:11px;color:#64748B;margin-left:2px}.yjn-last em{font-style:normal;font-size:11px;color:#64748B}'+
+ '.yjn-ch{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}.yjn-ch b{font-size:13.5px}.yjn-ch button{width:28px;height:28px;border-radius:8px;border:1px solid #E2E8F0;background:#fff;cursor:pointer;font-size:16px;line-height:1}'+
+ '.yjn-g{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}.yjn-g .w{text-align:center;font-size:10.5px;font-weight:700;color:#94A3B8}.yjn-g .sun{color:#E11D48}.yjn-g .sat{color:#2563EB}'+
+ '.yjn-g .d{position:relative;aspect-ratio:1;border:0;border-radius:8px;font:700 12px inherit;cursor:pointer;background:#F1F5F9;color:#475569;transition:transform .1s}.yjn-g .d:hover{transform:scale(1.08)}.yjn-g .d.ok{background:#10B981;color:#fff}.yjn-g .d.wr{background:#F59E0B;color:#fff}.yjn-g .d.no{background:#FDECEC;color:#B91C1C}.yjn-g .d.fu{background:transparent;color:#CBD5E1}'+
+ '.yjn-g .d.td{box-shadow:inset 0 0 0 2px #0F172A}.yjn-g .d.cur{outline:3px solid #C27A2C;outline-offset:1px}.yjn-g .d i{position:absolute;right:1px;top:0;font-style:normal;font-size:8.5px;font-weight:800}'+
+ '.yjn-lg{display:flex;gap:10px;margin:8px 0 4px;font-size:10.5px;color:#64748B}.yjn-lg i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px}.yjn-lg i.ok{background:#10B981}.yjn-lg i.wr{background:#F59E0B}.yjn-lg i.no{background:#FDECEC;border:1px solid #F5B5B5}'+
+ '.yjn-sum{font-size:12px;color:#334155;margin-top:4px}.yjn-sum b.bad{color:#B91C1C}'+
+ '.yjn-miss{margin:12px 0 0}.yjn-miss small,.yjn-rl>small{display:block;font-size:11px;font-weight:800;color:#64748B;letter-spacing:.04em;margin-bottom:6px}.yjn-miss div{display:flex;flex-wrap:wrap;gap:5px}.yjn-miss button{border:1px dashed #F5B5B5;background:#FFF7F7;color:#B91C1C;border-radius:8px;padding:3px 8px;font:700 11.5px inherit;cursor:pointer}'+
+ '.yjn-rl{margin-top:14px;padding-top:12px;border-top:1px solid #EEF1F5}.yjn-r{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:0;background:none;padding:7px 8px;border-radius:10px;cursor:pointer;font:inherit}.yjn-r:hover{background:#F8FAFC}.yjn-r.cur{background:#FBF2E6;box-shadow:inset 3px 0 0 #C27A2C}'+
+ '.yjn-r .dt{display:flex;flex-direction:column;align-items:center;width:40px;flex:none}.yjn-r .dt b{font-size:13px}.yjn-r .dt i{font-style:normal;font-size:10.5px;color:#94A3B8}.yjn-r .mt{display:flex;flex-wrap:wrap;align-items:center;gap:3px 5px;min-width:0}.yjn-r .mt small{width:100%;font-size:11px;color:#64748B;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}'+
+ '.yjn-r em{font-style:normal;font-size:10.5px;font-weight:800;border-radius:6px;padding:1px 6px}.yjn-r em.ok{background:#DCFCE7;color:#166534}.yjn-r em.wr{background:#FEF3C7;color:#92400E}.yjn-r em.ap{background:#DBEAFE;color:#1E40AF}.yjn-r em.bad{background:#FEE2E2;color:#991B1B}.yjn-r em.n{background:#F1F5F9;color:#475569}.yjn-e{color:#94A3B8;font-size:12px;padding:10px 0}'+
+ '@media (max-width:1280px){html.yjn-on #nf-fields{display:block}.yjn-lt{display:inline-block}#yjn-side{display:none;position:fixed;right:12px;top:120px;bottom:12px;width:300px;max-height:none;z-index:80}html.yjn-open #yjn-side{display:block}.yjn-x{display:block}}'+
+ '@media (max-width:640px){.yjn-b span small{display:none}.yjn-d{min-width:0}#yjn-side{left:12px;width:auto}}'+
+ '@media print{#yjn-nav,#yjn-side{display:none!important}html.yjn-on #nf-fields{display:block!important}}';
+document.head.appendChild(css);
+})();
+</script>
+
 </body>
 </html>
