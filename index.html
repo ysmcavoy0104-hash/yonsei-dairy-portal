@@ -11942,7 +11942,8 @@ var SEC={
  dash:   {en:'DASHBOARD',            ic:'▦', a:'#3062D8', d:'#12245A', s:'#EDF2FD', rgb:'48,98,216'},
  plan:   {en:'PRODUCTION',           ic:'⚙', a:'#0F8F7C', d:'#0A3F3A', s:'#E5F5F1', rgb:'15,143,124'},
  work:   {en:'WORKFORCE',            ic:'◷', a:'#6D50D9', d:'#2B1F66', s:'#F0EDFC', rgb:'109,80,217'},
- kpi:    {en:'KPI · LABOR ANALYTICS', ic:'◎', a:'#13254A', d:'#0B1730', s:'#EEF2F8', rgb:'19,37,74'},
+ kpi:    {en:'KPI · PERFORMANCE', ic:'◎', a:'#2F5BD8', d:'#0B1730', s:'#EEF2F8', rgb:'47,91,216'},
+ mh:     {en:'LABOR ANALYTICS', ic:'⏱', a:'#7A4DD8', d:'#1E1250', s:'#F2EEFB', rgb:'122,77,216'},
  data:   {en:'RESOURCES',            ic:'📋', a:'#B45309', d:'#4A2A0A', s:'#FDF3E7', rgb:'180,83,9'},
  talk:   {en:'TEAM TALK',            ic:'💬', a:'#0E7490', d:'#083344', s:'#E6F6FA', rgb:'14,116,144'},
  ai:     {en:'AI ASSISTANT',         ic:'✦', a:'#7C3AED', d:'#2E1065', s:'#F3EEFE', rgb:'124,58,237'},
@@ -11952,7 +11953,7 @@ var SEC={
  admin:  {en:'SYSTEM',               ic:'⚑', a:'#56657F', d:'#1E2638', s:'#EEF0F4', rgb:'86,101,127'},
  me:     {en:'MY PROFILE',           ic:'◉', a:'#B08A3E', d:'#3A2D10', s:'#F8F1E2', rgb:'176,138,62'}
 };
-var EXTRA={'#/kpi':'kpi','#/safety':'ref','#/ndash':'data','#/reports':'data','#/report-admin':'data','#/doc':'journal','#/doc-new':'journal','#/profile':'me','#/oplogs':'data'};
+var EXTRA={'#/kpi':'kpi','#/mh':'mh','#/safety':'ref','#/ndash':'data','#/reports':'data','#/report-admin':'data','#/doc':'journal','#/doc-new':'journal','#/profile':'me','#/oplogs':'data'};
 
 /* 모든 영역의 메뉴(다른 확장 모듈이 추가한 메뉴 포함)를 모은다 */
 function collect(){
@@ -17200,7 +17201,7 @@ App.navItems=function(){
   {id:'data',t:'자료',i:'📋',items:[{k:'#/reports',t:'업무 보고서함',i:'📋'},{k:'#/ndash',t:'지연·정비 기록',i:'◈'},{k:'#/notebooklm',t:'설비 매뉴얼 AI (NotebookLM)',i:'✦',act:'NB.open()'}]},
   {id:'talk',t:'부서톡',i:'💬',items:[{k:'#/talk',t:'부서톡',i:'💬'}]},
   /* KPI · 인시 · 근태 (팀장 · 부문장 · 관리자만) */
- ].concat(window.yumKPICan&&yumKPICan()?[{id:'kpi',t:'KPI · 인시 · 근태',i:'◎',items:[['부문','부문 통합','◎'],['가공1팀','가공1팀','♨'],['가공2팀','가공2팀','⚗'],['포장팀','포장팀','▣']].map(function(x){return {k:'#/kpi?t='+encodeURIComponent(x[0]),t:x[1],i:x[2]}})}]:[]).concat([
+ ].concat(window.yumKPICan&&yumKPICan()?[{id:'kpi',t:'KPI',i:'◎',items:[['부문','부문 통합','◎'],['가공1팀','가공1팀','♨'],['가공2팀','가공2팀','⚗'],['포장팀','포장팀','▣']].map(function(x){return {k:'#/kpi?t='+encodeURIComponent(x[0]),t:x[1],i:x[2]}})},{id:'mh',t:'인시 · 근태 · 노무비',i:'⏱',items:[['부문','부문 통합','◎'],['가공1팀','가공1팀','♨'],['가공2팀','가공2팀','⚗'],['포장팀','포장팀','▣']].map(function(x){return {k:'#/mh?t='+encodeURIComponent(x[0]),t:x[1],i:x[2]}})}]:[]).concat([
   {id:'ai',t:'AI 비서',i:'✦',items:[{k:'#/ai',t:'AI 업무도우미',i:'✦'}]},
   {id:'ref',t:'안전',i:'⚠',items:[{k:'#/safenews',t:'안전 소식 · 점검',i:'⚠'}]}
  ]);
@@ -17216,21 +17217,23 @@ var LM=null;
 function landing(){
  var menu=document.querySelector('#lnav .menu');if(!menu)return;
  if(!LM){var keep=document.createElement('div');keep.id='lnav-keep';keep.style.display='none';[].slice.call(menu.querySelectorAll('a[id]')).forEach(function(a){keep.appendChild(a)});menu.parentNode.appendChild(keep);LM=1}
- var sup=isSuper(),A=function(r,t){return '<a href="#'+r.slice(2)+'" onclick="lnavGo(\''+r+'\');return false" style="font-weight:700;color:#ffffff">'+t+'</a>'};
+ var sup=isSuper(),kc=!!(window.yumKPICan&&yumKPICan()),sig=sup+'/'+kc,A=function(r,t){return '<a href="#'+r.slice(2)+'" onclick="lnavGo(\''+r+'\');return false" style="font-weight:700;color:#ffffff">'+t+'</a>'};
  var h='<span class="yl-dd">'+A('#/teams','팀 포털<i class="yl-cv"></i>')+ddHTML()+'</span>'+
-  A('#/overview','대시보드')+A('#/notice','인사이트')+A('#/docs','자료')+A('#/safenews','안전')+(sup?A('#/weekplan','근무')+A('#/admin','시스템'):'');
- if(menu.getAttribute('data-sig')!==String(sup)){menu.innerHTML=h;menu.setAttribute('data-sig',String(sup))}
+  A('#/overview','대시보드')+(kc?A('#/kpi?t=%EB%B6%80%EB%AC%B8','KPI')+A('#/mh?t=%EB%B6%80%EB%AC%B8','인시 · 노무비'):'')+A('#/notice','인사이트')+A('#/journals','일지')+A('#/reports','자료')+A('#/safenews','안전')+(sup?A('#/weekplan','근무')+A('#/admin','시스템'):'');
+ if(menu.getAttribute('data-sig')!==sig){menu.innerHTML=h;menu.setAttribute('data-sig',sig)}
  /* 영역 카드 */
  var g=document.querySelector('#areas .ha-g');
- if(g&&g.getAttribute('data-sig')!==String(sup)){
+ if(g&&g.getAttribute('data-sig')!==sig){
   var C=[['#/teams','01 · Team Portals','⊞','팀 포털','착즙 · 배합 · 멸균 · 포장 팀별 업무포털로 바로 들어갑니다. 현장 현황과 팀 인사이트를 봅니다.',['배합팀 포털 (운영 중)','착즙 · 멸균 · 포장 포털 바로가기'],'#0F8F7C','#0A3F3A','15,143,124'],
    ['#/overview','02 · Dashboard','▦','대시보드','팀별 일지와 생산 현황을 한 화면에서 확인합니다.',['대시보드 전체보기','팀별 현황'],'#3062D8','#12245A','48,98,216'],
    ['#/notice','03 · Insight','📢','인사이트','팀 포털과 일지에 모인 자료로 팀별 인사이트를 자동으로 만듭니다.',['팀별 인사이트','자동 인사이트 · 부서 공지'],'#D9822B','#5A300A','217,130,43'],
-   ['#/docs','04 · Resources','✎','자료','일지 · 결재 · 문서 · 보고서와 지연 · 정비 기록, 업무 자료를 한곳에 모았습니다.',['일지 작성 · 전자결재','지연 · 정비 기록','설비 매뉴얼 AI'],'#C27A2C','#53300F','194,122,44'],
-   ['#/safenews','05 · Safety','⚠','안전','안전 소식과 점검을 확인합니다.',['안전 소식 · 점검'],'#C2425D','#561526','194,66,93']];
-  if(sup)C.push(['#/weekplan','06 · Workforce','◷','근무','근무편성과 주간 근무계획표 (최고관리자 전용).',['주간근무계획표','근무스케쥴'],'#6D50D9','#2B1F66','109,80,217']);
+   ['#/journals','04 · Journals','✎','일지','팀을 고르면 바로 일지 양식이 열립니다. 작성 · 결재 · 인쇄까지 한 번에.',['팀별 일지 작성','작성중 · 저장완료 일지'],'#C27A2C','#53300F','194,122,44'],
+   ['#/reports','05 · Resources','📋','자료','업무 보고서함과 지연 · 정비 기록, 설비 매뉴얼 AI를 한곳에 모았습니다.',['업무 보고서함','지연 · 정비 기록','설비 매뉴얼 AI'],'#9A6B3C','#3F2A12','154,107,60'],
+   ['#/safenews','06 · Safety','⚠','안전','안전 소식과 점검을 확인합니다.',['안전 소식 · 점검'],'#C2425D','#561526','194,66,93']];
+  if(kc){C.splice(2,0,['#/kpi?t=%EB%B6%80%EB%AC%B8','KPI · Performance','◎','KPI 달성 현황','부문 · 가공1팀 · 가공2팀 · 포장팀 KPI 점수와 항목별 달성 현황 (팀장 전용).',['부문 통합 스코어카드','팀별 KPI 항목 · 월별 추이'],'#2F5BD8','#0B1A3C','47,91,216'],['#/mh?t=%EB%B6%80%EB%AC%B8','Labor · Man-hours','⏱','인시 · 근태 · 노무비','작업자가 쓴 근무일보로 매일 자동 계산되는 투입 인시 · OT · 추정 노무비 (팀장 전용).',['오늘 · 이번 달 투입 인시','팀별 노무비 · 근태 분석'],'#7A4DD8','#2A1760','122,77,216']);C.forEach(function(c,i){c[1]=c[1].replace(/^\d+ · /,'');c[1]=('0'+(i+1)).slice(-2)+' · '+c[1]})}
+  if(sup)C.push(['#/weekplan','07 · Workforce','◷','근무','근무편성과 주간 근무계획표 (최고관리자 전용).',['주간근무계획표','근무스케쥴'],'#6D50D9','#2B1F66','109,80,217']);
   g.innerHTML=C.map(function(c){return '<a class="ha-c rv2 in" href="#'+c[0].slice(2)+'" onclick="lnavGo(\''+c[0]+'\');return false" style="--c:'+c[6]+';--cd:'+c[7]+';--cr:'+c[8]+';opacity:1;transform:none"><span class="ha-n">'+c[1]+'</span><span class="ha-ic">'+c[2]+'</span><h3>'+c[3]+'</h3><p>'+c[4]+'</p><ul>'+c[5].map(function(x){return '<li>'+x+'</li>'}).join('')+'</ul><span class="ha-go">'+c[3]+' 열기</span></a>'}).join('');
-  g.setAttribute('data-sig',String(sup));
+  g.setAttribute('data-sig',sig);
   var t=document.querySelector('#areas .h2-t');if(t)t.textContent='팀 포털과 부문 업무, 하나의 포털'}
  [].forEach.call(document.querySelectorAll('#quick .hq-a'),function(a){var oc=a.getAttribute('onclick')||'';if(/#\/planconv/.test(oc))a.style.display='none';if(/#\/weekplan/.test(oc))a.style.display=sup?'':'none'});
 }
@@ -18689,7 +18692,7 @@ function view(){
  if(items.length)h+='</div>';
  /* 인시생산성 */
  var kh=items.filter(function(it){return /인\.?시/.test(it.name)})[0],mh=b.mh||{};
- h+='<h2 class="kp-h2"><span class="kp-sn">02</span>인시생산성 <small>KPI 기준(멸균 가공1·2팀 설비) · 목표 1,200 L/h</small></h2><div class="kp-two"><div class="kp-panel">'+(kh?bars(MON,kh.m.map(function(v){return typeof v==='number'?v:null}),{target:1200,unit:' L/h',aria:'월별 인시생산성'}):'')+'</div>'+
+ h+='<h2 class="kp-h2"><span class="kp-sn">02</span>인시생산성 <small>KPI 기준(멸균 가공1·2팀 설비) · 목표 1,200 L/h</small></h2><div class="kp-two"><div class="kp-panel">'+(kh?bars(MON,kh.m.map(function(v){return typeof v==='number'?v:null}),{target:1200,unit:' L/h',aria:'월별 인시생산성'}):'<div class="kp-empty">KPI 실적 엑셀(인시생산성 항목)이 올라오면 월별 L/h가 표시됩니다'+(TM().all?' · 팀 화면에서 팀별로 확인':'')+'</div>')+'</div>'+
   '<div class="kp-panel"><div class="kp-mini"><b>가공2팀 투입시간 · 생산량</b><span>엑셀 「상온가공팀 2팀 인시생산성」</span></div>'+bars(mh.months||[],(mh.hours||[]),{color:'var(--kp-s2)',unit:' h',aria:'월별 투입시간',h:170})+
   '<div class="kp-mini"><b>월 생산량 (만 L)</b></div>'+bars(mh.months||[],(mh.liters||[]).map(function(v){return v!=null?v/10000:null}),{color:'var(--kp-s3)',unit:'만 L',aria:'월별 생산량',h:150})+'</div></div>';
  /* 근태 */
@@ -18806,12 +18809,12 @@ function upload(files){var msg=$i('kp-msg');if(!files||!files.length)return;if(m
    else if(/근무인원편성/.test(sn)){var ro=pRole(rows);if(ro){b.role=ro;got.push('직무 편성')}}})});
   if(!got.length){if(msg)msg.textContent='알아볼 수 있는 시트가 없습니다. 시트 이름을 확인해 주세요.';return}
   b.at=new Date().toLocaleDateString('ko-KR')+' 업로드';save();rr();try{U.toast('엑셀 반영: '+got.join(' · '),'ok')}catch(e){}}).catch(function(e){if(msg)msg.textContent='실패: '+e.message})}
-function rr(){var M=$i('main');if(M&&(location.hash||'').split('?')[0]===ROUTE){M.innerHTML=view();anim()}}
+function rr(){var M=$i('main');if(M&&/^#\/(kpi|mh)$/.test((location.hash||'').split('?')[0])){M.innerHTML=view();anim()}}
 window.yumKPI={team:function(k){ST.team=k;rr()},xlsGrid:xlsGrid,xlsHours:xlsHours,ym:function(v){ST.ym=v;rr()},upload:upload,cfg:function(){var c=cfg();c.wage=num(($i('kp-wage')||{}).value);c.ot=num(($i('kp-ot')||{}).value)||1.5;c.night=num(($i('kp-ng')||{}).value)||0.5;save();rr();try{U.toast('노무비 계산 기준을 저장했습니다.','ok')}catch(e){}},view:view};
 
 /* ───────── 화면 연결 · 메뉴 ───────── */
 var _r=App.render;
-App.render=function(){var p=(location.hash||'').split('?')[0];if(p===ROUTE){if(!me())return _r.apply(this,arguments);this.baseRoute='#/kpi?t='+encodeURIComponent(TM().k);var M=$i('main');css();
+App.render=function(){var p=(location.hash||'').split('?')[0];if(p===ROUTE||p==='#/mh'){if(!me())return _r.apply(this,arguments);this.baseRoute=p+'?t='+encodeURIComponent(TM().k);var M=$i('main');css();
  if(!canKPI()){M.innerHTML='<div class="panel" style="max-width:560px;margin:40px auto;text-align:center;line-height:1.8"><div style="font-size:32px">🔒</div><h2>팀장 전용 화면입니다</h2>KPI · 인시생산성 · 근태 · 노무비 화면은 팀장 · 부문장 · 관리자만 볼 수 있습니다.</div>';try{this.buildSidebar();this.refreshChrome()}catch(e){}return}
  try{M.innerHTML=view();anim()}catch(e){console.error(e);M.innerHTML='<div class="panel">화면 오류: '+E(e.message)+'</div>'}try{this.buildSidebar();this.refreshChrome()}catch(e){}try{window.scrollTo(0,0)}catch(e){}return}return _r.apply(this,arguments)};
 window.yumKPICan=canKPI;
@@ -18848,7 +18851,7 @@ anim=function(){var M=$i('main');if(!M)return;var red=window.matchMedia&&matchMe
  function count(root){[].forEach.call(root.querySelectorAll('[data-count]'),function(el){var raw=el.getAttribute('data-count');if(raw===''||el.__c)return;el.__c=1;var v=parseFloat(raw),d=+(el.getAttribute('data-dec')||0);if(!isFinite(v))return;if(d===0&&raw.indexOf('.')>0&&Math.abs(v)<100)d=1;
   if(red){el.textContent=fmt(v,d);return}var t0=performance.now();(function st(t){var p=Math.min(1,(t-t0)/1400),e=1-Math.pow(1-p,4);el.textContent=fmt(v*e,d);if(p<1)requestAnimationFrame(st)})(t0)})}
  function show(el){if(el.classList.contains('in'))return;el.classList.add('in');count(el);[].forEach.call(el.querySelectorAll('.kp-arc'),function(c){c.style.strokeDashoffset=c.getAttribute('data-off')})}
- var T=[].slice.call(M.querySelectorAll('.kp-hero,.kp-ex,.kp-tc,.kp-card,.kp-panel,.kp-tile,.kp-h2,.kp-xw'));
+ var T=[].slice.call(M.querySelectorAll('.kp-hero,.kp-ex,.kp-tc,.kp-card,.kp-panel,.kp-tile,.kp-h2,.kp-xw,.kp-tm2,.kp-sc2'));
  M.classList.add('kp-go');
  if(!('IntersectionObserver' in window)||red){T.forEach(show);return}
  var io=new IntersectionObserver(function(es){var k=0;es.forEach(function(e){if(e.isIntersecting){var el=e.target;el.style.setProperty('--d',(k++*70)+'ms');show(el);io.unobserve(el)}})},{rootMargin:'0px 0px -8% 0px',threshold:.08});
@@ -18862,6 +18865,130 @@ anim=function(){var M=$i('main');if(!M)return;var red=window.matchMedia&&matchMe
   addEventListener('scroll',spy,{passive:true});spy()}
  /* 머리 숫자는 마우스 따라 살짝 빛남 */
  var hero=M.querySelector('.kp-hero');if(hero&&!red)hero.addEventListener('pointermove',function(e){var r=hero.getBoundingClientRect();hero.style.setProperty('--mx',((e.clientX-r.left)/r.width*100).toFixed(1)+'%');hero.style.setProperty('--my',((e.clientY-r.top)/r.height*100).toFixed(1)+'%')})};
+/*kp_split*/
+/* ── 화면 나누기 (2026-11-11): #/kpi = KPI 달성 현황 · #/mh = 인시 · 근태 · 노무비 (근무일보로 실시간 계산) ── */
+var MHR='#/mh';
+function MODE(){return (location.hash||'').split('?')[0]===MHR?'mh':'kpi'}
+function f14T(T){var by={};(DB.data.forms||[]).filter(function(x){return T.forms.indexOf(x.code)>=0}).forEach(function(f){var K=rowKeys(f);
+ (DB.data.docs||[]).filter(function(d){return d&&d.formId===f.id&&!d.deleted&&d.status!=='deleted'}).forEach(function(d){var ds=docDay(d);if(!ds)return;var o=by[ds]=by[ds]||{at:{},p:{},docs:0};
+  if(o.at[f.id]&&String(o.at[f.id])>String(d.updatedAt||''))return;if(!o.at[f.id])o.docs++;o.at[f.id]=d.updatedAt||'';
+  K.forEach(function(r){var n=bare(G(d,r[0]));if(!n)return;var h=num(G(d,r[1])),ot=num(G(d,r[2])),ng=num(G(d,r[3]));if(h==null&&ot==null&&ng==null)return;o.p[n]={h:h,ot:ot,ng:ng}})})});
+ return by}
+/* 근무일보 「근무시간」 = OT 포함 총 근무시간 · 없으면 8시간 + OT */
+function hrsOf(p){return p.h!=null?p.h:8+(p.ot||0)}
+function liveDays(T,ym){var F=f14T(T),C=cfg(),w=C.wage,y=+ym.slice(0,4),m=+ym.slice(5,7),N=new Date(y,m,0).getDate(),td=ymd(new Date()),out=[];
+ for(var d=1;d<=N;d++){var ds=ym+'-'+pad(d);if(ds>td){out.push(null);continue}var o=F[ds],r={d:d,ds:ds,n:0,h:0,ot:0,ng:0,tr:0,docs:o?o.docs:0,none:!o};
+  if(o){var tr=trainees(ds);Object.keys(o.p).forEach(function(k){var p=o.p[k],h=hrsOf(p);r.n++;r.h+=h;r.ot+=p.ot||0;r.ng+=p.ng||0;if(tr.indexOf(k)>=0)r.tr+=h})}
+  r.reg=Math.max(0,r.h-r.ot);r.cost=w?r.reg*w+r.ot*w*C.ot+r.ng*w*C.night:null;out.push(r)}
+ return out}
+function sumDays(L){var s={h:0,ot:0,ng:0,reg:0,tr:0,pd:0,days:0,cost:0,hasCost:false};L.forEach(function(r){if(!r||r.none)return;s.days++;s.h+=r.h;s.ot+=r.ot;s.ng+=r.ng;s.reg+=r.reg;s.tr+=r.tr;s.pd+=r.n;if(r.cost!=null){s.cost+=r.cost;s.hasCost=true}});return s}
+function won(v){if(v==null)return '-';if(Math.abs(v)>=1e8)return fmt(v/1e8,2)+'억';if(Math.abs(v)>=1e4)return fmt(v/1e4,0)+'만';return fmt(v,0)}
+var TCOL={'가공1팀':'var(--kp-s1)','가공2팀':'var(--kp-s2)','포장팀':'var(--kp-s3)'};
+/* 쌓은 막대 (일별) */
+function stack(labels,series,opt){opt=opt||{};var W=760,H=opt.h||240,L=46,B=24,T=14,n=labels.length,bw=(W-L-6)/n;
+ var tot=labels.map(function(_,i){return series.reduce(function(a,s){return a+(s.vals[i]||0)},0)}),mx=Math.max.apply(null,tot.concat([1]))*1.12;
+ var y=function(v){return T+(H-T-B)*(1-v/mx)},g='';
+ for(var k=0;k<=4;k++){var v=mx*k/4,yy=y(v);g+='<line x1="'+L+'" x2="'+W+'" y1="'+yy+'" y2="'+yy+'" class="kp-gl"/><text x="'+(L-6)+'" y="'+(yy+4)+'" text-anchor="end" class="kp-ax">'+fmt(v,0)+'</text>'}
+ labels.forEach(function(lb,i){var x=L+i*bw+bw*0.14,w=bw*0.72,acc=0;if(n<=31&&(i%(n>16?2:1)===0||i===n-1))g+='<text x="'+(x+w/2)+'" y="'+(H-7)+'" text-anchor="middle" class="kp-ax'+(opt.hi===i?' hi':'')+'">'+E(lb)+'</text>';
+  var tip=E(lb+(opt.unitLb||''))+' · 합계 '+fmt(tot[i],1)+(opt.unit||'')+series.map(function(s){return '\n'+s.name+' '+fmt(s.vals[i]||0,1)}).join('');
+  g+='<g class="kp-bg"><title>'+tip+'</title><rect x="'+(x-bw*0.1)+'" y="'+T+'" width="'+(w+bw*0.2)+'" height="'+(H-T-B)+'" fill="transparent"/>';
+  series.forEach(function(s,si){var v=s.vals[i]||0;if(!v)return;var y1=y(acc+v),y0=y(acc),hh=Math.max(1,y0-y1-(acc>0?2:0));g+='<rect x="'+x+'" y="'+y1+'" width="'+w+'" height="'+hh+'" rx="3" fill="'+s.color+'" class="kp-bar" style="--d:'+(i*25)+'ms"/>';acc+=v});
+  if(opt.hi===i&&tot[i])g+='<text x="'+(x+w/2)+'" y="'+(y(tot[i])-6)+'" text-anchor="middle" class="kp-bv kp-hiv">'+fmt(tot[i],0)+'</text>';
+  g+='</g>'});
+ return '<div class="kp-lgd">'+series.map(function(s){return '<span><i style="background:'+s.color+'"></i>'+E(s.name)+'</span>'}).join('')+'</div><svg class="kp-bars" viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="'+E(opt.aria||'')+'">'+g+'</svg>'}
+function wageBox(w){var C=cfg();return '<div class="kp-wage"><div><b>'+(w?'노무비 계산 단가':'노무비를 보려면 시간당 평균 인건비를 넣어 주세요')+'</b><span>근무일보 근무시간 · OT · 심야 × 단가로 바로 계산합니다 (추정치 · 실제 급여 자료 아님)</span></div>'+
+ (canKPI()?'<label>시간당 인건비 <input type="number" id="kp-wage2" value="'+(w||'')+'" placeholder="예: 21000"> 원</label><label>OT 배율 <input type="number" step="0.1" id="kp-ot2" value="'+C.ot+'"></label><label>심야 가산 <input type="number" step="0.1" id="kp-ng2" value="'+C.night+'"></label><button class="kp-btn" onclick="yumKPI.wage()">적용</button>':'')+'</div>'}
+function mhLive(ym){var T=TM(),C=cfg(),w=C.wage,td=ymd(new Date()),yd=ymd(new Date(Date.now()-864e5)),TL=T.all?TEAMS.slice(1):[T];
+ var per=TL.map(function(t){var L=liveDays(t,ym);return {t:t,L:L,s:sumDays(L)}}),N=per[0].L.length;
+ var all=per[0].L.map(function(_,i){var r={h:0,ot:0,ng:0,reg:0,n:0,cost:null,docs:0,none:true};per.forEach(function(p){var x=p.L[i];if(!x||x.none)return;r.none=false;r.h+=x.h;r.ot+=x.ot;r.ng+=x.ng;r.reg+=x.reg;r.n+=x.n;r.docs+=x.docs;if(x.cost!=null)r.cost=(r.cost||0)+x.cost});return per[0].L[i]?r:null});
+ var S=sumDays(all),di=+td.slice(8)-1,inM=td.slice(0,7)===ym,tdR=inM?all[di]:null,ydR=yd.slice(0,7)===ym?all[+yd.slice(8)-1]:null;
+ var nForms=(DB.data.forms||[]).filter(function(f){return T.forms.indexOf(f.code)>=0&&f.active!==false}).length;
+ var mo=+ym.slice(5);
+ /* 머리 */
+ var h='<div class="kp-hero kp-mhh"><div class="kp-aur" aria-hidden="true"><i></i><i></i><i></i></div><div class="kp-gbg" aria-hidden="true"></div><div class="kp-ht"><div class="kp-eye"><span class="kp-live"><i></i>LIVE</span>'+E(T.label)+' · LABOR ANALYTICS · 팀장 전용</div><h1>'+(T.all?'부문 통합 ':E(T.k)+' ')+'인시 · 근태 · 노무비</h1>'+
+  '<div class="kp-meta"><span>근무일보 실시간 집계 · <b>'+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})+'</b> 기준</span><span>'+mo+'월 1~'+(inM?+td.slice(8):N)+'일</span><span>'+(w?'단가 <b>'+fmt(w)+'원/시간</b>':'인건비 단가 미입력')+'</span></div></div>'+
+  '<div class="kp-score">'+ring(S.h?S.ot/S.h:0,168,14,'',S.h?fmt(S.ot/S.h*100,1):'0','OT 비율 %')+'<div class="kp-sl"><b>이번 달</b><i><span>투입 인시</span><em>'+fmt(S.h,1)+' h</em></i><i><span>연장(OT)</span><em>'+fmt(S.ot,1)+' h</em></i><i><span>심야</span><em>'+fmt(S.ng,1)+' h</em></i><i><span>추정 노무비</span><em>'+(S.hasCost?won(S.cost)+'원':'단가 필요')+'</em></i></div></div></div>';
+ /* 요약 */
+ var ex=[['오늘 투입 인시',tdR&&!tdR.none?tdR.h:null,'h · '+(tdR&&!tdR.none?tdR.n+'명':'일보 작성 전'),'live'],['어제 투입 인시',ydR&&!ydR.none?ydR.h:null,'h · '+(ydR&&!ydR.none?ydR.n+'명':'자료 없음'),''],
+  ['이번 달 누적 인시',S.h,'h · '+S.days+'일 · 연인원 '+S.pd+'명',''],['이번 달 추정 노무비',S.hasCost?Math.round(S.cost/1e4):null,S.hasCost?'만원 · 일평균 '+won(S.cost/Math.max(1,S.days))+'원':'시간당 인건비를 넣으면 계산',S.hasCost?'good':'warn']];
+ h+='<div class="kp-exec">'+ex.map(function(x){return '<div class="kp-ex '+x[3]+'"><small>'+(x[3]==='live'?'<i class="kp-ldot"></i>':'')+x[0]+'</small><b data-count="'+(x[1]==null?'':x[1])+'" data-dec="'+(x[0].indexOf('노무비')>=0?0:1)+'">'+(x[1]==null?'-':'0')+'</b><em>'+x[2]+'</em></div>'}).join('')+'</div>';
+ if(!w)h+=wageBox(w);
+ /* 일별 */
+ var labels=all.map(function(_,i){return String(i+1)});
+ var series=T.all?per.map(function(p){return {name:p.t.k,color:TCOL[p.t.k],vals:p.L.map(function(r){return r&&!r.none?r.h:0})}}):[{name:'정규 근무',color:'var(--kp-s1)',vals:all.map(function(r){return r&&!r.none?r.reg:0})},{name:'연장(OT)',color:'var(--kp-s2)',vals:all.map(function(r){return r&&!r.none?r.ot:0})}];
+ h+='<h2 class="kp-h2"><span class="kp-sn">01</span>일별 투입 인시 · 노무비 <small>작업자가 쓴 근무일보를 저장하는 즉시 반영 · '+mo+'월</small></h2>';
+ h+='<div class="kp-two kp-wide"><div class="kp-panel"><div class="kp-mini"><b>일별 투입 인시</b><span>'+(T.all?'팀별':'정규 · 연장')+' · 막대에 마우스를 올리면 자세히</span></div>'+stack(labels,series,{unit:'h',unitLb:'일',hi:inM?di:-1,aria:'일별 투입 인시'})+'</div>'+
+  '<div class="kp-panel"><div class="kp-mini"><b>일별 추정 노무비 (만원)</b><span>'+(w?'단가 '+fmt(w)+'원 · OT ×'+C.ot+' · 심야 +'+C.night:'단가를 넣으면 표시됩니다')+'</span></div>'+(w?bars(labels,all.map(function(r){return r&&r.cost!=null?r.cost/1e4:null}),{color:'var(--kp-s3)',unit:'만원',labels:false,aria:'일별 노무비',h:240}):'<div class="kp-empty">시간당 인건비 미입력</div>')+'</div></div>';
+ /* 팀별 (부문) / 오늘 일보 현황 */
+ if(T.all){var tot=S.h||1;h+='<div class="kp-tms">'+per.map(function(p,i){var s=p.s,c=TCOL[p.t.k],sp=spark(p.L.map(function(r){return r&&!r.none?r.h:null}),220,44,c,null);
+   return '<a class="kp-tm2" href="#/mh?t='+encodeURIComponent(p.t.k)+'" style="--c:'+c+'"><div class="kp-tmh"><b>'+E(p.t.label)+'</b><span>'+fmt(s.h/tot*100,0)+'%</span></div><div class="kp-share"><i style="--w:'+(s.h/tot*100).toFixed(1)+'%"></i></div>'+
+    '<div class="kp-tmv"><div><small>투입 인시</small><b data-count="'+s.h+'" data-dec="1">0</b><em>h</em></div><div><small>OT</small><b data-count="'+s.ot+'" data-dec="1">0</b><em>h</em></div><div><small>심야</small><b data-count="'+s.ng+'" data-dec="1">0</b><em>h</em></div><div><small>노무비</small><b>'+(s.hasCost?won(s.cost):'-')+'</b><em>원</em></div></div>'+
+    (sp||'<div class="kp-empty sm">이번 달 근무일보 없음</div>')+'<div class="kp-tmf">연인원 '+s.pd+'명 · 1인·일 평균 '+fmt(s.pd?s.h/s.pd:0,1)+'h · 일보 '+s.days+'일</div></a>'}).join('')+'</div>'}
+ else{var P={},F=f14T(T);Object.keys(F).forEach(function(ds){if(ds.slice(0,7)!==ym)return;Object.keys(F[ds].p).forEach(function(n){var p=F[ds].p[n],o=P[n]=P[n]||{n:n,h:0,ot:0,ng:0,d:0};o.h+=hrsOf(p);o.ot+=p.ot||0;o.ng+=p.ng||0;o.d++})});
+  var PL=Object.keys(P).map(function(k){return P[k]}).sort(function(a,b){return b.h-a.h}).slice(0,12),mx=Math.max.apply(null,PL.map(function(p){return p.h}).concat([1]));
+  h+='<div class="kp-panel"><div class="kp-mini"><b>개인별 투입 인시 · 이번 달</b><span>많은 순 상위 '+PL.length+'명 · OT는 진한 부분</span></div><div class="kp-hb">'+PL.map(function(p){return '<div class="kp-hr"><span>'+E(p.n)+'</span><div class="kp-track kp-two-t"><i style="--w:'+(p.h/mx*100).toFixed(1)+'%;background:var(--kp-s1)"></i><i class="o" style="--w:'+(p.ot/mx*100).toFixed(1)+'%"></i></div><b>'+fmt(p.h,1)+'</b></div>'}).join('')+'</div></div>'}
+ h+='<div class="kp-note">오늘 저장된 근무일보 '+(tdR?tdR.docs:0)+'건 / 양식 '+nForms+'종 · 근무시간 칸(OT 포함) 기준 · 신입 교육 인원 '+fmt(S.tr,1)+'h 포함 · 화면을 열어 두면 1분마다 새 일보를 확인해 다시 계산합니다</div>';
+ if(w)h+=wageBox(w);
+ return h}
+/* 부문 KPI 스코어카드 */
+var LVC=['','#0E9F6E','#3B82F6','#8B5CF6','#F59E0B','#EF4444'];
+function kpiDiv(){var B=books(),R=TEAMS.slice(1).map(function(t){var a=(B[t.k]||{}).act,it=(a&&a.items)||[],sc=a&&a.total!=null?a.total:(it.length?it.reduce(function(x,i){return x+(i.score||0)},0):null),lv=[0,0,0,0,0,0];it.forEach(function(i){var v=lvOf(i);if(v)lv[v]++});
+  return {t:t,items:it,score:sc,lv:lv,ms:(a&&a.monthScore)||[],at:(B[t.k]||{}).at}});
+ var got=R.filter(function(r){return r.score!=null}),avg=got.length?got.reduce(function(a,r){return a+r.score},0)/got.length:null,ni=R.reduce(function(a,r){return a+r.items.length},0),l1=R.reduce(function(a,r){return a+r.lv[1]},0),wn=R.reduce(function(a,r){return a+r.lv[4]+r.lv[5]},0);
+ var h='<div class="kp-exec">'+[['부문 평균 점수',avg,'/ 100점 · '+got.length+'개 팀 평균',''],['실적 등록 팀',got.length,'/ '+R.length+'팀',got.length<R.length?'warn':'good'],['Lev.1 달성',l1,'/ '+ni+' 항목','good'],['관리 필요 (Lev.4~5)',wn,'항목',wn?'warn':'']].map(function(x){return '<div class="kp-ex '+x[3]+'"><small>'+x[0]+'</small><b data-count="'+(x[1]==null?'':x[1])+'" data-dec="'+(x[0].indexOf('점수')>=0?1:0)+'">'+(x[1]==null?'-':'0')+'</b><em>'+x[2]+'</em></div>'}).join('')+'</div>';
+ h+='<h2 class="kp-h2"><span class="kp-sn">00</span>팀별 KPI 스코어카드 <small>각 팀장이 올린 KPI 실적 엑셀 기준 · 카드를 누르면 팀 화면으로</small></h2><div class="kp-sc3">'+R.map(function(r,i){
+  var body=r.score!=null?ring(r.score/100,132,11,'',fmt(r.score,1),'/ 100')+'<div class="kp-sci"><div class="kp-lvb">'+[1,2,3,4,5].map(function(k){return r.lv[k]?'<i style="flex:'+r.lv[k]+';background:'+LVC[k]+'" title="Lev.'+k+' '+r.lv[k]+'항목"></i>':''}).join('')+'</div><div class="kp-lvt"><span>Lev.1 <b>'+r.lv[1]+'</b></span><span>관리 필요 <b>'+(r.lv[4]+r.lv[5])+'</b></span><span>항목 <b>'+r.items.length+'</b></span></div>'+(spark(r.ms.map(function(v){return v==null?null:v}),220,40,'var(--kp-s1)',null)||'')+'</div>'
+   :'<div class="kp-wait"><svg width="132" height="132" viewBox="0 0 132 132"><circle cx="66" cy="66" r="58" fill="none" stroke="var(--kp-track)" stroke-width="10" stroke-dasharray="4 7"/><text x="50%" y="52%" text-anchor="middle" class="kp-wt">대기</text></svg><div class="kp-sci"><b>KPI 실적 엑셀 대기</b><span>팀장이 「엑셀로 갱신」에서 월별 실적을 올리면 점수 · 레벨 · 추이가 자동으로 나옵니다</span></div></div>';
+  return '<a class="kp-sc2" href="#/kpi?t='+encodeURIComponent(r.t.k)+'" style="--d:'+(i*90)+'ms"><div class="kp-sch"><b>'+E(r.t.label)+'</b><span>'+(r.score!=null?'FY2026':'')+'</span></div><div class="kp-scb">'+body+'</div></a>'}).join('')+'</div>';
+ /* 레벨 분포 · 관리 필요 항목 */
+ var W=[];R.forEach(function(r){r.items.forEach(function(it){var v=lvOf(it);if(v>=4)W.push({t:r.t.k,it:it,lv:v})})});
+ h+='<div class="kp-two"><div class="kp-panel"><div class="kp-mini"><b>팀별 KPI 레벨 분포</b><span>항목 수 기준</span></div><div class="kp-lgd">'+[1,2,3,4,5].map(function(k){return '<span><i style="background:'+LVC[k]+'"></i>Lev.'+k+'</span>'}).join('')+'</div>'+
+  R.map(function(r){var n=r.items.length;return '<div class="kp-lvr"><span>'+E(r.t.k)+'</span><div class="kp-lvb lg">'+(n?[1,2,3,4,5].map(function(k){return r.lv[k]?'<i style="flex:'+r.lv[k]+';background:'+LVC[k]+'" title="Lev.'+k+' '+r.lv[k]+'항목">'+r.lv[k]+'</i>':''}).join(''):'<em>자료 없음</em>')+'</div></div>'}).join('')+'</div>'+
+  '<div class="kp-panel"><div class="kp-mini"><b>관리 필요 항목</b><span>Lev.4 ~ 5 · 점수 / 배점</span></div>'+(W.length?W.map(function(x){var r=x.it.w?(x.it.score||0)/x.it.w:0,l=last(x.it.m);return '<div class="kp-wl"><span class="kp-wt2">'+E(x.t)+'</span><b>'+E(x.it.name)+'</b><div class="kp-track"><i style="--w:'+(r*100).toFixed(0)+'%;background:'+LVC[x.lv]+'"></i></div><em>'+fmt(x.it.score,1)+' / '+fmt(x.it.w,0)+'</em><small>최근 '+(l?fmt(l.v,l.v%1?1:0):'-')+' · 목표 '+E(x.it.target==null?'-':x.it.target)+'</small></div>'}).join(''):'<div class="kp-empty">관리 필요 항목이 없습니다</div>')+'</div></div>';
+ return {html:h,avg:avg}}
+var _view2=view;view=function(){var h=_view2.apply(this,arguments),mode=MODE(),T=TM();
+ var P=h.split('<h2 class="kp-h2" id="kp-sec'),head=P[0],S={};P.slice(1).forEach(function(x){S[x.slice(0,2)]='<h2 class="kp-h2" id="kp-sec'+x});
+ var last6=S['06']||'',LOSS='<div class="kp-two"><div class="kp-panel"><div class="kp-mini"><b>폐기손',i1=last6.indexOf(LOSS),i2=last6.indexOf('<div class="kp-panel kp-up">');
+ var end=last6.length-6,s06=last6.slice(0,i1>=0?i1:(i2>=0?i2:end)),loss=i1>=0?last6.slice(i1,i2>=0?i2:end):'',up=i2>=0?last6.slice(i2,end):'';
+ var out='<div class="kp kp-'+mode+'">';
+ if(mode==='mh'){var ym=ST.ym||ymd(new Date()).slice(0,7);out+=mhLive(ym)+(S['02']||'')+(S['03']||'')+(S['04']||'')+(S['05']||'')+s06+up}
+ else{head=head.replace(/<span>근태 · 투입시간 <b>[^<]*<\/b>[^<]*<\/span>/,'').replace('KPI · 인시생산성 · 근태</h1>','KPI 달성 현황</h1>').replace('<div class="kp">','');
+  if(T.all){var D=kpiDiv();head=head.replace('<span>KPI 실적 엑셀 미등록</span>','<span>팀별 KPI 실적 엑셀 기준 · 부문 평균</span>');if(D.avg!=null)head=head.replace(/<div class="kp-sl"><b>KPI 실적 엑셀 대기<\/b>[\s\S]*?<\/div><\/div>$/,'<div class="kp-score">'+ring(D.avg/100,168,14,'',fmt(D.avg,1),'/ 100점')+'<div class="kp-sl"><b>부문 평균</b><span>실적 등록 팀 평균</span></div></div></div>');
+   out+=head+D.html+(S['01']||'').replace('KPI 목표 <small>','부문 KPI 목표 <small>')+up}
+  else out+=head+(S['00']||'')+(S['01']||'')+loss+up}
+ var k=0;out=out.replace(/<h2 class="kp-h2" id="kp-sec\d\d"><span class="kp-sn">\d\d<\/span>/g,function(){k++;var n=('0'+k).slice(-2);return '<h2 class="kp-h2" id="kp-sec'+n+'"><span class="kp-sn">'+n+'</span>'});
+ out=out.replace(/<h2 class="kp-h2"><span class="kp-sn">0[01]<\/span>/g,function(){k++;var n=('0'+k).slice(-2);return '<h2 class="kp-h2" id="kp-secx'+n+'"><span class="kp-sn">'+n+'</span><span class="kp-kick">'+(mode==='mh'?'LIVE LABOR':'SCORECARD')+'</span>'});
+ /* 번호 다시 매기기 (나타난 순서대로) */
+ var j=0;out=out.replace(/id="kp-sec(x?)\d\d"><span class="kp-sn">\d\d<\/span>/g,function(){j++;var n=('0'+j).slice(-2);return 'id="kp-sec'+n+'"><span class="kp-sn">'+n+'</span>'});
+ return out+'</div>'};
+yumKPI.wage=function(){var c=cfg(),v=num(($i('kp-wage2')||{}).value);c.wage=v&&v>0?v:null;c.ot=num(($i('kp-ot2')||{}).value)||c.ot||1.5;var g=num(($i('kp-ng2')||{}).value);if(g!=null)c.night=g;save();rr();try{U.toast(c.wage?'노무비 단가 적용: '+fmt(c.wage)+'원/시간':'단가를 지웠습니다','ok')}catch(e){}};
+/* 화면을 열어 두면 새 근무일보가 저장될 때 다시 계산 */
+var SIG='';setInterval(function(){try{var p=(location.hash||'').split('?')[0];if(p!==MHR&&p!==ROUTE)return;var d=DB.data.docs||[],mx='';d.forEach(function(x){if(x&&x.updatedAt>mx)mx=x.updatedAt});var s=d.length+'|'+mx+'|'+JSON.stringify(cfg());if(SIG&&s!==SIG&&!document.querySelector('.kp input:focus')){var y=scrollY;rr();window.scrollTo(0,y)}SIG=s}catch(e){}},60000);
+function cssSplit(){if($i('kp-css3'))return;var s=document.createElement('style');s.id='kp-css3';s.textContent=
+ '.kp-mhh .kp-aur i:nth-child(1){background:#6B3CFF}.kp-mhh .kp-aur i:nth-child(2){background:#1E9BFF}'+
+ '.kp-sl i{font-style:normal}.kp-sl i span{color:#9DB0D6}.kp-sl i em{font-style:normal;color:#fff;font-weight:800;font-variant-numeric:tabular-nums}.kp-sl{min-width:220px}'+
+ '.kp-ldot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#10B981;margin-right:6px;vertical-align:1px;animation:kplv 1.8s infinite}.kp-ex.live:before{background:linear-gradient(90deg,#10B981,#4C7DFF)}'+
+ '.kp-wage{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:14px 18px;border-radius:16px;border:1px dashed color-mix(in srgb,var(--kp-acc1) 45%,transparent);background:color-mix(in srgb,var(--kp-acc1) 6%,var(--kp-card))}.kp-wage>div{flex:1;min-width:240px;display:flex;flex-direction:column;gap:2px}.kp-wage>div b{font-size:14px}.kp-wage>div span{font-size:12px;color:var(--kp-mute)}'+
+ '.kp-wage label{font-size:12.5px;color:var(--kp-sub);font-weight:700;display:flex;align-items:center;gap:6px}.kp-wage input{width:100px;padding:7px 9px;border:1px solid var(--kp-line);border-radius:9px;font:inherit;background:var(--kp-card);color:var(--kp-ink)}.kp-btn{border:0;border-radius:10px;padding:8px 16px;font:700 13px inherit;color:#fff;background:linear-gradient(135deg,#0B1A3C,#2F5BD8);cursor:pointer}'+
+ '.kp-wide{grid-template-columns:1.25fr 1fr}.kp-lgd{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--kp-sub);margin:0 0 6px}.kp-lgd i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}'+
+ '.kp-ax.hi{fill:var(--kp-ink);font-weight:800}.kp-hiv{fill:var(--kp-ink)!important;font-size:12px}.kp-empty{padding:40px 10px;text-align:center;color:var(--kp-mute);font-size:13px}.kp-empty.sm{padding:12px 0}'+
+ '.kp-tms{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.kp-tm2{display:flex;flex-direction:column;gap:10px;padding:18px 20px;border-radius:18px;background:var(--kp-card);border:1px solid var(--kp-line);text-decoration:none;color:var(--kp-ink);position:relative;overflow:hidden;box-shadow:0 1px 2px rgba(15,23,42,.04),0 12px 30px -26px rgba(15,23,42,.4);opacity:0;transform:translateY(18px);transition:opacity .7s cubic-bezier(.16,1,.3,1) var(--d,0ms),transform .7s cubic-bezier(.16,1,.3,1) var(--d,0ms),box-shadow .25s}'+
+ '.kp-tm2.in{opacity:1;transform:none}.kp-tm2.in:hover{transform:translateY(-3px);box-shadow:0 22px 40px -26px rgba(30,60,140,.45)}.kp-tm2:before{content:"";position:absolute;left:0;top:0;right:0;height:3px;background:var(--c)}'+
+ '.kp-tmh{display:flex;justify-content:space-between;align-items:baseline}.kp-tmh b{font-size:15px}.kp-tmh span{font-size:22px;font-weight:800;color:var(--c);font-variant-numeric:tabular-nums}.kp-share{height:6px;border-radius:999px;background:var(--kp-track);overflow:hidden}.kp-share i{display:block;height:100%;width:0;background:var(--c);border-radius:999px;transition:width 1.4s cubic-bezier(.16,1,.3,1) .3s}.kp-tm2.in .kp-share i{width:var(--w)}'+
+ '.kp-tmv{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.kp-tmv small{display:block;font-size:11px;color:var(--kp-mute)}.kp-tmv b{font-size:19px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}.kp-tmv em{font-style:normal;font-size:11px;color:var(--kp-sub);margin-left:2px}.kp-tmf{font-size:11.5px;color:var(--kp-mute)}'+
+ '.kp-two-t{position:relative}.kp-two-t i.o{position:absolute;left:0;top:0;bottom:0;background:var(--kp-s2)!important}'+
+ '.kp-sc3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}.kp-sc2{display:flex;flex-direction:column;gap:12px;padding:18px 20px;border-radius:20px;background:linear-gradient(160deg,var(--kp-card) 60%,color-mix(in srgb,var(--kp-acc1) 7%,var(--kp-card)));border:1px solid var(--kp-line);text-decoration:none;color:var(--kp-ink);box-shadow:0 1px 2px rgba(15,23,42,.04),0 16px 34px -28px rgba(15,23,42,.5);opacity:0;transform:translateY(18px);transition:opacity .7s cubic-bezier(.16,1,.3,1) var(--d,0ms),transform .7s cubic-bezier(.16,1,.3,1) var(--d,0ms),box-shadow .25s}'+
+ '.kp-sc2.in{opacity:1;transform:none}.kp-sc2.in:hover{transform:translateY(-3px);box-shadow:0 26px 44px -28px rgba(30,60,140,.5)}.kp-sch{display:flex;justify-content:space-between;align-items:center}.kp-sch b{font-size:15px}.kp-sch span{font-size:10.5px;letter-spacing:.14em;color:var(--kp-mute);font-weight:800}'+
+ '.kp-scb{display:flex;align-items:center;gap:16px}.kp-scb .kp-ring{flex:none;--kp-track:color-mix(in srgb,var(--kp-acc1) 12%,var(--kp-card))}.kp-scb .kp-rt{fill:var(--kp-ink);font-size:30px}.kp-scb .kp-rs{fill:var(--kp-mute)}.kp-scb .kp-rtick{stroke:var(--kp-line)}.kp-sci{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}.kp-sci>b{font-size:14px}.kp-sci>span{font-size:12px;color:var(--kp-mute);line-height:1.5}'+
+ '.kp-wait{display:flex;align-items:center;gap:16px}.kp-wt{font-size:15px;font-weight:800;fill:var(--kp-mute)}.kp-wait svg{flex:none;animation:kpspin 30s linear infinite}.kp-wait svg text{animation:kpspin 30s linear infinite reverse;transform-origin:center;transform-box:fill-box}'+
+ '.kp-lvb{display:flex;gap:2px;height:10px;border-radius:999px;overflow:hidden;background:var(--kp-track)}.kp-lvb i{display:block;min-width:6px}.kp-lvb.lg{height:22px;border-radius:8px}.kp-lvb.lg i{color:#fff;font-style:normal;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}.kp-lvb em{font-style:normal;font-size:11.5px;color:var(--kp-mute);padding:3px 8px}'+
+ '.kp-lvt{display:flex;gap:12px;font-size:12px;color:var(--kp-sub)}.kp-lvt b{color:var(--kp-ink);font-variant-numeric:tabular-nums}.kp-lvr{display:grid;grid-template-columns:70px 1fr;gap:10px;align-items:center;margin:10px 0;font-size:13px;font-weight:700}'+
+ '.kp-wl{display:grid;grid-template-columns:62px 1fr 120px 76px;gap:4px 10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--kp-line);font-size:13px}.kp-wl small{grid-column:2/5;font-size:11.5px;color:var(--kp-mute)}.kp-wl em{font-style:normal;font-weight:800;text-align:right;font-variant-numeric:tabular-nums}.kp-wt2{font-size:11px;font-weight:800;color:var(--kp-sub);background:var(--kp-track);border-radius:6px;padding:2px 6px;text-align:center}'+
+ '.kp-wl .kp-track i,.kp-tm2 .kp-track i,.kp-sc2 .kp-track i{width:var(--w)}'+
+ '@media (max-width:1100px){.kp-tms,.kp-sc3{grid-template-columns:1fr}.kp-wide{grid-template-columns:1fr}}';
+ document.head.appendChild(s)}
+var _css2=css;css=function(){_css2();cssSplit()};
+
 function cssPro(){if($i('kp-css2'))return;var s=document.createElement('style');s.id='kp-css2';s.textContent=
  '.kp{--kp-gold:#C9A85C;--kp-acc1:#4C7DFF;--kp-acc2:#8B6CFF;gap:18px;letter-spacing:-.005em}'+
  /* 머리 */
