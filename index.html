@@ -10794,6 +10794,8 @@ console.log('[확장 모듈 34] 지연·정비 기록 (노션 이전 '+notionRec
     M.J = analyzeDocs(data, P.from, P.to, opts.templates);
     M.pJ = analyzeDocs(data, P.pFrom, P.pTo, opts.templates);
     M.PR = proc(data, P.from, P.to, opts.templates);
+    M.pPR = proc(data, P.pFrom, P.pTo, opts.templates);
+    M.L = labor(data, P.from, P.to, opts.templates); M.pL = labor(data, P.pFrom, P.pTo, opts.templates); M.K = kpiSum(data);
     /* 생산계획 (다음 기간) */
     var nxtFrom = addDays(P.to, 1), nxtTo = P.kind === 'daily' ? nxtFrom : (P.kind === 'weekly' ? addDays(nxtFrom, 6) : monthEnd(nxtFrom.slice(0, 7)));
     var plan = [];
@@ -10902,146 +10904,267 @@ console.log('[확장 모듈 34] 지연·정비 기록 (노션 이전 '+notionRec
   function chip(t, bg, fg) { return '<span style="display:inline-block;padding:2px 8px;border-radius:999px;background:' + bg + ';color:' + fg + ';font-size:11.5px;font-weight:700;white-space:nowrap">' + t + '</span>'; }
   function light(level) { return level === 2 ? chip('주의', C.redBg, C.red) : level === 1 ? chip('관찰', C.amberBg, '#B8701A') : chip('양호', C.greenBg, C.green); }
 
+  /* ═════════ 보고서 v2 (2026-11-11) — 전문 보고서 형식 · 근무일보 인시 · 노무비 · KPI · 작성 현황 반영 ═════════ */
+  /* 근무일보 7종: 줄마다 이름 · 근무시간(OT 포함) · OT · 심야 · 식사 칸 위치 (이름 칸 기준 몇 칸 뒤) */
+  var LAB_LAY = { m14: [3, 4, 5, 7], m28: [3, 4, 5, 7], m66: [3, 4, 6, 8], m70: [3, 4, 6, 8], m67: [3, 4, 5, 8], m68: [3, 4, 5, 8], m69: [3, 4, 5, 8] };
+  var LAB_DIV = { 'FRM-014': '가공2팀', 'FRM-028': '가공2팀', 'FRM-066': '가공1팀', 'FRM-070': '가공1팀', 'FRM-067': '포장팀', 'FRM-068': '포장팀', 'FRM-069': '포장팀' };
+  function gridDay(d) { var g = (d && d.data && d.data.grid) || {}; if (g.dY && g.dM && g.dD && +g.dM >= 1 && +g.dM <= 12 && +g.dD >= 1 && +g.dD <= 31) return g.dY + '-' + ('0' + (+g.dM)).slice(-2) + '-' + ('0' + (+g.dD)).slice(-2); return docDate(d); }
+  function labor(data, from, to, templates) {
+    var forms = {}; ((data && data.forms) || []).forEach(function (f) { if (f && f.code) forms[f.code] = f; });
+    var out = { byDiv: {}, byDay: {}, total: { pd: 0, h: 0, ot: 0, ng: 0, ml: [0, 0, 0, 0], tr: 0 }, people: {}, wage: null, otR: 1.5, ngR: 0.5 };
+    var cfg = (data && data.kpiCfg) || {}; out.wage = +cfg.wage > 0 ? +cfg.wage : null; out.otR = +cfg.ot || 1.5; out.ngR = cfg.night != null ? +cfg.night : 0.5;
+    var trn = ((data && data.trainees) || []).filter(function (x) { return x && x.n && x.off !== true; });
+    function num(v) { var m = String(v == null ? '' : v).replace(/,/g, '').match(/-?\d+(\.\d+)?/); return m ? parseFloat(m[0]) : null; }
+    function ate(v) { v = String(v == null ? '' : v).trim(); return !!v && !/^(x|X|0|-|×|N)$/.test(v); }
+    Object.keys(LAB_DIV).forEach(function (code) {
+      var f = forms[code]; if (!f) return; var wt = (templates && templates[code]) || f.wtpl; if (!wt || !wt.blocks) return; var rows = [];
+      wt.blocks.forEach(function (b) { (b.rows || []).forEach(function (r) { var ks = (r || []).filter(function (c) { return c && c.k; }).map(function (c) { return c.k; }), ni = -1; ks.forEach(function (k, x) { if (/^m\d+_nm\d+$/.test(k)) ni = x; }); if (ni < 0) return; var L = LAB_LAY[ks[ni].split('_')[0]]; if (!L) return; rows.push({ nm: ks[ni], wk: ks[ni + L[0]], ot: ks[ni + L[1]], ng: ks[ni + L[2]], ml: [0, 1, 2, 3].map(function (j) { return ks[ni + L[3] + j]; }) }); }); });
+      var last = {};
+      ((data && data.docs) || []).forEach(function (d) { if (!d || d.deleted || d.status === 'deleted' || d.formId !== f.id || !d.data) return; var D = gridDay(d); if (!D || D < from || D > to) return; if (last[D] && String(last[D].updatedAt || '') > String(d.updatedAt || '')) return; last[D] = d; });
+      var dv = LAB_DIV[code];
+      Object.keys(last).forEach(function (D) { var d = last[D], g = (d.data && d.data.grid) || {};
+        var tr = trn.filter(function (x) { return (!x.from || D >= x.from) && (!x.to || D <= x.to); }).map(function (x) { return String(x.n).replace(/\s+/g, ''); });
+        rows.forEach(function (r) { var n = String(g[r.nm] || '').replace(/\s+/g, ''); if (!n) return; var h = num(g[r.wk]), ot = num(g[r.ot]), ng = num(g[r.ng]); if (h == null && ot == null && ng == null) return;
+          ot = ot || 0; ng = ng || 0; if (h == null) h = 8 + ot;
+          var o = out.byDiv[dv] = out.byDiv[dv] || { pd: 0, h: 0, ot: 0, ng: 0, ml: [0, 0, 0, 0], people: {} }, y = out.byDay[D] = out.byDay[D] || { h: 0, ot: 0, ng: 0, pd: 0, div: {} };
+          o.pd++; o.h += h; o.ot += ot; o.ng += ng; o.people[n] = 1; y.pd++; y.h += h; y.ot += ot; y.ng += ng; y.div[dv] = (y.div[dv] || 0) + h;
+          out.total.pd++; out.total.h += h; out.total.ot += ot; out.total.ng += ng; if (tr.indexOf(n) >= 0) out.total.tr += h;
+          var p = out.people[n] = out.people[n] || { n: n, dv: dv, h: 0, ot: 0, ng: 0, d: 0 }; p.h += h; p.ot += ot; p.ng += ng; p.d++;
+          r.ml.forEach(function (k, j) { if (k && ate(g[k])) { o.ml[j]++; out.total.ml[j]++; } }); }); }); });
+    function cost(x) { return out.wage ? Math.max(0, x.h - x.ot) * out.wage + x.ot * out.wage * out.otR + x.ng * out.wage * out.ngR : null; }
+    Object.keys(out.byDiv).forEach(function (k) { out.byDiv[k].cost = cost(out.byDiv[k]); out.byDiv[k].n = Object.keys(out.byDiv[k].people).length; });
+    Object.keys(out.byDay).forEach(function (k) { out.byDay[k].cost = cost(out.byDay[k]); });
+    out.total.cost = cost(out.total); out.total.n = Object.keys(out.people).length; out.total.days = Object.keys(out.byDay).length;
+    return out;
+  }
+  /* 작성중 · 저장완료 (포털과 같은 규칙: 11/11 이후 일지는 서명도 인쇄도 없으면 작성중) */
+  var PH_CUT = '2026-11-10T15:00:00Z';
+  function signedDoc(d) { var s = d && d.signs; if (!s) return false; return Object.keys(s).some(function (k) { var v = s[k]; return v && (typeof v !== 'object' || v.img || v.name || v.src || v.data || Object.keys(v).length); }); }
+  function writingDoc(d) { if (!d) return false; if (d.status === 'temp' || d.status === 'draft') return true; return d.status === 'saved' && String(d.createdAt || '') >= PH_CUT && !signedDoc(d) && !d.printedAt; }
+  /* KPI (팀장이 올린 KPI 실적 엑셀) */
+  function kpiSum(data) {
+    var B = (data && data.kpiBooks) || {}, out = [];
+    [['가공1팀', '상온제품가공1팀'], ['가공2팀', '상온제품가공2팀'], ['포장팀', '상온제품포장팀']].forEach(function (t) {
+      var a = (B[t[0]] || {}).act; if (!a || !a.items || !a.items.length) { out.push({ k: t[0], label: t[1], none: true }); return; }
+      var items = a.items, sc = a.total != null ? a.total : sum(items, function (i) { return i.score; }), lv = function (i) { if (i.score == null || !i.w) return null; var r = i.score / i.w; return r >= 0.999 ? 1 : r >= 0.899 ? 2 : r >= 0.799 ? 3 : r >= 0.699 ? 4 : 5; };
+      out.push({ k: t[0], label: t[1], score: sc, n: items.length, lv1: items.filter(function (i) { return lv(i) === 1; }).length, warn: items.filter(function (i) { var v = lv(i); return v >= 4; }).map(function (i) { return { name: i.name, score: i.score, w: i.w }; }), ms: a.monthScore || [] }); });
+    return out;
+  }
+
+  /* ───────── 디자인 (메일에서도 깨지지 않는 표 기반) ───────── */
+  var V = { bg: '#EEF1F6', ink: '#0B1426', sub: '#475467', mute: '#7A8599', line: '#E4E8EF', card: '#FFFFFF', navy: '#0B1B3A', navy2: '#1D3A7A', gold: '#C8A15A', goodBg: '#E8F6EF', good: '#14804A', warnBg: '#FFF4E0', warn: '#B45309', badBg: '#FDECEC', bad: '#C2362F', accent: '#2F5BD8' };
+  var PC = { juice: '#D98A1F', mix: '#7B5CD6', ster: '#12A39A', pack: '#3062D8' };
+  function sec(no, title, sub) {
+    return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:26px 0 2px;border-collapse:collapse"><tr>' +
+      '<td width="34" valign="middle"><div style="width:28px;height:28px;line-height:28px;border-radius:8px;background:' + V.navy + ';color:#fff;font-size:12px;font-weight:800;text-align:center;font-family:' + FONT + '">' + no + '</div></td>' +
+      '<td valign="middle" style="font-family:' + FONT + '"><span style="font-size:17px;font-weight:800;color:' + V.ink + ';letter-spacing:-.3px">' + title + '</span>' + (sub ? '<span style="font-size:12px;color:' + V.mute + ';margin-left:8px">' + sub + '</span>' : '') + '</td></tr>' +
+      '<tr><td colspan="2" style="padding-top:8px"><div style="height:2px;background:' + V.line + ';font-size:0;line-height:0"><div style="width:64px;height:2px;background:' + V.gold + ';font-size:0;line-height:0">&nbsp;</div></div></td></tr></table>';
+  }
+  function box(title, body, sub, accent) {
+    return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;border-collapse:separate;background:' + V.card + ';border:1px solid ' + V.line + ';border-radius:14px' + (accent ? ';border-top:3px solid ' + accent : '') + '"><tr><td style="padding:15px 18px;font-family:' + FONT + '">' +
+      (title ? '<div style="font-size:13.5px;font-weight:800;color:' + V.ink + '">' + title + (sub ? ' <span style="font-size:11.5px;font-weight:600;color:' + V.mute + '">' + sub + '</span>' : '') + '</div><div style="height:10px;font-size:0;line-height:0">&nbsp;</div>' : '') + body + '</td></tr></table>';
+  }
+  function pill(t, bg, fg) { return '<span style="display:inline-block;padding:3px 9px;border-radius:999px;background:' + bg + ';color:' + fg + ';font-size:11px;font-weight:800;white-space:nowrap">' + t + '</span>'; }
+  function dpill(cur, prev, lowerBetter) {
+    var d = delta(cur, prev); if (d == null) return pill('신규', '#EEF1F6', V.mute); if (d === 0) return pill('변동 없음', '#EEF1F6', V.mute);
+    var up = d > 0, good = lowerBetter ? !up : up; return pill((up ? '▲ ' : '▼ ') + Math.abs(d) + '%', good ? V.goodBg : V.badBg, good ? V.good : V.bad);
+  }
+  function mini(vals, color) { /* 작은 추세 막대 */
+    var v = vals.map(function (x) { return +x || 0; }), mx = Math.max.apply(null, v.concat([0])); if (!mx || v.length < 2) return '';
+    return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;margin-top:8px"><tr style="height:26px">' + v.map(function (x, i) {
+      var h = x ? Math.max(2, Math.round(x / mx * 24)) : 1; return '<td valign="bottom" style="padding:0 1px;vertical-align:bottom"><div style="height:' + h + 'px;background:' + (x ? color : '#E4E8EF') + ';opacity:' + (i === v.length - 1 ? 1 : 0.55) + ';border-radius:2px 2px 0 0;font-size:0;line-height:0">&nbsp;</div></td>'; }).join('') + '</tr></table>';
+  }
+  function tiles(items) {
+    var out = '', w = Math.floor(100 / 4);
+    for (var i = 0; i < items.length; i += 4) {
+      out += '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:6px 0;margin-top:10px"><tr>' + items.slice(i, i + 4).map(function (k) {
+        return '<td valign="top" width="' + w + '%" style="background:' + V.card + ';border:1px solid ' + V.line + ';border-radius:14px;padding:13px 14px 11px;font-family:' + FONT + '">' +
+          '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="font-size:11px;color:' + V.mute + ';font-weight:800;letter-spacing:.02em"><span style="display:inline-block;width:7px;height:7px;border-radius:2px;background:' + (k.color || V.navy) + ';margin-right:6px;vertical-align:1px"></span>' + esc(k.label) + '</td><td align="right">' + (k.badge || '') + '</td></tr></table>' +
+          '<div style="font-size:24px;font-weight:800;color:' + V.ink + ';margin-top:6px;line-height:1.1;white-space:nowrap;letter-spacing:-.5px">' + k.value + '</div>' +
+          '<div style="font-size:11.5px;color:' + V.sub + ';margin-top:5px;line-height:1.45;min-height:16px">' + (k.sub || '&nbsp;') + '</div>' + (k.spark || '') + '</td>'; }).join('') +
+        (items.length - i < 4 ? new Array(4 - (items.length - i) + 1).join('<td width="' + w + '%"></td>') : '') + '</tr></table>';
+    }
+    return out;
+  }
+  function nv(x, s) { return x == null || x === 0 && s === 'z' ? '<span style="font-size:15px;color:#9AA4B5;font-weight:700">기록 없음</span>' : s; }
+  function u(t) { return '<span style="font-size:13px;color:' + V.mute + ';font-weight:700;margin-left:2px">' + t + '</span>'; }
+  function f1(x, dg) { return x == null || isNaN(x) ? '—' : (Math.round(x * Math.pow(10, dg || 0)) / Math.pow(10, dg || 0)).toLocaleString('ko-KR'); }
+  function won(v) { if (v == null) return '-'; if (Math.abs(v) >= 1e8) return f1(v / 1e8, 2) + '억'; if (Math.abs(v) >= 1e4) return f1(v / 1e4, 0) + '만'; return f1(v, 0); }
+
   /* ───────── 보고서 조립 ───────── */
   function compose(M, opts) {
-    var P = M.P, kind = P.kind, J = M.J, pJ = M.pJ;
-    var KN = { daily: '일일', weekly: '주간', monthly: '월간' }[kind];
-    var nd = M.days.length;
-    /* 부서별 상태 */
-    var status = DIVS.map(function (dv) {
-      var s = M.div[dv], base = s.pmin || 0, lv = 0;
-      if (s.min >= 60 && s.min > base * 1.3) lv = s.min > base * 1.8 || s.min >= 240 * nd ? 2 : 1;
-      return { dv: dv, s: s, lv: lv };
-    });
-    var devN = J.devs.length;
-    var summary = KN + ' · 지연 ' + M.delayN + '건(' + hrs(M.delayMin) + ') · 정비 ' + M.maintN + '건 · 일지 ' + J.docs.length + '건' + (devN ? ' · 기준 이탈 ' + devN + '건' : '') + (J.pendingAll ? ' · 결재 대기 ' + J.pendingAll + '건' : '');
-    if (M.reasons[0]) summary += ' · 최다 사유: ' + M.reasons[0][0];
-    var title = { daily: '📋 ' + md(P.from) + '(' + dowOf(P.from) + ') 일일 보고', weekly: '📊 주간 보고 · ' + md(P.from) + '~' + md(P.to), monthly: '📈 월간 보고 · ' + P.label }[kind];
-
-    var h = '<div style="font-family:' + FONT + ';color:' + C.ink + ';max-width:760px;margin:0 auto;background:' + C.soft + ';padding:14px;border-radius:18px">';
-    /* 머리 */
-    var accent = { daily: '#3B6FE0', weekly: '#7B5CD6', monthly: '#C8A15A' }[kind];
-    h += '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-radius:16px;background:' + C.navy + ';background-image:linear-gradient(120deg,#0A142B 0%,#1B356F 60%,#24448C 100%)"><tr><td style="padding:22px 24px;color:#fff">' +
-      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td><div style="font-size:11.5px;letter-spacing:.16em;color:' + C.gold2 + ';font-weight:800">연세우유 상온제품생산부문</div>' +
-      '<div style="font-size:26px;font-weight:800;margin-top:6px;letter-spacing:-.4px">' + KN + ' 업무 보고</div>' +
-      '<div style="font-size:14px;margin-top:4px;color:#C9D4EE">' + esc(P.label) + (kind !== 'daily' ? ' · ' + nd + '일' : '') + '</div></td>' +
-      '<td align="right" valign="top"><span style="display:inline-block;padding:6px 12px;border-radius:999px;background:' + accent + ';color:#fff;font-size:12px;font-weight:800">' + KN + ' REPORT</span></td></tr></table>' +
-      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;border-collapse:separate;border-spacing:0"><tr>' + status.map(function (x) {
-        var col = x.lv === 2 ? '#FF8A8A' : x.lv === 1 ? '#FFC870' : '#7EE0A8';
-        return '<td width="32%" style="padding:10px 12px;background:#22345F;background:rgba(255,255,255,.08);border-radius:10px;border-left:4px solid ' + col + '"><div style="font-size:11.5px;color:#C9D4EE">' + x.dv + ' · ' + DIVSUB[x.dv] + '</div><div style="font-size:15px;font-weight:800;margin-top:2px">' + (x.s.n ? x.s.n + '건 · ' + hrs(x.s.min) : '지연 없음') + '</div></td>' + (x.dv !== DIVS[DIVS.length - 1] ? '<td style="width:2%"></td>' : '');
-      }).join('') + '</tr></table></td></tr></table>';
-    /* AI 요약 */
-    if (opts.ai) h += '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;border-collapse:separate;background:#FFFDF6;border:1px solid #EFE3C8;border-left:5px solid ' + C.gold + ';border-radius:14px"><tr><td style="padding:15px 18px"><div style="font-size:12px;font-weight:800;color:#A9853F;letter-spacing:.06em">✦ AI 핵심 요약</div><div style="font-size:14px;line-height:1.8;margin-top:6px">' + mdLite(opts.ai) + '</div></td></tr></table>';
-
-    /* KPI */
-    var lead = J.leadH.length ? Math.round(sum(J.leadH) / J.leadH.length * 10) / 10 : null;
+    var P = M.P, kind = P.kind, J = M.J, pJ = M.pJ, L = M.L, pL = M.pL, PR = Object.assign({ mix: {}, juice: {}, pack: {} }, M.PR || {}), PM = PR.mixSum || {}, PJ = PR.juiceSum || {}, PK = PR.packSum || {}, pPR = M.pPR || {}, pPK = pPR.packSum || {}, pPJ = pPR.juiceSum || {}, pPM = pPR.mixSum || {};
+    var KN = { daily: '일일', weekly: '주간', monthly: '월간' }[kind], EN = { daily: 'DAILY', weekly: 'WEEKLY', monthly: 'MONTHLY' }[kind];
+    var nd = M.days.length, many = kind !== 'daily', dayDiv = kind === 'daily' ? 7 : 1;
     var unit = kind === 'daily' ? '최근 7일 평균 대비' : kind === 'weekly' ? '지난주 대비' : '지난달 대비';
-    h += kpis([
-      { icon: '⏱', label: '생산 지연', value: M.delayN + '<span style="font-size:14px;color:' + C.mute + '">건</span>', sub: '<b>' + hrs(M.delayMin) + '</b><br>' + chg(M.delayMin, M.pDelayMin, true, unit), color: C.red },
-      { icon: '🔧', label: '설비 정비', value: M.maintN + '<span style="font-size:14px;color:' + C.mute + '">건</span>', sub: chg(M.maintN, M.pMaintN, false, unit), color: C.teal },
-      { icon: '📝', label: '작성된 일지', value: J.docs.length + '<span style="font-size:14px;color:' + C.mute + '">건</span>', sub: (kind === 'daily' ? '' : '하루 평균 ' + (Math.round(J.docs.length / nd * 10) / 10) + '건<br>') + chg(J.docs.length, kind === 'daily' ? pJ.docs.length / 7 : pJ.docs.length, false, unit), color: C.blue },
-      { icon: '🛡', label: '기준 이탈 · 부적합', value: devN + '<span style="font-size:14px;color:' + C.mute + '">건</span>', sub: (J.ccpChecks ? 'HACCP 측정 ' + J.ccpChecks + '회 중<br>' : '') + (devN ? '<span style="color:' + C.red + ';font-weight:700">확인 필요</span>' : '<span style="color:' + C.green + ';font-weight:700">이탈 없음</span>'), color: devN ? C.red : C.green }
-    ]);
-    h += kpis([
-      { icon: '✅', label: '결재', value: J.completed + '<span style="font-size:14px;color:' + C.mute + '">완료</span>', sub: '대기 <b>' + J.pendingAll + '</b>건' + (J.rejected ? ' · 반려 ' + J.rejected + '건' : '') + (lead != null ? '<br>작성→승인 평균 ' + lead + '시간' : ''), color: C.navy2 },
-      { icon: '👥', label: '시간 외 근무(OT)', value: (Math.round(J.ot.total * 10) / 10) + '<span style="font-size:14px;color:' + C.mute + '">시간</span>', sub: Object.keys(J.ot.byTeam).map(function (t) { return t + ' ' + Math.round(J.ot.byTeam[t] * 10) / 10 + 'h'; }).join(' · ') || '근무일보 OT 기록 없음', color: '#7B5CD6' },
-      { icon: '🏭', label: '멸균 적산량', value: fmtQty(sum(Object.keys(J.ster), function (k) { return J.ster[k].qty; })), sub: '가동 ' + (Math.round(sum(Object.keys(J.ster), function (k) { return J.ster[k].run; }) * 10) / 10) + '시간 · 배치 ' + sum(Object.keys(J.ster), function (k) { return J.ster[k].batch; }) + '<br>정지 ' + J.stops.length + '건', color: C.gold },
-      { icon: '📅', label: kind === 'daily' ? '내일 생산계획' : (kind === 'weekly' ? '다음 주 생산계획' : '다음 달 생산계획'), value: M.plan.length + '<span style="font-size:14px;color:' + C.mute + '">건</span>', sub: M.plan.length ? Object.keys(groupBy(M.plan, 'colLabel')).length + '개 설비' : '등록된 계획 없음', color: '#2E9E6A' }
+    var status = DIVS.map(function (dv) { var s = M.div[dv], base = s.pmin || 0, lv = 0; if (s.min >= 60 && s.min > base * 1.3) lv = s.min > base * 1.8 || s.min >= 240 * nd ? 2 : 1; return { dv: dv, s: s, lv: lv }; });
+    var devN = J.devs.length, wr = J.docs.filter(writingDoc).length, saved = J.docs.length - wr;
+    var sterQ = sum(Object.keys(J.ster), function (k) { return J.ster[k].qty; }), sterRun = sum(Object.keys(J.ster), function (k) { return J.ster[k].run; });
+    var worst = Math.max.apply(null, status.map(function (x) { return x.lv; }).concat([devN ? 1 : 0, (M.big || []).length ? 1 : 0]));
+    var ST = worst >= 2 ? ['주의 필요', '#FF8A8A', V.badBg, V.bad] : worst === 1 ? ['관찰 필요', '#FFC870', V.warnBg, V.warn] : ['정상 운영', '#7EE0A8', V.goodBg, V.good];
+    var summary = KN + ' · 지연 ' + M.delayN + '건(' + hrs(M.delayMin) + ') · 정비 ' + M.maintN + '건 · 일지 ' + J.docs.length + '건' + (devN ? ' · 기준 이탈 ' + devN + '건' : '') + (L.total.h ? ' · 투입 ' + f1(L.total.h, 0) + 'h' : '');
+    if (M.reasons[0]) summary += ' · 최다 사유: ' + M.reasons[0][0];
+    var title = { daily: '📋 ' + md(P.from) + '(' + dowOf(P.from) + ') 일일 업무 보고', weekly: '📊 주간 업무 보고 · ' + md(P.from) + '~' + md(P.to), monthly: '📈 월간 업무 보고 · ' + P.label }[kind];
+    var series = function (f) { return M.days.map(f); };
+    var SN = 0, S = function (t, s) { SN++; return sec((SN < 10 ? '0' : '') + SN, t, s); };
+
+    var h = '<div style="font-family:' + FONT + ';color:' + V.ink + ';max-width:760px;margin:0 auto;background:' + V.bg + ';padding:16px;border-radius:20px">';
+    /* ── 머리 ── */
+    h += '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-radius:18px;background:' + V.navy + ';background-image:linear-gradient(125deg,#050C1F 0%,#0B1B3A 45%,#1D3A7A 100%)"><tr><td style="padding:24px 26px 20px;color:#fff;font-family:' + FONT + '">' +
+      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td valign="top"><div style="font-size:11px;letter-spacing:.2em;color:' + V.gold + ';font-weight:800">YONSEI MILK · AMBIENT PRODUCTION DIVISION</div>' +
+      '<div style="font-size:28px;font-weight:800;margin-top:8px;letter-spacing:-.6px">' + KN + ' 업무 보고</div>' +
+      '<div style="font-size:13.5px;margin-top:6px;color:#B9C6E4">' + esc(P.label) + (many ? ' · ' + nd + '일' : '') + ' · 상온제품생산부문</div></td>' +
+      '<td align="right" valign="top" style="white-space:nowrap"><div style="display:inline-block;padding:5px 11px;border-radius:999px;border:1px solid rgba(255,255,255,.28);font-size:10.5px;font-weight:800;letter-spacing:.14em;color:#DCE4F5">' + EN + ' REPORT</div>' +
+      '<div style="margin-top:10px"><span style="display:inline-block;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.1);font-size:12.5px;font-weight:800;color:#fff"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + ST[1] + ';margin-right:6px"></span>' + ST[0] + '</span></div></td></tr></table>' +
+      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;border-collapse:separate;border-spacing:0"><tr>' + status.map(function (x, i) {
+        var col = x.lv === 2 ? '#FF8A8A' : x.lv === 1 ? '#FFC870' : '#7EE0A8', ld = (L.byDiv[x.dv] || {});
+        return (i ? '<td style="width:2%"></td>' : '') + '<td width="32%" valign="top" style="padding:11px 13px;background:#1A2C55;background:rgba(255,255,255,.07);border-radius:12px;border-left:3px solid ' + col + '"><div style="font-size:11px;color:#AFC0E3;font-weight:700">' + x.dv + ' · ' + DIVSUB[x.dv] + '</div>' +
+          '<div style="font-size:15.5px;font-weight:800;margin-top:3px">' + (x.s.n ? '지연 ' + x.s.n + '건 · ' + hrs(x.s.min) : '지연 없음') + '</div>' +
+          '<div style="font-size:11px;color:#AFC0E3;margin-top:3px">정비 ' + x.s.maint + '건' + (ld.h ? ' · 투입 ' + f1(ld.h, 0) + 'h' : '') + '</div></td>'; }).join('') + '</tr></table></td></tr></table>';
+
+    /* ── 한눈에 보기 ── */
+    var bl = [];
+    bl.push('생산 지연 <b>' + M.delayN + '건 · ' + hrs(M.delayMin) + '</b>' + (M.reasons[0] ? ' — 가장 큰 원인 <b>' + esc(M.reasons[0][0]) + '</b> (' + hrs(M.reasons[0][1]) + ')' : ''));
+    var prodBits = []; if (PJ.use) prodBits.push('대두 ' + f1(PJ.use) + 'kg'); if (PM.nb) prodBits.push('배합 ' + f1(PM.nb) + '배치'); if (sterQ) prodBits.push('멸균 ' + fmtQty(sterQ)); if (PK.ea) prodBits.push('포장 ' + f1(PK.ea) + '개');
+    if (prodBits.length) bl.push('생산 실적 — ' + prodBits.join(' · '));
+    bl.push(devN ? '품질 기준 이탈 <b style="color:' + V.bad + '">' + devN + '건</b> 확인 필요' : '품질 · HACCP 기준 이탈 <b style="color:' + V.good + '">없음</b>' + (J.ccpChecks ? ' (측정 ' + J.ccpChecks + '회)' : ''));
+    if (L.total.h) bl.push('투입 인시 <b>' + f1(L.total.h, 1) + '시간</b> (연인원 ' + L.total.pd + '명 · OT ' + f1(L.total.ot, 1) + 'h)' + (L.total.cost != null ? ' · 추정 노무비 <b>' + won(L.total.cost) + '원</b>' : ''));
+    h += box('', '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td valign="top" style="font-family:' + FONT + '"><div style="font-size:11px;font-weight:800;letter-spacing:.14em;color:' + V.gold + '">EXECUTIVE SUMMARY</div><div style="font-size:16px;font-weight:800;margin-top:4px">한눈에 보기</div></td><td align="right" valign="top">' + pill(ST[0], ST[2], ST[3]) + '</td></tr></table>' +
+      '<div style="margin-top:10px;font-size:13.5px;line-height:1.85;color:' + V.ink + '">' + bl.map(function (x) { return '<div><span style="color:' + V.gold + ';font-weight:800;margin-right:6px">●</span>' + x + '</div>'; }).join('') + '</div>' +
+      (opts.ai ? '<div style="margin-top:12px;padding:12px 14px;border-radius:12px;background:#FFFBF0;border:1px solid #F1E4C6"><div style="font-size:11px;font-weight:800;letter-spacing:.08em;color:#A9853F">✦ AI 분석 요약</div><div style="font-size:13.5px;line-height:1.8;margin-top:5px">' + mdLite(opts.ai) + '</div></div>' : ''), '', V.gold);
+
+    /* ── 01 핵심 지표 ── */
+    var sp = function (f, c) { return many ? mini(series(f), c) : ''; };
+    var dmin = function (d) { var o = M.daily.filter(function (x) { return x.d === d; })[0]; return o ? o.total : 0; };
+    h += S('핵심 지표', unit + ' 증감');
+    h += tiles([
+      { label: '생산 지연', color: V.bad, value: M.delayN + u('건'), badge: dpill(M.delayMin, M.pDelayMin, true), sub: '<b>' + hrs(M.delayMin) + '</b>', spark: sp(dmin, V.bad) },
+      { label: '설비 정비', color: '#12A39A', value: M.maintN + u('건'), badge: dpill(M.maintN, M.pMaintN, false), sub: M.massets[0] ? '최다 ' + esc(clip(M.massets[0][0], 12)) : '&nbsp;', spark: sp(function (d) { var o = M.daily.filter(function (x) { return x.d === d; })[0]; return o ? o.m : 0; }, '#12A39A') },
+      { label: '품질 이탈', color: devN ? V.bad : V.good, value: devN + u('건'), badge: devN ? pill('확인', V.badBg, V.bad) : pill('이상 없음', V.goodBg, V.good), sub: J.ccpChecks ? 'HACCP 측정 ' + J.ccpChecks + '회' : '&nbsp;' },
+      { label: '일지 작성', color: V.accent, value: J.docs.length + u('건'), badge: dpill(J.docs.length, pJ.docs.length / dayDiv, false), sub: '저장완료 ' + saved + (wr ? ' · <span style="color:' + V.warn + ';font-weight:700">작성중 ' + wr + '</span>' : ''), spark: sp(function (d) { return J.byDay[d] || 0; }, V.accent) },
+      { label: '대두 사용량', color: PC.juice, value: nv(PJ.use, f1(PJ.use) + u('kg')), badge: PJ.use ? dpill(PJ.use, (pPJ.use || 0) / dayDiv, false) : '', sub: PJ.raw ? '원액 ' + f1(PJ.raw) + 'kg' : '&nbsp;', spark: sp(function (d) { return (PR.juice[d] || {}).use; }, PC.juice) },
+      { label: '배합 배치', color: PC.mix, value: nv(PM.nb, f1(PM.nb) + u('배치')), badge: PM.nb ? dpill(PM.nb, (pPM.nb || 0) / dayDiv, false) : '', sub: PM.b1 != null ? '평균 Brix ' + f1(PM.b1, 2) : '&nbsp;', spark: sp(function (d) { return (PR.mix[d] || {}).nb; }, PC.mix) },
+      { label: '포장 생산량', color: PC.pack, value: nv(PK.ea, PK.ea >= 10000 ? f1(PK.ea / 1e4, 1) + u('만 개') : f1(PK.ea) + u('개')), badge: PK.ea ? dpill(PK.ea, (pPK.ea || 0) / dayDiv, false) : '', sub: PK.waste != null ? '불량팩 ' + f1(PK.waste) + '개' : (PK.rate != null ? 'B호기 가동률 ' + f1(PK.rate, 1) + '%' : '&nbsp;'), spark: sp(function (d) { return (PR.pack[d] || {}).ea; }, PC.pack) },
+      { label: '투입 인시', color: '#7C3AED', value: nv(L.total.pd ? L.total.h : null, f1(L.total.h, L.total.h >= 100 ? 0 : 1) + u('h')), badge: L.total.h ? dpill(L.total.h, pL.total.h / dayDiv, true) : '', sub: L.total.h ? 'OT ' + f1(L.total.ot, 1) + 'h · 심야 ' + f1(L.total.ng, 1) + 'h' : '근무일보 없음', spark: sp(function (d) { return (L.byDay[d] || {}).h; }, '#7C3AED') }
     ]);
 
-    /* 지연 추이 */
-    if (kind !== 'daily') {
-      var ser = M.daily.map(function (o) { var w = dowN(o.d); return Object.assign({ lab: kind === 'weekly' ? md(o.d) + ' ' + dowOf(o.d) : String(+o.d.slice(8)), we: w === 0 || w === 6 }, o); });
-      h += card('⏱ 날짜별 생산 지연', vbars(ser, DIVS, DIVS.map(function (d) { return DC[d]; }), { h: kind === 'weekly' ? 110 : 90, top: function (t) { return hshort(t); }, legend: DIVS.map(function (d) { return d + ' (' + DIVSUB[d] + ')'; }) }),
-        '총 ' + hrs(M.delayMin) + ' · 하루 평균 ' + hrs(M.delayMin / nd));
-    }
-    if (kind === 'monthly') h += card('🗓 지연 달력', heat(M.days, function (d) { var o = M.daily.filter(function (x) { return x.d === d; })[0]; return o ? o.total : 0; }, function (d) { var o = M.daily.filter(function (x) { return x.d === d; })[0]; return hshort(o.total); }));
-    /* 원인 · 부서 */
+    /* ── 02 공정 흐름 ── */
+    var stage = function (c, nm, rows) { return '<td valign="top" width="23%" style="background:' + V.card + ';border:1px solid ' + V.line + ';border-top:3px solid ' + c + ';border-radius:12px;padding:11px 12px;font-family:' + FONT + '"><div style="font-size:12px;font-weight:800;color:' + c + '">' + nm + '</div>' + rows.map(function (r) { return '<div style="margin-top:6px"><div style="font-size:10.5px;color:' + V.mute + '">' + r[0] + '</div><div style="font-size:14.5px;font-weight:800;color:' + V.ink + ';white-space:nowrap">' + r[1] + '</div></div>'; }).join('') + '</td>'; };
+    var arrow = '<td width="2.6%" align="center" valign="middle" style="color:#B8C1D1;font-size:14px;font-weight:800">›</td>';
+    var stopN = J.stops.length;
+    var vu = function (x, un, dg) { return x == null || isNaN(x) ? '<span style="color:#9AA4B5">—</span>' : f1(x, dg) + un; };
+    h += S('공정 흐름', '착즙 → 배합 → 멸균 → 포장 · 저장된 일지 기준');
+    h += '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;border-collapse:separate;border-spacing:0"><tr>' +
+      stage(PC.juice, '❖ 착즙', [['대두 사용량', vu(PJ.use, ' kg')], ['원액 생산', vu(PJ.raw, ' kg')], ['분리액 생산 · 중단', PJ.prodH == null && PJ.stopH == null ? vu(null) : f1(PJ.prodH) + 'h · ' + f1(PJ.stopH) + 'h']]) + arrow +
+      stage(PC.mix, '⚗ 배합', [['배치', vu(PM.nb, ' 배치')], ['평균 최종 Brix', vu(PM.b1, '', 2)], ['점검 X', (PM.x || 0) + '건']]) + arrow +
+      stage(PC.ster, '♨ 멸균', [['적산량', fmtQty(sterQ)], ['가동 시간', f1(sterRun, 1) + 'h'], ['정지 기록', stopN + '건']]) + arrow +
+      stage(PC.pack, '▣ 포장', [['생산량', vu(PK.ea, ' 개')], ['불량팩', vu(PK.waste, ' 개')], ['점검 불량(X)', (PK.bad || 0) + '건']]) + '</tr></table>';
+
+    /* ── 03 확인 필요 사항 ── */
+    var act = [];
+    (M.big || []).slice(0, 3).forEach(function (r) { act.push([2, '<b>' + esc(r.div) + ' ' + esc((r.team || '') + ' ' + (r.hogi || '')) + '</b> ' + hrs(r.min) + ' 지연 — ' + esc(clip(r.reason || '-', 30)) + ' <span style="color:' + V.mute + '">(' + md(r.d) + ')</span>']); });
+    J.devs.slice(0, 3).forEach(function (x) { act.push([2, '<b>' + esc(clip(x.form, 16)) + '</b> ' + esc(clip(x.what, 26)) + ' 값 <b style="color:' + V.bad + '">' + esc(x.val) + '</b> (기준 ' + esc(x.spec) + ') <span style="color:' + V.mute + '">' + md(x.d) + '</span>']); });
+    status.filter(function (x) { return x.lv; }).forEach(function (x) { act.push([x.lv, '<b>' + x.dv + '</b> 지연 ' + hrs(x.s.min) + ' — ' + unit + ' 크게 늘었습니다']); });
+    if (PK.bad) act.push([1, '포장 점검 불량(X) <b>' + PK.bad + '건</b>']);
+    if (wr) act.push([1, '작성중(서명 · 인쇄 전) 일지 <b>' + wr + '건</b> — 마무리 확인']);
+    var otp = Object.keys(L.people).map(function (k) { return L.people[k]; }).sort(function (a, b) { return b.ot - a.ot; })[0];
+    if (otp && otp.ot >= (kind === 'daily' ? 4 : kind === 'weekly' ? 10 : 30)) act.push([1, 'OT 집중: <b>' + esc(otp.n) + '</b> (' + otp.dv + ') ' + f1(otp.ot, 1) + '시간']);
+    act.sort(function (a, b) { return b[0] - a[0]; });
+    h += S('확인 필요 사항', act.length ? act.length + '건' : '');
+    h += box('', act.length ? act.slice(0, 8).map(function (a) { return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse"><tr><td width="22" valign="top" style="padding:6px 0"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + (a[0] === 2 ? V.bad : V.warn) + ';margin-top:5px"></span></td><td style="padding:6px 0;font-size:13px;line-height:1.6;border-bottom:1px solid #F0F2F6;font-family:' + FONT + '">' + a[1] + '</td></tr></table>'; }).join('')
+      : '<div style="font-size:13.5px;color:' + V.good + ';font-weight:700">✓ 특별히 확인할 사항이 없습니다</div>');
+
+    /* ── 04 생산 지연 분석 ── */
+    h += S('생산 지연 분석', '총 ' + hrs(M.delayMin) + (many ? ' · 하루 평균 ' + hrs(M.delayMin / nd) : ''));
+    if (many) { var ser = M.daily.map(function (o) { var w = dowN(o.d); return Object.assign({ lab: kind === 'weekly' ? md(o.d) + ' ' + dowOf(o.d) : String(+o.d.slice(8)), we: w === 0 || w === 6 }, o); });
+      h += box('날짜별 지연 (부서별)', vbars(ser, DIVS, DIVS.map(function (d) { return DC[d]; }), { h: kind === 'weekly' ? 110 : 90, top: function (t) { return hshort(t); }, legend: DIVS.map(function (d) { return d + ' (' + DIVSUB[d] + ')'; }) })); }
+    if (kind === 'monthly') h += box('지연 달력', heat(M.days, dmin, function (d) { return hshort(dmin(d)); }));
     var share = DIVS.map(function (dv) { return [dv, M.div[dv].min, DC[dv], hrs(M.div[dv].min)]; });
-    var reasonRows = (function () { var tot = M.delayMin || 1, cum = 0; return M.reasons.map(function (r) { cum += r[1]; return [r[0], r[1], hshort(r[1]) + ' · ' + r[2] + '건 · <span style="color:#A9853F">' + pct(cum, tot) + '%</span>', r === M.reasons[0] ? C.red : C.navy2]; }); })();
-    h += two(card('🎯 지연 원인 TOP', hbars(reasonRows, { rank: 1, lw: 36, vw: 34 }), '파레토'),
-      card('🏷 부서 · 호기별', stack(share) + '<div style="height:12px"></div>' + hbars(M.hogi.map(function (r) { return [r[0], r[1], hshort(r[1]) + ' · ' + r[2] + '건', C.teal]; }), { lw: 34, vw: 26 })));
-    if (kind !== 'daily' && M.products.length) h += two(card('🥛 지연이 많았던 제품', hbars(M.products.map(function (r) { return [r[0], r[1], hrs(r[1]), '#7B5CD6']; }), { lw: 40 })),
-      card('🕑 시간대별 지연', vbars(M.hours.map(function (x) { return { lab: x.h + '시', v: x.min }; }), ['v'], [C.amber], { h: 70, top: function (t) { return hshort(t); } })));
-    /* 큰 지연 */
-    h += card('⚠ ' + (kind === 'daily' ? '2시간' : '3시간') + ' 이상 지연', table(['날짜', '부서 · 호기', '제품', '사유', '시간'], M.big.map(function (r) {
-      return [md(r.d), esc(r.div) + '<br><span style="color:' + C.mute + '">' + esc((r.team || '') + ' ' + (r.hogi || '')) + '</span>', esc(clip(r.product || '-', 18)), esc(clip(r.reason || '-', 26)) + (r.detail ? '<div style="color:' + C.mute + ';font-size:11.5px;margin-top:2px">' + esc(clip(r.detail, 60)) + '</div>' : ''), '<b style="color:' + C.red + '">' + hrs(r.min) + '</b>'];
-    }), { empty: '해당 지연 없음 👍' }));
-    /* 일지 */
+    var reasonRows = (function () { var tot = M.delayMin || 1, cum = 0; return M.reasons.map(function (r) { cum += r[1]; return [r[0], r[1], hshort(r[1]) + ' · ' + r[2] + '건 · <span style="color:#A9853F">누적 ' + pct(cum, tot) + '%</span>', r === M.reasons[0] ? V.bad : V.navy2]; }); })();
+    h += two(box('지연 원인 TOP', hbars(reasonRows, { rank: 1, lw: 36, vw: 36 }), '파레토'), box('부서 · 호기별', stack(share) + '<div style="height:12px"></div>' + hbars(M.hogi.map(function (r) { return [r[0], r[1], hshort(r[1]) + ' · ' + r[2] + '건', '#12A39A']; }), { lw: 34, vw: 26 })));
+    if (many && M.products.length) h += two(box('지연이 많았던 제품', hbars(M.products.map(function (r) { return [r[0], r[1], hrs(r[1]), '#7B5CD6']; }), { lw: 40 })), box('시간대별 지연', vbars(M.hours.map(function (x) { return { lab: x.h + '시', v: x.min }; }), ['v'], [C.amber], { h: 70, top: function (t) { return hshort(t); } })));
+    h += box((kind === 'daily' ? '2시간' : '3시간') + ' 이상 지연', table(['날짜', '부서 · 호기', '제품', '사유', '시간'], M.big.map(function (r) {
+      return [md(r.d), esc(r.div) + '<br><span style="color:' + V.mute + '">' + esc((r.team || '') + ' ' + (r.hogi || '')) + '</span>', esc(clip(r.product || '-', 18)), esc(clip(r.reason || '-', 26)) + (r.detail ? '<div style="color:' + V.mute + ';font-size:11.5px;margin-top:2px">' + esc(clip(r.detail, 60)) + '</div>' : ''), '<b style="color:' + V.bad + '">' + hrs(r.min) + '</b>']; }), { empty: '해당 지연 없음 👍' }));
+
+    /* ── 05 공정별 생산 실적 ── */
+    var hasM = !!(PM.nb || PM.q || PM.x), hasJ = !!(PJ.use || PJ.raw || PJ.prodH || PJ.by || PJ.sug), hasK = !!(PK.ea || PK.rate || PK.stopN || PK.bad), sk = Object.keys(J.ster);
+    if (hasM || hasJ || hasK || sk.length) {
+      var per = function (x, dg) { return many && x != null ? ' <span style="color:' + V.mute + '">(일 평균 ' + f1(x, dg) + ')</span>' : ''; };
+      h += S('공정별 생산 실적', '저장된 일지 기준');
+      var parts = [];
+      if (hasJ) parts.push(box('❖ 착즙', table(['항목', many ? '합계 · 평균' : '값'], [['대두 사용량', '<b>' + f1(PJ.use) + '</b> kg' + per(PJ.days ? PJ.use / PJ.days : null)], ['부산물', f1(PJ.by) + ' kg' + (PJ.use && PJ.by != null ? ' (' + f1(PJ.by / PJ.use * 100, 1) + '%)' : '')], ['분리액 생산 · 중단', f1(PJ.prodH) + 'h · ' + f1(PJ.stopH) + 'h'], ['원액 생산', f1(PJ.raw) + ' kg'], ['원액 T.S 평균', f1(PJ.ts, 2) + ' <span style="color:' + V.mute + '">(10±0.2)</span>'], ['설탕 투입', f1(PJ.sug) + ' kg']]), '', PC.juice));
+      if (hasM) parts.push(box('⚗ 배합', table(['항목', many ? '합계 · 평균' : '값'], [['배치', '<b>' + f1(PM.nb) + '</b> 배치' + per(PM.days ? PM.nb / PM.days : null, 1)], ['호기별 생산량', f1(PM.q, 1) + ' Batch'], ['평균 최종 Brix', f1(PM.b1, 2)], ['점검 X', PM.x ? '<b style="color:' + V.bad + '">' + PM.x + '건</b>' : '0건']]), '', PC.mix));
+      if (sk.length) { var qmax = Math.max.apply(null, sk.map(function (k) { return J.ster[k].qty; })) || 1;
+        parts.push(box('♨ 멸균 호기별', table(['호기', '가동', '적산량', '배치'], sk.map(function (k) { var s = J.ster[k]; return ['<b>' + esc(k) + '</b>', f1(s.run, 1) + 'h', '<table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td width="' + Math.max(3, Math.round(s.qty / qmax * 100)) + '%" style="background:' + PC.ster + ';height:9px;border-radius:5px;font-size:0">&nbsp;</td><td style="padding-left:6px;white-space:nowrap;font-size:12px">' + fmtQty(s.qty) + '</td></tr></table>', s.batch || '-']; })), '', PC.ster)); }
+      if (hasK) { var hoBy = function (o, uu) { var ks = Object.keys(o || {}).sort(); return ks.length ? ' <span style="color:' + V.mute + '">(' + ks.map(function (x) { return (x === 'DE' || x === '?' ? x : x + '호기') + ' ' + f1(o[x]) + (uu || ''); }).join(' · ') + ')</span>' : ''; };
+        parts.push(box('▣ 포장 (A~F호기)', table(['항목', many ? '합계 · 평균' : '값'], [['생산량', '<b>' + f1(PK.ea) + '</b> 개' + (PK.box != null ? ' · ' + f1(PK.box) + ' Box' : '') + per(PK.days ? PK.ea / PK.days : null)]].concat(PK.ln && PK.ln.length ? [['호기별', PK.ln.map(function (x) { return x[0] + ' ' + f1(x[1]); }).join(' · ')]] : []).concat(PK.waste != null ? [['밀봉 불량팩', '<b>' + f1(PK.waste) + '</b> 개' + hoBy(PK.wasteBy)]] : []).concat([['B호기 가동률', PK.rate != null ? f1(PK.rate, 1) + '%' : '-'], ['정지', f1(PK.stopN) + '회' + (PK.stopMin != null ? ' · ' + f1(PK.stopMin) + '분' : '')], ['점검 불량(X)', PK.bad ? '<b style="color:' + V.bad + '">' + PK.bad + '건</b>' + hoBy(PK.badBy, '건') : '0건']])), '', PC.pack)); }
+      for (var pi = 0; pi < parts.length; pi += 2) h += parts[pi + 1] ? two(parts[pi], parts[pi + 1]) : parts[pi];
+      if (J.stops.length) h += box('멸균 정지 기록 ' + J.stops.length + '건', table(['날짜', '호기', '정지 → 재가동', '사유'], J.stops.slice(0, 10).map(function (s) { return [md(s.d), esc(s.hogi), esc(s.start) + ' → ' + esc(s.end) + (s.min ? ' <b>(' + hrs(s.min) + ')</b>' : ''), esc(clip(s.why, 40))]; })));
+      if (many) { var dd = M.days.map(function (d) { var w = dowN(d), mx = PR.mix[d] || {}, jx = PR.juice[d] || {}, px = PR.pack[d] || {}; return { lab: kind === 'weekly' ? md(d) + ' ' + dowOf(d) : String(+d.slice(8)), we: w === 0 || w === 6, nb: mx.nb || 0, use: jx.use ? Math.round(jx.use / 100) / 10 : 0, ea: px.ea ? Math.round(px.ea / 100) / 10 : 0 }; });
+        var cs = []; if (hasJ) cs.push(box('대두 사용량 (톤)', vbars(dd, ['use'], [PC.juice], { h: 80, top: function (t) { return t || ''; } }))); if (hasM) cs.push(box('배합 배치', vbars(dd, ['nb'], [PC.mix], { h: 80, top: function (t) { return t || ''; } }))); if (hasK) cs.push(box('포장 생산량 (천 개)', vbars(dd, ['ea'], [PC.pack], { h: 80, top: function (t) { return t || ''; } })));
+        for (var ci = 0; ci < cs.length; ci += 2) h += cs[ci + 1] ? two(cs[ci], cs[ci + 1]) : cs[ci]; }
+    }
+
+    /* ── 06 품질 · HACCP ── */
+    h += S('품질 · HACCP', J.ccpChecks ? '측정 ' + J.ccpChecks + '회 · 이탈률 ' + (Math.round(devN / J.ccpChecks * 1000) / 10) + '%' : '');
+    var dg = topBy(J.devs, function (x) { return x.form; }, null, 6);
+    h += box('', (devN ? hbars(dg.map(function (r) { return [r[0], r[1], r[1] + '건', V.bad]; }), { lw: 40 }) + '<div style="height:10px"></div>' : '') +
+      table(['날짜', '일지', '항목', '값', '기준'], J.devs.slice(0, kind === 'monthly' ? 14 : 10).map(function (x) { return [md(x.d), esc(clip(x.form, 18)), esc(clip(x.what, 34)), '<b style="color:' + V.bad + '">' + esc(x.val) + '</b>', esc(x.spec)]; }), { empty: (J.ccpChecks ? 'HACCP 측정 ' + J.ccpChecks + '회 — ' : '') + '기준 이탈 없음 ✅' }));
+
+    /* ── 07 인력 · 근태 ── */
+    if (L.total.pd) {
+      h += S('인력 · 근태', '근무일보 기준 · 근무시간 칸(OT 포함)' + (L.wage ? ' · 노무비 단가 ' + f1(L.wage) + '원/h' : ''));
+      var dvs = DIVS.filter(function (dv) { return L.byDiv[dv]; });
+      h += box('', table(['부서', '인원', '연인원', '투입 인시', 'OT', '심야', '1인·일', '추정 노무비'], dvs.map(function (dv) { var o = L.byDiv[dv], po = (pL.byDiv[dv] || {}).h; return [chip(dv, '#F1F3F8', DC[dv] || V.mute), o.n + '명', o.pd + '명', '<b>' + f1(o.h, 1) + 'h</b>' + (po ? '<br>' + dpill(o.h, po / dayDiv, true) : ''), f1(o.ot, 1) + 'h', f1(o.ng, 1) + 'h', f1(o.h / o.pd, 1) + 'h', o.cost != null ? '<b>' + won(o.cost) + '원</b>' : '-']; })
+        .concat([['<b>합계</b>', L.total.n + '명', L.total.pd + '명', '<b>' + f1(L.total.h, 1) + 'h</b>', '<b>' + f1(L.total.ot, 1) + 'h</b>', f1(L.total.ng, 1) + 'h', f1(L.total.h / L.total.pd, 1) + 'h', L.total.cost != null ? '<b>' + won(L.total.cost) + '원</b>' : '단가 미입력']])));
+      if (many) { var ls = M.days.map(function (d) { var w = dowN(d), y = L.byDay[d] || { div: {} }, o = { lab: kind === 'weekly' ? md(d) + ' ' + dowOf(d) : String(+d.slice(8)), we: w === 0 || w === 6 }; DIVS.forEach(function (dv) { o[dv] = Math.round(y.div[dv] || 0); }); return o; });
+        h += box('날짜별 투입 인시 (부서별)', vbars(ls, DIVS, DIVS.map(function (d) { return DC[d]; }), { h: 90, top: function (t) { return t ? Math.round(t) : ''; }, legend: DIVS })); }
+      var top = Object.keys(L.people).map(function (k) { return L.people[k]; }).filter(function (p) { return p.ot > 0; }).sort(function (a, b) { return b.ot - a.ot; }).slice(0, 8);
+      var ml = L.total.ml, mlt = ml[0] + ml[1] + ml[2] + ml[3];
+      h += two(box('OT 상위', top.length ? hbars(top.map(function (p) { return [p.n + ' · ' + p.dv.replace('팀', ''), p.ot, f1(p.ot, 1) + 'h · ' + p.d + '일', '#7C3AED']; }), { lw: 42, vw: 26 }) : '<div style="font-size:13px;color:' + V.mute + '">OT 기록 없음</div>'),
+        box('식수 집계', mlt ? stack([['조식', ml[0], '#F2B84B', ml[0] + '식'], ['중식', ml[1], '#2F5BD8', ml[1] + '식'], ['석식', ml[2], '#7B5CD6', ml[2] + '식'], ['야식', ml[3], '#334155', ml[3] + '식']]) + '<div style="font-size:12px;color:' + V.mute + ';margin-top:8px">근무일보 조 · 중 · 석 · 야식 칸 표시 기준 · 합계 <b style="color:' + V.ink + '">' + mlt + '식</b></div>' : '<div style="font-size:13px;color:' + V.mute + '">식사 표시 없음</div>'));
+    }
+
+    /* ── 08 설비 · 정비 ── */
+    if (M.maints.length) {
+      h += S('설비 · 정비', M.maintN + '건');
+      h += two(box('정비 종류', hbars(M.mtype.map(function (r) { return [r[0], r[1], r[1] + '건', '#12A39A']; }), { lw: 40 })), box('정비가 잦은 설비', hbars(M.massets.map(function (r) { return [r[0], r[1], r[1] + '건', '#5B7BB7']; }), { lw: 46, clip: 20 })));
+      if (kind === 'daily') h += box('정비 내역', table(['설비', '내용', '종류', '담당'], M.maints.slice(0, 12).map(function (r) { return [esc(r.asset || '-'), esc(clip(r.content || '-', 40)), esc(r.mtype || '-'), esc(r.person || '')]; })));
+    }
+
+    /* ── 09 일지 작성 현황 ── */
     var fr = Object.keys(J.byForm).map(function (k) { return J.byForm[k]; }).sort(function (a, b) { return TEAMS.indexOf(a.team) - TEAMS.indexOf(b.team) || b.n - a.n; });
     var tparts = TEAMS.filter(function (t) { return J.byTeam[t]; }).map(function (t) { return [t, J.byTeam[t], TC[t], J.byTeam[t] + '건']; });
-    if (kind === 'daily') {
-      h += card('📝 일지 작성 · 결재', (tparts.length ? stack(tparts) : '') + '<div style="height:10px"></div>' + table(['일지', '팀', '건수'], fr.slice(0, 14).map(function (r) { return [esc(r.name), chip(r.team, '#F1F3F8', TC[r.team] || C.mute), '<b>' + r.n + '</b>']; }), { empty: '저장된 일지 없음' }), '결재 대기 ' + J.pendingAll + '건');
-    } else {
-      var md2 = kind === 'monthly' ? M.days : M.days;
-      h += card('📝 일지 작성 현황', (tparts.length ? stack(tparts) + '<div style="height:12px"></div>' : '') + matrix(fr.slice(0, kind === 'monthly' ? 18 : 22), md2), '칸이 채워진 날 = 그 일지를 작성한 날');
+    h += S('일지 작성 현황', '저장완료 ' + saved + '건' + (wr ? ' · 작성중 ' + wr + '건' : ''));
+    h += box('', (tparts.length ? stack(tparts) + '<div style="height:12px"></div>' : '') + (many ? matrix(fr.slice(0, kind === 'monthly' ? 18 : 22), M.days) : table(['일지', '팀', '건수'], fr.slice(0, 16).map(function (r) { return [esc(r.name), chip(r.team, '#F1F3F8', TC[r.team] || V.mute), '<b>' + r.n + '</b>']; }), { empty: '저장된 일지 없음' })), many ? '칸이 채워진 날 = 그 일지를 작성한 날' : '');
+
+    /* ── 10 KPI (월간) ── */
+    var KP = M.K || [];
+    if (kind === 'monthly' && KP.some(function (k) { return !k.none; })) {
+      h += S('KPI 현황', '팀장이 올린 KPI 실적 엑셀 기준');
+      h += '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;border-collapse:separate;border-spacing:0"><tr>' + KP.map(function (k, i) {
+        return (i ? '<td style="width:2%"></td>' : '') + '<td width="32%" valign="top" style="background:' + V.card + ';border:1px solid ' + V.line + ';border-radius:12px;padding:12px 14px;font-family:' + FONT + '"><div style="font-size:12px;font-weight:800;color:' + V.sub + '">' + esc(k.label) + '</div>' +
+          (k.none ? '<div style="font-size:13px;color:' + V.mute + ';margin-top:8px">KPI 실적 엑셀 대기</div>' : '<div style="font-size:26px;font-weight:800;margin-top:4px">' + f1(k.score, 1) + '<span style="font-size:12px;color:' + V.mute + '"> / 100</span></div><div style="height:6px;background:#EEF1F6;border-radius:4px;margin-top:6px"><div style="width:' + Math.max(2, Math.min(100, Math.round(k.score))) + '%;height:6px;background:' + V.accent + ';border-radius:4px;font-size:0">&nbsp;</div></div><div style="font-size:11.5px;color:' + V.sub + ';margin-top:7px">Lev.1 ' + k.lv1 + ' / ' + k.n + ' · 관리 필요 <b style="color:' + (k.warn.length ? V.bad : V.good) + '">' + k.warn.length + '</b></div>') + '</td>'; }).join('') + '</tr></table>';
+      var wl = []; KP.forEach(function (k) { (k.warn || []).forEach(function (x) { wl.push([k.k, x]); }); });
+      if (wl.length) h += box('관리 필요 KPI 항목 (Lev.4~5)', table(['팀', '항목', '점수'], wl.map(function (x) { return [chip(x[0], '#F1F3F8', V.sub), esc(x[1].name), '<b style="color:' + V.bad + '">' + f1(x[1].score, 1) + '</b> / ' + f1(x[1].w, 0)]; })));
     }
-    /* 품질 · HACCP */
-    if (J.devs.length || J.ccpChecks) {
-      var dg = topBy(J.devs, function (x) { return x.form; }, null, 6);
-      h += card('🛡 품질 · HACCP 기준 이탈', (J.devs.length ? hbars(dg.map(function (r) { return [r[0], r[1], r[1] + '건', C.red]; }), { lw: 40 }) + '<div style="height:10px"></div>' : '') +
-        table(['날짜', '일지', '항목', '값', '기준'], J.devs.slice(0, kind === 'monthly' ? 14 : 10).map(function (x) { return [md(x.d), esc(clip(x.form, 18)), esc(clip(x.what, 34)), '<b style="color:' + C.red + '">' + esc(x.val) + '</b>', esc(x.spec)]; }), { empty: 'HACCP 측정 ' + J.ccpChecks + '회 — 기준 이탈 없음 ✅' }),
-        J.ccpChecks ? '측정 ' + J.ccpChecks + '회 · 이탈률 ' + (J.ccpChecks ? Math.round(J.devs.length / J.ccpChecks * 1000) / 10 : 0) + '%' : '');
+
+    /* ── 현장 메모 ── */
+    if (J.notes.length) {
+      h += S('현장 메모 · 특이사항', J.notes.length + '건');
+      h += box('', J.notes.slice(0, kind === 'daily' ? 10 : 14).map(function (n) { return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:9px"><tr><td width="3" style="background:' + (TC[n.team] || V.mute) + ';border-radius:3px;font-size:0">&nbsp;</td><td style="padding:2px 10px;font-family:' + FONT + '"><div style="font-size:11px;color:' + V.mute + '">' + md(n.d) + ' · ' + esc(n.form) + ' · ' + esc(n.what) + '</div><div style="font-size:13px;margin-top:2px;line-height:1.55">' + esc(n.text) + '</div></td></tr></table>'; }).join(''), J.notes.length > 14 ? '외 ' + (J.notes.length - 14) + '건' : '');
     }
-    /* 멸균 */
-    var sk = Object.keys(J.ster);
-    if (sk.length || J.stops.length) {
-      var qmax = Math.max.apply(null, sk.map(function (k) { return J.ster[k].qty; })) || 1;
-      h += card('🏭 멸균 호기별 가동', table(['호기', '가동 시간', '적산량', '배치', '품목'], sk.map(function (k) { var s = J.ster[k]; return ['<b>' + esc(k) + '</b>', (Math.round(s.run * 10) / 10) + '시간', '<table role="presentation" cellpadding="0" cellspacing="0" width="100%"><tr><td width="' + Math.max(3, Math.round(s.qty / qmax * 100)) + '%" style="background:' + C.gold + ';height:10px;border-radius:5px;font-size:0">&nbsp;</td><td style="padding-left:6px;white-space:nowrap;font-size:12px">' + fmtQty(s.qty) + '</td></tr></table>', s.batch || '-', esc(clip(Object.keys(s.items).join(', '), 30))]; })) +
-        (J.stops.length ? '<div style="font-weight:800;font-size:13px;margin:14px 0 6px;color:' + C.navy + '">정지 기록 ' + J.stops.length + '건</div>' + table(['날짜', '호기', '정지 → 재가동', '사유'], J.stops.slice(0, 10).map(function (s) { return [md(s.d), esc(s.hogi), esc(s.start) + ' → ' + esc(s.end) + (s.min ? ' <b>(' + hrs(s.min) + ')</b>' : ''), esc(clip(s.why, 40))]; })) : ''));
-    }
-    /* 착즙 · 배합 공정 */
-    var PM = M.PR && M.PR.mixSum, PJ = M.PR && M.PR.juiceSum, PK = M.PR && M.PR.packSum;
-    if (PM && (PM.days || PJ.days || PK.days)) {
-      var hasM = !!(PM.nb || PM.q || PM.x), hasJ = !!(PJ.use || PJ.raw || PJ.prodH || PJ.by || PJ.sug), hasK = !!(PK.ea || PK.rate || PK.stopN || PK.bad);
-      var f1 = function (x, dg) { return x == null ? '-' : (Math.round(x * Math.pow(10, dg || 0)) / Math.pow(10, dg || 0)).toLocaleString('ko-KR'); };
-      var many = kind !== 'daily', per = function (x, dg) { return many && x != null ? ' <span style="color:' + C.mute + '">(일 평균 ' + f1(x, dg) + ')</span>' : ''; };
-      var mixT = table(['배합', kind === 'daily' ? '값' : '합계 · 평균'], [
-        ['배치', '<b>' + f1(PM.nb) + '</b>배치' + per(PM.days ? PM.nb / PM.days : null, 1)], ['호기별 생산량', f1(PM.q, 1) + ' Batch'], ['평균 최종 Brix', f1(PM.b1, 2)],
-        ['점검 X', PM.x ? '<b style="color:' + C.red + '">' + PM.x + '건</b>' : '0건']]);
-      var juiceT = table(['착즙', kind === 'daily' ? '값' : '합계 · 평균'], [
-        ['대두 사용량', '<b>' + f1(PJ.use) + '</b> kg' + per(PJ.days ? PJ.use / PJ.days : null)], ['부산물', f1(PJ.by) + ' kg' + (PJ.use && PJ.by != null ? ' (' + f1(PJ.by / PJ.use * 100, 1) + '%)' : '')],
-        ['분리액 생산 · 중단', f1(PJ.prodH) + '시간 · ' + f1(PJ.stopH) + '시간'], ['원액 생산', f1(PJ.raw) + ' kg'], ['원액 T.S 평균', f1(PJ.ts, 2) + ' <span style="color:' + C.mute + '">(10±0.2)</span>'], ['설탕 투입', f1(PJ.sug) + ' kg' + per(PJ.days && PJ.sug != null ? PJ.sug / PJ.days : null)]]);
-      function hoBy(o, u) { var ks = Object.keys(o || {}).sort(); if (!ks.length) return ''; return ' <span style="color:' + C.mute + '">(' + ks.map(function (h) { return (h === 'DE' || h === '?' ? h : h + '호기') + ' ' + f1(o[h]) + (u || ''); }).join(' · ') + ')</span>'; }
-      var packT = table(['포장 (A~F호기)', kind === 'daily' ? '값' : '합계 · 평균'], [
-        ['생산량 (전 호기)', '<b>' + f1(PK.ea) + '</b> 개' + (PK.box != null ? ' · ' + f1(PK.box) + ' Box' : '') + per(PK.days ? PK.ea / PK.days : null)]].concat(PK.ln && PK.ln.length ? [['호기별 생산량', PK.ln.map(function (x) { return x[0] + '호기 ' + f1(x[1]); }).join(' · ')]] : []).concat(PK.waste != null ? [['밀봉 불량팩', '<b>' + f1(PK.waste) + '</b> 개' + hoBy(PK.wasteBy)]] : []).concat([['B호기 가동률', PK.rate != null ? f1(PK.rate, 1) + '%' + (kind === 'daily' ? '' : ' (평균)') : '-'],
-        ['정지', f1(PK.stopN) + '회' + (PK.stopMin != null ? ' · ' + f1(PK.stopMin) + '분' : '')], ['점검 불량(X)', PK.bad ? '<b style="color:' + C.red + '">' + PK.bad + '건</b>' + hoBy(PK.badBy, '건') : '0건']]));
-      var pser = '';
-      if (many) { var dd = M.daily.map(function (o) { var w = dowN(o.d), mx = M.PR.mix[o.d] || {}, jx = M.PR.juice[o.d] || {}, px = M.PR.pack[o.d] || {}; return { lab: kind === 'weekly' ? md(o.d) + ' ' + dowOf(o.d) : String(+o.d.slice(8)), we: w === 0 || w === 6, nb: mx.nb || 0, use: jx.use ? Math.round(jx.use / 1000 * 10) / 10 : 0, ea: px.ea ? Math.round(px.ea / 1000 * 10) / 10 : 0 }; });
-        var cs = [];
-        if (hasJ) cs.push(card('❖ 날짜별 대두 사용량(톤)', vbars(dd, ['use'], [C.amber], { h: 80, top: function (t) { return t || ''; } })));
-        if (hasM) cs.push(card('⚗ 날짜별 배합 배치', vbars(dd, ['nb'], ['#7B5CD6'], { h: 80, top: function (t) { return t || ''; } })));
-        if (hasK) cs.push(card('📦 날짜별 포장 생산량(천 개)', vbars(dd, ['ea'], ['#3062D8'], { h: 80, top: function (t) { return t || ''; } })));
-        for (var ci = 0; ci < cs.length; ci += 2) pser += cs[ci + 1] ? two(cs[ci], cs[ci + 1]) : cs[ci]; }
-      /* 그 기간에 일지가 있는 공정만 */
-      var parts = [], names = [];
-      if (hasJ) { parts.push(juiceT); names.push('❖ 착즙'); } if (hasM) { parts.push(mixT); names.push('⚗ 배합'); } if (hasK) { parts.push(packT); names.push('📦 포장'); }
-      var body = ''; for (var pi = 0; pi < parts.length; pi += 2) body += (pi ? '<div style="height:10px"></div>' : '') + two(parts[pi], parts[pi + 1] || '');
-      if (parts.length) h += card(names.join(' · ') + ' 공정', body, '저장된 일지 기준') + pser;
-    }
-    /* 인원 · OT */
-    if (J.heads.length || J.ot.total) {
-      var hb = {}; J.heads.forEach(function (x) { var b = hb[x.team] = hb[x.team] || { n: 0, w: 0, o: 0, t: 0 }; b.n++; b.w += x.work || 0; b.o += x.off || 0; b.t += x.total || 0; });
-      h += card('👥 근무 인원 · 시간 외 근무', table(['팀', '근무일보', '평균 근무인원', '평균 휴무', '총 OT'], Object.keys(hb).map(function (t) { var b = hb[t]; return [chip(t, '#F1F3F8', TC[t] || C.mute), b.n + '건', b.w ? (Math.round(b.w / b.n * 10) / 10) + '명' : '-', b.o ? (Math.round(b.o / b.n * 10) / 10) + '명' : '-', '<b>' + (Math.round((J.ot.byTeam[t] || 0) * 10) / 10) + '시간</b>']; })));
-    }
-    /* 정비 */
-    if (M.maints.length) {
-      h += two(card('🔧 정비 종류', hbars(M.mtype.map(function (r) { return [r[0], r[1], r[1] + '건', C.teal]; }), { lw: 40 })),
-        card('🔩 정비가 잦은 설비', hbars(M.massets.map(function (r) { return [r[0], r[1], r[1] + '건', '#5B7BB7']; }), { lw: 46, clip: 20 })));
-      if (kind === 'daily') h += card('🔧 정비 내역', table(['설비', '내용', '종류', '담당'], M.maints.slice(0, 12).map(function (r) { return [esc(r.asset || '-'), esc(clip(r.content || '-', 40)), esc(r.mtype || '-'), esc(r.person || '')]; })));
-    }
-    /* 현장 메모 */
-    if (J.notes.length) h += card('💬 현장 메모 · 특이사항', J.notes.slice(0, kind === 'daily' ? 10 : 14).map(function (n) {
-      return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:8px"><tr><td width="4" style="background:' + (TC[n.team] || C.mute) + ';border-radius:3px;font-size:0">&nbsp;</td><td style="padding:2px 10px"><div style="font-size:11.5px;color:' + C.mute + '">' + md(n.d) + ' · ' + esc(n.form) + ' · ' + esc(n.what) + '</div><div style="font-size:13px;margin-top:2px">' + esc(n.text) + '</div></td></tr></table>';
-    }).join(''), J.notes.length > 14 ? '외 ' + (J.notes.length - 14) + '건' : '');
-    /* 다음 기간 생산계획 */
-    var pb = groupBy(M.plan, 'colLabel'), pl = Object.keys(pb).sort();
-    h += card('📅 ' + (kind === 'daily' ? md(M.planFrom) + '(' + dowOf(M.planFrom) + ') ' : (kind === 'weekly' ? '다음 주 (' + md(M.planFrom) + '~' + md(M.planTo) + ') ' : '다음 달 ')) + '생산계획',
-      pl.length ? (kind === 'daily' ? table(['설비', '품목'], pl.map(function (l) { return ['<b>' + esc(l) + '</b>', pb[l].map(function (c) { return esc(c.code || '') + (c.batch ? ' &lt;' + esc(c.batch) + '&gt;' : '') + ' ' + esc(c.name || ''); }).join('<br>')]; }))
-        : hbars(pl.map(function (l) { return [l, pb[l].length, pb[l].length + '건', '#2E9E6A']; }), { lw: 30 })) : '<div style="font-size:13px;color:' + C.mute + '">등록된 생산계획 없음</div>');
-    h += '<div style="font-size:11.5px;color:' + C.mute + ';margin-top:16px;text-align:center;line-height:1.7">이 보고서는 업무포털의 일지 · 지연 · 정비 · 생산계획 데이터로 자동 생성되었습니다.' + (opts.portalUrl ? '<br><a href="' + esc(opts.portalUrl) + '#/reports?t=' + kind + '&amp;k=' + esc(P.key) + '" style="color:#2F5BD3;font-weight:700">포털에서 보기 →</a>' : '') + '</div></div>';
+
+    /* ── 다음 생산계획 ── */
+    var pb = groupBy(M.plan, 'colLabel'), pl = Object.keys(pb).sort(), FL = 'ABCDEF';
+    h += S((kind === 'daily' ? md(M.planFrom) + '(' + dowOf(M.planFrom) + ') ' : kind === 'weekly' ? '다음 주 ' : '다음 달 ') + '생산계획', M.plan.length + '건 · ' + pl.length + '개 설비');
+    h += box('', pl.length ? (kind === 'daily' ? table(['설비', '품목', '배치', '충전', '시간'], [].concat.apply([], pl.map(function (l) { return pb[l].map(function (c, i) { return [i ? '' : '<b>' + esc(l) + '</b>', esc(c.code || '') + ' ' + esc(c.name || ''), c.batch ? esc(c.batch) : '-', c.filler ? pill(FL[(+c.filler || 1) - 1] + '호기', '#EAF1FE', V.accent) : '-', esc(c.time || '')]; }); })))
+      : hbars(pl.map(function (l) { return [l, pb[l].length, pb[l].length + '건', '#2E9E6A']; }), { lw: 30 })) : '<div style="font-size:13px;color:' + V.mute + '">등록된 생산계획 없음</div>');
+
+    h += '<div style="font-size:11px;color:' + V.mute + ';margin-top:20px;text-align:center;line-height:1.8;font-family:' + FONT + '">이 보고서는 업무포털의 일지 · 근무일보 · 지연 · 정비 · 생산계획 · KPI 자료로 자동 생성되었습니다.<br>노무비는 입력된 시간당 단가로 계산한 추정치입니다.' + (opts.portalUrl ? '<br><a href="' + esc(opts.portalUrl) + '#/reports?t=' + kind + '&amp;k=' + esc(P.key) + '" style="color:' + V.accent + ';font-weight:800;text-decoration:none">포털에서 자세히 보기 →</a>' : '') + '</div></div>';
     return { title: title, summary: summary, html: h };
   }
+
   function groupBy(a, k) { var o = {}; a.forEach(function (x) { (o[x[k]] = o[x[k]] || []).push(x); }); return o; }
   function fmtQty(q) { q = +q || 0; if (!q) return '0'; return q >= 10000 ? (Math.round(q / 1000) / 10) + '만' : q.toLocaleString('ko-KR'); }
 
@@ -11059,6 +11182,8 @@ console.log('[확장 모듈 34] 지연·정비 기록 (노션 이전 '+notionRec
     t.push('HACCP 측정 ' + J.ccpChecks + '회, 기준 이탈·부적합 ' + J.devs.length + '건');
     J.devs.slice(0, 15).forEach(function (x) { t.push('  이탈: ' + x.d + ' ' + x.form + ' ' + x.what + ' 값 ' + x.val + ' (기준 ' + x.spec + ')'); });
     t.push('OT 합계 ' + Math.round(J.ot.total * 10) / 10 + '시간');
+    if (M.L && M.L.total.pd) { t.push('근무일보 투입 인시 ' + Math.round(M.L.total.h) + '시간 (연인원 ' + M.L.total.pd + '명, OT ' + Math.round(M.L.total.ot * 10) / 10 + 'h, 심야 ' + Math.round(M.L.total.ng * 10) / 10 + 'h' + (M.L.total.cost != null ? ', 추정 노무비 ' + Math.round(M.L.total.cost / 10000) + '만원' : '') + ')'); DIVS.forEach(function (dv) { var o = M.L.byDiv[dv]; if (o) t.push('  [' + dv + '] 인시 ' + Math.round(o.h) + 'h, OT ' + Math.round(o.ot * 10) / 10 + 'h'); }); }
+    (M.K || []).forEach(function (k) { if (!k.none) t.push('KPI ' + k.label + ': ' + Math.round(k.score * 10) / 10 + '점, 관리 필요 ' + k.warn.length + '항목'); });
     Object.keys(J.ster).forEach(function (k) { var s = J.ster[k]; t.push('  멸균 ' + k + ': 가동 ' + Math.round(s.run * 10) / 10 + 'h, 적산량 ' + s.qty + ', 배치 ' + s.batch); });
     J.stops.slice(0, 10).forEach(function (s) { t.push('  정지: ' + s.d + ' ' + s.hogi + ' ' + s.start + '~' + s.end + ' ' + s.why); });
     J.notes.slice(0, 15).forEach(function (n) { t.push('  메모: ' + n.d + ' ' + n.form + ' ' + n.what + ': ' + n.text); });
