@@ -18720,7 +18720,7 @@ function view(){
  var mi=MON.indexOf((+M.ym.slice(5))+'월'),L=(mh.liters||[])[mi],w=C.wage;
  var reg=M.tot.work*8,cost=w?(reg*w+M.tot.ot*w*C.ot+M.tot.ng*w*C.night):null,perL=cost&&L?cost/L:null,packs=L?L/(C.packL||0.19):null,perPack=cost&&packs?cost/packs:null;
  h+='<h2 class="kp-h2"><span class="kp-sn">06</span>노무비 · 인시 생산성 (추정) <small>'+(+M.ym.slice(5))+'월 · 시간당 평균 인건비를 넣으면 계산</small></h2><div class="kp-tiles">'+
-  [['정규 근무시간',reg,'시간',0],['연장 × '+C.ot+'배',M.tot.ot,'시간',1],['심야 가산 × '+C.night,M.tot.ng,'시간',1],['월 생산량',L!=null?L:null,'L',0],['추정 노무비',cost,'원',0],['리터당 노무비',perL,'원/L',2],['개당 노무비 ('+(C.packL*1000)+'ml 환산)',perPack,'원/개',2],['인시생산성 (생산량÷투입)',L&&M.tot.hrs?L/M.tot.hrs:null,'L/h',0]].map(function(t,i){
+  [['정규 근무시간',reg,'시간',0],['연장 × '+C.ot+'배',M.tot.ot,'시간',1],['심야 가산 × '+C.night,M.tot.ng,'시간',1],['월 생산량',L!=null?L:null,'L',0],['추정 노무비',cost!=null?Math.round(cost/1e4):null,'만원',0],['리터당 노무비',perL,'원/L',2],['개당 노무비 ('+(C.packL*1000)+'ml 환산)',perPack,'원/개',2],['인시생산성 (생산량÷투입)',L&&M.tot.hrs?L/M.tot.hrs:null,'L/h',0]].map(function(t,i){
    return '<div class="kp-tile'+(t[1]==null?' na':'')+'" style="--d:'+(i*60)+'ms"><small>'+E(t[0])+'</small><b data-count="'+(t[1]==null?'':t[1])+'" data-dec="'+t[3]+'">'+(t[1]==null?'-':'0')+'</b><em>'+t[2]+'</em></div>'}).join('')+'</div>'+
   '<div class="kp-note">개당 노무비 KPI 목표 12.2원/개 (전년 12.7원/개) · 노무비 = 정규시간 × 단가 + 연장 × 단가 × '+C.ot+' + 심야 × 단가 × '+C.night+' · 실제 급여 자료가 아니라 입력한 단가로 낸 추정값입니다'+(L==null?' · 이 달 생산량은 인시생산성 엑셀을 올리면 반영됩니다':'')+'</div>'+
   (isAdm()?'<div class="kp-adm"><label>시간당 평균 인건비(원) <input type="number" id="kp-wage" value="'+(w||'')+'" placeholder="예: 21000"></label><label>연장 배율 <input type="number" step="0.1" id="kp-ot" value="'+C.ot+'"></label><label>심야 가산 <input type="number" step="0.1" id="kp-ng" value="'+C.night+'"></label><button class="btn btn-p btn-sm" onclick="yumKPI.cfg()">저장</button></div>':'');
@@ -18988,6 +18988,97 @@ function cssSplit(){if($i('kp-css3'))return;var s=document.createElement('style'
  '@media (max-width:1100px){.kp-tms,.kp-sc3{grid-template-columns:1fr}.kp-wide{grid-template-columns:1fr}}';
  document.head.appendChild(s)}
 var _css2=css;css=function(){_css2();cssSplit()};
+
+/*kp_hist*/
+/* ── 근무일보 누적 분석 · 팀 나눠 보기 · 긴 명단 접기 (2026-11-11) ── */
+var XO={m14:{ml:7},m28:{ml:7},m66:{ml:8,rs:5},m70:{ml:8,rs:5},m67:{ml:8},m68:{ml:8},m69:{ml:8}};
+var RKX={};
+function rowKeysX(f){if(RKX[f.id])return RKX[f.id];var t=f.wtpl||(window.__WTPL||{})[f.code],out=[];if(!t||!t.blocks)return out;
+ t.blocks.forEach(function(b){(b.rows||[]).forEach(function(r){var ks=(r||[]).filter(function(c){return c&&c.k}).map(function(c){return c.k}),ni=-1;ks.forEach(function(k,x){if(/^m\d+_nm\d+$/.test(k))ni=x});if(ni<0)return;
+  var pre=ks[ni].split('_')[0],Y=LAY[pre],X=XO[pre]||{};if(!Y)return;
+  out.push({nm:ks[ni],rk:ni>0?ks[ni-1]:null,st:ks[ni+1],en:ks[ni+2],wk:ks[ni+Y.wk],ot:ks[ni+Y.ot],ng:ks[ni+Y.ng],rs:X.rs?ks[ni+X.rs]:null,ml:X.ml?[0,1,2,3].map(function(j){return ks[ni+X.ml+j]}):null})})});
+ return RKX[f.id]=out}
+function tmH(v){var m=/^(\d{1,2}):?(\d{2})$/.exec(String(v||'').trim());if(!m)return null;var h=+m[1];return h<24?h:null}
+function ate(v){v=String(v||'').trim();return !!v&&!/^(x|X|0|-|×|아니오|N)$/.test(v)}
+/* 팀별 · 날짜별 · 사람별 자세한 기록 (같은 양식 같은 날은 마지막 저장본) */
+function fx(T){var by={};(DB.data.forms||[]).filter(function(x){return T.forms.indexOf(x.code)>=0}).forEach(function(f){var K=rowKeysX(f),at={};
+ (DB.data.docs||[]).filter(function(d){return d&&d.formId===f.id&&!d.deleted&&d.status!=='deleted'}).forEach(function(d){var ds=docDay(d);if(!ds)return;if(at[ds]&&String(at[ds].updatedAt||'')>String(d.updatedAt||''))return;at[ds]=d});
+ Object.keys(at).forEach(function(ds){var d=at[ds],L=[];K.forEach(function(r){var n=bare(G(d,r.nm));if(!n)return;var h=num(G(d,r.wk)),ot=num(G(d,r.ot)),ng=num(G(d,r.ng));if(h==null&&ot==null&&ng==null)return;
+   L.push({n:n,rk:r.rk?G(d,r.rk):'',h:h!=null?h:8+(ot||0),ot:ot||0,ng:ng||0,st:tmH(G(d,r.st)),en:tmH(G(d,r.en)),ml:r.ml?r.ml.map(function(k){return ate(G(d,k))}):null,rs:r.rs?G(d,r.rs):''})});
+  var o=by[ds]=by[ds]||{forms:{},p:[]};o.forms[f.code]=1;o.p=o.p.concat(L)})});
+ return by}
+function nameTeams(){var o={};TEAMS.slice(1).forEach(function(t){var F=fx(t);Object.keys(F).forEach(function(ds){F[ds].p.forEach(function(p){o[p.n]=o[p.n]||t.k})})});return o}
+var WDN='일월화수목금토';
+function hist(){var T=TM(),TL=T.all?TEAMS.slice(1):[T],td=ymd(new Date()),ym=ST.ym||td.slice(0,7),C=cfg();
+ var per=TL.map(function(t){return {t:t,F:fx(t)}});
+ /* 월별 */
+ var MS={};per.forEach(function(x){Object.keys(x.F).forEach(function(ds){if(ds>td)return;var m=ds.slice(0,7),o=MS[m]=MS[m]||{days:{},t:{},h:0,ot:0,ng:0,reg:0,pd:0};o.days[ds]=1;var tt=o.t[x.t.k]=o.t[x.t.k]||0;
+  x.F[ds].p.forEach(function(p){o.h+=p.h;o.ot+=p.ot;o.ng+=p.ng;o.pd++;o.t[x.t.k]+=p.h})})});
+ var months=Object.keys(MS).sort().slice(-12);
+ if(!months.length)return '<h2 class="kp-h2" id="kp-sec99"><span class="kp-sn">99</span><span class="kp-kick">WORK LOG ANALYTICS</span>근무일보 누적 분석 <small>저장된 근무일보가 아직 없습니다</small></h2>';
+ var mlab=months.map(function(m){return (+m.slice(5))+'월'});
+ var mser=T.all?per.map(function(x){return {name:x.t.k,color:TCOL[x.t.k],vals:months.map(function(m){return MS[m].t[x.t.k]||0})}}):[{name:'정규 근무',color:'var(--kp-s1)',vals:months.map(function(m){return Math.max(0,MS[m].h-MS[m].ot)})},{name:'연장(OT)',color:'var(--kp-s2)',vals:months.map(function(m){return MS[m].ot})}];
+ var h='<h2 class="kp-h2" id="kp-sec99"><span class="kp-sn">99</span><span class="kp-kick">WORK LOG ANALYTICS</span>근무일보 누적 분석 <small>지금까지 저장된 근무일보 '+Object.keys(MS).reduce(function(a,m){return a+Object.keys(MS[m].days).length},0)+'일치 · '+mlab[0]+' ~ '+mlab[mlab.length-1]+'</small></h2>';
+ h+='<div class="kp-two kp-wide"><div class="kp-panel"><div class="kp-mini"><b>월별 투입 인시</b><span>'+(T.all?'팀별':'정규 · 연장')+'</span></div>'+stack(mlab,mser,{unit:'h',aria:'월별 투입 인시',hi:months.indexOf(ym)})+'</div>'+
+  '<div class="kp-panel"><div class="kp-mini"><b>월별 요약</b><span>근무일보 기준</span></div><table class="kp-t"><thead><tr><th>월</th><th>일보 일수</th><th>연인원</th><th>투입 인시</th><th>OT</th><th>심야</th><th>1인·일</th>'+(C.wage?'<th>추정 노무비</th>':'')+'</tr></thead><tbody>'+
+  months.slice().reverse().map(function(m){var o=MS[m],reg=Math.max(0,o.h-o.ot),cost=C.wage?reg*C.wage+o.ot*C.wage*C.ot+o.ng*C.wage*C.night:null;return '<tr'+(m===ym?' class="cur"':'')+'><td><b>'+(+m.slice(5))+'월</b></td><td>'+Object.keys(o.days).length+'</td><td>'+o.pd+'</td><td>'+fmt(o.h,1)+'</td><td>'+fmt(o.ot,1)+'</td><td>'+fmt(o.ng,1)+'</td><td>'+fmt(o.pd?o.h/o.pd:0,1)+'</td>'+(C.wage?'<td>'+won(cost)+'</td>':'')+'</tr>'}).join('')+'</tbody></table></div></div>';
+ /* 요일 · 출퇴근 · 직급 (전체 기간) */
+ var WD7=[0,1,2,3,4,5,6].map(function(){return {d:{},pd:0,ot:0,h:0}}),ST24=new Array(24).fill(0),EN24=new Array(24).fill(0),RK={},RS={},nT=0;
+ per.forEach(function(x){Object.keys(x.F).forEach(function(ds){if(ds>td)return;var w=new Date(ds+'T00:00:00').getDay(),o=WD7[w];o.d[ds]=1;
+  x.F[ds].p.forEach(function(p){o.pd++;o.ot+=p.ot;o.h+=p.h;if(p.st!=null){ST24[p.st]++;nT++}if(p.en!=null)EN24[p.en]++;var r=String(p.rk||'').replace(/\s+/g,'')||'미기재',q=RK[r]=RK[r]||{n:{},pd:0,h:0,ot:0,ng:0};q.n[p.n]=1;q.pd++;q.h+=p.h;q.ot+=p.ot;q.ng+=p.ng;
+   var rs=String(p.rs||'').trim();if(rs&&p.ot)RS[rs]=(RS[rs]||0)+p.ot})})});
+ var wl=[1,2,3,4,5,6,0];
+ h+='<div class="kp-two"><div class="kp-panel"><div class="kp-mini"><b>요일별 평균 근무 인원</b><span>하루 평균 · 명</span></div>'+bars(wl.map(function(w){return WDN[w]}),wl.map(function(w){var o=WD7[w],n=Object.keys(o.d).length;return n?o.pd/n:null}),{color:'var(--kp-s1)',dec:1,unit:'명',h:190,aria:'요일별 평균 근무 인원'})+'</div>'+
+  '<div class="kp-panel"><div class="kp-mini"><b>요일별 1인 평균 OT</b><span>시간</span></div>'+bars(wl.map(function(w){return WDN[w]}),wl.map(function(w){var o=WD7[w];return o.pd?o.ot/o.pd:null}),{color:'var(--kp-s2)',dec:2,unit:'h',h:190,aria:'요일별 1인 평균 OT'})+'</div></div>';
+ var hrs=[];for(var i=0;i<24;i++)if(ST24[i]||EN24[i])hrs.push(i);
+ var H2='<div class="kp-panel"><div class="kp-mini"><b>출근 · 퇴근 시각 분포</b><span>시업 · 종업(출근 · 퇴근) 칸 기준 · 연인원</span></div>'+(nT?stack(hrs.map(function(i){return i+'시'}),[{name:'출근',color:'var(--kp-s1)',vals:hrs.map(function(i){return ST24[i]})},{name:'퇴근',color:'var(--kp-s3)',vals:hrs.map(function(i){return EN24[i]})}],{unit:'명',h:220,aria:'출퇴근 시각 분포'}):'<div class="kp-empty">시업 · 종업 시각이 적힌 일보가 없습니다</div>')+'</div>';
+ /* 식수 (이번 달) · 작성 현황 */
+ var y=+ym.slice(0,4),m=+ym.slice(5,7),N=new Date(y,m,0).getDate(),MLN=['조식','중식','석식','야식'],ML=[0,1,2,3].map(function(){return new Array(N).fill(0)}),mlAny=false;
+ per.forEach(function(x){Object.keys(x.F).forEach(function(ds){if(ds.slice(0,7)!==ym)return;var d=+ds.slice(8)-1;x.F[ds].p.forEach(function(p){if(p.ml)p.ml.forEach(function(v,j){if(v){ML[j][d]++;mlAny=true}})})})});
+ var mt=ML.map(function(a){return a.reduce(function(s,v){return s+v},0)}),MLC=['#F2B84B','var(--kp-s1)','var(--kp-s2)','#334155'];
+ h+='<div class="kp-two kp-wide"><div class="kp-panel"><div class="kp-mini"><b>식수 집계 · '+m+'월</b><span>근무일보 조 · 중 · 석 · 야식 칸 표시 인원</span></div>'+
+  '<div class="kp-mls">'+MLN.map(function(n,j){return '<div><small><i style="background:'+MLC[j]+'"></i>'+n+'</small><b data-count="'+mt[j]+'">0</b><em>식</em></div>'}).join('')+'</div>'+
+  (mlAny?stack(ML[0].map(function(_,i){return String(i+1)}),MLN.map(function(n,j){return {name:n,color:MLC[j],vals:ML[j]}}),{unit:'식',unitLb:'일',h:180,aria:'일별 식수',hi:td.slice(0,7)===ym?+td.slice(8)-1:-1}):'<div class="kp-empty sm">이번 달 식사 칸이 표시된 일보가 없습니다</div>')+'</div>';
+ var FL=[];TL.forEach(function(t){t.forms.forEach(function(c){var f=(DB.data.forms||[]).filter(function(z){return z.code===c})[0];if(f&&f.active!==false)FL.push({t:t,f:f})})});
+ var last=td.slice(0,7)===ym?+td.slice(8):N,FX={};per.forEach(function(x){FX[x.t.k]=x.F});
+ var done=0,cells=0;
+ h+='<div class="kp-panel"><div class="kp-mini"><b>근무일보 작성 현황 · '+m+'월</b><span>칸 = 그날 저장된 일보 · 빈칸 = 없음 (휴무일 포함)</span></div><div class="kp-cov"><div class="kp-cvh"><span></span>'+Array.from({length:last},function(_,i){var w=new Date(y,m-1,i+1).getDay();return '<i class="'+(w===0?'sun':w===6?'sat':'')+'">'+(i+1)+'</i>'}).join('')+'<b>작성</b></div>'+
+  FL.map(function(x){var F=FX[x.t.k],c=0,row='';for(var d=1;d<=last;d++){var ds=ym+'-'+pad(d),ok=!!(F[ds]&&F[ds].forms[x.f.code]);if(ok)c++;row+='<i class="'+(ok?'on':'')+'" title="'+E(x.f.name)+' · '+m+'/'+d+(ok?' 저장됨':' 없음')+'"></i>'}done+=c;cells+=last;
+   return '<div class="kp-cvr"><span title="'+E(x.f.name)+'">'+E(String(x.f.name).replace(/^근무일보\s*/,'').replace(/[()]/g,''))+'</span>'+row+'<b>'+c+'/'+last+'</b></div>'}).join('')+'</div>'+
+  '<div class="kp-note">이번 달 작성률 '+fmt(cells?done/cells*100:0,0)+'% (휴무일도 빈칸으로 셉니다)</div></div></div>';
+ /* 직급별 · OT 사유 */
+ var rks=Object.keys(RK).sort(function(a,b){return RK[b].h-RK[a].h}),rsk=Object.keys(RS).sort(function(a,b){return RS[b]-RS[a]}).slice(0,8),rmx=Math.max.apply(null,rsk.map(function(k){return RS[k]}).concat([1]));
+ h+='<div class="kp-two">'+H2+'<div class="kp-panel"><div class="kp-mini"><b>직급별 근무</b><span>지금까지 누적</span></div><table class="kp-t"><thead><tr><th>직급</th><th>인원</th><th>연인원</th><th>투입 인시</th><th>1인·일</th><th>1인·일 OT</th><th>심야</th></tr></thead><tbody>'+
+  rks.map(function(k){var q=RK[k];return '<tr><td><b>'+E(k)+'</b></td><td>'+Object.keys(q.n).length+'</td><td>'+q.pd+'</td><td>'+fmt(q.h,1)+'</td><td>'+fmt(q.h/q.pd,1)+'</td><td>'+fmt(q.ot/q.pd,2)+'</td><td>'+fmt(q.ng,1)+'</td></tr>'}).join('')+'</tbody></table></div></div>'+
+  '<div class="kp-panel"><div class="kp-mini"><b>OT 사유</b><span>OT사유 칸이 있는 가공1팀 일보 · OT 시간 합</span></div>'+(rsk.length?'<div class="kp-hb">'+rsk.map(function(k){return '<div class="kp-hr"><span title="'+E(k)+'">'+E(k)+'</span><div class="kp-track"><i style="--w:'+(RS[k]/rmx*100).toFixed(1)+'%;background:var(--kp-s2)"></i></div><b>'+fmt(RS[k],1)+'</b></div>'}).join('')+'</div>':'<div class="kp-empty">적힌 OT 사유가 없습니다'+(TL.some(function(t){return t.k==='가공1팀'})?'':' (가공1팀 일보에만 있는 칸)')+'</div>')+'</div>';
+ return h}
+/* 팀 나눠 보기 줄 */
+function segBar(){var cur=TM().k;return '<div class="kp-seg">'+TEAMS.map(function(t){return '<a href="#/mh?t='+encodeURIComponent(t.k)+'" class="'+(t.k===cur?'on':'')+'">'+(t.all?'전체보기':E(t.k))+'</a>'}).join('')+'</div>'}
+var _view3=view;view=function(){var h=_view3.apply(this,arguments);if(MODE()!=='mh')return h;
+ var i=h.indexOf('<div class="kp-exec">');if(i>0)h=h.slice(0,i)+segBar()+h.slice(i);
+ var j=h.indexOf('<h2 class="kp-h2" id="kp-sec02"');if(TM().all&&j>0){var j2=h.indexOf('<h2 class="kp-h2" id="kp-sec03"');if(j2>j)h=h.slice(0,j)+h.slice(j2);j=h.indexOf('<h2 class="kp-h2" id="kp-sec03"')}var H=hist();h=j>0?h.slice(0,j)+H+h.slice(j):h.replace(/<\/div>$/,H+'</div>');
+ var k=0;return h.replace(/id="kp-sec(x?)\d\d"><span class="kp-sn">\d\d<\/span>/g,function(){k++;var n=('0'+k).slice(-2);return 'id="kp-sec'+n+'"><span class="kp-sn">'+n+'</span>'})};
+/* 긴 명단 접기 · 전체보기에서는 팀 꼬리표 */
+function tidy(){var M=$i('main');if(!M||MODE()!=='mh')return;var NT=TM().all?nameTeams():null,LIM=10;
+ function fold(box,rows,label){if(rows.length<=LIM+2)return;rows.forEach(function(r,i){if(i>=LIM)r.classList.add('kp-fold')});box.classList.add('kp-folded');
+  var b=document.createElement('button');b.type='button';b.className='kp-more';b.innerHTML='전체 '+rows.length+'명 펼치기 <i>▾</i>';b.onclick=function(){var o=box.classList.toggle('kp-folded');b.innerHTML=o?'전체 '+rows.length+'명 펼치기 <i>▾</i>':'접기 <i>▴</i>'};(box.closest('.kp-xw')||box).insertAdjacentElement('afterend',b)}
+ function tag(el,n){if(!NT||!el||el.querySelector('.kp-tt'))return;var t=NT[n];if(t)el.insertAdjacentHTML('afterbegin','<em class="kp-tt" style="--c:'+TCOL[t]+'">'+E(t.replace('팀',''))+'</em>')}
+ [].forEach.call(M.querySelectorAll('.kp-hb'),function(b){var R=[].slice.call(b.querySelectorAll('.kp-hr'));var pn=b.closest('.kp-panel'),isRs=pn&&/OT 사유/.test(((pn.querySelector('.kp-mini b')||{}).textContent)||'');if(!isRs)R.forEach(function(r){var s=r.querySelector('span');if(s)tag(s,bare(s.childNodes[0]&&s.childNodes[0].textContent||''))});fold(b,R)});
+ [].forEach.call(M.querySelectorAll('.kp-cal'),function(b){var R=[].slice.call(b.querySelectorAll('.kp-cr')).filter(function(r){return r.querySelector('span')});fold(b,R)});
+ [].forEach.call(M.querySelectorAll('.kp-x tbody'),function(tb){var P=[],cur=null;[].forEach.call(tb.children,function(tr){if(tr.querySelector('td.nm[rowspan]')||!cur||!tr.classList.contains('ng')){cur=[tr];P.push(cur)}else cur.push(tr)});
+  if(P.length<=LIM+2||P.length<4)return;P.forEach(function(g,i){g.forEach(function(tr){if(i>=LIM)tr.classList.add('kp-fold')})});
+  tb.classList.add('kp-folded');var b=document.createElement('button');b.type='button';b.className='kp-more';b.innerHTML='전체 '+P.length+'명 펼치기 <i>▾</i>';b.onclick=function(){var o=tb.classList.toggle('kp-folded');b.innerHTML=o?'전체 '+P.length+'명 펼치기 <i>▾</i>':'접기 <i>▴</i>'};var w=tb.closest('.kp-xw');(w||tb.parentNode).insertAdjacentElement('afterend',b)})}
+var _anim2=anim;anim=function(){try{tidy()}catch(e){console.warn('[kp tidy]',e)}return _anim2.apply(this,arguments)};
+function cssHist(){if($i('kp-css4'))return;var s=document.createElement('style');s.id='kp-css4';s.textContent=
+ '.kp-seg{display:flex;gap:4px;padding:5px;border-radius:14px;background:var(--kp-card);border:1px solid var(--kp-line);box-shadow:0 10px 30px -24px rgba(15,23,42,.5);width:max-content;max-width:100%;overflow-x:auto}.kp-seg a{flex:none;padding:9px 20px;border-radius:10px;font-size:14px;font-weight:800;color:var(--kp-sub);text-decoration:none;transition:background .2s,color .2s}.kp-seg a:hover{background:rgba(122,77,216,.08);color:var(--kp-ink)}.kp-seg a.on{color:#fff;background:linear-gradient(135deg,#1E1250,#7A4DD8);box-shadow:0 8px 18px -10px rgba(122,77,216,.8)}'+
+ '.kp-folded .kp-fold{display:none!important}.kp-more{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:8px;padding:9px;border:1px dashed var(--kp-line);border-radius:10px;background:transparent;color:var(--kp-sub);font:700 12.5px inherit;cursor:pointer}.kp-more:hover{border-color:var(--kp-acc1);color:var(--kp-acc1)}'+
+ '.kp-tt{font-style:normal;font-size:10px;font-weight:800;color:var(--c);border:1px solid var(--c);border-radius:5px;padding:0 4px;margin-right:5px;vertical-align:1px}'+
+ '.kp-three{display:grid;grid-template-columns:1fr 1fr 1.3fr;gap:12px}.kp-t tr.cur td{background:rgba(122,77,216,.07)}'+
+ '.kp-mls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:2px 0 10px}.kp-mls>div{padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--kp-track) 55%,var(--kp-card))}.kp-mls small{display:block;font-size:11.5px;color:var(--kp-sub);font-weight:700}.kp-mls small i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px}.kp-mls b{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums}.kp-mls em{font-style:normal;font-size:11px;color:var(--kp-mute);margin-left:2px}'+
+ '.kp-cov{overflow-x:auto;display:flex;flex-direction:column;gap:3px}.kp-cvh,.kp-cvr{display:flex;align-items:center;gap:3px}.kp-cvh span,.kp-cvr span{width:120px;flex:none;font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.kp-cvh i{width:16px;flex:none;font-style:normal;font-size:9.5px;color:var(--kp-mute);text-align:center}.kp-cvh i.sun{color:#E11D48}.kp-cvh i.sat{color:#2563EB}'+
+ '.kp-cvr i{width:16px;height:16px;flex:none;border-radius:4px;background:var(--kp-track)}.kp-cvr i.on{background:linear-gradient(135deg,#10B981,#059669)}.kp-cvh b,.kp-cvr b{width:44px;flex:none;text-align:right;font-size:11.5px;font-variant-numeric:tabular-nums}'+
+ '@media (max-width:1100px){.kp-three{grid-template-columns:1fr}}';document.head.appendChild(s)}
+var _css3=css;css=function(){_css3();cssHist()};
 
 function cssPro(){if($i('kp-css2'))return;var s=document.createElement('style');s.id='kp-css2';s.textContent=
  '.kp{--kp-gold:#C9A85C;--kp-acc1:#4C7DFF;--kp-acc2:#8B6CFF;gap:18px;letter-spacing:-.005em}'+
