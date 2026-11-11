@@ -11939,19 +11939,19 @@ var LS='yum_sb_open';
 
 /* ---------- 영역 정의 ---------- */
 var SEC={
- dash:   {en:'DASHBOARD',            ic:'▦', a:'#3062D8', d:'#12245A', s:'#EDF2FD', rgb:'48,98,216'},
+ dash:   {en:'DASHBOARD',            ic:'▦', a:'#2563EB', d:'#102A6B', s:'#EAF1FE', rgb:'37,99,235'},
  plan:   {en:'PRODUCTION',           ic:'⚙', a:'#0F8F7C', d:'#0A3F3A', s:'#E5F5F1', rgb:'15,143,124'},
- work:   {en:'WORKFORCE',            ic:'◷', a:'#6D50D9', d:'#2B1F66', s:'#F0EDFC', rgb:'109,80,217'},
- kpi:    {en:'KPI · PERFORMANCE', ic:'◎', a:'#2F5BD8', d:'#0B1730', s:'#EEF2F8', rgb:'47,91,216'},
- mh:     {en:'LABOR ANALYTICS', ic:'⏱', a:'#7A4DD8', d:'#1E1250', s:'#F2EEFB', rgb:'122,77,216'},
- data:   {en:'RESOURCES',            ic:'📋', a:'#B45309', d:'#4A2A0A', s:'#FDF3E7', rgb:'180,83,9'},
- talk:   {en:'TEAM TALK',            ic:'💬', a:'#0E7490', d:'#083344', s:'#E6F6FA', rgb:'14,116,144'},
- ai:     {en:'AI ASSISTANT',         ic:'✦', a:'#7C3AED', d:'#2E1065', s:'#F3EEFE', rgb:'124,58,237'},
- journal:{en:'JOURNALS · APPROVAL', ic:'✎', a:'#C27A2C', d:'#53300F', s:'#FBF1E3', rgb:'194,122,44'},
- ref:    {en:'RESOURCES · SAFETY',   ic:'▣', a:'#C2425D', d:'#561526', s:'#FCECEF', rgb:'194,66,93'},
- notice: {en:'NOTICE',               ic:'📢', a:'#D9822B', d:'#5A300A', s:'#FDF2E6', rgb:'217,130,43'},
+ work:   {en:'WORKFORCE',            ic:'◷', a:'#DB2777', d:'#500724', s:'#FCE9F2', rgb:'219,39,119'},
+ kpi:    {en:'KPI · PERFORMANCE', ic:'◎', a:'#4338CA', d:'#1E1B4B', s:'#EDEDFB', rgb:'67,56,202'},
+ mh:     {en:'LABOR ANALYTICS', ic:'⏱', a:'#7C3AED', d:'#2E1065', s:'#F2ECFE', rgb:'124,58,237'},
+ data:   {en:'RESOURCES',            ic:'📋', a:'#4D7C0F', d:'#1E3305', s:'#EFF6E4', rgb:'77,124,15'},
+ talk:   {en:'TEAM TALK',            ic:'💬', a:'#0891B2', d:'#083344', s:'#E4F6FA', rgb:'8,145,178'},
+ ai:     {en:'AI ASSISTANT',         ic:'✦', a:'#C026D3', d:'#4A044E', s:'#FBEAFC', rgb:'192,38,211'},
+ journal:{en:'JOURNALS · APPROVAL', ic:'✎', a:'#A16207', d:'#422006', s:'#FBF4E1', rgb:'161,98,7'},
+ ref:    {en:'RESOURCES · SAFETY',   ic:'▣', a:'#BE123C', d:'#4C0519', s:'#FDECF0', rgb:'190,18,60'},
+ notice: {en:'NOTICE',               ic:'📢', a:'#E8590C', d:'#5C2104', s:'#FEF0E6', rgb:'232,89,12'},
  admin:  {en:'SYSTEM',               ic:'⚑', a:'#56657F', d:'#1E2638', s:'#EEF0F4', rgb:'86,101,127'},
- me:     {en:'MY PROFILE',           ic:'◉', a:'#B08A3E', d:'#3A2D10', s:'#F8F1E2', rgb:'176,138,62'}
+ me:     {en:'MY PROFILE',           ic:'◉', a:'#78716C', d:'#292524', s:'#F3F2F1', rgb:'120,113,108'}
 };
 var EXTRA={'#/kpi':'kpi','#/mh':'mh','#/safety':'ref','#/ndash':'data','#/reports':'data','#/report-admin':'data','#/doc':'journal','#/doc-new':'journal','#/profile':'me','#/oplogs':'data'};
 
@@ -17225,13 +17225,14 @@ function landing(){
  var g=document.querySelector('#areas .ha-g');
  if(g&&g.getAttribute('data-sig')!==sig){
   var C=[['#/teams','01 · Team Portals','⊞','팀 포털','착즙 · 배합 · 멸균 · 포장 팀별 업무포털로 바로 들어갑니다. 현장 현황과 팀 인사이트를 봅니다.',['배합팀 포털 (운영 중)','착즙 · 멸균 · 포장 포털 바로가기'],'#0F8F7C','#0A3F3A','15,143,124'],
-   ['#/overview','02 · Dashboard','▦','대시보드','팀별 일지와 생산 현황을 한 화면에서 확인합니다.',['대시보드 전체보기','팀별 현황'],'#3062D8','#12245A','48,98,216'],
-   ['#/notice','03 · Insight','📢','인사이트','팀 포털과 일지에 모인 자료로 팀별 인사이트를 자동으로 만듭니다.',['팀별 인사이트','자동 인사이트 · 부서 공지'],'#D9822B','#5A300A','217,130,43'],
-   ['#/journals','04 · Journals','✎','일지','팀을 고르면 바로 일지 양식이 열립니다. 작성 · 결재 · 인쇄까지 한 번에.',['팀별 일지 작성','작성중 · 저장완료 일지'],'#C27A2C','#53300F','194,122,44'],
-   ['#/reports','05 · Resources','📋','자료','업무 보고서함과 지연 · 정비 기록, 설비 매뉴얼 AI를 한곳에 모았습니다.',['업무 보고서함','지연 · 정비 기록','설비 매뉴얼 AI'],'#9A6B3C','#3F2A12','154,107,60'],
-   ['#/safenews','06 · Safety','⚠','안전','안전 소식과 점검을 확인합니다.',['안전 소식 · 점검'],'#C2425D','#561526','194,66,93']];
-  if(kc){C.splice(2,0,['#/kpi?t=%EB%B6%80%EB%AC%B8','KPI · Performance','◎','KPI 달성 현황','부문 · 가공1팀 · 가공2팀 · 포장팀 KPI 점수와 항목별 달성 현황 (팀장 전용).',['부문 통합 스코어카드','팀별 KPI 항목 · 월별 추이'],'#2F5BD8','#0B1A3C','47,91,216'],['#/mh?t=%EB%B6%80%EB%AC%B8','Labor · Man-hours','⏱','인시 · 근태 · 노무비','작업자가 쓴 근무일보로 매일 자동 계산되는 투입 인시 · OT · 추정 노무비 (팀장 전용).',['오늘 · 이번 달 투입 인시','팀별 노무비 · 근태 분석'],'#7A4DD8','#2A1760','122,77,216']);C.forEach(function(c,i){c[1]=c[1].replace(/^\d+ · /,'');c[1]=('0'+(i+1)).slice(-2)+' · '+c[1]})}
-  if(sup)C.push(['#/weekplan','07 · Workforce','◷','근무','근무편성과 주간 근무계획표 (최고관리자 전용).',['주간근무계획표','근무스케쥴'],'#6D50D9','#2B1F66','109,80,217']);
+   ['#/overview','02 · Dashboard','▦','대시보드','팀별 일지와 생산 현황을 한 화면에서 확인합니다.',['대시보드 전체보기','팀별 현황'],'#2563EB','#102A6B','37,99,235'],
+   ['#/notice','03 · Insight','📢','인사이트','팀 포털과 일지에 모인 자료로 팀별 인사이트를 자동으로 만듭니다.',['팀별 인사이트','자동 인사이트 · 부서 공지'],'#E8590C','#5C2104','232,89,12'],
+   ['#/journals','04 · Journals','✎','일지','팀을 고르면 바로 일지 양식이 열립니다. 작성 · 결재 · 인쇄까지 한 번에.',['팀별 일지 작성','작성중 · 저장완료 일지'],'#A16207','#422006','161,98,7'],
+   ['#/reports','05 · Resources','📋','자료','업무 보고서함과 지연 · 정비 기록, 설비 매뉴얼 AI를 한곳에 모았습니다.',['업무 보고서함','지연 · 정비 기록','설비 매뉴얼 AI'],'#4D7C0F','#1E3305','77,124,15'],
+   ['#/safenews','06 · Safety','⚠','안전','안전 소식과 점검을 확인합니다.',['안전 소식 · 점검'],'#BE123C','#4C0519','190,18,60']];
+  if(kc){C.splice(2,0,['#/kpi?t=%EB%B6%80%EB%AC%B8','KPI · Performance','◎','KPI 달성 현황','부문 · 가공1팀 · 가공2팀 · 포장팀 KPI 점수와 항목별 달성 현황 (팀장 전용).',['부문 통합 스코어카드','팀별 KPI 항목 · 월별 추이'],'#4338CA','#1E1B4B','67,56,202'],['#/mh?t=%EB%B6%80%EB%AC%B8','Labor · Man-hours','⏱','인시 · 근태 · 노무비','작업자가 쓴 근무일보로 매일 자동 계산되는 투입 인시 · OT · 추정 노무비 (팀장 전용).',['오늘 · 이번 달 투입 인시','팀별 노무비 · 근태 분석'],'#7C3AED','#2E1065','124,58,237']);}
+  if(sup)C.push(['#/weekplan','07 · Workforce','◷','근무','근무편성과 주간 근무계획표 (최고관리자 전용).',['주간근무계획표','근무스케쥴'],'#DB2777','#500724','219,39,119']);
+  C.forEach(function(c,i){c[1]=('0'+(i+1)).slice(-2)+' · '+c[1].replace(/^\d+ · /,'')});
   g.innerHTML=C.map(function(c){return '<a class="ha-c rv2 in" href="#'+c[0].slice(2)+'" onclick="lnavGo(\''+c[0]+'\');return false" style="--c:'+c[6]+';--cd:'+c[7]+';--cr:'+c[8]+';opacity:1;transform:none"><span class="ha-n">'+c[1]+'</span><span class="ha-ic">'+c[2]+'</span><h3>'+c[3]+'</h3><p>'+c[4]+'</p><ul>'+c[5].map(function(x){return '<li>'+x+'</li>'}).join('')+'</ul><span class="ha-go">'+c[3]+' 열기</span></a>'}).join('');
   g.setAttribute('data-sig',sig);
   var t=document.querySelector('#areas .h2-t');if(t)t.textContent='팀 포털과 부문 업무, 하나의 포털'}
