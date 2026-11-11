@@ -8724,7 +8724,7 @@ Doc.persist=function(mode){
  }else{
   /* 멸균 업무일지(FRM-016)는 노션·대시보드로 전달 */
   try{if(window.SterIlji&&SterIlji.form()&&SterIlji.form().id===f.id){SterIlji.sync(d);if(window.SterDash)SterDash.reload(false)}}catch(e){}
-  toast(window.SterIlji&&SterIlji.form()&&SterIlji.form().id===f.id?'저장되었습니다. 멸균 대시보드에 자동 반영됩니다.':'저장되었습니다. 저장 완료 문서함으로 이동했습니다.','ok');
+  toast(window.SterIlji&&SterIlji.form()&&SterIlji.form().id===f.id?'저장되었습니다. 멸균 대시보드에 자동 반영됩니다.':'저장되었습니다.','ok');
   window.__yumFormHash='';window.__yumInline='';App.go('#/approval?tab=saved');
  }
 };
@@ -8873,7 +8873,7 @@ Doc.finalize=function(id){
   try{addAudit(d,u.name,'저장','임시저장 → 저장완료')}catch(e){}
  DB.save();flush();
  try{var f=window.SterIlji&&SterIlji.form();if(f&&f.id===d.formId){SterIlji.sync(d);if(window.SterDash)SterDash.reload(false)}}catch(e){}
- toast('저장되었습니다. 저장 완료 문서함으로 이동했습니다.','ok');App.go('#/approval?tab=saved');
+ toast('저장되었습니다.','ok');App.go('#/approval?tab=saved');
 };
 
 
@@ -19449,6 +19449,107 @@ var st=document.createElement('style');st.textContent=
  '.ap-eye{font-size:11px;letter-spacing:.18em;font-weight:800;color:#B45309}.ap-stop h1{margin:8px 0 12px;font-size:26px;font-weight:800;color:#0F172A}.ap-stop p{font-size:15px;line-height:1.75;color:#334155;margin:0 0 16px}.ap-stop p b{color:#B45309}'+
  '.ap-stop ul{text-align:left;margin:0 auto 22px;padding:14px 18px 14px 34px;max-width:470px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:14px;font-size:13.5px;line-height:1.8;color:#57534E}'+
  '.ap-btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}';
+document.head.appendChild(st);
+})();
+</script>
+
+<script>
+/* 상온포장 업무지원팀 근무일보(FRM-067) 자동 계산 (2026-11-11)
+   · 생산투입인원 = 그날 업무지원팀 + 포장1팀(FRM-068) + 포장2팀(FRM-069) 근무 인원 (이름이 있고 근무시간이 0보다 큰 줄)
+   · 생산투입시간 = 그 사람들의 근무시간 합
+   · 인시생산성 = 총생산량 ÷ 생산투입시간
+   업무지원팀 일보는 지금 입력 중인 값, 포장1 · 2팀은 같은 날짜로 저장된 일보 기준 */
+(function(){
+'use strict';
+if(window.__YUM_P67__)return;window.__YUM_P67__=1;
+var CODES=['FRM-067','FRM-068','FRM-069'],TN={'FRM-067':'업무지원팀','FRM-068':'포장1팀','FRM-069':'포장2팀'};
+function pad(n){return ('0'+n).slice(-2)}
+function num(v){var m=String(v==null?'':v).replace(/,/g,'').match(/-?\d+(\.\d+)?/);return m?parseFloat(m[0]):null}
+function fmt(v,dg){var p=Math.pow(10,dg);return (Math.round(v*p)/p).toLocaleString('ko-KR',{maximumFractionDigits:dg})}
+function form(code){return (DB.data.forms||[]).filter(function(f){return f&&f.code===code})[0]||null}
+var RK={};
+function rows(f){if(!f)return [];if(RK[f.id])return RK[f.id];var t=f.wtpl||(window.__WTPL||{})[f.code],out=[];if(!t||!t.blocks)return out;
+ t.blocks.forEach(function(b){(b.rows||[]).forEach(function(r){var ks=(r||[]).filter(function(c){return c&&c.k}).map(function(c){return c.k}),ni=-1;ks.forEach(function(k,x){if(/^m\d+_nm\d+$/.test(k))ni=x});if(ni>=0&&ks[ni+3])out.push([ks[ni],ks[ni+3]])})});
+ return RK[f.id]=out}
+function dayOfGrid(g){if(g&&g.dY&&g.dM&&g.dD&&+g.dM>=1&&+g.dM<=12&&+g.dD>=1&&+g.dD<=31)return g.dY+'-'+pad(+g.dM)+'-'+pad(+g.dD);return null}
+function count(code,get){var n=0,h=0;rows(form(code)).forEach(function(r){var nm=String(get(r[0])||'').trim(),w=num(get(r[1]));if(nm&&w!=null&&w>0){n++;h+=w}});return {n:n,h:h}}
+function savedGrid(code,day){var f=form(code);if(!f||!day)return null;var best=null;
+ (DB.data.docs||[]).forEach(function(d){if(!d||d.formId!==f.id||d.deleted||d.status==='deleted')return;var g=d.data&&d.data.grid;if(dayOfGrid(g)!==day)return;if(!best||String(d.updatedAt||'')>String(best.updatedAt||''))best=d});
+ return best?best.data.grid:null}
+/* 계산: g67 = 업무지원팀 값을 읽는 함수, day = 날짜 */
+function calc(get67,day){var parts=[{t:TN['FRM-067'],c:count('FRM-067',get67)}];
+ ['FRM-068','FRM-069'].forEach(function(code){var g=savedGrid(code,day);parts.push({t:TN[code],c:g?count(code,function(k){return g[k]}):null})});
+ var n=0,h=0;parts.forEach(function(p){if(p.c){n+=p.c.n;h+=p.c.h}});var q=num(get67('m67_qty'));
+ return {n:n,h:h,prod:q!=null&&h>0?q/h:null,parts:parts}}
+function out(r){return {m67_in:r.n?String(r.n):'',m67_hrs:r.h?fmt(r.h,1):'',m67_prod:r.prod!=null?fmt(r.prod,1):''}}
+function tip(r,day){return '자동 계산 · '+(day?(+day.slice(5,7))+'/'+(+day.slice(8))+' ':'')+r.parts.map(function(p){return p.t+' '+(p.c?p.c.n+'명 '+fmt(p.c.h,1)+'h':'(그날 저장된 일보 없음)')}).join(' · ')}
+/* ① 작성 화면 */
+function onEditor(){return (location.hash||'').split('?')[0]==='#/doc-new'}
+function edit(){var P=document.getElementById('docpaper');if(!P||!onEditor())return;var inEl=P.querySelector('[data-gk="m67_in"]');if(!inEl)return;
+ var get=function(k){var e=P.querySelector('[data-gk="'+k+'"]');return e?e.value:''};
+ var day=dayOfGrid({dY:get('dY'),dM:get('dM'),dD:get('dD')}),r=calc(get,day),o=out(r),t=tip(r,day);
+ Object.keys(o).forEach(function(k){var e=P.querySelector('[data-gk="'+k+'"]');if(!e)return;if(!e.__p67){e.__p67=1;e.readOnly=true;e.classList.add('p67-auto')}
+  if(e.value!==o[k])e.value=o[k];e.title=k==='m67_prod'?(o[k]?'총생산량 ÷ 생산투입시간 · '+t:'총생산량을 넣으면 자동으로 계산됩니다'):t})}
+setInterval(function(){try{edit()}catch(e){}},1000);
+document.addEventListener('input',function(e){if(e.target&&e.target.closest&&e.target.closest('#docpaper'))setTimeout(function(){try{edit()}catch(_){}},20)},true);
+/* ② 저장된 업무지원팀 일보도 포장1 · 2팀 일보가 나중에 저장되면 맞춰 줌 */
+var SIG='';
+function sync(){try{if(typeof DB==='undefined'||!DB.data||typeof Auth==='undefined'||!Auth.user())return;if(window.SupaSync&&SupaSync.on&&SupaSync.on()&&!SupaSync.adopted)return;
+ var f=form('FRM-067');if(!f)return;var ids=CODES.map(function(c){var x=form(c);return x&&x.id}),docs=(DB.data.docs||[]).filter(function(d){return d&&ids.indexOf(d.formId)>=0}),mx='';docs.forEach(function(d){if(String(d.updatedAt||'')>mx)mx=d.updatedAt});
+ var s=docs.length+'|'+mx;if(s===SIG)return;SIG=s;var open=window.__yumDocId,ch=0;
+ docs.filter(function(d){return d.formId===f.id&&!d.deleted&&d.status!=='deleted'&&d.id!==open&&d.data&&d.data.grid}).forEach(function(d){var g=d.data.grid,day=dayOfGrid(g);if(!day)return;
+  var o=out(calc(function(k){return g[k]},day));Object.keys(o).forEach(function(k){if(String(g[k]||'')!==o[k]){g[k]=o[k];ch++}})});
+ if(ch){try{DB.save()}catch(e){}try{if(window.SupaSync&&SupaSync.on())SupaSync.queuePush()}catch(e){}}}catch(e){console.warn('[업무지원팀 자동 계산]',e)}}
+setInterval(sync,8000);setTimeout(sync,3000);window.yumP67={sync:function(){SIG='';sync()},calc:calc,count:count,savedGrid:savedGrid};
+var st=document.createElement('style');st.textContent='#docpaper input.p67-auto{background:#E8F1FF!important;color:#1D3A7A;font-weight:800;cursor:help}@media print{#docpaper input.p67-auto{background:transparent!important;color:inherit}}';document.head.appendChild(st);
+})();
+</script>
+
+<script>
+/* 일지 「저장하고 닫기」 뒤 (2026-11-11)
+   저장 완료 문서함으로 넘어가지 않고 그 화면에 머물며 「저장 완료」 안내 + 바로 다음 작업 버튼
+   · 다음날 일지 작성 ▶ (같은 일지 · 다음 날짜, 있으면 그 일지 열기)
+   · 다른 일지 작성 (그 팀 일지 목록 · 전체 양식 바로 표시)
+   · 계속 보기 (안내만 닫기) */
+(function(){
+'use strict';
+if(window.__YUM_AFTERSAVE__)return;window.__YUM_AFTERSAVE__=1;
+var FLAG=0;
+function onEditor(){return (location.hash||'').split('?')[0]==='#/doc-new'}
+function E(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function hook(){
+ if(typeof Doc!=='undefined'&&Doc.persist&&!Doc.persist.__as){var p=Doc.persist,w=function(mode){if(onEditor()&&mode!=='temp')FLAG=Date.now();return p.apply(this,arguments)};w.__as=1;Doc.persist=w}
+ if(typeof Doc!=='undefined'&&Doc.finalize&&!Doc.finalize.__as){var q=Doc.finalize,w2=function(){if(onEditor())FLAG=Date.now();return q.apply(this,arguments)};w2.__as=1;Doc.finalize=w2}
+ if(typeof App!=='undefined'&&App.go&&!App.go.__as){var g=App.go,w3=function(h){if(FLAG&&Date.now()-FLAG<4000&&/^#\/approval\?tab=saved/.test(String(h||''))&&onEditor()){FLAG=0;setTimeout(show,30);return}return g.apply(this,arguments)};w3.__as=1;App.go=w3}}
+hook();setTimeout(hook,1500);setTimeout(hook,5000);setInterval(hook,10000);
+function info(){var sel=document.getElementById('nf-form'),fid=(sel&&sel.value)||window.__PICKFORM,f=(DB.data.forms||[]).filter(function(x){return x.id===fid})[0]||null;
+ var P=document.getElementById('docpaper'),g=function(k){var e=P&&P.querySelector('[data-gk="'+k+'"]');return e?String(e.value||'').trim():''},y=g('dY'),m=g('dM'),d=g('dD'),day=null;
+ if(y&&m&&d)day=y+'-'+('0'+(+m)).slice(-2)+'-'+('0'+(+d)).slice(-2);var team='';try{team=f&&window.yumJFTeamOf?yumJFTeamOf(f):(f&&f.jteam)||''}catch(e){}
+ return {f:f,day:day,team:team}}
+function close(){var o=document.getElementById('yas');if(o)o.remove()}
+function show(){close();var I=info(),f=I.f;if(!f)return;var W='일월화수목금토',lab=I.day?(+I.day.slice(5,7))+'월 '+(+I.day.slice(8))+'일 ('+W[new Date(I.day+'T00:00:00').getDay()]+')':'';
+ var nx=null;if(I.day){var t=new Date(I.day+'T00:00:00');t.setDate(t.getDate()+1);nx=(t.getMonth()+1)+'/'+t.getDate()+' ('+W[t.getDay()]+')'}
+ var o=document.createElement('div');o.id='yas';o.innerHTML='<div class="yas-bg" onclick="yumAfterSave.close()"></div><div class="yas-c" role="dialog" aria-label="저장 완료"><div class="yas-ok">✓</div><h3>저장되었습니다</h3>'+
+  '<p><b>'+E(f.name)+'</b>'+(lab?'<br>'+lab+' 일지':'')+'</p>'+
+  '<div class="yas-b"><button class="yas-p" onclick="yumAfterSave.next()">다음날 일지 작성 ▶'+(nx?'<small>'+nx+' · 같은 일지</small>':'')+'</button>'+
+  '<button class="yas-o" onclick="yumAfterSave.other()">다른 일지 작성<small>'+(I.team&&I.team!=='공통'?E(I.team)+' 일지 목록':'일지 고르기')+'</small></button></div>'+
+  '<div class="yas-l"><button onclick="yumAfterSave.close()">계속 보기 · 수정</button><span>·</span><button onclick="yumAfterSave.box()">저장 완료 문서함</button></div></div>';
+ document.body.appendChild(o);setTimeout(function(){var b=o.querySelector('.yas-p');if(b)b.focus()},50)}
+window.yumAfterSave={close:close,
+ next:function(){close();if(window.yumJNav&&yumJNav.step)yumJNav.step(1);else App.go('#/journals')},
+ other:function(){var I=info();close();try{if(I.team&&I.team!=='공통'&&window.yumJTGo)return yumJTGo(I.team)}catch(e){}App.go('#/journals')},
+ box:function(){close();App.go('#/approval?tab=saved')}};
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.getElementById('yas'))close()});
+window.addEventListener('hashchange',close);
+var st=document.createElement('style');st.textContent=
+ '#yas{position:fixed;inset:0;z-index:9000;display:flex;align-items:center;justify-content:center;padding:16px}.yas-bg{position:absolute;inset:0;background:rgba(10,20,40,.38);backdrop-filter:blur(2px);animation:yasf .2s ease}'+
+ '.yas-c{position:relative;width:100%;max-width:440px;background:#fff;border-radius:22px;padding:28px 26px 18px;text-align:center;box-shadow:0 30px 70px -30px rgba(10,20,40,.6);animation:yasu .35s cubic-bezier(.16,1,.3,1)}@keyframes yasu{from{opacity:0;transform:translateY(14px) scale(.98)}}@keyframes yasf{from{opacity:0}}'+
+ '.yas-ok{width:58px;height:58px;margin:0 auto 10px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:900;color:#fff;background:linear-gradient(135deg,#10B981,#059669);box-shadow:0 10px 22px -10px rgba(5,150,105,.8)}'+
+ '.yas-c h3{margin:0 0 6px;font-size:21px;font-weight:800;color:#0F172A}.yas-c p{margin:0 0 18px;font-size:14px;line-height:1.6;color:#475569}.yas-c p b{color:#0F172A}'+
+ '.yas-b{display:grid;grid-template-columns:1fr 1fr;gap:8px}.yas-b button{display:flex;flex-direction:column;align-items:center;gap:3px;padding:13px 10px;border-radius:14px;font:800 15px inherit;cursor:pointer;transition:transform .12s,box-shadow .15s}.yas-b small{font-size:11.5px;font-weight:600;opacity:.85}'+
+ '.yas-p{border:0;color:#fff;background:linear-gradient(135deg,#5C2104,#A16207);box-shadow:0 10px 20px -12px rgba(161,98,7,.9)}.yas-p:hover,.yas-o:hover{transform:translateY(-1px)}.yas-o{border:1.5px solid #E2E8F0;background:#fff;color:#0F172A}.yas-o:hover{border-color:#A16207}'+
+ '.yas-l{display:flex;justify-content:center;gap:6px;margin-top:12px;font-size:12.5px;color:#94A3B8}.yas-l button{border:0;background:none;color:#475569;font:600 12.5px inherit;cursor:pointer;padding:4px}.yas-l button:hover{color:#A16207;text-decoration:underline}'+
+ '@media (max-width:460px){.yas-b{grid-template-columns:1fr}}@media print{#yas{display:none!important}}';
 document.head.appendChild(st);
 })();
 </script>
