@@ -848,15 +848,26 @@ function checkUser(){var s=session();if(!s){gate('부문포털에 로그인한 �
 function setSync(t,ok){var e=document.getElementById('sync');e.textContent=t;e.style.color=ok?'#86EFAC':'#FCD34D'}
 var SB=null;
 var LASTFULL=0;
+/* 2026-11-12 서버 부담 줄이기: 부문포털이 일지를 한 건씩 따로 보관(docs 표)하도록 바뀐 뒤(_docsV2)에는 일지를 그 표에서 바뀐 것만 받음 */
+var MD={rows:{},last:'',full:false};
+function mdApply(){if(!DATA||!MD.full)return;var D=[],T=[];Object.keys(MD.rows).forEach(function(k){var r=MD.rows[k],b=r&&r.body;if(!b||b._purged)return;(r.deleted?T:D).push(b)});
+ D.sort(function(a,b){return String(b.updatedAt||b.createdAt||'').localeCompare(String(a.updatedAt||a.createdAt||''))});DATA.docs=D;DATA.trash=T}
+async function docsPull(){if(!DATA||!DATA._docsV2||!SB)return false;var got=0;
+ if(!MD.full){for(var from=0,g=0;g<100;g++,from+=200){var r=await SB.from('docs').select('id,body,deleted,srv_at').order('id',{ascending:true}).range(from,from+199);if(r.error)throw r.error;(r.data||[]).forEach(function(x){MD.rows[x.id]=x;got++;if(String(x.srv_at)>MD.last)MD.last=String(x.srv_at)});if((r.data||[]).length<200)break}MD.full=true}
+ else{var since=new Date(Date.parse(MD.last||0)-120000).toISOString(),r2=await SB.from('docs').select('id,body,deleted,srv_at').gt('srv_at',since).order('srv_at',{ascending:true}).limit(500);if(r2.error)throw r2.error;
+  (r2.data||[]).forEach(function(x){var o=MD.rows[x.id];if(!o||String(o.srv_at)!==String(x.srv_at)){MD.rows[x.id]=x;got++}if(String(x.srv_at)>MD.last)MD.last=String(x.srv_at)})}
+ if(got)mdApply();return got>0}
 async function pull(first){
  try{if(!SB&&window.supabase)SB=window.supabase.createClient(SUPA_URL,SUPA_ANON);if(!SB)throw new Error('no client');
-  liveSub();var m=await SB.from('app_state').select('updated_at').eq('id',1).maybeSingle();if(m.error)throw m.error;
+  liveSub();
+  if(!first&&DATA&&DATA._docsV2){try{if(await docsPull()){document.querySelectorAll('.line').forEach(function(l){l.dataset.sig=''});if(checkUser())render()}}catch(e){console.warn('[mix docs]',e)}}
+  var m=await SB.from('app_state').select('updated_at').eq('id',1).maybeSingle();if(m.error)throw m.error;
   if(!first&&m.data&&m.data.updated_at===LAST_AT){setSync('서버 연결됨 · '+hh(nowMin())+' 확인',true);return}
   /* 서버 부담 줄이기: 전체 데이터는 3분에 한 번까지만 (같은 PC에 부문포털이 열려 있으면 그쪽 저장 내용이 바로 반영됨) */
   if(!first&&Date.now()-LASTFULL<180000){setSync('서버 연결됨 · '+hh(nowMin())+' 확인',true);return}
   LASTFULL=Date.now();
   var r=await SB.from('app_state').select('data,updated_at').eq('id',1).maybeSingle();if(r.error)throw r.error;
-  if(r.data&&r.data.data){DATA=r.data.data;LAST_AT=r.data.updated_at;document.querySelectorAll('.line').forEach(function(l){l.dataset.sig=''});setSync('서버 연결됨 · '+hh(nowMin())+' 갱신',true);if(checkUser())render()}}
+  if(r.data&&r.data.data){DATA=r.data.data;LAST_AT=r.data.updated_at;if(DATA._docsV2){try{if(!MD.full)await docsPull();else await docsPull();mdApply()}catch(e){console.warn('[mix docs]',e)}}document.querySelectorAll('.line').forEach(function(l){l.dataset.sig=''});setSync('서버 연결됨 · '+hh(nowMin())+' 갱신',true);if(checkUser())render()}}
  catch(e){console.warn('[mix pull]',e);setSync(DATA?'⚠ 서버 미연결 · 이 PC에 저장된 데이터 표시 중':'⚠ 서버 미연결',false)}
 }
 function boot(){

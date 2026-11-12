@@ -12597,6 +12597,7 @@ console.log('[확장 모듈 43] 개인 휴대폰 알림 로드 완료');
 if(window.__YUM_PERF__)return;window.__YUM_PERF__=1;
 var S=window.SupaSync;if(!S)return;
 var LAST='';           /* 서버의 마지막 변경 시각 (내가 본 값 또는 내가 쓴 값) */
+try{Object.defineProperty(window,'__yumLAST',{get:function(){return LAST},set:function(v){LAST=v},configurable:true})}catch(e){}
 var POLL_MS=30000;
 function to(p,ms){return Promise.race([p,new Promise(function(r){setTimeout(function(){r('__timeout__')},ms)})])}
 async function meta(){try{var r=await S.c().from('app_state').select('updated_at').eq('id',1).maybeSingle();if(r.error)return null;return r.data}catch(e){return null}}
@@ -12607,7 +12608,7 @@ S.pull=async function(){
  var r=window.__yumLogin?await to(_pull(),12000):await _pull();
  if(r==='__timeout__'){console.warn('[동기화] 서버 응답이 늦어 기기 데이터로 진행합니다');return null}
  if(r&&r.updated_at)LAST=r.updated_at;
- try{if(r&&r.data)window.__yumSrvJS=JSON.stringify(r.data)}catch(e){}
+ try{if(r&&r.data)window.__yumSrvJS=window.yumCanonState?yumCanonState(r.data):JSON.stringify(r.data)}catch(e){}
  return r;
 };
 
@@ -12617,8 +12618,8 @@ var _qp=S.queuePush.bind(S);S.queuePush=function(){if(this.on())PENDING=true;ret
 S.push=async function(data){
  try{
   var d=data,m=await meta();
-  if(!(m&&LAST&&m.updated_at===LAST)){var pr=await _pull();if(pr&&pr.updated_at)LAST=pr.updated_at;if(pr&&pr.data&&pr.data!==data){try{d=this.mergeState(pr.data,data,true)}catch(e){d=data}}}
-  var js=null;try{js=JSON.stringify(d)}catch(e){}
+  if(!(m&&LAST&&m.updated_at===LAST)){var pr=await _pull();if(pr&&pr.updated_at)LAST=pr.updated_at;try{if(pr&&pr.data)window.__yumSrvJS=window.yumCanonState?yumCanonState(pr.data):JSON.stringify(pr.data)}catch(e){}if(pr&&pr.data&&pr.data!==data){try{d=this.mergeState(pr.data,data,true)}catch(e){d=data}}}
+  var js=null;try{js=window.yumCanonState?yumCanonState(d):JSON.stringify(d)}catch(e){}
   if(js&&js===window.__yumSrvJS){this.lastSeen=Date.now();return}
   var ts=new Date().toISOString(),w;
   if(LAST){w=await this.c().from('app_state').update({data:d,updated_at:ts}).eq('id',1).eq('updated_at',LAST).select('updated_at');
@@ -12646,7 +12647,7 @@ async function check(){
  try{
   var m=await meta();if(!m||!m.updated_at||(m.updated_at===LAST&&!lite))return;
   if(!lite&&!stuck&&LAST&&window.__yumLastFull&&Date.now()-window.__yumLastFull<120000)return;
-  var r=await _pull();if(!(r&&r.data))return;LAST=r.updated_at||m.updated_at;window.__yumLastFull=Date.now();
+  var r=await _pull();if(!(r&&r.data))return;LAST=r.updated_at||m.updated_at;window.__yumLastFull=Date.now();try{window.__yumSrvJS=window.yumCanonState?yumCanonState(r.data):JSON.stringify(r.data)}catch(e){}
   S.lastSeen=Date.now();
   if(PENDING||lite){
    /* 이 기기에서 아직 못 올린 변경이 있으면 서버 데이터와 합침 (명단 요약본은 서버 원본 명단으로) */
@@ -12656,7 +12657,7 @@ async function check(){
    console.log('[동기화] 서버 최신 데이터와 이 기기 변경을 합쳤습니다');
   }else{
    /* 서버에 없는(또는 서버보다 새) 내 기기 문서(최근 3일)는 버리지 않음 → 합쳐서 다시 올림 */
-   var keep=[];try{var cut=new Date(Date.now()-3*864e5).toISOString(),rd={},pg={};(r.data.docs||[]).concat(r.data.trash||[]).forEach(function(x){if(x&&x.id)rd[x.id]=x});(r.data.purged||[]).forEach(function(i){pg[i]=1});
+   var keep=[];if((window.yumDocSync&&yumDocSync.V2())||(r&&r.data&&r.data._docsV2)){/* 전환 후: 일지는 일지 표로 주고받으므로 공용 자료에 다시 싣지 않음 */}else try{var cut=new Date(Date.now()-3*864e5).toISOString(),rd={},pg={};(r.data.docs||[]).concat(r.data.trash||[]).forEach(function(x){if(x&&x.id)rd[x.id]=x});(r.data.purged||[]).forEach(function(i){pg[i]=1});
     keep=(DB.data.docs||[]).filter(function(x){if(!x||!x.id||pg[x.id])return false;var u=String(x.updatedAt||x.createdAt||'');if(u<cut)return false;var c=rd[x.id];return !c||u>String(c.updatedAt||'')})}catch(e){keep=[]}
    if(keep.length){var ids={};keep.forEach(function(x){ids[x.id]=1});var mg2=Object.assign({},r.data,{docs:(r.data.docs||[]).filter(function(x){return !(x&&ids[x.id])}).concat(keep),trash:(r.data.trash||[]).filter(function(x){return !(x&&ids[x.id])})});
     S.adopt(mg2);try{S.queuePush()}catch(e){}console.log('[동기화] 서버에 빠진 이 기기 문서 '+keep.length+'건을 다시 올립니다')}
@@ -20063,6 +20064,133 @@ var st=document.createElement('style');st.textContent=
  '@media (prefers-reduced-motion:reduce){.cc *{animation:none!important;transition:none!important}.cc-k,.cc-c{opacity:1!important;transform:none!important}}'+
  '@media print{html.cc-mode #main > .panel{display:block!important}#cc-root{display:none}}';
 document.head.appendChild(st);
+})();
+</script>
+
+<script>
+/* ============ 서버 부담 줄이기 2단계 — 일지를 한 건씩 주고받기 (2026-11-12) ============
+   서버 public.docs 표: 일지 한 건 = 한 줄 (id · body · deleted(휴지통) · srv_at(서버 변경 시각))
+   · 받기: 「마지막으로 받은 시각 이후 바뀐 일지」만 20초마다 (화면이 보일 때만)
+   · 올리기: 저장할 때 내용이 바뀐 일지만 (서버는 더 새것을 덮어쓰지 않음 — docs_guard)
+   · 전환 표시(app_state.data._docsV2)가 켜지면: 공용 자료(app_state)에는 일지를 싣지 않고, 일지가 아닌 것이 바뀔 때만 저장
+   · 전환 전에는 예전처럼 공용 자료에도 함께 저장 (다른 기기 · 메일 · 배합팀 포털과 호환)                               */
+(function(){
+'use strict';
+if(window.__YUM_DOCSYNC__)return;window.__YUM_DOCSYNC__=1;
+var S=window.SupaSync;if(!S)return;
+var LSK='yum_docsync_v1',st={sent:{},lastd:'',full:false};
+try{var o=JSON.parse(localStorage.getItem(LSK)||'null');if(o&&o.sent&&typeof o.sent==='object')st={sent:o.sent,lastd:o.lastd||'',full:!!o.full}}catch(e){}
+function persist(){try{localStorage.setItem(LSK,JSON.stringify(st))}catch(e){}}
+function D(){try{return (typeof DB!=='undefined'&&DB.data)?DB.data:null}catch(e){return null}}
+function user(){try{return typeof Auth!=='undefined'&&Auth.user()}catch(e){return null}}
+function V2(){var d=D();return !!(d&&d._docsV2)}
+/* 키 순서와 무관한 비교용 문자열 (서버 jsonb는 키 순서를 바꿈) */
+function canon(v){if(v===undefined||typeof v==='function')return 'null';if(v===null||typeof v!=='object')return JSON.stringify(v);
+ if(Array.isArray(v)){var a=new Array(v.length);for(var i=0;i<v.length;i++)a[i]=canon(v[i]);return '['+a.join(',')+']'}
+ var ks=Object.keys(v).filter(function(k){return v[k]!==undefined&&typeof v[k]!=='function'}).sort(),o=new Array(ks.length);for(var j=0;j<ks.length;j++)o[j]=JSON.stringify(ks[j])+':'+canon(v[ks[j]]);return '{'+o.join(',')+'}'}
+function hash(s){var h=0x811c9dc5,h2=0x1505;for(var i=0;i<s.length;i++){var c=s.charCodeAt(i);h^=c;h=Math.imul(h,0x01000193);h2=((h2<<5)+h2+c)|0}return (h>>>0).toString(36)+'.'+(h2>>>0).toString(36)+'.'+s.length.toString(36)}
+function strip(d){if(!d||typeof d!=='object')return d;var o={};for(var k in d)if(Object.prototype.hasOwnProperty.call(d,k)&&k!=='docs'&&k!=='trash')o[k]=d[k];return o}
+/* 공용 자료 비교 문자열: 전환 후에는 일지를 뺀 나머지로 비교 (일지만 바뀐 저장은 공용 자료를 다시 쓰지 않음) */
+window.yumCanonState=function(d){return (V2()||(d&&d._docsV2))?canon(strip(d)):JSON.stringify(d)};
+function newer(a,b){var au=String(a.updatedAt||''),bu=String(b.updatedAt||'');return au>bu||(au===bu&&(a.version||1)>(b.version||1))}
+function local(){var d=D()||{},out={};
+ (d.docs||[]).forEach(function(x){if(x&&x.id!=null)out[x.id]={d:x,t:false}});
+ (d.trash||[]).forEach(function(x){if(!x||x.id==null)return;var c=out[x.id];if(!c||newer(x,c.d)||(!newer(c.d,x)))out[x.id]={d:x,t:true}});
+ (d.purged||[]).forEach(function(id){out[id]={p:true}});return out}
+function sigOf(x){return x.p?'P':(x.t?'T':'D')+hash(canon(x.d))}
+function rowSig(r){var b=r.body||{};return b._purged?'P':(r.deleted?'T':'D')+hash(canon(b))}
+function ready(){return !!(S.on&&S.on()&&user()&&D())}
+async function session(){try{var g=await S.c().auth.getSession();return !!(g&&g.data&&g.data.session)}catch(e){return false}}
+var stats={up:0,down:0,lastUp:'',lastDown:'',err:''};window.yumDocSync={stats:stats,st:function(){return st},pull:function(){return pull(true)},upload:function(){return upload()},V2:V2};
+
+/* 서버에서 받은 줄을 이 기기 자료에 합치기 (더 새것이 이김 · 휴지통 · 완전삭제 반영) */
+function apply(rows){if(!rows||!rows.length)return false;var d=D();if(!d)return false;
+ var ps={docs:[],trash:[],purged:[]};rows.forEach(function(r){var b=r.body;if(!b)return;if(b._purged)ps.purged.push(r.id);else if(r.deleted)ps.trash.push(b);else ps.docs.push(b)});
+ var before=canon([d.docs||[],d.trash||[],d.purged||[]]),m;
+ try{m=S.mergeState(Object.assign({},d,ps),d,false)}catch(e){console.warn('[일지 동기화] 합치기 실패',e);return false}
+ var ch=canon([m.docs||[],m.trash||[],m.purged||[]])!==before;
+ if(ch){d.docs=m.docs||[];d.trash=m.trash||[];d.purged=m.purged||[];try{localStorage.setItem('yum_portal_v1',JSON.stringify(d))}catch(e){}}
+ /* 서버와 같아진 일지는 「올린 것」으로 표시 */
+ var L=local();rows.forEach(function(r){var x=L[r.id],rs=rowSig(r);if(rs==='P'){if(x&&x.p)st.sent[r.id]='P';return}if(x&&!x.p&&sigOf(x)===rs)st.sent[r.id]=rs});
+ return ch}
+function rerender(){try{var app=document.getElementById('page-app');if(app&&app.classList.contains('on')){if(window.yumFormBusy&&window.yumFormBusy())App.refreshChrome();else{App.render();App.refreshChrome()}}}catch(e){}}
+
+/* 받기 */
+var pBusy=false;
+async function pull(force){if(pBusy||!ready())return;if(!force&&document.hidden)return;pBusy=true;var got=0,ch=false;
+ try{if(!(await session()))return;
+  var c=S.c();
+  if(!st.full){/* 이 기기 첫 연결: 전체를 한 번 받음 (200줄씩) */
+   var all=[],from=0,mx='';for(var g=0;g<100;g++){var r=await c.from('docs').select('id,body,deleted,srv_at').order('id',{ascending:true}).range(from,from+199);if(r.error)throw r.error;var a=r.data||[];all=all.concat(a);a.forEach(function(x){if(String(x.srv_at)>mx)mx=String(x.srv_at)});if(a.length<200)break;from+=200}
+   var nLocal=((D()||{}).docs||[]).length;if(!all.length&&nLocal>20){console.warn('[일지 동기화] 서버 일지 표가 비어 있어 첫 연결을 미룹니다');return}
+   ch=apply(all);got=all.length;st.full=true;st.lastd=mx||new Date().toISOString();
+  }else{/* 바뀐 것만: 마지막 받은 시각 2분 전부터 (동시에 저장된 것 놓치지 않게) */
+   var since=new Date(Date.parse(st.lastd||0)-120000).toISOString(),mx2=st.lastd;
+   for(var k=0;k<20;k++){var r2=await c.from('docs').select('id,body,deleted,srv_at').gt('srv_at',since).order('srv_at',{ascending:true}).limit(300);if(r2.error)throw r2.error;var b=r2.data||[];
+    var fresh=b.filter(function(x){return st.sent[x.id]!==rowSig(x)});if(fresh.length){ch=apply(fresh)||ch;got+=fresh.length}
+    b.forEach(function(x){if(String(x.srv_at)>String(mx2))mx2=String(x.srv_at)});if(b.length<300)break;since=b[b.length-1].srv_at}
+   st.lastd=mx2}
+  persist();if(got){stats.down+=got;stats.lastDown=new Date().toISOString()}stats.err='';
+  if(ch){rerender();try{window.dispatchEvent(new CustomEvent('yum-docs-synced',{detail:{n:got}}))}catch(e){}}
+ }catch(e){stats.err=String(e&&e.message||e);console.warn('[일지 동기화] 받기 실패',stats.err)}
+ finally{pBusy=false}
+ if(st.full)schedule(800)}
+
+/* 올리기 */
+var uT=null,uBusy=false,uFail=0;
+function schedule(ms){clearTimeout(uT);uT=setTimeout(upload,ms==null?1500:ms)}
+async function upload(){if(!ready()||!st.full)return;if(uBusy){schedule(2000);return}uBusy=true;
+ try{var L=local(),rows=[];
+  Object.keys(L).forEach(function(id){var x=L[id];
+   if(x.p){if(st.sent[id]!=='P'&&st.sent[id]!==undefined)rows.push({id:id,body:{id:id,_purged:true,updatedAt:new Date().toISOString()},deleted:true,_s:'P'});return}
+   var s=sigOf(x);if(st.sent[id]!==s)rows.push({id:id,body:x.d,deleted:x.t,_s:s})});
+  if(!rows.length)return;if(!(await session()))return;
+  var c=S.c();
+  for(var i=0;i<rows.length;i+=40){var part=rows.slice(i,i+40);
+   var r=await c.from('docs').upsert(part.map(function(x){return {id:String(x.id),body:x.body,deleted:!!x.deleted}}),{onConflict:'id'}).select('id,body,deleted,srv_at');
+   if(r.error)throw r.error;
+   part.forEach(function(x){st.sent[x.id]=x._s});
+   /* 서버가 더 새것을 가지고 있었으면(다른 기기가 먼저 저장) 그것을 받아 합침 */
+   var back=(r.data||[]).filter(function(y){var p=part.filter(function(x){return String(x.id)===String(y.id)})[0];return p&&rowSig(y)!==p._s});
+   if(back.length&&apply(back))rerender();
+   (r.data||[]).forEach(function(y){if(String(y.srv_at)>String(st.lastd||'')&&!back.length){/* 내가 방금 쓴 것: 받은 시각은 그대로 두어 사이의 다른 변경을 놓치지 않음 */}});
+   stats.up+=part.length;stats.lastUp=new Date().toISOString()}
+  persist();uFail=0;stats.err='';
+ }catch(e){uFail++;stats.err=String(e&&e.message||e);console.warn('[일지 동기화] 올리기 실패',stats.err);clearTimeout(uT);uT=setTimeout(upload,Math.min(300000,15000*uFail))}
+ finally{uBusy=false}}
+
+/* 저장 · 서버 자료 받기 때마다 */
+try{var _save=DB.save.bind(DB);DB.save=function(){var r=_save.apply(this,arguments);schedule();return r}}catch(e){}
+var _ad=S.adopt;S.adopt=function(){var r=_ad.apply(this,arguments);setTimeout(function(){pull(true)},300);return r};
+
+/* 전환 후: 공용 자료(app_state)에 일지를 싣지 않음 */
+function patch(c){if(!c||c.__ds)return c;c.__ds=1;var f=c.from.bind(c);
+ c.from=function(t){var q=f(t);if(t!=='app_state')return q;
+  ['update','upsert','insert'].forEach(function(m){var o=q[m];if(typeof o!=='function')return;q[m]=function(p){var a=[].slice.call(arguments);
+   try{if(V2()&&p&&p.data&&typeof p.data==='object'){a[0]=Object.assign({},p,{data:Object.assign(strip(p.data),{_docsV2:true})})}}catch(e){}
+   return o.apply(q,a)}});
+  return q};return c}
+var _c=S.c;S.c=function(){return patch(_c.apply(this,arguments))};
+
+/* 전환 후: 일지만 바뀐 저장이면 공용 자료 저장을 건너뜀 (지금 서버 자료와 같음을 확인한 경우만) */
+async function meta(){try{var r=await S.c().from('app_state').select('updated_at').eq('id',1).maybeSingle();return r&&r.data&&r.data.updated_at||null}catch(e){return null}}
+async function same(data){if(!V2())return false;try{var at=await meta();return !!(at&&window.__yumLAST&&at===window.__yumLAST&&window.__yumSrvJS&&canon(strip(data))===window.__yumSrvJS)}catch(e){return false}}
+if(S.pushNow){var _pn=S.pushNow;S.pushNow=async function(data){if(await same(data)){S.lastSeen=Date.now();return null}
+ var r=await _pn.apply(this,arguments);if(r==null&&V2()){try{if(window.__yumPushedAt)window.__yumLAST=window.__yumPushedAt;window.__yumSrvJS=canon(strip(data))}catch(e){}}return r}}
+
+/* 기기마다 찍는 「한 번만 실행」 표시(_fixes · traineeSeed)를 서로 덮어쓰며 저장을 끝없이 주고받던 것 방지:
+   항목별로 더 이른 시각 하나로 통일 → 모든 기기가 같은 값이 되어 더 이상 저장하지 않음 */
+var STAMPS=['_fixes','traineeSeed'];
+var _ms=S.mergeState;S.mergeState=function(r,l,lw){var o=_ms.apply(this,arguments);
+ try{if(o&&typeof o==='object')STAMPS.forEach(function(k){var a=r&&r[k],b=l&&l[k];if(!a&&!b)return;if(!a||typeof a!=='object'){if(b&&typeof b==='object')o[k]=Object.assign({},b);return}if(!b||typeof b!=='object'){o[k]=Object.assign({},a);return}
+  var m={};Object.keys(a).concat(Object.keys(b)).forEach(function(x){var va=a[x],vb=b[x];m[x]=va==null?vb:vb==null?va:(String(va)<=String(vb)?va:vb)});o[k]=m})}catch(e){}
+ return o};
+/* 처음 · 다시 보일 때 · 20초마다 */
+setTimeout(function(){pull(true)},4000);
+setInterval(function(){pull(false)},20000);
+document.addEventListener('visibilitychange',function(){if(!document.hidden)setTimeout(function(){pull(true)},400)});
+window.addEventListener('online',function(){pull(true)});
+console.log('[일지 동기화] 한 건씩 주고받기 모듈 로드 완료',V2()?'(전환됨)':'(공용 자료와 함께 저장 중)');
 })();
 </script>
 
