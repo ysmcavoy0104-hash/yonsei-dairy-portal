@@ -17355,10 +17355,33 @@ App.navItems=function(){
 
 /* 2026-11-12 홈 화면 숫자 · 문구를 지금 구성에 맞게 (영역 수 · 새 기능 · 바로가기 · 아래 메뉴) */
 var NUMEN=['Zero','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve'],NUMKO=['','한','두','세','네','다섯','여섯','일곱','여덟','아홉','열'];
+/* 첫 화면 버튼 줄: 「오늘의 업무 시작하기 · 일지 작성」 옆에 팀 포털 바로가기 (팀별) */
+/* 팀 아이콘: 금색 가는 선 그림 (콩 · 배합 탱크 · 멸균 열 · 포장 상자) */
+var TICON={
+ juice:'<path d="M12 4.2c3.6 0 6.3 3.2 6.3 7.3 0 4.6-2.9 8.3-6.3 8.3S5.7 16.1 5.7 11.5C5.7 7.4 8.4 4.2 12 4.2z"/><path d="M12 7.2c-1.2 2.2-1.2 7.3 0 9.6"/><path d="M15.4 2.8c-.9.5-1.5 1.2-1.8 2"/>',
+ mix:'<path d="M7 5h10v10.5a5 5 0 0 1-10 0z"/><path d="M5.5 5h13"/><path d="M12 2.5V14"/><path d="M9.2 14h5.6"/><path d="M8.6 18.9 7.6 21.5M15.4 18.9l1 2.6"/>',
+ ster:'<path d="M12 3c2.6 3 4.4 5.6 4.4 8.4a4.4 4.4 0 0 1-8.8 0c0-1.8.8-3.4 2-4.8.3 1.4 1 2.3 2 2.6C11 7.4 11.3 5 12 3z"/><path d="M5 20.5c1.2-.8 2.3-.8 3.5 0s2.3.8 3.5 0 2.3-.8 3.5 0 2.3.8 3.5 0"/>',
+ pack:'<path d="M12 3.2 20 7.4v9.2L12 20.8 4 16.6V7.4z"/><path d="M4 7.4 12 11.6l8-4.2"/><path d="M12 11.6v9.2"/><path d="m8 5.3 8 4.2"/>'};
+function ticon(k){return '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="url(#yum-tg)" stroke-width="1.45" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(TICON[k]||'')+'</svg>'}
+function heroTeams(){var c=document.querySelector('#page-landing .hero .portal-cta');if(!c)return;var b=c.querySelector('.cta-b');if(!b||!/오늘의 업무/.test(b.textContent))return;
+ b.setAttribute('onclick',"lnavGo('#/prodmap')");if(c.querySelector('.cta-tm'))return;
+ var w=document.createElement('span');w.className='cta-tm';w.innerHTML='<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="yum-tg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F6E7C1"/><stop offset="1" stop-color="#C8A15A"/></linearGradient></defs></svg><span class="cta-tl">Team Portals</span>'+TEAMS.map(function(t){return '<button type="button" class="btn cta-t" onclick="yumTeamGo(\''+t.k+'\')"><i>'+ticon(t.k)+'</i>'+t.n.replace('팀','')+'</button>'}).join('');c.appendChild(w)}
+setInterval(function(){try{heroTeams()}catch(e){}},700);
+(function(){var st=document.createElement('style');st.textContent='#page-landing .hero .portal-cta{display:flex;flex-wrap:wrap;align-items:center;gap:12px}'+
+ '#page-landing .cta-tm{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;padding-left:14px;margin-left:2px;border-left:1px solid rgba(255,255,255,.28);animation:ctaIn .7s cubic-bezier(.16,1,.3,1) both}'+
+ '#page-landing .cta-tl{font-family:var(--en,inherit);font-style:italic;font-size:15px;color:var(--h-gold2,#E8D3A5);letter-spacing:.04em;margin-right:2px}'+
+ '#page-landing .cta-t{display:inline-flex;align-items:center;gap:9px;padding:8px 18px 8px 9px!important;letter-spacing:.02em;border-radius:999px!important;background:rgba(255,255,255,.07)!important;border:1px solid rgba(255,255,255,.3)!important;color:#fff!important;font-weight:700;backdrop-filter:blur(8px);transition:transform .3s cubic-bezier(.16,1,.3,1),background .3s,border-color .3s,box-shadow .3s}'+
+ '#page-landing .cta-t i{font-style:normal;width:30px;height:30px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:radial-gradient(circle at 30% 25%,rgba(246,231,193,.18),rgba(10,21,48,.55));border:1px solid rgba(200,161,90,.65);box-shadow:inset 0 0 10px rgba(200,161,90,.18);transition:transform .45s cubic-bezier(.34,1.56,.64,1),box-shadow .35s}'+
+ '#page-landing .cta-t:hover i{transform:rotate(-8deg) scale(1.08);box-shadow:inset 0 0 12px rgba(200,161,90,.35),0 0 16px -2px rgba(200,161,90,.6)}'+
+ '#page-landing .cta-t:hover{transform:translateY(-2px);background:rgba(200,161,90,.12)!important;border-color:rgba(232,211,165,.75)!important;box-shadow:0 12px 26px -14px rgba(200,161,90,.8)}'+
+ '@keyframes ctaIn{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:none}}'+
+ '@media (max-width:760px){#page-landing .cta-tm{border-left:0;padding-left:0;margin-left:0;width:100%}#page-landing .cta-t{padding:10px 14px!important}'+
+ '#page-landing .hero .inner{padding-bottom:36px!important}#page-landing .hero{flex-wrap:wrap!important;height:auto!important;min-height:100svh}#page-landing .hero .inner{width:100%!important;flex:0 0 100%}#page-landing .hero-bar{position:relative!important;flex:0 0 100%;width:100%;align-self:flex-end;background:rgba(6,12,28,.92)!important}#page-landing .hero-bar .h2-wrap{grid-template-columns:1fr 1fr!important;padding:0 22px!important}#page-landing .hb-it{padding:16px 12px 18px!important;border-left:0!important}#yum-more{display:none!important}'+
+ '#page-landing .lnav .logo span{font-size:14px!important;white-space:nowrap}#page-landing .lnav .right>span:not([class]),#page-landing .lnav .ln-hi{display:none!important}}';document.head.appendChild(st)})();
 function homeFix(sup,kc){
  var g=document.querySelectorAll('#areas .ha-c h3'),names=[].map.call(g,function(h){return h.textContent.trim()}),n=names.length;if(!n)return;
  var sig=n+'|'+names.join(',')+'|'+sup+kc;var root=document.getElementById('page-landing');if(!root||root.getAttribute('data-hf')===sig)return;root.setAttribute('data-hf',sig);
- var hb=document.querySelector('#page-landing .hero-bar .hb-it');if(hb)hb.innerHTML='<b>'+n+'<i>개 영역</i></b><span>'+names.join(' · ')+'</span>';
+ var hb=document.querySelector('#page-landing .hero-bar .hb-it');if(hb)hb.innerHTML='<b>'+n+'<i>개 영역</i></b><span>'+names.slice(0,5).map(function(x){return x.replace(/ (달성 현황|· 근태 · 노무비)$/,'')}).join(' · ')+(n>5?' 외 '+(n-5):'')+'</span>';
  var sb=document.querySelector('#page-landing .hero .sub');if(sb)sb.textContent='연세우유 상온제품생산부문 통합 업무포털 — 생산 현황과 OEE부터 일지 · 근무일보, 지연 · 정비 기록, 매일 아침의 일일 보고까지 하나의 흐름으로 이어집니다.';
  var eb=document.querySelector('#areas .h2-eb');if(eb)eb.textContent=(NUMEN[n]||n)+' Workspaces';
  var nw=document.querySelector('#new .hn-g');if(nw)nw.innerHTML=[
@@ -17382,8 +17405,7 @@ function landing(){
  var menu=document.querySelector('#lnav .menu');if(!menu)return;
  if(!LM){var keep=document.createElement('div');keep.id='lnav-keep';keep.style.display='none';[].slice.call(menu.querySelectorAll('a[id]')).forEach(function(a){keep.appendChild(a)});menu.parentNode.appendChild(keep);LM=1}
  var sup=isSuper(),kc=!!(window.yumKPICan&&yumKPICan()),sig=sup+'/'+kc,A=function(r,t){return '<a href="#'+r.slice(2)+'" onclick="lnavGo(\''+r+'\');return false" style="font-weight:700;color:#ffffff">'+t+'</a>'};
- var h=A('#/prodmap','생산 현황')+A('#/oee','대시보드')+A('#/journals','일지')+(kc?A('#/kpi?t=%EB%B6%80%EB%AC%B8','KPI')+A('#/mh?t=%EB%B6%80%EB%AC%B8','인시 · 노무비'):'')+A('#/notice','인사이트')+
-  '<span class="yl-dd">'+A('#/teams','팀 포털<i class="yl-cv"></i>')+ddHTML()+'</span>'+A('#/reports','자료')+(sup?A('#/weekplan','근무')+A('#/admin','시스템'):'');
+ var h=A('#/prodmap','생산 현황')+A('#/oee','대시보드')+A('#/journals','일지')+(kc?A('#/kpi?t=%EB%B6%80%EB%AC%B8','KPI')+A('#/mh?t=%EB%B6%80%EB%AC%B8','인시 · 노무비'):'')+A('#/notice','인사이트')+A('#/reports','자료')+(sup?A('#/weekplan','근무')+A('#/admin','시스템'):'');
  if(menu.getAttribute('data-sig')!==sig){menu.innerHTML=h;menu.setAttribute('data-sig',sig)}
  /* 영역 카드 */
  var g=document.querySelector('#areas .ha-g');
