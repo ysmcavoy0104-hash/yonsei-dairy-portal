@@ -19927,8 +19927,8 @@ function num(v){var m=String(v==null?'':v).replace(/,/g,'').match(/-?\d+(\.\d+)?
 function fm(v,d){return v==null||isNaN(v)?'—':(+v).toLocaleString('ko-KR',{maximumFractionDigits:d==null?0:d,minimumFractionDigits:0})}
 function sum(a){return a.reduce(function(s,x){return s+(+x||0)},0)}
 function hhmm(m){m=Math.round(m);return pad(Math.floor(m/60)%24)+':'+pad(m%60)}
-var ST={};function S(t){return ST[t]=ST[t]||{d:kst(0),det:false}}
-try{var sv=JSON.parse(sessionStorage.getItem('yum_cc')||'{}');Object.keys(sv).forEach(function(k){ST[k]={d:kst(0),det:!!sv[k].det}})}catch(e){}
+var ST={};function S(t){return ST[t]=ST[t]||{d:kst(-1),det:false}}
+try{var sv=JSON.parse(sessionStorage.getItem('yum_cc')||'{}');Object.keys(sv).forEach(function(k){ST[k]={d:kst(-1),det:!!sv[k].det}})}catch(e){}
 function saveST(){try{var o={};Object.keys(ST).forEach(function(k){o[k]={det:ST[k].det}});sessionStorage.setItem('yum_cc',JSON.stringify(o))}catch(e){}}
 /* ───── 자료 ───── */
 function core(){return window.YumReportCore}
@@ -20385,7 +20385,7 @@ function cl(v){return v==null||isNaN(v)?null:Math.max(0,Math.min(1,v))}
 function me(){try{return Auth.user()}catch(e){return null}}
 function cfg(){var d=DB.data;return d.oeeCfg=d.oeeCfg||{base:{}}}
 function canSet(){return !!(window.yumIsApprover&&yumIsApprover(me()))}
-var ST={d:kst(0),mode:'day',team:'all'};
+var ST={d:kst(-1),mode:'day',team:'all'};  /* 처음엔 어제 (오늘은 아직 기록이 적어 비어 보임) */
 /* ───── 자료 ───── */
 var AC={};function sig(){var d=(DB.data&&DB.data.docs)||[],mx='';for(var i=0;i<d.length;i++){var u=d[i]&&d[i].updatedAt;if(u&&u>mx)mx=u}return d.length+':'+mx}
 function range(D){var k=D+'|'+sig();if(AC[k])return AC[k];var C=window.YumReportCore;if(!C)return null;try{AC={};AC[k]=C.analyze(DB.data,window.__YUM_NOTION_FINAL__||{delay:[],maint:[]},{kind:'weekly',key:'oee',label:'',from:addD(D,-43),to:D,pFrom:addD(D,-57),pTo:addD(D,-44)},{});return AC[k]}catch(e){console.warn('[OEE]',e);return null}}
