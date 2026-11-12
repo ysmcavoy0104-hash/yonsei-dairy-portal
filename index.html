@@ -13957,10 +13957,11 @@ function viewExec(){
    (R0?hero+'<div class="ex-subs">'+subs.map(function(s){return '<div><span>'+s[0]+'</span><b'+(s[2]?' class="bad"':'')+'>'+s[1]+'</b></div>'}).join('')+'</div>'+exSpark(ser,color)+
     '<div class="ex-st '+(devN?'warn':'ok')+'">'+(devN?'기준 이탈 · 불량 '+devN+'건':'이상 없음')+'</div>':'<div class="ex-none">이 날까지 저장된 '+name+' 일지가 없습니다</div>')+'</a>'}
  var h='<div class="ov ex">';
- h+='<div class="ov-hd ex-hd"><div><div class="ov-en">Daily Production Report</div><h2>'+md(D)+' ('+dw(D)+') 상온제품생산부문 생산 현황</h2><div class="ov-sub"><span class="ex-live"><i></i>실시간</span> 일지를 저장하면 바로 반영됩니다'+(lastSave?' · 마지막 저장 '+lastSave:'')+'</div></div>'+
-  '<div class="ov-act"><select onchange="yumOverview.pick(this.value)">'+dates.map(function(d){return '<option value="'+d+'"'+(d===D?' selected':'')+'>'+d+' ('+dw(d)+')</option>'}).join('')+'</select><a class="btn btn-o btn-sm" href="#/dash">팀별 현황 →</a></div></div>';
+ var PM=(location.hash||'').split('?')[0]==='#/prodmap';  /* 2026-11-12 생산 현황(공정 흐름도)은 따로 한 화면 */
+ h+='<div class="ov-hd ex-hd"><div><div class="ov-en">'+(PM?'Live Production Status':'Daily Production Report')+'</div><h2>'+md(D)+' ('+dw(D)+') '+(PM?'생산 현황 · 공정 흐름도':'상온제품생산부문 생산 요약')+'</h2><div class="ov-sub"><span class="ex-live"><i></i>실시간</span> 일지를 저장하면 바로 반영됩니다'+(lastSave?' · 마지막 저장 '+lastSave:'')+'</div></div>'+
+  '<div class="ov-act"><select onchange="yumOverview.pick(this.value)">'+dates.map(function(d){return '<option value="'+d+'"'+(d===D?' selected':'')+'>'+d+' ('+dw(d)+')</option>'}).join('')+'</select>'+(PM?'<a class="btn btn-o btn-sm" href="#/overview">대시보드 전체보기 →</a>':'<a class="btn btn-o btn-sm" href="#/prodmap">생산 현황 →</a>')+'</div></div>';
  /* 0. 공정 흐름도 (착즙 → 배합 → 멸균 → 아셉틱 충전 → 포장) */
- h+='<div id="fm-wrap" data-d="'+D+'">'+(window.yumFlowMap?yumFlowMap(D):'')+'</div>';
+ if(PM){h+='<div id="fm-wrap" data-d="'+D+'">'+(window.yumFlowMap?yumFlowMap(D):'')+'</div>';return h+'</div>'}
  /* 1. 공정 흐름 */
  h+='<div class="ex-sec"><span class="ex-st1">공정 흐름</span><span class="ex-flow" aria-hidden="true"></span></div><div class="ex-procs">'+
   proc('juice','착즙','❖',C.juice,jD,jR,exNum(jR&&jR.use,0,'kg')+'<div class="ex-cap">대두 사용량</div>',jR?[['부산물률',fmt(jR.byRate,1)+'%'],['원액 생산',fmt(jR.raw)+'kg']]:[],jT,dev.j,'#/juice')+
@@ -14059,7 +14060,7 @@ window.yumOverview={pick:function(d){st.date=d;st.auto=(d===today())?1:0;App.ren
 
 /* 라우팅 · 메뉴: 대시보드 메뉴 맨 앞 */
 var _r=App.render;
-App.render=function(){var p=(location.hash||'').split('?')[0];if(p===ROUTE){if(!me())return _r.apply(this,arguments);this.baseRoute=ROUTE;var M=$i('main');css();
+App.render=function(){var p=(location.hash||'').split('?')[0];if(p===ROUTE||p==='#/prodmap'){if(!me())return _r.apply(this,arguments);this.baseRoute=p;var M=$i('main');css();
  try{M.innerHTML=viewExec();try{window.yumExAnim&&yumExAnim()}catch(e){}}catch(e){console.error(e);M.innerHTML='<div class="panel">화면 오류: '+esc(e.message)+'</div>'}try{this.buildSidebar();this.refreshChrome()}catch(e){}try{window.scrollTo(0,0)}catch(e){}return}return _r.apply(this,arguments)};
 var _nav=App.navItems;
 App.navItems=function(){var a=_nav.apply(this,arguments);try{if(!a.some(function(n){return n&&n.k===ROUTE})){var i=-1;a.forEach(function(n,k){if(n&&n.k==='#/dash'&&i<0)i=k});if(i>=0){a.splice(i,0,{k:ROUTE,t:'대시보드 전체보기',i:'◉'});a.forEach(function(n){if(n&&n.k==='#/dash')n.t='팀별 현황'})}}}catch(e){}return a};
@@ -17331,21 +17332,22 @@ var _nav=App.navItems;
 App.navItems=function(){
  var u=me(),pend=0;try{pend=myTodoApprovals().length}catch(e){}
  var S=[
-  {id:'plan',t:'팀 포털',i:'⊞',items:[{k:'#/teams',t:'팀 포털 전체',i:'⊞'}].concat(TEAMS.map(function(t){return {k:'#/teams?t='+t.k,t:t.n+' 포털',i:t.ic,act:t.url?"yumOpenTeam('"+t.k+"')":"App.go('#/teams?t="+t.k+"')"}}))},
-  {id:'dash',t:'대시보드',i:'▦',items:[{k:'#/overview',t:'대시보드 전체보기',i:'◉'},{k:'#/dash',t:'팀별 현황',i:'▦'},{k:'#/juice',t:'착즙 대시보드',i:'❖'},{k:'#/mix',t:'배합 대시보드',i:'⚗'},{k:'#/ster',t:'멸균 대시보드',i:'♨'},{k:'#/pack',t:'포장 대시보드',i:'▣'},{k:'#/notice',t:'인사이트',i:'📢'}]},
+  {id:'plan',t:'팀 포털',i:'⊞',items:[].concat(TEAMS.map(function(t){return {k:'#/teams?t='+t.k,t:t.n+' 포털',i:t.ic,act:t.url?"yumOpenTeam('"+t.k+"')":"App.go('#/teams?t="+t.k+"')"}}))},
+  {id:'dash',t:'대시보드',i:'▦',items:[{k:'#/overview',t:'대시보드 전체보기',i:'◉'},{k:'#/prodmap',t:'생산 현황',i:'⛓'},{k:'#/juice',t:'착즙 대시보드',i:'❖'},{k:'#/mix',t:'배합 대시보드',i:'⚗'},{k:'#/ster',t:'멸균 대시보드',i:'♨'},{k:'#/pack',t:'포장 대시보드',i:'▣'},{k:'#/notice',t:'인사이트',i:'📢'}]},
   /* 2026-11-10 메뉴 정리: 일지(작성 · 문서함 · 결재) / 자료(보고서 · 지연·정비 · 설비 매뉴얼) / 부서톡 / AI 비서 */
   {id:'journal',t:'일지',i:'✎',items:[{k:'#/journals',t:'일지 작성',i:'✎'},{k:'#/docs',t:'문서관리 (일지함)',i:'▤'},{k:'#/approval',t:'전자결재 (잠정 중단)',i:'⏸'}]},
   {id:'data',t:'자료',i:'📋',items:[{k:'#/reports',t:'업무 보고서함',i:'📋'},{k:'#/ndash',t:'지연·정비 기록',i:'◈'},{k:'#/notebooklm',t:'설비 매뉴얼 AI (NotebookLM)',i:'✦',act:'NB.open()'}].concat(window.yumKPICan&&yumKPICan()?[{k:'#/notebooklm-set',t:'설비 매뉴얼 AI 연결 설정',i:'⚙',act:'NB.settings()'}]:[])},
   {id:'talk',t:'부서톡',i:'💬',items:[{k:'#/talk',t:'부서톡',i:'💬'}]},
   /* KPI · 인시 · 근태 (팀장 · 부문장 · 관리자만) */
  ].concat(window.yumKPICan&&yumKPICan()?[{id:'kpi',t:'KPI',i:'◎',items:[['부문','부문 통합','◎'],['가공1팀','가공1팀','♨'],['가공2팀','가공2팀','⚗'],['포장팀','포장팀','▣']].map(function(x){return {k:'#/kpi?t='+encodeURIComponent(x[0]),t:x[1],i:x[2]}})},{id:'mh',t:'인시 · 근태 · 노무비',i:'⏱',items:[['부문','부문 통합','◎'],['가공1팀','가공1팀','♨'],['가공2팀','가공2팀','⚗'],['포장팀','포장팀','▣']].map(function(x){return {k:'#/mh?t='+encodeURIComponent(x[0]),t:x[1],i:x[2]}})}]:[]).concat([
-  {id:'ai',t:'AI 비서',i:'✦',items:[{k:'#/ai',t:'AI 업무도우미',i:'✦'}]},
-  {id:'ref',t:'안전',i:'⚠',items:[{k:'#/safenews',t:'안전 소식 · 점검',i:'⚠'}]}
+  {id:'ai',t:'AI 비서',i:'✦',items:[{k:'#/ai',t:'AI 업무도우미',i:'✦'}]}
  ]);
+ /* 2026-11-12 중요한 순서로: 대시보드 → 일지 → KPI → 인시 · 노무비 → 팀 포털 → 자료 → 안전 → 부서톡 → AI 비서 (→ 근무 · 시스템) */
+ var ORD=['dash','journal','kpi','mh','plan','data','talk','ai'];S.sort(function(a,b){var x=ORD.indexOf(a.id),y=ORD.indexOf(b.id);return (x<0?99:x)-(y<0?99:y)});
  if(isSuper()){S.push({id:'work',t:'근무',i:'◷',items:[{k:'#/weekplan',t:'주간근무계획표',i:'▤'},{k:'#/worksched',t:'근무스케쥴 (근무편성)',i:'◷'}]});
   S.push({id:'admin',t:'시스템',i:'⚑',items:[{k:'#/admin',t:'시스템관리',i:'⚑',c:((DB.data.users||[]).filter(function(x){return x.status==='pending'}).length)||undefined}]})}
  var r=this.baseRoute,cur='dash';S.forEach(function(s){if(s.items.some(function(n){return n.k===r||n.k.split('?')[0]===r}))cur=s.id});
- var sec=S.filter(function(s){return s.id===cur})[0]||S[1];
+ var sec=S.filter(function(s){return s.id===cur})[0]||S[0];
  return [{g:'바로가기'},{k:'#/home',t:'홈페이지',i:'⌂'},{tabs:S,cur:cur},{g:sec.t}].concat(sec.items);
 };
 
@@ -17355,18 +17357,17 @@ function landing(){
  var menu=document.querySelector('#lnav .menu');if(!menu)return;
  if(!LM){var keep=document.createElement('div');keep.id='lnav-keep';keep.style.display='none';[].slice.call(menu.querySelectorAll('a[id]')).forEach(function(a){keep.appendChild(a)});menu.parentNode.appendChild(keep);LM=1}
  var sup=isSuper(),kc=!!(window.yumKPICan&&yumKPICan()),sig=sup+'/'+kc,A=function(r,t){return '<a href="#'+r.slice(2)+'" onclick="lnavGo(\''+r+'\');return false" style="font-weight:700;color:#ffffff">'+t+'</a>'};
- var h='<span class="yl-dd">'+A('#/teams','팀 포털<i class="yl-cv"></i>')+ddHTML()+'</span>'+
-  A('#/overview','대시보드')+(kc?A('#/kpi?t=%EB%B6%80%EB%AC%B8','KPI')+A('#/mh?t=%EB%B6%80%EB%AC%B8','인시 · 노무비'):'')+A('#/notice','인사이트')+A('#/journals','일지')+A('#/reports','자료')+A('#/safenews','안전')+(sup?A('#/weekplan','근무')+A('#/admin','시스템'):'');
+ var h=A('#/overview','대시보드')+A('#/journals','일지')+(kc?A('#/kpi?t=%EB%B6%80%EB%AC%B8','KPI')+A('#/mh?t=%EB%B6%80%EB%AC%B8','인시 · 노무비'):'')+A('#/notice','인사이트')+
+  '<span class="yl-dd">'+A('#/teams','팀 포털<i class="yl-cv"></i>')+ddHTML()+'</span>'+A('#/reports','자료')+(sup?A('#/weekplan','근무')+A('#/admin','시스템'):'');
  if(menu.getAttribute('data-sig')!==sig){menu.innerHTML=h;menu.setAttribute('data-sig',sig)}
  /* 영역 카드 */
  var g=document.querySelector('#areas .ha-g');
  if(g&&g.getAttribute('data-sig')!==sig){
-  var C=[['#/teams','01 · Team Portals','⊞','팀 포털','착즙 · 배합 · 멸균 · 포장 팀별 업무포털로 바로 들어갑니다. 현장 현황과 팀 인사이트를 봅니다.',['배합팀 포털 (운영 중)','착즙 · 멸균 · 포장 포털 바로가기'],'#0F8F7C','#0A3F3A','15,143,124'],
-   ['#/overview','02 · Dashboard','▦','대시보드','팀별 일지와 생산 현황을 한 화면에서 확인합니다.',['대시보드 전체보기','팀별 현황'],'#2563EB','#102A6B','37,99,235'],
-   ['#/notice','03 · Insight','📢','인사이트','팀 포털과 일지에 모인 자료로 팀별 인사이트를 자동으로 만듭니다.',['팀별 인사이트','자동 인사이트 · 부서 공지'],'#E8590C','#5C2104','232,89,12'],
+  var C=[['#/overview','02 · Dashboard','▦','대시보드','팀별 일지와 생산 현황을 한 화면에서 확인합니다.',['대시보드 전체보기','생산 현황 (공정 흐름도)'],'#2563EB','#102A6B','37,99,235'],
    ['#/journals','04 · Journals','✎','일지','팀을 고르면 바로 일지 양식이 열립니다. 작성 · 결재 · 인쇄까지 한 번에.',['팀별 일지 작성','작성중 · 저장완료 일지'],'#A16207','#422006','161,98,7'],
-   ['#/reports','05 · Resources','📋','자료','업무 보고서함과 지연 · 정비 기록, 설비 매뉴얼 AI를 한곳에 모았습니다.',['업무 보고서함','지연 · 정비 기록','설비 매뉴얼 AI'],'#4D7C0F','#1E3305','77,124,15'],
-   ['#/safenews','06 · Safety','⚠','안전','안전 소식과 점검을 확인합니다.',['안전 소식 · 점검'],'#BE123C','#4C0519','190,18,60']];
+   ['#/notice','03 · Insight','📢','인사이트','팀 포털과 일지에 모인 자료로 팀별 인사이트를 자동으로 만듭니다.',['팀별 인사이트','자동 인사이트 · 부서 공지'],'#E8590C','#5C2104','232,89,12'],
+   ['#/teams','01 · Team Portals','⊞','팀 포털','착즙 · 배합 · 멸균 · 포장 팀별 업무포털로 바로 들어갑니다. 현장 현황과 팀 인사이트를 봅니다.',['배합팀 포털 (운영 중)','착즙 · 멸균 · 포장 포털 바로가기'],'#0F8F7C','#0A3F3A','15,143,124'],
+   ['#/reports','05 · Resources','📋','자료','업무 보고서함과 지연 · 정비 기록, 설비 매뉴얼 AI를 한곳에 모았습니다.',['업무 보고서함','지연 · 정비 기록','설비 매뉴얼 AI'],'#4D7C0F','#1E3305','77,124,15']];
   if(kc){C.splice(2,0,['#/kpi?t=%EB%B6%80%EB%AC%B8','KPI · Performance','◎','KPI 달성 현황','부문 · 가공1팀 · 가공2팀 · 포장팀 KPI 점수와 항목별 달성 현황 (팀장 전용).',['부문 통합 스코어카드','팀별 KPI 항목 · 월별 추이'],'#4338CA','#1E1B4B','67,56,202'],['#/mh?t=%EB%B6%80%EB%AC%B8','Labor · Man-hours','⏱','인시 · 근태 · 노무비','작업자가 쓴 근무일보로 매일 자동 계산되는 투입 인시 · OT · 추정 노무비 (팀장 전용).',['오늘 · 이번 달 투입 인시','팀별 노무비 · 근태 분석'],'#7C3AED','#2E1065','124,58,237']);}
   if(sup)C.push(['#/weekplan','07 · Workforce','◷','근무','근무편성과 주간 근무계획표 (최고관리자 전용).',['주간근무계획표','근무스케쥴'],'#DB2777','#500724','219,39,119']);
   C.forEach(function(c,i){c[1]=('0'+(i+1)).slice(-2)+' · '+c[1].replace(/^\d+ · /,'')});
@@ -17651,7 +17652,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 (function(){
 'use strict';
 if(window.__YUM_DSK__)return;window.__YUM_DSK__=1;
-var R=['#/overview','#/dash'];
+var R=['#/overview','#/dash','#/prodmap'];
 function route(){return (location.hash||'').split('?')[0]}
 /* 제목 앞 그림 글자(⏱ 🔧 📦 …)를 같은 모양의 작은 배지로 */
 var IC=/^([←-⯿☀-➿-]|[\uD83C-\uD83E][\uDC00-\uDFFF])️?\s*/;
@@ -20288,5 +20289,6 @@ console.log('[근무일보 최종 저장] 잠금 모듈 로드 완료');
 })();
 </script>
 
+<script>(function(){var st=document.createElement('style');st.textContent='@media (min-width:901px){#yum-gnav{display:none!important}#page-app .main{padding-top:84px!important}}';document.head.appendChild(st)})();</script>
 </body>
 </html>
