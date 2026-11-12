@@ -883,6 +883,17 @@ var _rcrew=renderCrew;renderCrew=function(){_rcrew.apply(this,arguments);try{var
  '#crewbar .cb-g{display:inline-flex;align-items:center;flex-wrap:wrap;gap:5px;padding:4px 10px;border-radius:999px;background:#F1F5F9;color:#334155}#crewbar .cb-g.on{background:linear-gradient(135deg,#ECFDF5,#E0F2FE);box-shadow:inset 0 0 0 1px #6EE7B7}'+
  '#crewbar .cb-g b{font-size:12px;color:#0F172A}#crewbar .cb-g em{font-style:normal;font-size:11px;color:#64748B}#crewbar .cb-g i{font-style:normal;font-weight:700;color:#0F766E;font-size:12.5px}#crewbar .cb-g:not(.on) i{color:#334155}'+
  '#crewbar .cb-more{margin-left:auto;border:0;background:none;color:#2563EB;font-weight:700;font-size:12px;cursor:pointer}';document.head.appendChild(st)})();
+/* 2026-11-12 같은 줄의 호기 카드끼리 높이 맞추기: 제품 설명 줄 수가 달라도 진행 막대 · 오늘 계획 · 탱크가 같은 높이에 오도록 */
+function lineAlign(){try{var L=[].slice.call(document.querySelectorAll('.line')).filter(function(x){return x.offsetParent});
+ L.forEach(function(c){['.lhw','.prog','.plan','.lf'].forEach(function(s){var e=c.querySelector(s);if(e)e.style.marginTop=''});var h=c.querySelector('.lhw');if(h)h.style.minHeight=''});
+ if(window.innerWidth<760)return;var rows={};L.forEach(function(c){var k=Math.round(c.getBoundingClientRect().top+scrollY);(rows[k]=rows[k]||[]).push(c)});
+ Object.keys(rows).forEach(function(k){var R=rows[k];if(R.length<2)return;
+  var mh=Math.max.apply(null,R.map(function(c){var h=c.querySelector('.lhw');return h?h.offsetHeight:0}));R.forEach(function(c){var h=c.querySelector('.lhw');if(h)h.style.minHeight=mh+'px'});
+  var top=function(c){var f=c.querySelector('.lf');return f?f.getBoundingClientRect().top-c.getBoundingClientRect().top:0},mt=Math.max.apply(null,R.map(top));
+  R.forEach(function(c){var f=c.querySelector('.lf'),d=mt-top(c);if(f&&d>1)f.style.marginTop=(parseFloat(getComputedStyle(f).marginTop)||0)+d+'px'})})}catch(e){}}
+var LAT=null;function lineAlignSoon(){clearTimeout(LAT);LAT=setTimeout(lineAlign,60)}
+window.addEventListener('resize',lineAlignSoon);setInterval(lineAlign,1500);
+try{new MutationObserver(function(m){if(m.some(function(x){return x.target&&x.target.closest&&x.target.closest('#rooms')}))lineAlignSoon()}).observe(document.documentElement,{childList:true,subtree:true})}catch(e){}
 function boot(){
  /* 2026-11-12 탱크 애니메이션이 첫 화면에 보이도록: 배합실(탱크)을 맨 위로, 색 범례 · 금일 근무자는 그 아래로 */
  try{var v0=document.getElementById('v-live'),r0=document.getElementById('rooms');if(v0&&r0){v0.insertBefore(r0,v0.firstChild);var cb0=document.createElement('div');cb0.id='crewbar';v0.insertBefore(cb0,r0);var lg0=v0.querySelector('.legend');if(lg0)r0.insertAdjacentElement('afterend',lg0);var cw0=document.getElementById('crew');if(cw0)(lg0||r0).insertAdjacentElement('afterend',cw0)}}catch(e){}
