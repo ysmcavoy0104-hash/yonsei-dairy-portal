@@ -16658,9 +16658,12 @@ function sums(){PFS.forEach(function(pf){var so=document.querySelector('#docpape
  setV(pf+'_sum_ot',ot>0?(Math.round(ot*10)/10).toFixed(1):'');setV(pf+'_sum_ng',ng>0?(Math.round(ng*10)/10).toFixed(1):'')})}
 /* 양식에 합계 줄 넣기 (배합 근무일보처럼 맨 밑) — 마지막 사람 줄 아래에 한 줄 추가 */
 var SUMF={'FRM-028':'m28','FRM-066':'m66','FRM-070':'m70','FRM-067':'m67','FRM-068':'m68','FRM-069':'m69'};
-function addSum(t,pf){if(!t||!t.blocks)return;var has=false,bl=null,ri=-1,ni=-1,mx=-1;
- t.blocks.forEach(function(b){(b.rows||[]).forEach(function(r,k){(r||[]).forEach(function(c,ci){var key=c&&c.k||'';if(key===pf+'_sum_ot')has=true;var m=new RegExp('^'+pf+'_nm(\\d+)$').exec(key);if(m&&+m[1]>=mx){mx=+m[1];bl=b;ri=k;ni=ci}})})});
- if(has||!bl)return;var r=bl.rows[ri],Y=LAY[pf]||LAY.m14,sp=0;for(var q=0;q<=ni;q++)sp+=(r[q].s||1);
+function addSum(t,pf){if(!t||!t.blocks)return;var last=null,sum=null,re=new RegExp('^'+pf+'_nm(\\d+)$');
+ /* 마지막 사람 줄 = 표에서 맨 아래에 있는 사람 줄 (열쇠 번호가 아니라 위치 기준 — 새로 넣은 사람 번호가 커서 합계가 중간에 들어가던 것 수정) */
+ t.blocks.forEach(function(b){(b.rows||[]).forEach(function(r,k){(r||[]).forEach(function(c,ci){var key=c&&c.k||'';if(key===pf+'_sum_ot')sum={b:b,k:k};if(re.test(key))last={b:b,k:k,ni:ci}})})});
+ if(!last)return;
+ if(sum){if(sum.b===last.b&&sum.k===last.k+1)return;var mv=sum.b.rows.splice(sum.k,1)[0];if(sum.b===last.b&&sum.k<last.k)last.k--;last.b.rows.splice(last.k+1,0,mv);return}
+ var bl=last.b,ri=last.k,ni=last.ni,r=bl.rows[ri],Y=LAY[pf]||LAY.m14,sp=0;for(var q=0;q<=ni;q++)sp+=(r[q].s||1);
  var bold=function(c){return String((c&&c.st)||'').replace(/text-align:left!important;/g,'')+'text-align:center!important;font-weight:700!important;background:#F1F5F9!important;'};
  var row=[{x:'합  계',s:sp,a:'c',b:1,st:bold(r[ni])}];
  for(var j=ni+1;j<r.length;j++){var c=r[j],rel=j-ni,o={a:'c',st:bold(c)};if(c.s)o.s=c.s;
@@ -18737,7 +18740,8 @@ function TM(){var q=/[?&]t=([^&]+)/.exec(location.hash||''),k=(q&&decodeURICompo
 function books(){var B=DB.data.kpiBooks=DB.data.kpiBooks||{};if(!B['가공2팀']){var o=DB.data.kpiBook&&DB.data.kpiBook.act?DB.data.kpiBook:JSON.parse(JSON.stringify(SEED));if(!o.at)o.at='엑셀 첨부본 (2026-11-10)';B['가공2팀']=o}return B}
 function book(){var B=books(),k=TM().k;return B[k]=B[k]||{act:null,mh:null,mhDaily:null,att:[],role:{},loss:[],acc:[],at:''}}
 function allRoles(){var B=books(),o={};Object.keys(B).forEach(function(k){var r=(B[k]||{}).role||{};Object.keys(r).forEach(function(n){o[n]=(k==='가공2팀'?'가공2팀 ':k==='가공1팀'?'가공1팀 ':k==='포장팀'?'포장 ':'')+r[n]})});return o}
-function canKPI(){var u=me();return !!(u&&(/^(superadmin|admin)$/.test(u.role||'')||u.title==='팀장'||u.title==='부문장'))}
+/* 2026-11-12 결재권자(팀장 · 부문장 · 결재선에 들어 있는 사람)도 볼 수 있게 */
+function canKPI(){var u=me();if(!u)return false;if(window.yumIsApprover)return !!yumIsApprover(u);return /^(superadmin|admin)$/.test(u.role||'')||/팀장|부문장/.test(u.title||'')}
 function cfg(){return DB.data.kpiCfg=DB.data.kpiCfg||{wage:null,ot:1.5,night:0.5,packL:0.19}}
 function save(){try{DB.save()}catch(e){}try{if(window.SupaSync&&SupaSync.on())SupaSync.queuePush()}catch(e){}}
 function bare(s){return String(s||'').replace(/\s+/g,'').replace(/\(.*?\)/g,'')}
@@ -19518,7 +19522,7 @@ var SIG='';
 function sync(){try{if(typeof DB==='undefined'||!DB.data||typeof Auth==='undefined'||!Auth.user())return;if(window.SupaSync&&SupaSync.on&&SupaSync.on()&&!SupaSync.adopted)return;
  var f=form('FRM-067');if(!f)return;var ids=CODES.map(function(c){var x=form(c);return x&&x.id}),docs=(DB.data.docs||[]).filter(function(d){return d&&ids.indexOf(d.formId)>=0}),mx='';docs.forEach(function(d){if(String(d.updatedAt||'')>mx)mx=d.updatedAt});
  var s=docs.length+'|'+mx;if(s===SIG)return;SIG=s;var open=window.__yumDocId,ch=0;
- docs.filter(function(d){return d.formId===f.id&&!d.deleted&&d.status!=='deleted'&&d.id!==open&&d.data&&d.data.grid}).forEach(function(d){var g=d.data.grid,day=dayOfGrid(g);if(!day)return;
+ docs.filter(function(d){return d.formId===f.id&&!d.deleted&&d.status!=='deleted'&&d.id!==open&&d.data&&d.data.grid&&!(d.final&&d.final.at)}).forEach(function(d){var g=d.data.grid,day=dayOfGrid(g);if(!day)return;
   var o=out(calc(function(k){return g[k]},day));Object.keys(o).forEach(function(k){if(String(g[k]||'')!==o[k]){g[k]=o[k];ch++}})});
  if(ch){try{DB.save()}catch(e){}try{if(window.SupaSync&&SupaSync.on())SupaSync.queuePush()}catch(e){}}}catch(e){console.warn('[업무지원팀 자동 계산]',e)}}
 setInterval(sync,8000);setTimeout(sync,3000);window.yumP67={sync:function(){SIG='';sync()},calc:calc,count:count,savedGrid:savedGrid};
@@ -20191,6 +20195,96 @@ setInterval(function(){pull(false)},20000);
 document.addEventListener('visibilitychange',function(){if(!document.hidden)setTimeout(function(){pull(true)},400)});
 window.addEventListener('online',function(){pull(true)});
 console.log('[일지 동기화] 한 건씩 주고받기 모듈 로드 완료',V2()?'(전환됨)':'(공용 자료와 함께 저장 중)');
+})();
+</script>
+
+<script>
+/* ============ 근무일보 「최종 저장」 잠금 (2026-11-12) ============
+   · 모든 팀 근무일보(배합 · 착즙 · 가공1팀 · 계량반 · 상온포장 업무지원 · 1팀 · 2팀)에 「최종 저장」 버튼
+   · 최종 저장하면 잠김: 작성자를 포함해 일반 사용자는 고칠 수도 · 지울 수도 없음 (보기 · 인쇄만)
+   · 팀장 · 부문장 · 결재권자(결재선에 들어 있는 사람) · 관리자만 고치기 / 잠금 풀기 가능 — 고친 기록은 문서 이력에 남음
+   · yumIsApprover(u): 결재권자 판단 (KPI · 인시 · 노무비 화면 열람 권한에도 사용)                               */
+(function(){
+'use strict';
+if(window.__YUM_WORKLOCK__)return;window.__YUM_WORKLOCK__=1;
+var CODES=['FRM-014','FRM-028','FRM-066','FRM-067','FRM-068','FRM-069','FRM-070'];
+function me(){try{return Auth.user()}catch(e){return null}}
+function D(){try{return DB.data}catch(e){return null}}
+function toast(m,t){try{U.toast(m,t||'ok')}catch(e){}}
+/* 결재권자: 관리자 · 직책(팀장 · 부문장 · 공장장 · 본부장 · 파트장) · 결재선에 이름이 들어 있는 사람 · 사용자 관리에서 결재권자로 지정한 사람 */
+function inLines(u){try{var d=D()||{};return (d.apprLines||[]).some(function(l){return (l&&l.steps||[]).some(function(s){return s&&s.userId&&s.userId===u.id})})}catch(e){return false}}
+window.yumIsApprover=function(u){u=u||me();if(!u)return false;
+ if(u.super||/^(superadmin|admin)$/.test(u.role||''))return true;
+ if(u.approver===true)return true;
+ if(/팀장|부문장|공장장|본부장|파트장/.test(String(u.title||'')+' '+String(u.position||'')))return true;
+ return inLines(u)};
+function form(id){var d=D();return ((d&&d.forms)||[]).filter(function(f){return f&&f.id===id})[0]||null}
+function isWork(f){return !!(f&&(CODES.indexOf(f.code)>=0||/근무일보/.test(f.name||'')))}
+function curForm(){var sel=document.getElementById('nf-form');return form(sel&&sel.value||window.__yumFormId)}
+function curDoc(){var id=window.__yumDocId,d=D();return id&&d?((d.docs||[]).filter(function(x){return x&&x.id===id})[0]||null):null}
+function locked(d){return !!(d&&d.final&&d.final.at)}
+window.yumWorkLocked=function(d){return locked(d)&&isWork(form(d.formId))};
+function canEdit(){return window.yumIsApprover(me())}
+function hm(iso){try{var t=new Date(iso);return (t.getMonth()+1)+'/'+t.getDate()+' '+('0'+t.getHours()).slice(-2)+':'+('0'+t.getMinutes()).slice(-2)}catch(e){return ''}}
+function audit(d,act,memo){try{var u=me();(d.audit=d.audit||[]).push({at:new Date().toISOString(),by:u&&u.name||'',act:act,memo:memo||''})}catch(e){}}
+function push(){try{DB.save()}catch(e){}try{if(window.SupaSync&&SupaSync.on()){clearTimeout(SupaSync.pushT);SupaSync.pushNow(DB.data)}}catch(e){}}
+
+/* 저장 막기 · 최종 저장 표시 */
+var FINAL=false;
+try{var _p=Doc.persist;Doc.persist=function(mode){var f=curForm(),d=curDoc();
+ if(isWork(f)&&locked(d)&&!canEdit()){return}            /* 잠긴 근무일보: 일반 사용자는 저장 안 됨 (자동 저장 포함) */
+ var fin=FINAL;FINAL=false;var wasLocked=locked(d);
+ var r=_p.apply(this,arguments);
+ try{var d2=curDoc(),u=me();if(d2&&isWork(form(d2.formId))){
+  if(fin&&!locked(d2)){d2.final={at:new Date().toISOString(),by:u&&u.name||'',uid:u&&u.id||''};audit(d2,'최종 저장','근무일보 잠금 — 팀장 · 결재권자만 수정 가능');push();setTimeout(function(){toast('최종 저장되었습니다. 이제 팀장 · 결재권자만 수정할 수 있습니다.')},400)}
+  else if(wasLocked&&locked(d2)){var e=d2.final.edits=d2.final.edits||[];var last=e[e.length-1],now=Date.now();if(!last||now-Date.parse(last.at)>10*60e3||last.by!==(u&&u.name)){e.push({at:new Date().toISOString(),by:u&&u.name||''});audit(d2,'최종 저장 후 수정','결재권자 수정')}}
+ }}catch(e){}
+ return r}}catch(e){}
+try{var _t=Doc.trash;if(_t)Doc.trash=function(id){var d=D(),x=((d&&d.docs)||[]).filter(function(y){return y&&y.id===id})[0];
+ if(x&&locked(x)&&isWork(form(x.formId))&&!canEdit()){toast('최종 저장된 근무일보는 팀장 · 결재권자만 삭제할 수 있습니다.','bad');return}return _t.apply(this,arguments)}}catch(e){}
+
+window.yumWorkFinal=function(){var f=curForm(),d=curDoc();if(!isWork(f))return;
+ var go=function(){FINAL=true;try{Doc.persist('saved')}catch(e){FINAL=false;toast('저장하지 못했습니다: '+e.message,'bad')}};
+ try{U.confirm('근무일보를 최종 저장하시겠습니까?\n\n최종 저장하면 내용이 잠겨, 팀장 · 결재권자만 수정할 수 있습니다.',go)}catch(e){if(confirm('근무일보를 최종 저장하시겠습니까?\n최종 저장하면 팀장 · 결재권자만 수정할 수 있습니다.'))go()}};
+window.yumWorkUnlock=function(){var d=curDoc();if(!d||!locked(d)||!canEdit())return;
+ var go=function(){var by=d.final.by;delete d.final;d.updatedAt=new Date().toISOString();d.version=(d.version||1)+1;audit(d,'잠금 해제','최종 저장('+by+') 해제');push();toast('잠금을 풀었습니다. 작성자가 다시 고칠 수 있습니다.');paint(true)};
+ try{U.confirm('이 근무일보의 최종 저장 잠금을 푸시겠습니까?\n작성자가 다시 고칠 수 있게 됩니다.',go)}catch(e){if(confirm('잠금을 푸시겠습니까?'))go()}};
+window.yumWorkClose=function(){try{App.go('#/journals')}catch(e){history.back()}};
+
+/* 작성 화면 표시 */
+var SIG='';
+function paint(force){
+ var on=/^#\/doc-new/.test(location.hash||''),f=on?curForm():null,b=document.querySelector('.formactions'),paper=document.getElementById('docpaper');
+ if(!on||!isWork(f)||!b){document.documentElement.classList.remove('wl-ro');return}
+ var d=curDoc(),lk=locked(d),ed=canEdit(),ro=lk&&!ed;
+ var sig=(d&&d.id)+'|'+lk+'|'+ed+'|'+(d&&d.final&&d.final.at)+'|'+(b.getAttribute('data-yum')||'')+'|'+!!document.getElementById('yum-btn-final')+'|'+!!document.getElementById('wl-ban');
+ document.documentElement.classList.toggle('wl-ro',ro);
+ if(ro&&paper){[].forEach.call(paper.querySelectorAll('input,select,textarea,button,[contenteditable="true"]'),function(e){if(e.getAttribute('data-wl'))return;e.setAttribute('data-wl','1');if(e.isContentEditable)e.setAttribute('contenteditable','false');else e.disabled=true})}
+ if(!ro&&paper){[].forEach.call(paper.querySelectorAll('[data-wl]'),function(e){e.removeAttribute('data-wl');if(e.tagName)e.disabled=false})}
+ if(!force&&sig===SIG)return;SIG=sig;
+ var fb=document.getElementById('yum-btn-final');
+ if(!lk){if(!fb){fb=document.createElement('button');fb.id='yum-btn-final';fb.className='btn wl-final';fb.innerHTML='🔒 최종 저장';fb.title='최종 저장하면 팀장 · 결재권자만 수정할 수 있습니다';fb.onclick=function(){window.yumWorkFinal()};
+   var sv=document.getElementById('yum-btn-save');if(sv&&sv.parentNode===b)sv.insertAdjacentElement('afterend',fb);else b.insertBefore(fb,b.firstChild)}}
+ else if(fb)fb.remove();
+ var ban=document.getElementById('wl-ban');
+ if(lk){var who=d.final.by||'',ed2=(d.final.edits||[]).slice(-1)[0];
+  var html='<span class="wl-ic">🔒</span><div><b>최종 저장된 근무일보</b><small>'+hm(d.final.at)+' · '+who+(ed2?' · 마지막 수정 '+hm(ed2.at)+' '+ed2.by:'')+'</small></div>'+
+   (ed?'<span class="wl-msg">결재권자 권한으로 수정할 수 있습니다</span><button class="btn btn-ghost btn-sm" onclick="yumWorkUnlock()">잠금 풀기</button>':'<span class="wl-msg">팀장 · 결재권자만 수정할 수 있습니다 (보기 · 인쇄만 가능)</span><button class="btn btn-ghost btn-sm" onclick="yumWorkClose()">닫기</button>');
+  if(!ban){ban=document.createElement('div');ban.id='wl-ban'}var host=paper&&paper.parentNode;if(ban.parentNode!==host||ban.nextSibling!==paper){if(host)host.insertBefore(ban,paper);else b.parentNode.insertBefore(ban,b)}ban.className='wl-ban'+(ed?' ed':'');ban.innerHTML=html}
+ else if(ban)ban.remove()}
+setInterval(function(){try{paint(false)}catch(e){}},600);
+window.addEventListener('hashchange',function(){SIG='';setTimeout(function(){paint(true)},300)});
+
+var st=document.createElement('style');st.textContent=
+ '.wl-final{background:linear-gradient(135deg,#0F766E,#0E7490)!important;color:#fff!important;border:0!important;font-weight:800!important}'+
+ '.wl-ban{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 10px;padding:11px 14px;border-radius:12px;background:#FEF3C7;border:1px solid #F59E0B;color:#78350F}'+
+ '.wl-ban.ed{background:#ECFEFF;border-color:#22D3EE;color:#155E75}.wl-ban .wl-ic{font-size:20px}.wl-ban>div{display:flex;flex-direction:column}.wl-ban b{font-size:14px}.wl-ban small{font-size:12px;opacity:.85}.wl-ban .wl-msg{margin-left:auto;font-size:12.5px;font-weight:700}'+
+ 'html.wl-ro .formactions #yum-btn-save,html.wl-ro .formactions #yum-btn-temp,html.wl-ro .formactions #yum-btn-cancel,html.wl-ro .formactions [onclick*="Attach.pick"],html.wl-ro #yum-inl-temp{display:none!important}'+
+ 'html.wl-ro #docpaper input:disabled,html.wl-ro #docpaper select:disabled,html.wl-ro #docpaper textarea:disabled{opacity:1!important;color:inherit!important;-webkit-text-fill-color:currentColor;cursor:not-allowed}'+
+ '.wl-tag{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:#FEF3C7;color:#92400E;font-size:11px;font-weight:800;vertical-align:1px}'+
+ '@media print{.wl-ban,#yum-btn-final{display:none!important}}';
+document.head.appendChild(st);
+console.log('[근무일보 최종 저장] 잠금 모듈 로드 완료');
 })();
 </script>
 
