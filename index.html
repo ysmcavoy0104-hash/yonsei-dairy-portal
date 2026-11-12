@@ -13964,7 +13964,7 @@ function viewExec(){
  var h='<div class="ov ex">';
  var PM=(location.hash||'').split('?')[0]==='#/prodmap';  /* 2026-11-12 생산 현황(공정 흐름도)은 따로 한 화면 */
  h+='<div class="ov-hd ex-hd"><div><div class="ov-en">'+(PM?'Live Production Status':'Daily Production Report')+'</div><h2>'+md(D)+' ('+dw(D)+') '+(PM?'생산 현황 · 공정 흐름도':'상온제품생산부문 생산 요약')+'</h2><div class="ov-sub"><span class="ex-live"><i></i>실시간</span> 일지를 저장하면 바로 반영됩니다'+(lastSave?' · 마지막 저장 '+lastSave:'')+'</div></div>'+
-  '<div class="ov-act"><select onchange="yumOverview.pick(this.value)">'+dates.map(function(d){return '<option value="'+d+'"'+(d===D?' selected':'')+'>'+d+' ('+dw(d)+')</option>'}).join('')+'</select>'+(PM?'<a class="btn btn-o btn-sm" href="#/overview">대시보드 전체보기 →</a>':'<a class="btn btn-o btn-sm" href="#/prodmap">생산 현황 →</a>')+'</div></div>';
+  '<div class="ov-act"><select onchange="yumOverview.pick(this.value)">'+dates.map(function(d){return '<option value="'+d+'"'+(d===D?' selected':'')+'>'+d+' ('+dw(d)+')</option>'}).join('')+'</select>'+(PM?'<a class="btn btn-o btn-sm" href="#/oee">OEE · 대시보드 →</a>':'<a class="btn btn-o btn-sm" href="#/prodmap">생산 현황 →</a>')+'</div></div>';
  /* 0. 공정 흐름도 (착즙 → 배합 → 멸균 → 아셉틱 충전 → 포장) */
  if(PM){h+='<div id="fm-wrap" data-d="'+D+'">'+(window.yumFlowMap?yumFlowMap(D):'')+'</div>';return h+'</div>'}
  /* 1. 공정 흐름 */
@@ -20759,6 +20759,43 @@ var css=
  '.fm [stroke="#56645F"]{stroke:#94A3B8!important}.fm [stroke="#0E1714"]{stroke:#fff!important}.fm [fill="#7C8A85"],.fm [fill="#56645F"]{fill:'+MU+'!important}'+
  '.fm-n.act rect{filter:drop-shadow(0 2px 6px color-mix(in srgb,var(--c) 35%,transparent))!important}';
 var st=document.createElement('style');st.id='yum-light';st.textContent=css;document.head.appendChild(st);
+})();
+</script>
+
+<script>
+/* ============ 왼쪽 메뉴 숨기기 (2026-11-12) ============
+   · 메뉴 오른쪽 위 「‹」 버튼 → 메뉴가 왼쪽으로 사라지고 본문이 화면 전체로 넓어짐 (다시 「›」로 펼치기)
+   · 숨긴 상태에서 화면 왼쪽 끝에 마우스를 대면 메뉴가 잠깐 나타남 → 메뉴를 누르면 이동하면서 다시 들어감
+   · 이 기기에 기억 (다음에 열어도 그대로) · 단축키 Ctrl + \                                                  */
+(function(){
+if(window.__YUM_SBT__)return;window.__YUM_SBT__=1;
+var K='yum_sb_off';
+function off(){try{return localStorage.getItem(K)==='1'}catch(e){return false}}
+function set(v){try{localStorage.setItem(K,v?'1':'0')}catch(e){}document.documentElement.classList.toggle('sb-off',v);document.documentElement.classList.remove('sb-peek');draw();try{window.dispatchEvent(new Event('resize'))}catch(e){}}
+function draw(){var b=document.getElementById('sb-tg');if(!b){b=document.createElement('button');b.id='sb-tg';b.type='button';b.onclick=function(){set(!document.documentElement.classList.contains('sb-off'))};document.body.appendChild(b)}
+ var o=document.documentElement.classList.contains('sb-off');b.innerHTML=o?'<svg viewBox="0 0 24 24" width="16" height="16"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>':'<svg viewBox="0 0 24 24" width="16" height="16"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+ b.title=o?'메뉴 펼치기 (Ctrl + \\)':'메뉴 숨기기 — 화면 넓게 (Ctrl + \\)';b.setAttribute('aria-label',b.title);
+ var app=document.getElementById('page-app');b.style.display=app&&app.classList.contains('on')?'':'none'}
+document.documentElement.classList.toggle('sb-off',off());
+/* 가장자리에 마우스 → 잠깐 나타나기 */
+var hot=document.createElement('div');hot.id='sb-hot';
+document.addEventListener('DOMContentLoaded',function(){document.body.appendChild(hot);draw()});if(document.body){document.body.appendChild(hot);draw()}
+hot.addEventListener('mouseenter',function(){if(document.documentElement.classList.contains('sb-off'))document.documentElement.classList.add('sb-peek')});
+document.addEventListener('mouseover',function(e){if(!document.documentElement.classList.contains('sb-peek'))return;var sb=document.querySelector('#page-app .sidebar');if(sb&&!sb.contains(e.target)&&e.target!==hot&&e.clientX>270)document.documentElement.classList.remove('sb-peek')});
+document.addEventListener('click',function(e){if(!document.documentElement.classList.contains('sb-peek'))return;var a=e.target.closest&&e.target.closest('#page-app .sidebar a.sitem');if(a)setTimeout(function(){document.documentElement.classList.remove('sb-peek')},120)});
+document.addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&e.key==='\\'){e.preventDefault();set(!document.documentElement.classList.contains('sb-off'))}});
+setInterval(draw,1000);window.addEventListener('hashchange',draw);
+var st=document.createElement('style');st.textContent=
+ '#sb-tg{position:fixed;z-index:60;top:72px;left:234px;width:28px;height:28px;border-radius:50%;border:1px solid rgba(200,161,90,.6);background:radial-gradient(circle at 30% 25%,#12244A,#0A1530);color:#E8D3A5;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 6px 16px -6px rgba(10,21,48,.7);transition:left .35s cubic-bezier(.16,1,.3,1),transform .25s,box-shadow .25s}'+
+ '#sb-tg:hover{transform:scale(1.1);box-shadow:0 0 0 4px rgba(200,161,90,.18),0 8px 18px -6px rgba(10,21,48,.8)}'+
+ '#page-app .sidebar{transition:transform .35s cubic-bezier(.16,1,.3,1),box-shadow .35s}#page-app .main{transition:margin-left .35s cubic-bezier(.16,1,.3,1)}'+
+ '#sb-hot{position:fixed;left:0;top:60px;bottom:0;width:10px;z-index:29;display:none}'+
+ '@media (min-width:901px){'+
+  'html.sb-off #page-app .sidebar{transform:translateX(-100%)}html.sb-off #page-app .main{margin-left:0!important}html.sb-off #page-app .gnav{left:0!important}html.sb-off #sb-tg{left:10px}html.sb-off #sb-hot{display:block}'+
+  'html.sb-off.sb-peek #page-app .sidebar{transform:none;box-shadow:18px 0 40px -18px rgba(5,12,30,.6)!important;z-index:55}html.sb-off.sb-peek #sb-tg{left:234px}'+
+ '}'+
+ '@media (max-width:900px){#sb-tg,#sb-hot{display:none!important}}@media print{#sb-tg,#sb-hot{display:none!important}}';
+document.head.appendChild(st);
 })();
 </script>
 
