@@ -870,9 +870,25 @@ async function pull(first){
   if(r.data&&r.data.data){DATA=r.data.data;LAST_AT=r.data.updated_at;if(DATA._docsV2){try{if(!MD.full)await docsPull();else await docsPull();mdApply()}catch(e){console.warn('[mix docs]',e)}}document.querySelectorAll('.line').forEach(function(l){l.dataset.sig=''});setSync('서버 연결됨 · '+hh(nowMin())+' 갱신',true);if(checkUser())render()}}
  catch(e){console.warn('[mix pull]',e);setSync(DATA?'⚠ 서버 미연결 · 이 PC에 저장된 데이터 표시 중':'⚠ 서버 미연결',false)}
 }
+/* 2026-11-12 금일 근무자 한 줄 띠: 탱크 위에 「지금 근무 중인 조 · 이름」만 짧게, 전체 표는 아래 */
+var _rcrew=renderCrew;renderCrew=function(){_rcrew.apply(this,arguments);try{var box=document.getElementById('crew'),bar=document.getElementById('crewbar');if(!box||!bar)return;
+ var cr=[].slice.call(box.querySelectorAll('.cr')),on=cr.filter(function(c){return c.classList.contains('on')}),use=on.concat(cr.filter(function(c){return on.indexOf(c)<0}));
+ var h2=box.querySelector('h2'),t=h2?h2.textContent.replace('금일 근무자 · ',''):'';
+ if(!cr.length){bar.innerHTML='<span class="cb-t">👷 금일 근무자</span><span class="cb-e">이번 주 주간근무계획표가 없습니다 · 근무 탭에서 작성</span>';return}
+ bar.innerHTML='<span class="cb-t">👷 금일 근무자 <small>'+esc(t)+'</small></span>'+use.map(function(c){var b=c.querySelector('.ch b'),tm=c.querySelector('.ch span'),nm=[].map.call(c.querySelectorAll('.cn span'),function(x){return x.textContent});
+  return '<span class="cb-g'+(c.classList.contains('on')?' on':'')+'"><b>'+esc(b?b.textContent:'')+'</b><em>'+esc(tm?tm.textContent:'')+'</em>'+nm.map(function(x){return '<i>'+esc(x)+'</i>'}).join('')+'</span>'}).join('')+
+  '<button type="button" class="cb-more" onclick="document.getElementById(\'crew\').scrollIntoView({behavior:\'smooth\',block:\'start\'})">자세히 ↓</button>'}catch(e){}};
+(function(){var st=document.createElement('style');st.textContent='#crewbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 12px;padding:9px 14px;border-radius:14px;background:#fff;border:1px solid #E5E9F2;box-shadow:0 6px 18px -14px rgba(15,23,42,.35);font-size:13px}'+
+ '#crewbar .cb-t{font-weight:800;color:#13233F;margin-right:4px}#crewbar .cb-t small{font-weight:600;color:#64748B;margin-left:4px}#crewbar .cb-e{color:#64748B}'+
+ '#crewbar .cb-g{display:inline-flex;align-items:center;flex-wrap:wrap;gap:5px;padding:4px 10px;border-radius:999px;background:#F1F5F9;color:#334155}#crewbar .cb-g.on{background:linear-gradient(135deg,#ECFDF5,#E0F2FE);box-shadow:inset 0 0 0 1px #6EE7B7}'+
+ '#crewbar .cb-g b{font-size:12px;color:#0F172A}#crewbar .cb-g em{font-style:normal;font-size:11px;color:#64748B}#crewbar .cb-g i{font-style:normal;font-weight:700;color:#0F766E;font-size:12.5px}#crewbar .cb-g:not(.on) i{color:#334155}'+
+ '#crewbar .cb-more{margin-left:auto;border:0;background:none;color:#2563EB;font-weight:700;font-size:12px;cursor:pointer}';document.head.appendChild(st)})();
 function boot(){
+ /* 2026-11-12 탱크 애니메이션이 첫 화면에 보이도록: 배합실(탱크)을 맨 위로, 색 범례 · 금일 근무자는 그 아래로 */
+ try{var v0=document.getElementById('v-live'),r0=document.getElementById('rooms');if(v0&&r0){v0.insertBefore(r0,v0.firstChild);var cb0=document.createElement('div');cb0.id='crewbar';v0.insertBefore(cb0,r0);var lg0=v0.querySelector('.legend');if(lg0)r0.insertAdjacentElement('afterend',lg0);var cw0=document.getElementById('crew');if(cw0)(lg0||r0).insertAdjacentElement('afterend',cw0)}}catch(e){}
  try{var c=localStorage.getItem(DBKEY);if(c)DATA=JSON.parse(c)}catch(e){}
- try{var t=localStorage.getItem('mix_tab');if(['old','new','silo','mgr','plan','work'].indexOf(t)>=0)TAB=t}catch(e){}
+ /* 2026-11-12 포털에서 들어오면 늘 「구 배합실」 화면부터 (예전에는 마지막에 보던 탭이 열려 관리 분석이 먼저 떴음) */
+ TAB='old';
  summerUI();
  if(DATA){if(checkUser())setTab(TAB)}else if(!session())gate('부문포털에 로그인한 뒤, 홈 화면의 <b>배합팀 업무포털</b> 배너를 눌러 열어 주세요.');
  pull(true).then(function(){if(DATA&&checkUser())setTab(TAB)});
