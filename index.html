@@ -20602,11 +20602,13 @@ var TI={
  '착즙':'<path d="M12 4.2c3.6 0 6.3 3.2 6.3 7.3 0 4.6-2.9 8.3-6.3 8.3S5.7 16.1 5.7 11.5C5.7 7.4 8.4 4.2 12 4.2z"/><path d="M12 7.2c-1.2 2.2-1.2 7.3 0 9.6"/><path d="M15.4 2.8c-.9.5-1.5 1.2-1.8 2"/>',
  '배합':'<path d="M7 5h10v10.5a5 5 0 0 1-10 0z"/><path d="M5.5 5h13"/><path d="M12 2.5V14"/><path d="M9.2 14h5.6"/><path d="M8.6 18.9 7.6 21.5M15.4 18.9l1 2.6"/>',
  '멸균':'<path d="M12 3c2.6 3 4.4 5.6 4.4 8.4a4.4 4.4 0 0 1-8.8 0c0-1.8.8-3.4 2-4.8.3 1.4 1 2.3 2 2.6C11 7.4 11.3 5 12 3z"/><path d="M5 20.5c1.2-.8 2.3-.8 3.5 0s2.3.8 3.5 0 2.3-.8 3.5 0 2.3.8 3.5 0"/>',
- '포장':'<path d="M12 3.2 20 7.4v9.2L12 20.8 4 16.6V7.4z"/><path d="M4 7.4 12 11.6l8-4.2"/><path d="M12 11.6v9.2"/><path d="m8 5.3 8 4.2"/>'};
+ '포장':'<path d="M12 3.2 20 7.4v9.2L12 20.8 4 16.6V7.4z"/><path d="M4 7.4 12 11.6l8-4.2"/><path d="M12 11.6v9.2"/><path d="m8 5.3 8 4.2"/>',
+ '전체':'<rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/>',
+ '공통':'<path d="M12 3.5 20.5 12 12 20.5 3.5 12z"/><path d="M12 8.2 15.8 12 12 15.8 8.2 12z"/>'};
 function svg(k,s){return '<svg viewBox="0 0 24 24" width="'+(s||26)+'" height="'+(s||26)+'" fill="none" stroke="url(#lx-g)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(TI[k]||'')+'</svg>'}
 function defs(){if(document.getElementById('lx-defs'))return;var d=document.createElement('div');d.id='lx-defs';d.style.cssText='position:absolute;width:0;height:0;overflow:hidden';
  d.innerHTML='<svg width="0" height="0"><defs><linearGradient id="lx-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F6E7C1"/><stop offset="1" stop-color="#C8A15A"/></linearGradient></defs></svg>';document.body.appendChild(d)}
-function icons(){[].forEach.call(document.querySelectorAll('#main .jt-b .ic'),function(ic){if(ic.getAttribute('data-lx'))return;var t=ic.parentNode.textContent||'',k=['착즙','배합','멸균','포장'].filter(function(x){return t.indexOf(x)>=0})[0];if(!k)return;ic.setAttribute('data-lx','1');ic.innerHTML=svg(k,26)})}
+function icons(){[].forEach.call(document.querySelectorAll('#main .jt-b .ic,#main .ds-cat .ic,#main .ds-team .ic,#main .ds-th .ic'),function(ic){if(ic.getAttribute('data-lx'))return;var t=ic.parentNode.textContent||'',k=['착즙','배합','멸균','포장','공통','전체'].filter(function(x){return t.indexOf(x)>=0})[0];if(!k)return;ic.setAttribute('data-lx','1');ic.classList.add('lx-med');ic.innerHTML=svg(k,ic.closest('.jt-b')?26:13)})}
 /* 차례로 떠오르기 */
 var SEL={jr:'',
  docs:'#main .pgt,#main .df-bar,#main .tabs,#main .ds-cats>*,#main .ds-team,#main .ds-day,#main .ds-r',
@@ -20614,7 +20616,11 @@ var SEL={jr:'',
  nd:'#main .pgt,#main .dsh-kpi,#main .nd-card,#main .od-div,#main .otl-card,#main .dp,#main .od-hr,#main .od-rr,#main .panel'};
 var SEEN={},LAST='';
 function key(el){return el.tagName+'|'+String(el.className||'').replace(/\blx-\S+/g,'').trim()+'|'+(el.textContent||'').replace(/\s+/g,' ').slice(0,70)}
-function scan(){var p=pg();document.documentElement.classList.toggle('lx',!!p);['jr','docs','rep','nd'].forEach(function(k){document.documentElement.classList.toggle('lx-'+k,p===k)});if(!p)return;
+/* 팀별 대시보드 위 팀 전환 버튼 (❖ 착즙 · ⚗ 배합 · ♨ 멸균 · ▣ 포장) */
+function pills(){var H={'#/juice':'착즙','#/mix':'배합','#/ster':'멸균','#/pack':'포장'};if(!H[route()])return;defs();
+ [].forEach.call(document.querySelectorAll('#main a[href="#/juice"],#main a[href="#/mix"],#main a[href="#/ster"],#main a[href="#/pack"]'),function(a){if(a.getAttribute('data-lxp'))return;var k=H[a.getAttribute('href')],t=a.textContent.trim();if(!/^\S+\s+(착즙|배합|멸균|포장)$/.test(t))return;
+  a.setAttribute('data-lxp','1');var on=a.getAttribute('href')===route();a.className+=' lx-tp'+(on?' on':'');a.removeAttribute('style');a.innerHTML='<span class="lx-med">'+svg(k,13)+'</span>'+k;var par=a.parentNode;if(par&&!par.classList.contains('lx-tps'))par.classList.add('lx-tps')})}
+function scan(){var p=pg();try{pills()}catch(e){}document.documentElement.classList.toggle('lx',!!p);['jr','docs','rep','nd'].forEach(function(k){document.documentElement.classList.toggle('lx-'+k,p===k)});if(!p)return;
  defs();icons();if(location.hash!==LAST){LAST=location.hash;SEEN={}}if(red()||!SEL[p])return;
  var groups=new Map();
  [].forEach.call(document.querySelectorAll(SEL[p]),function(el){if(el.getAttribute('data-lxa'))return;el.setAttribute('data-lxa','1');var k=key(el);if(SEEN[k])return;SEEN[k]=1;
@@ -20659,7 +20665,14 @@ var st=document.createElement('style');st.textContent=
  'html.lx-docs #main .df-bar input{border-radius:12px!important;border-color:#E7E2D6!important}html.lx-docs #main .df-bar input:focus{border-color:'+G+'!important;box-shadow:0 0 0 3px rgba(200,161,90,.18)!important}'+
  'html.lx-docs #main .df-p.on,html.lx-docs #main .df-bar button.on{background:linear-gradient(135deg,'+N+','+N2+')!important;color:#fff!important;border-color:'+G+'!important}'+
  'html.lx-docs #main .tabs button{position:relative}html.lx-docs #main .tabs button.on::after{content:"";position:absolute;left:12%;right:12%;bottom:-1px;height:2px;background:linear-gradient(90deg,'+G+','+G2+');animation:lxLine .6s cubic-bezier(.16,1,.3,1) both}'+
- 'html.lx-docs #main .ds-cat{transition:transform .3s cubic-bezier(.16,1,.3,1),box-shadow .3s!important}html.lx-docs #main .ds-cat:hover{transform:translateY(-2px)}html.lx-docs #main .ds-cat.on{box-shadow:0 10px 22px -12px rgba(10,21,48,.6),0 0 0 1px rgba(200,161,90,.6)!important}'+
+ 'html.lx-docs #main .ds-cat{display:inline-flex!important;align-items:center;gap:7px;padding:5px 14px 5px 5px!important;border-radius:999px!important;background:#fff!important;border:1px solid #E7E2D6!important;color:'+N+'!important;font-weight:800!important;transition:transform .3s cubic-bezier(.16,1,.3,1),box-shadow .3s,border-color .3s!important}'+
+ 'html.lx-docs #main .ds-cat b{color:#8A6A2C!important;font-weight:800}html.lx-docs #main .ds-cat:hover{transform:translateY(-2px);border-color:rgba(200,161,90,.7)!important;box-shadow:0 10px 22px -14px rgba(10,21,48,.5)!important}'+
+ 'html.lx-docs #main .ds-cat.on{background:linear-gradient(135deg,'+N+','+N2+')!important;color:#fff!important;border-color:'+G+'!important;box-shadow:0 10px 22px -12px rgba(10,21,48,.7)!important}html.lx-docs #main .ds-cat.on b{color:'+G2+'!important}'+
+ 'html.lx #main .lx-med{width:26px!important;height:26px!important;min-width:26px;border-radius:50%!important;display:inline-flex!important;align-items:center;justify-content:center;background:radial-gradient(circle at 30% 25%,'+N2+','+N+')!important;border:1px solid rgba(200,161,90,.7)!important;box-shadow:inset 0 0 8px rgba(200,161,90,.25)!important;color:transparent!important;font-size:0!important;vertical-align:middle;margin-right:2px;transition:transform .45s cubic-bezier(.34,1.56,.64,1)}'+
+'.lx-tp{display:inline-flex;align-items:center;gap:7px;padding:5px 15px 5px 5px;border-radius:999px;font-weight:800;font-size:13px;text-decoration:none;background:#fff;border:1px solid #E7E2D6;color:#0A1530;transition:transform .3s cubic-bezier(.16,1,.3,1),box-shadow .3s,border-color .3s}.lx-tp:hover{transform:translateY(-2px);border-color:rgba(200,161,90,.7);box-shadow:0 10px 22px -14px rgba(10,21,48,.5)}'+
+ '.lx-tp.on{background:linear-gradient(135deg,#0A1530,#12244A);color:#fff;border-color:#C8A15A;box-shadow:0 10px 22px -12px rgba(10,21,48,.7)}'+
+ '.lx-tp .lx-med{width:26px;height:26px;min-width:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:radial-gradient(circle at 30% 25%,#12244A,#0A1530);border:1px solid rgba(200,161,90,.7);box-shadow:inset 0 0 8px rgba(200,161,90,.25);transition:transform .45s cubic-bezier(.34,1.56,.64,1)}.lx-tp:hover .lx-med{transform:rotate(-8deg) scale(1.08)}'+
+ 'html.lx #main .ds-cat:hover .lx-med{transform:rotate(-8deg) scale(1.08)}html.lx #main .jt-b .lx-med{width:58px!important;height:58px!important;min-width:58px}'+
  'html.lx-docs #main .ds-team{border-radius:18px!important;overflow:hidden;border:1px solid #E7E2D6!important;box-shadow:0 18px 40px -32px rgba(10,21,48,.45)!important}'+
  'html.lx-docs #main table thead th{background:#F7F3EA!important;color:#5B5442!important;font-weight:800;letter-spacing:.01em;border-bottom:1px solid #E7DFCC!important}'+
  'html.lx-docs #main .ds-day td,html.lx-docs #main .ds-day{background:#FBF8F1!important}'+
