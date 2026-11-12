@@ -20431,7 +20431,7 @@ function gauge(o){var R=118,C=Math.PI*R*1.5,v=cl(o.O)||0,wc=WC,ang=function(p){r
   tk+'<path d="M'+pt(0,R).join(' ')+' A'+R+' '+R+' 0 1 1 '+pt(1,R).join(' ')+'" class="oe-gb"/><path d="M'+pt(0,R).join(' ')+' A'+R+' '+R+' 0 1 1 '+pt(1,R).join(' ')+'" class="oe-gv" stroke="url(#oe-gr)" stroke-dasharray="'+C.toFixed(1)+'" stroke-dashoffset="'+C.toFixed(1)+'" data-off="'+(C*(1-v)).toFixed(1)+'"/>'+
   '<line x1="'+w1[0].toFixed(1)+'" y1="'+w1[1].toFixed(1)+'" x2="'+w2[0].toFixed(1)+'" y2="'+w2[1].toFixed(1)+'" class="oe-wc"/>'+
   rings+'<text x="160" y="152" class="oe-gn" data-n="'+(o.O==null?'':(o.O*100).toFixed(1))+'">'+(o.O==null?'—':'0')+'</text><text x="160" y="178" class="oe-gu">OEE %</text>'+
-  '<g class="oe-ndl" style="--rot:'+(270*v-135)+'deg"><line x1="160" y1="'+(160-96)+'" x2="160" y2="'+(160-R+4)+'"/><circle cx="160" cy="'+(160-R+2)+'" r="5"/></g><text x="160" y="292" class="oe-wct">┆ 흰 점선 = 세계 수준 85%</text></svg>'}
+  '<g class="oe-ndl" style="--rot:'+(270*v-135)+'deg"><line x1="160" y1="'+(160-96)+'" x2="160" y2="'+(160-R+4)+'"/><circle cx="160" cy="'+(160-R+2)+'" r="5"/></g><text x="160" y="292" class="oe-wct">┆ 점선 = 세계 수준 85%</text></svg>'}
 function ring3(o,s){s=s||76;var rs=[['A',o.A,'#38BDF8',s/2-6],['P',o.P,'#A78BFA',s/2-15],['Q',o.Q,'#34D399',s/2-24]];
  return '<svg class="oe-r3" width="'+s+'" height="'+s+'" viewBox="0 0 '+s+' '+s+'">'+rs.map(function(r,i){var c=2*Math.PI*r[3],v=cl(r[1]);return '<circle cx="'+s/2+'" cy="'+s/2+'" r="'+r[3]+'" class="oe-rb sm"/>'+(v==null?'':'<circle cx="'+s/2+'" cy="'+s/2+'" r="'+r[3]+'" class="oe-rv sm" stroke="'+r[2]+'" stroke-dasharray="'+c.toFixed(1)+'" stroke-dashoffset="'+c.toFixed(1)+'" data-off="'+(c*(1-v)).toFixed(1)+'" style="--dl:'+(300+i*120)+'ms" transform="rotate(-90 '+s/2+' '+s/2+')"/>')}).join('')+'</svg>'}
 function waterfall(o){if(o.O==null)return '<div class="oe-empty">기록이 모이면 손실 구조가 그려집니다</div>';
@@ -20697,6 +20697,68 @@ var st=document.createElement('style');st.textContent=
  '@media (max-width:700px){html.lx-jr #main .jt-bar{grid-template-columns:1fr!important;display:grid!important}html.lx-jr #main .jt-b{padding:14px 16px!important}html.lx-jr #main .jt-b .ic{width:48px!important;height:48px!important;min-width:48px}}'+
  '@media (prefers-reduced-motion:reduce){.lx-in,html.lx #main .pgt::after,html.lx-rep #main .rp-paper{animation:none!important}.lx-late{opacity:1!important}html.lx-jr #main .jt-b.on::after{animation:none}}';
 document.head.appendChild(st);
+})();
+</script>
+
+<script>
+/* ============ 밝은 대시보드 · 넓은 화면 (2026-11-12) ============
+   · 팀별 대시보드 · OEE · 생산 현황판(공정 흐름도)을 어두운 바탕 → 밝은 바탕으로
+   · 본문 최대 폭(1,400px) 제한을 풀어 큰 모니터에서 오른쪽이 비지 않게 (전 화면 공통)                 */
+(function(){
+if(window.__YUM_LIGHT__)return;window.__YUM_LIGHT__=1;
+var INK='#0F172A',INK2='#334155',MU='#64748B',LN='#E5E9F2',BG='#F6F8FC',TR='#EEF2F7';
+var css=
+ /* 넓은 화면 */
+ '#page-app .main{max-width:none!important}@media (min-width:1600px){#page-app .main{padding-left:36px!important;padding-right:36px!important}}'+
+ /* ── 팀별 대시보드 ── */
+ '.cc{color:'+INK+'!important;background:radial-gradient(1100px 420px at 0% 0%,color-mix(in srgb,var(--a) 10%,transparent),transparent 60%),radial-gradient(900px 420px at 100% 0%,color-mix(in srgb,var(--b) 9%,transparent),transparent 60%),'+BG+'!important;border:1px solid '+LN+'!important;box-shadow:0 24px 50px -40px rgba(15,23,42,.35)!important}'+
+ '.cc-hero{background:#fff!important;border:1px solid '+LN+'!important;box-shadow:0 14px 30px -26px rgba(15,23,42,.3)}.cc-aur i{opacity:.16!important}'+
+ '.cc-hero h1{color:'+INK+'!important}.cc-eye{color:'+MU+'!important}.cc-live{color:#047857!important}.cc-src{background:#F1F5F9!important;border-color:'+LN+'!important;color:'+INK2+'!important}'+
+ '.cc-clock b{color:'+INK+'!important}.cc-clock span{color:'+MU+'!important}'+
+ '.cc-days button{background:#fff!important;border-color:'+LN+'!important;color:'+INK2+'!important}.cc-days button small{color:'+MU+'!important}.cc-days button.on{background:linear-gradient(135deg,var(--a),var(--b))!important;border-color:transparent!important}.cc-days button.on,.cc-days button.on small{color:#fff!important}'+
+ '.cc-btn{color:#fff!important}.cc-btn.ghost{background:#fff!important;color:'+INK+'!important;border-color:'+LN+'!important}'+
+ '.cc-k,.cc-c{background:#fff!important;border-color:'+LN+'!important;box-shadow:0 12px 28px -24px rgba(15,23,42,.35)}.cc-kl,.cc-k .cc-ks,.cc-kv small{color:'+MU+'!important}.cc-kv b{color:'+INK+'!important}.cc-dl i{color:'+MU+'!important}.cc-dl.g{color:#059669!important}.cc-dl.r{color:#DC2626!important}'+
+ '.cc-c>header b{color:'+INK+'!important}.cc-c>header span,.cc-lg,.cc-empty{color:'+MU+'!important}.cc-ok{color:#059669!important}'+
+ '.cc-ring circle:first-child{stroke:'+TR+'!important}.cc-rt{fill:'+INK+'!important}.cc-rs{fill:'+MU+'!important}'+
+ '.cc-gl{stroke:'+LN+'!important}.cc-ax{fill:'+MU+'!important}.cc-ax.hi,.cc-tv{fill:'+INK+'!important}.cc-tb[fill^="rgba(255"]{fill:#DCE3EE!important}.cc-tr2 small{color:'+MU+'!important}'+
+ '.cc-a{background:#F8FAFC!important;border-color:'+LN+'!important}.cc-a b{color:'+INK+'!important}.cc-a span{color:#475569!important}'+
+ '.cc-br .l{color:'+INK2+'!important}.cc-br .t{background:'+TR+'!important}.cc-br .v{color:'+MU+'!important}.cc-br .t i{box-shadow:none!important}'+
+ '.cc-fs{background:#fff!important}.cc-fs b{color:'+INK+'!important}.cc-fs small,.cc-fs span{color:'+MU+'!important}.cc-by{background:#FFF1F2!important}.cc-by b{color:'+INK+'!important}.cc-by em{color:'+MU+'!important}.cc-by i{background:linear-gradient(90deg,#FB7185 var(--w),'+TR+' var(--w))!important}'+
+ '.cc-hmh i{color:'+MU+'!important}.cc-hmr span b{color:'+INK+'!important}.cc-hmr span small{color:'+MU+'!important}.cc-hmr i[style*="--c:rgba(255,255,255"]{background:'+TR+'!important}.cc-hmr i{color:rgba(0,0,0,.6)!important}'+
+ '.cc-tank{background:#fff!important;border-color:'+LN+'!important}.cc-tk{border-color:#CBD5E1!important;background:#F8FAFC!important}.cc-tank>b{color:'+INK+'!important}.cc-tank>small{color:'+MU+'!important}.cc-tank p{color:'+INK2+'!important}.cc-tkm{color:'+MU+'!important}.cc-tkm b{color:'+INK+'!important}'+
+ '.cc-tk .cc-liq[data-e]+.cc-tkn,.cc-liq[data-e]~.cc-tkn{color:'+MU+'!important;text-shadow:none!important}'+
+ '.cc-gr>span{filter:saturate(1.2) brightness(.85)}.cc-gtr{background:'+TR+'!important}.cc-gtr i.mv{background:'+INK+'!important;box-shadow:none!important}.cc-gax i,.cc-gax2 i{color:'+MU+'!important}'+
+ '.cc-gu{border-bottom-color:'+LN+'!important}.cc-gh b,.cc-gx em{color:'+INK+'!important}.cc-gh small{color:'+MU+'!important}.cc-gb{background:'+TR+'!important}.cc-gb i{box-shadow:none!important}'+
+ '.cc-now{background:linear-gradient(180deg,'+INK+',rgba(15,23,42,.15))!important;box-shadow:none!important}.cc-now span{background:'+INK+'!important;color:#fff!important}'+
+ '.cc-j.n{background:#F1F5F9!important;color:'+MU+'!important}.cc-j.g{background:#ECFDF5!important;color:#047857!important}.cc-j.r{background:#FEF2F2!important;color:#B91C1C!important}'+
+ '.cc-mc{background:#fff!important;border-color:'+LN+'!important}.cc-mc b,.cc-mc span{color:'+INK+'!important}.cc-mc small{color:'+MU+'!important}'+
+ '.cc-line{background:#fff!important;border-color:'+LN+'!important;opacity:1!important}.cc-line:not(.on){background:#FAFBFD!important}.cc-lh span{color:'+INK2+'!important}.cc-lh em{background:#F1F5F9!important;color:'+MU+'!important}.cc-lh em.g{background:#ECFDF5!important;color:#047857!important}'+
+ '.cc-lq b{color:'+INK+'!important}.cc-lq small,.cc-lr span{color:'+MU+'!important}.cc-lr span b{color:'+INK+'!important}.cc-lr span.r b{color:#B91C1C!important}.cc-lb{background:'+TR+'!important}'+
+ /* ── OEE ── */
+ '.oe{color:'+INK+'!important;background:radial-gradient(1000px 420px at 10% -10%,rgba(56,189,248,.12),transparent 60%),radial-gradient(900px 420px at 100% 0%,rgba(167,139,250,.11),transparent 60%),'+BG+'!important;border:1px solid '+LN+'!important;box-shadow:0 24px 50px -40px rgba(15,23,42,.35)!important}'+
+ '.oe-hero{background:#fff!important;border-color:'+LN+'!important;box-shadow:0 14px 30px -26px rgba(15,23,42,.3)}.oe-aur i{opacity:.14!important}.oe h1{color:'+INK+'!important}.oe-hl p,.oe-eye{color:'+MU+'!important}.oe-live{color:#047857!important}'+
+ '.oe-tabs button,.oe-days button{background:#fff!important;border-color:'+LN+'!important;color:'+INK2+'!important}.oe-tabs button.on,.oe-days button.on{background:linear-gradient(135deg,#38BDF8,#A78BFA)!important;border-color:transparent!important;color:#fff!important}.oe-sep{background:'+LN+'!important}'+
+ '.oe-tk{stroke:rgba(15,23,42,.18)!important}.oe-tk.M{stroke:rgba(15,23,42,.4)!important}.oe-gb{stroke:'+TR+'!important}.oe-gv{filter:none!important}.oe-wc{stroke:'+INK+'!important}.oe-wct{fill:'+MU+'!important}'+
+ '.oe-rb{stroke:'+TR+'!important}.oe-gn{fill:'+INK+'!important}.oe-gu{fill:'+MU+'!important}.oe-ndl line{stroke:'+INK+'!important}.oe-ndl circle{fill:'+INK+'!important}.oe-rv{filter:none!important}'+
+ '.oe-apqbig>div{background:#fff!important;border-color:'+LN+'!important;box-shadow:0 10px 22px -20px rgba(15,23,42,.35)!important}.oe-apqbig span{color:#475569!important}.oe-apqbig b{color:'+INK+'!important}.oe-apqbig small{color:'+MU+'!important}'+
+ '.oe-in,.oe-c,.oe-eq{background:#fff!important;border-color:'+LN+'!important;box-shadow:0 12px 28px -24px rgba(15,23,42,.35)}.oe-in span,.oe-in small{color:'+MU+'!important}.oe-in b{color:'+INK+'!important}.oe-in.tm b.g{color:#059669!important}.oe-in.tm b.a{color:#D97706!important}.oe-in.tm b.r{color:#DC2626!important}'+
+ '.oe-c>header b{color:'+INK+'!important}.oe-c>header span,.oe-empty{color:'+MU+'!important}'+
+ '.oe-wr .l{color:'+INK+'!important}.oe-wr .l small{color:'+MU+'!important}.oe-wr.L .l{color:#B91C1C!important}.oe-wr .t{background:'+TR+'!important}.oe-wr .t i{box-shadow:none!important}.oe-wr b{color:'+INK+'!important}'+
+ '.oe-l .l{color:'+INK2+'!important}.oe-l .t{background:'+TR+'!important}.oe-l .t i{box-shadow:none!important}.oe-l b{color:'+MU+'!important}'+
+ '.oe-eh b{color:'+INK+'!important}.oe-eh small,.oe-ev small,.oe-ev span,.oe-apq{color:'+MU+'!important}.oe-ev b{color:'+INK+'!important}.oe-eq.g .oe-ev b{color:#059669!important}.oe-eq.r .oe-ev b{color:#DC2626!important}.oe-apq b{color:'+INK+'!important}.oe-w{color:#B45309!important}.oe-bs{color:'+MU+'!important}'+
+ '.oe-eq.g:before{box-shadow:none!important}.oe-eq.r:before{box-shadow:none!important}'+
+ '.oe-gl{stroke:'+LN+'!important}.oe-wcl{stroke:'+INK+'!important}.oe-ax{fill:'+MU+'!important}.oe-ax.hi{fill:'+INK+'!important}.oe-tl[stroke="#F8FAFC"]{stroke:'+INK+'!important}.oe-tr circle[fill="#F8FAFC"]{fill:'+INK+'!important}.oe-lg{color:'+MU+'!important}.oe-lg i[style*="#F8FAFC"]{background:'+INK+'!important}.oe-lg i.dash{background:repeating-linear-gradient(90deg,'+INK+' 0 3px,transparent 3px 6px)!important}'+
+ '.oe-hr>span{color:'+INK2+'!important}.oe-hr.h i{color:'+MU+'!important}.oe-hr.h i.on{color:'+INK+'!important}.oe-hr i.c.n{background:'+TR+'!important}'+
+ '.oe-foot{background:#fff!important;border-color:'+LN+'!important;color:'+MU+'!important}.oe-foot>b,.oe-set summary{color:'+INK+'!important}.oe-sg input{background:#fff!important;border-color:'+LN+'!important;color:'+INK+'!important}'+
+ /* ── 생산 현황판 (공정 흐름도) ── */
+ '.fm{background:#fff!important;color:'+INK+'!important;border:1px solid '+LN+';box-shadow:0 18px 40px -32px rgba(15,23,42,.35)!important}'+
+ '.fm-leg{color:#475569!important}.fm-legn,.fm-note{color:'+MU+'!important}.fm-clock{color:'+INK+'!important}'+
+ '.fm-h{fill:'+MU+'!important}.fm-t{fill:'+INK+'!important}.fm-s{fill:'+MU+'!important}.fm-p{fill:'+INK2+'!important}.fm-base{stroke:#E2E8F0!important}'+
+ '.fm [fill="#1F2A27"],.fm [fill="#141D1A"],.fm [fill="#1B2421"],.fm [fill="#0E1714"]{fill:#F8FAFC!important}'+
+ '.fm [stroke="#2B3633"],.fm [stroke="#3A4743"],.fm [stroke="#46544F"],.fm [stroke="#4B5A55"],.fm [stroke="#26332F"]{stroke:#CBD5E1!important}.fm [fill="#2B3633"],.fm [fill="#3A4743"],.fm [fill="#46544F"],.fm [fill="#4B5A55"]{fill:#E2E8F0!important}'+
+ '.fm [stroke="#56645F"]{stroke:#94A3B8!important}.fm [stroke="#0E1714"]{stroke:#fff!important}.fm [fill="#7C8A85"],.fm [fill="#56645F"]{fill:'+MU+'!important}'+
+ '.fm-n.act rect{filter:drop-shadow(0 2px 6px color-mix(in srgb,var(--c) 35%,transparent))!important}';
+var st=document.createElement('style');st.id='yum-light';st.textContent=css;document.head.appendChild(st);
 })();
 </script>
 
