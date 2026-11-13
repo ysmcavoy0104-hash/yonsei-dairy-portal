@@ -18273,7 +18273,7 @@ function sterExt(D,now){var c=sterFeed(D),out={};if(!c||!c.rows)return out;
    else if(o.seg.length){var last=Math.max.apply(null,o.seg.map(function(x){return x.b==null?x.a:x.b}));st=now>=last?'종료':'시작 전'}}
   else st='생산 '+o.n+'건';if(now!=null&&o.status){var t=o.status.replace(/\s/g,'');if(/생산|가동|충전|run|prod/i.test(t)){st='생산 중';run=true}else if(/멸균|ster|heat/i.test(t)){st='멸균 중';run=true}else if(/cip|세척/i.test(t)){st='CIP';run=false}else if(/정지|stop|정비|고장/i.test(t)){st='정지';run=false}else if(/대기|wait|idle|종료|end/i.test(t)){st=t.slice(0,8);run=false}}o.st=st;o.run=run});
  return out}
-window.yumSterFeed=function(D){return sterFeed(D||today())};window.yumSterExt=function(D){try{return sterExt(D,null)}catch(e){return {}}};
+window.yumSterFeed=function(D){return sterFeed(D||today())};window.yumJDocs={docs:docs,G:G,tmin:tmin,MIXL:MIXL};window.yumSterExt=function(D){try{return sterExt(D,null)}catch(e){return {}}};
 /* 실시간 현황판용: 지금 시각 기준 공정별 설비 상태 (착즙 빈쿠커 · 배합 호기 · 멸균 호기 · 충전/포장 호기) */
 window.yumLiveModel=function(){var D=today(),n=new Date(),now=n.getHours()*60+n.getMinutes(),o={D:D,now:now};try{o.juice=juice(D,now)}catch(e){o.juice=[]}try{o.mix=mix(D,now)}catch(e){o.mix=[]}try{o.ster=ster(D,now)}catch(e){o.ster=[]}try{o.pack=pack(D,now)}catch(e){o.pack=[]}return o};
 /* 포장팀 포털 공개 자료(하루 한 번 갱신): 호기별 날짜 · 제품 · 생산량 — 우리 포장 일지가 없는 지난 날짜에 사용 */
@@ -20519,8 +20519,8 @@ function view0(){var D=ST.d,list=period(D).filter(function(o){return ST.team==='
                정미 × Q = 가치가동시간 (Q = 양품 ÷ 생산) → 품질LOSS ·  OEE = A × P × Q = 가치가동 ÷ 부하
    정지 사유 코드 : 계획정지(관리) · SIP·CIP · 중간 CIP · 상류(유액) 대기 · 하류: 적재로봇 · 하류: 자동화창고 · 준비교체 · 자재 대기 · 고장(10분 이상) · 순간정지 · 기타 */
 var CODES=[['계획정지','m','교육 · 휴식 · 식사 · 계획정비 (OEE 산출 제외)'],['SIP·CIP','s','SIP 시작 ~ 생산 시작, 생산 종료 ~ CIP 종료 (A안: 손실 포함)'],['중간 CIP','s','계획에 없던 CIP'],['상류(유액) 대기','s','멸균 · 배합 유액 공급 대기 · 성분 미달 · 균질기'],
- ['하류: 적재로봇','s','11/12 신설 — 적재 로봇 · 팔레타이저'],['하류: 자동화창고','s','11/12 신설 — 자동화창고'],['준비교체','s','품목 교체 · 규격 변경'],['자재 대기','s','포장재 · 부자재 대기'],['고장','s','설비 이상 수리 · 10분 이상'],['순간정지','s','짧은 정지 후 리셋 · 10분 미만 (상온: 정지손실)'],['기타','s','해당 코드 없음 (CBP 등 그 외 후공정 포함)']];
-var CODEC={'계획정지':'#94A3B8','SIP·CIP':'#0EA5E9','중간 CIP':'#6366F1','상류(유액) 대기':'#F59E0B','하류: 적재로봇':'#EC4899','하류: 자동화창고':'#D946EF','준비교체':'#14B8A6','자재 대기':'#84CC16','고장':'#EF4444','순간정지':'#F97316','기타':'#64748B'};
+ ['하류(후공정) 대기','s','배합 · 착즙: 다음 공정(멸균 · 배합)이 받지 못해 대기'],['하류: 적재로봇','s','11/12 신설 — 적재 로봇 · 팔레타이저'],['하류: 자동화창고','s','11/12 신설 — 자동화창고'],['준비교체','s','품목 교체 · 규격 변경'],['자재 대기','s','포장재 · 부자재 대기'],['고장','s','설비 이상 수리 · 10분 이상'],['순간정지','s','짧은 정지 후 리셋 · 10분 미만 (상온: 정지손실)'],['기타','s','해당 코드 없음 (CBP 등 그 외 후공정 포함)']];
+var CODEC={'계획정지':'#94A3B8','SIP·CIP':'#0EA5E9','중간 CIP':'#6366F1','상류(유액) 대기':'#F59E0B','하류(후공정) 대기':'#F43F5E','하류: 적재로봇':'#EC4899','하류: 자동화창고':'#D946EF','준비교체':'#14B8A6','자재 대기':'#84CC16','고장':'#EF4444','순간정지':'#F97316','기타':'#64748B'};
 function codeOf(t,min){t=String(t||'');
  if(/(교육|휴식|식사|계획\s*정지|계획\s*정비|셧다운|회의|정기\s*정비|예방\s*정비)/.test(t))return '계획정지';
  if(/중간\s*CIP|추가\s*CIP|멸균\s*깨짐/i.test(t))return '중간 CIP';
@@ -20533,7 +20533,7 @@ function codeOf(t,min){t=String(t||'');
  if(min!=null&&min>=10&&!/(대기|CBP|후공정|컨베이어)/.test(t))return '고장';
  if(min!=null&&min<10)return '순간정지';
  return '기타'}
-var TEAMS2=[{k:'juice',n:'착즙 라인',en:'EXTRACTION',c:'#D98A1F',u:'kg',un:'원액'},{k:'ster',n:'멸균',en:'STERILIZATION',c:'#12A39A',u:'L',un:'생산'},{k:'pack',n:'아셉틱 충전 (포장)',en:'ASEPTIC FILLING',c:'#3062D8',u:'EA',un:'양품'}];
+var TEAMS2=[{k:'juice',n:'착즙',en:'EXTRACTION',c:'#D98A1F',u:'kg',un:'원액'},{k:'mix',n:'배합',en:'BLENDING',c:'#7B5CD6',u:'kg',un:'이송'},{k:'ster',n:'멸균',en:'STERILIZATION',c:'#12A39A',u:'L',un:'생산'},{k:'pack',n:'포장 (아셉틱 충전)',en:'ASEPTIC FILLING',c:'#3062D8',u:'EA',un:'양품'}];
 var BASE1={PD:{O:.72,A:.753,P:.988,Q:.968,mtbf:'18.1h',mttr:'13.8분'},PF:{O:.632,A:.657,P:.994,Q:.967,mtbf:'20.6h',mttr:'23.2분'}};  /* 1차 측정 (10/26~11/6 · 현행 상온 양식) 기준점 */
 /* 포장팀 공개 일별 자료 (생산 · 정지 건별) */
 var PXD={},PXB={};function packYear(y){if(PXD[y]||PXB[y])return PXD[y]||null;PXB[y]=1;var B='https://jaehyun3163-blip.github.io/yonsei/api/data/';
@@ -20549,15 +20549,121 @@ function stkUnit(h){var K=sterKpi();return K&&(K.units||[]).filter(function(u){r
 /* 넓은 구간 분석 1번만 (하루씩 다시 계산하지 않음) */
 var RG=null;function rangeW(D){var s=sig();if(RG&&RG.s===s&&D>=RG.from&&D<=RG.to)return RG.R;var C=window.YumReportCore;if(!C)return null;var to=ST.d>D?ST.d:D,from=addD(to,-70);
  try{var R=C.analyze(DB.data,window.__YUM_NOTION_FINAL__||{delay:[],maint:[]},{kind:'weekly',key:'oee2',label:'',from:from,to:to,pFrom:addD(from,-14),pTo:addD(from,-1)},{});RG={s:s,from:from,to:to,R:R};return R}catch(e){console.warn('[OEE]',e);return null}}
+/* ═══ 착즙 · 배합 OEE — 웹 일지에 저장된 기록만으로 계산 (2026-11-13) ═══
+   착즙 (라인 = 빈쿠커 #1~4) : 착즙공정일보 시간대별 상태 코드 (1칸 = 1시간) + 착즙팀 CIP 일보 호기별 시작 · 종료 + 원액생산작업일보 T.S
+     가동 = b 분리액 생산 · e 생산 재시작 · g 탈피실 자동운전 · d 생산종료(그 시간)
+     정지 = a 메인드럼 히터 가동(가열 준비 → SIP·CIP) · c 배합요청 일시 중단 · j 멸균요청 일시 중단 · h 일시 중단 · f 호기 변경(준비교체) + CIP 시간
+     P = 시간당 원액 ÷ 기준 (설정 또는 최근 30일 최고) · Q = 원액 T.S 측정 중 10±0.2 안에 든 비율
+   배합 (1~5호기) : 생산작업일보 배치별 유입 · 혼합 완료 · 이송 시각 + 배합실 CIP 일보 (기존 1~3호기 · 신규 4~5호기)
+     가동 = 유입 ~ 혼합 완료 + 이송 시간(탱크 용량 ÷ 이송 속도) · 정지 = 혼합 완료 후 이송 대기(멸균 대기) · 배치 사이 빈 시간(분리유액 대기) · CIP
+     P = 기준 혼합 시간 ÷ 실제 혼합 시간 (기준 = 설정 또는 최근 30일 가장 빠른 배치) · Q = 불량 기록 항목 없음 → 100% */
+function JD(){return window.yumJDocs||null}
+function hm(m){m=((m%1440)+1440)%1440;return pad(Math.floor(m/60))+':'+pad(m%60)}
+function cipSpan(code,rows,kS,kE,D){var J=JD();if(!J)return null;var d=J.docs(code,D)[0];if(!d)return null;var a=null,b=null;rows.forEach(function(r){var s=J.tmin(J.G(d,kS(r))),e=J.tmin(J.G(d,kE(r)));if(s==null||e==null)return;if(e<s)e+=1440;if(a==null||s<a)a=s;if(b==null||e>b)b=e});return a==null?null:{a:a,b:b,m:b-a}}
+var JCODE={a:['SIP·CIP','메인드럼 히터 가동 (가열 준비)'],c:['하류(후공정) 대기','배합 요청으로 일시 중단'],j:['하류(후공정) 대기','멸균 요청으로 일시 중단'],h:['기타','일시 생산 중단'],f:['준비교체','호기 변경']};
+function juiceEq(D,PR,base){var J=JD();if(!J)return [];var d=J.docs('FRM-009',D)[0];if(!d)return [];var by={};
+ for(var n=1;n<=4;n++){var bk=+(J.G(d,'bk'+n).match(/\d/)||[0])[0]||n,run=0,st={},first=-1,last=-1,nm=J.G(d,'nm'+n);
+  for(var h=0;h<=24;h++){var v=J.G(d,'ax'+n+'_'+h).toLowerCase().replace(/[^a-z]/g,'').charAt(0);if(!v)continue;if(first<0)first=h;last=h;if(/[begd]/.test(v))run+=60;else{var c=JCODE[v]||['기타','기타 ('+v+')'];st[c[0]+'|'+c[1]]=(st[c[0]+'|'+c[1]]||0)+60}}
+  if(first<0)continue;var o=by[bk]=by[bk]||{run:0,st:{},first:first,last:last,nm:[]};o.run+=run;Object.keys(st).forEach(function(k){o.st[k]=(o.st[k]||0)+st[k]});o.first=Math.min(o.first,first);o.last=Math.max(o.last,last);if(nm&&o.nm.indexOf(nm)<0)o.nm.push(nm)}
+ /* P · Q (라인 공통) */
+ var j=(PR.juice||{})[D]||{},rph=j.prodH&&j.raw?j.raw/j.prodH:null,bj=+base.J||best(PR.juice||{},D,function(o){return o.prodH&&o.raw?o.raw/o.prodH:null});
+ var q10=J.docs('FRM-010',D)[0],tsN=0,tsOk=0;if(q10)for(var r=10;r<=22;r++){var v=parseFloat(J.G(q10,'g3_'+r+'_6'));if(isFinite(v)&&v>0){tsN++;if(Math.abs(v-10)<=0.2)tsOk++}}
+ var P=rph&&bj?cl(rph/bj):null,Q=tsN?tsOk/tsN:(j.ts!=null?(Math.abs(j.ts-10)<=0.2?1:cl(1-Math.abs(j.ts-10)/10)):null);
+ var CR={1:[1,2,3,4],2:[5,6,7],3:[8,9,10],4:[11,12,13]};
+ var first=1;return Object.keys(by).sort().map(function(k){var o=by[k],stops=[],stm=0,qq=first&&j.raw?+j.raw:null;first=0;Object.keys(o.st).forEach(function(x){var p=x.split('|');stops.push({c:p[0],m:o.st[x],t:p[1]});stm+=o.st[x]});
+  var C=cipSpan('FRM-015',CR[k]||[],function(r){return 'm15_r'+r+'_start'},function(r){return 'm15_r'+r+'_end'},D);if(C){stops.push({c:'SIP·CIP',m:C.m,t:'CIP '+hm(C.a)+'~'+hm(C.b),a:hm(C.a)});stm+=C.m}
+  var T={op:o.run+stm,mg:0,ld:o.run+stm,st:stm,run:o.run};
+  var FB=window.yumJuiceBoardRaw&&D===kst(0)?yumJuiceBoardRaw(D):null,alt=[],chk0=[];if(FB&&FB.lines){var fl=FB.lines.filter(function(l){return +(String(l.cooker||'').match(/\d/)||[0])[0]===+k})[0];if(fl){alt.push({src:'착즙팀 포털 현황판 (지금 상태: '+(fl.status_label||fl.status||'')+')'});var hh=new Date().getHours(),mk2=J.G(d,'ax'+k+'_'+hh);if(fl.status==='run'&&!mk2&&hh>(o.last||0))chk0.push('착즙팀 포털은 지금 가동 중인데 일지 '+hh+'시 칸이 비어 있음 (기록 대기)')}}
+  return mk({id:'J'+k,team:'juice',name:'빈쿠커 #'+k,short:'#'+k,sub:o.nm.join(', '),T:T,P:P==null?1:P,Pest:P==null,Q:Q==null?1:Q,qAssumed:Q==null,q:qq,stops:stops,src:'착즙공정일보 · 착즙팀 CIP 일보',
+   alt:alt,chk0:chk0,note:['A = 가동 '+fm(o.run)+'분 ÷ (가동 + 정지 · CIP '+fm(stm)+'분) · 시간대 표 1칸 = 1시간',P!=null?'P = 시간당 원액 '+fm(rph)+'kg ÷ 기준 '+fm(bj)+'kg (라인 공통)':'P = 원액 · 생산시간 기록 없음 → 100%로 계산',tsN?'Q = 원액 T.S '+tsN+'회 측정 중 '+tsOk+'회 기준(10±0.2) 안':'Q = T.S 측정 없음 → 100%로 계산']})})}
+var MSTD={},MSTDK='';function mixStd(h,D){var k=sig();if(MSTDK!==k){MSTD={};MSTDK=k}var key=h+'|'+D;if(key in MSTD)return MSTD[key];var J=JD(),b=null;
+ for(var i=1;i<=30&&J;i++){var dd=addD(D,-i);J.docs('FRM-012',dd).forEach(function(x){if(mixHogi(x)!==h)return;for(var r=10;r<=24;r++){var a=J.tmin(J.G(x,'g2_'+r+'_1')),c=J.tmin(J.G(x,'g2_'+r+'_11'));if(a==null||c==null)continue;if(c<a)c+=1440;var m=c-a;if(m>=10&&m<=600&&(b==null||m<b))b=m}})}
+ return MSTD[key]=b}
+function mixHogi(x){var J=JD(),v=J.G(x,'hogi').replace(/\s+/g,''),m=v.match(/^#?(\d)/);if(m)return +m[1];var on=[];for(var k=1;k<=5;k++){for(var rr=3;rr<=6;rr++){var q=J.G(x,'g2_'+rr+'_'+(2*k));if(q&&!/^[OoXx0○·.\-\s]+$/.test(q)){on.push(k);break}}}return on.length===1?on[0]:null}
+function mixEq(D,base){var J=JD();if(!J)return [];var L=J.docs('FRM-012',D),out=[],MIXL=J.MIXL||{};
+ var CIPR={1:['FRM-042',[6,7,8,9,10],'cB',11,12],2:['FRM-042',[11,12,13,14,15],'cB',11,12],3:['FRM-042',[16,17,18,19,20],'cB',11,12],4:['FRM-043',[6,7,8,9,10],'cA',9,10],5:['FRM-043',[11,12,13,14,15],'cA',9,10]};
+ for(var h=1;h<=5;h++){var d=L.filter(function(x){return mixHogi(x)===h})[0];if(!d)continue;var B=[],prods=[];
+  for(var rr=3;rr<=6;rr++){var p=J.G(d,'g2_'+rr+'_'+(2*h));if(p&&!/^[OoXx0○·.\-\s]+$/.test(p))prods.push(p)}
+  for(var r=10;r<=24;r++){var a=J.tmin(J.G(d,'g2_'+r+'_1')),c=J.tmin(J.G(d,'g2_'+r+'_11')),v=J.tmin(J.G(d,'g2_'+r+'_13'));if(a==null&&c==null&&v==null)continue;B.push({a:a,c:c,v:v,r:r})}
+  if(!B.length)continue;var mm=MIXL[h]?Math.round(MIXL[h][0]/MIXL[h][1]*60):60,run=0,mix=0,nmix=0,wait=0,gap=0,stops=[],t0=null,t1=null,prevEnd=null;
+  B.forEach(function(b){var a=b.a,c=b.c,v=b.v;if(a!=null&&prevEnd!=null&&a<prevEnd-720)a+=1440;if(c!=null&&a!=null&&c<a)c+=1440;if(v!=null&&c!=null&&v<c)v+=1440;
+   if(a!=null&&c!=null){mix+=c-a;nmix++;run+=c-a}var end=v!=null?v+mm:(c!=null?c:null);if(v!=null)run+=mm;
+   if(c!=null&&v!=null&&v>c){wait+=v-c;stops.push({c:'하류(후공정) 대기',m:v-c,t:(b.r-9)+'B 혼합 완료 후 이송 대기 (멸균이 받기 전)',a:hm(c)})}
+   var s0=a!=null?a:c!=null?c:v;if(prevEnd!=null&&s0!=null&&s0>prevEnd){gap+=s0-prevEnd;stops.push({c:'상류(유액) 대기',m:s0-prevEnd,t:(b.r-9)+'B 전 분리유액 유입 대기',a:hm(prevEnd)})}
+   if(s0!=null&&(t0==null||s0<t0))t0=s0;if(end!=null){if(t1==null||end>t1)t1=end;prevEnd=end}});
+  if(t0==null||t1==null||t1<=t0)continue;var cr=CIPR[h],C=cipSpan(cr[0],cr[1],function(x){return cr[2]+'_'+x+'_'+cr[3]},function(x){return cr[2]+'_'+x+'_'+cr[4]},D),cipm=0;if(C){cipm=C.m;stops.push({c:'SIP·CIP',m:C.m,t:'CIP '+hm(C.a)+'~'+hm(C.b),a:hm(C.a)})}
+  var op=t1-t0+cipm,stm=op-run,std=+base['M'+h]||mixStd(h,D),P=std&&mix?cl((nmix*std+B.filter(function(b){return b.v!=null}).length*mm)/(mix+B.filter(function(b){return b.v!=null}).length*mm)):null;
+  out.push(mk({id:'M'+h,team:'mix',name:'배합 '+h+'호기',short:h+'호기',sub:(MIXL[h]?MIXL[h][0].toLocaleString()+'TK':'')+(prods.length?' · '+prods[0]:''),T:{op:op,mg:0,ld:op,st:stm,run:run},P:P==null?1:P,Pest:P==null,Q:1,qAssumed:true,q:B.filter(function(b){return b.v!=null}).length*(MIXL[h]?MIXL[h][0]:0)||null,stops:stops,src:'배합 생산작업일보 · 배합실 CIP 일보',
+   note:['A = 가동(유입~혼합 완료 + 이송 '+mm+'분/배치) '+fm(run)+'분 ÷ 조업 '+fm(op)+'분 ('+hm(t0)+' ~ '+hm(t1)+(cipm?' + CIP '+cipm+'분':'')+')',P!=null?'P = 기준 혼합 '+std+'분 ÷ 실제 평균 '+(mix/nmix).toFixed(0)+'분'+(base['M'+h]?' (설정)':' (최근 30일 가장 빠른 배치)'):'P = 기준 혼합 시간 없음 → 100%로 계산','Q = 배합 불량 기록 항목 없음 → 100%','배치 '+B.length+'개 · 이송 '+B.filter(function(b){return b.v!=null}).length+'개']}))}
+ return out}
+
+/* ═══ 멸균 · 포장 OEE — 웹 일지 (상온 기준 시각이 다 있는 자료) + 팀 포털 자료와 대조 (2026-11-13) ═══
+   멸균 (1~5호기) : 멸균 파트 업무일지 — 멸균 시작(SIP) · 멸균 종료 · 생산 시작 · 생산 종료 · CIP 시작 · CIP 종료 (2회분) · 정지 · 재가동 · 사유 · 적산량
+   포장 (A~F호기) : 생산작업일보 — SIP(Heat sterilization · 과산화수소 멸균) · 생산시작 · 정지 · 재가동 · 생산종료 · 생산량(개)
+                   + 기계 정지 현황 (A~F) · A호기 기계 정지 현황 · F호기 특이사항 및 기계 정지 현황 + 밀봉 공정 중간검사 불량팩
+                   CIP 종료가 일지에 없으면 생산 종료 + 표준 시간(1차 측정: D 104분 · F 129분 · 그 외 110분)으로 추정 */
+var CIPSTD={A:90,B:110,C:110,D:104,E:90,F:129};
+var RATED={B:24000,C:6000,D:26500,F:40000};   /* 개/시간 — 생산작업일보 레시피 표기 */
+function T2(J,d,k){return J.tmin(J.G(d,k))}
+function after(t,ref){if(t==null)return null;while(ref!=null&&t<ref-360)t+=1440;return t}
+function sterJ(D){var J=JD();if(!J)return [];var d=J.docs('FRM-016',D)[0];if(!d)return [];var out=[];
+ for(var h=1;h<=5;h++){var p='s'+h+'_',runs=[];for(var k=1;k<=2;k++){var r={s:T2(J,d,p+'s'+k),e:T2(J,d,p+'e'+k),ps:T2(J,d,p+'ps'+k),pe:T2(J,d,p+'pe'+k),cs:T2(J,d,p+'cs'+k),ce:T2(J,d,p+'ce'+k)};if(r.ps==null&&r.s==null)continue;runs.push(r)}
+  if(!runs.length)continue;var t0=null,stops=[],run=0,last=null;
+  runs.forEach(function(r,i){var s=r.s!=null?r.s:r.ps;if(t0==null)t0=s;s=after(s,t0);var ps=after(r.ps,s),pe=after(r.pe,ps),ce=after(r.ce,pe),cs=after(r.cs,pe);
+   if(last!=null&&s>last)stops.push({c:'중간 CIP',m:s-last,t:'다음 생산 전 대기 · 재멸균',a:hm(last)});
+   if(ps!=null&&s!=null&&ps>s)stops.push({c:'SIP·CIP',m:ps-s,t:(i+1)+'회 멸균 시작 ~ 생산 시작',a:hm(s)});
+   if(ps!=null&&pe!=null&&pe>ps)run+=pe-ps;
+   var end=ce!=null?ce:(pe!=null?pe+90:null);if(pe!=null&&end!=null&&end>pe)stops.push({c:'SIP·CIP',m:end-pe,t:(i+1)+'회 생산 종료 ~ CIP 종료'+(ce==null?' (CIP 종료 미기록 → 90분 추정)':''),a:hm(pe)});last=end!=null?end:pe});
+  for(var q=1;q<=5;q++){var a=T2(J,d,p+'st'+q),b=T2(J,d,p+'rs'+q);if(a==null)continue;a=after(a,t0);b=after(b,a);var m=b!=null&&b>a?b-a:0,why=J.G(d,p+'why'+q);if(!m)continue;var c=codeOf(why,m);stops.push({c:c,m:m,t:why||'정지',a:hm(a)});if(c!=='계획정지')run-=m}
+  if(t0==null||last==null)continue;var op=last-t0,mg=stops.filter(function(s){return s.c==='계획정지'}).reduce(function(x,s){return x+s.m},0);run=Math.max(0,run);
+  var qty=parseFloat(String(J.G(d,p+'qty')).replace(/,/g,''));out.push({id:'S'+h,team:'ster',name:'멸균 '+h+'호기',short:h+'호기',sub:J.G(d,p+'item')||'',T:{op:op,mg:mg,ld:op-mg,st:op-mg-run,run:run},q:isFinite(qty)?qty:null,stops:stops,src:'멸균 파트 업무일지',
+   note:['조업 '+hm(t0)+' (멸균 시작) ~ '+hm(last)+' (CIP 종료) · 생산 '+fm(run)+'분']})}
+ return out}
+var PKF={A:['FRM-045','p45','sig'],B:['FRM-023','p23','tt'],C:['FRM-046','p46','tt'],D:['FRM-049','p49','tt'],E:['FRM-047','p47','sig'],F:['FRM-050','p50','tf']};
+function packJ(D,PR,base){var J=JD();if(!J)return [];var out=[],x=(PR.pack||{})[D]||{};
+ /* 정지 현황 일지 (건별) */
+ var ST={};function addStop(h,a,b,m,why,src){if(a==null)return;var mm=m||(b!=null?((b-a+1440)%1440):0);if(!mm)return;(ST[h]=ST[h]||[]).push({a:a,m:mm,why:why,src:src})}
+ J.docs('FRM-064',D).forEach(function(d){var h=(J.G(d,'p64_ho').match(/[A-F]/)||[])[0];if(!h)return;for(var r=4;r<=30;r++)addStop(h,T2(J,d,'p64_'+r+'_2'),T2(J,d,'p64_'+r+'_3'),parseFloat(J.G(d,'p64_'+r+'_4'))||0,J.G(d,'p64_'+r+'_5'),'기계 정지 현황')});
+ [['FRM-052','p52','A'],['FRM-054','p54','F']].forEach(function(f){var d=J.docs(f[0],D)[0];if(!d)return;for(var r=4;r<=30;r++)addStop(f[2],T2(J,d,f[1]+'_'+r+'_2'),T2(J,d,f[1]+'_'+r+'_3'),parseFloat(J.G(d,f[1]+'_'+r+'_4'))||0,J.G(d,f[1]+'_'+r+'_5'),f[0]==='FRM-052'?'A호기 기계 정지 현황':'F호기 정지 현황')});
+ 'ABCDEF'.split('').forEach(function(h){var F=PKF[h],d=J.docs(F[0],D)[0];if(!d)return;var P=F[1],sip=[],ps=[],pe=[],ls=[];
+  if(F[2]==='sig'){for(var r=4;r<=6;r++){var a=T2(J,d,P+'_'+r+'_4')||T2(J,d,P+'_'+r+'_0'),s=T2(J,d,P+'_'+r+'_27')||T2(J,d,P+'_'+r+'_22'),e=T2(J,d,P+'_'+r+'_33');if(a!=null)sip.push(a);if(s!=null)ps.push(s);if(e!=null)pe.push(e)}}
+  else{var cr=F[2]==='tf'?[3]:[4,5],sr=F[2]==='tf'?[5,6,7]:[7,8,9,10,11];var c6=F[2]==='tf'?[[6,0,18],[28,21,39]]:[[6,0,18],[27,21,37]];
+   cr.forEach(function(r){c6.forEach(function(c){var a=T2(J,d,P+'_'+r+'_'+c[0])||T2(J,d,P+'_'+r+'_'+c[1]),s=T2(J,d,P+'_'+r+'_'+c[2]);if(a!=null)sip.push(a);if(s!=null)ps.push(s)})});
+   sr.forEach(function(r){var a=T2(J,d,P+'_'+r+'_0'),b=T2(J,d,P+'_'+r+'_3'),e=T2(J,d,P+'_'+r+'_8'),why=J.G(d,P+'_'+r+'_16');if(e!=null)pe.push(e);if(a!=null)ls.push({a:a,b:b,why:why})})}
+  if(!ps.length)return;var t0=sip.length?Math.min.apply(null,sip):Math.min.apply(null,ps);if(t0>Math.min.apply(null,ps))t0=Math.min.apply(null,ps);
+  ps=ps.map(function(v){return after(v,t0)}).sort(function(a,b){return a-b});pe=pe.map(function(v){return after(v,t0)}).sort(function(a,b){return a-b});if(!pe.length)return;
+  var stops=[],run=0;if(ps[0]>t0)stops.push({c:'SIP·CIP',m:ps[0]-t0,t:'SIP 시작 ~ 생산 시작',a:hm(t0)});
+  ps.forEach(function(s,i){var e=pe[i]!=null?pe[i]:pe[pe.length-1];if(e>s)run+=e-s;var nx=ps[i+1];if(nx!=null&&pe[i]!=null&&nx>pe[i])stops.push({c:'중간 CIP',m:nx-pe[i],t:'생산 종료 ~ 다음 생산 시작 (재멸균 · 중간 CIP)',a:hm(pe[i])})});
+  var lastE=pe[pe.length-1],ce=lastE+(CIPSTD[h]||110);stops.push({c:'SIP·CIP',m:ce-lastE,t:'생산 종료 ~ CIP 종료 (표준 '+(CIPSTD[h]||110)+'분 추정)',a:hm(lastE)});
+  /* 생산 중 정지 — 일지 정지 칸 + 정지 현황 일지 (같은 시각은 한 번만) */
+  var seen={};ls.forEach(function(s){var a=after(s.a,t0),b=after(s.b,a);var m=b!=null&&b>a?b-a:0;if(!m)return;seen[a]=1;var c=codeOf(s.why,m);stops.push({c:c,m:m,t:s.why||'정지',a:hm(a)});if(c!=='계획정지')run-=m});
+  (ST[h]||[]).forEach(function(s){var a=after(s.a,t0);if(seen[a])return;seen[a]=1;var c=codeOf(s.why,s.m);stops.push({c:c,m:s.m,t:(s.why||'정지')+' · '+s.src,a:hm(a)});if(c!=='계획정지')run-=s.m});
+  run=Math.max(0,run);var op=ce-t0,mg=stops.filter(function(s){return s.c==='계획정지'}).reduce(function(a,s){return a+s.m},0);
+  /* 생산량 (개) */
+  var qty=0,tot=null;for(var r2=30;r2<=40;r2++){[7,8].forEach(function(c){var v=parseFloat(String(J.G(d,P+'_'+r2+'_'+c)).replace(/,/g,''));if(!isFinite(v)||v<=0)return;var nm=J.G(d,P+'_'+r2+'_0');if(nm&&!/합계/.test(nm))qty+=v;else if(!nm)tot=Math.max(tot||0,v)})}
+  if(tot&&tot>qty)qty=tot;if(!qty&&(x.ln||{})[h])qty=(x.ln||{})[h];
+  var capa=F[2]==='sig'?parseFloat(String(J.G(d,P+'_1_35')).replace(/,/g,'')):RATED[h],sp=+base['S'+h]?+base['S'+h]*60:(isFinite(capa)&&capa>0?capa:null);
+  var Pv=sp&&run&&qty?cl(qty/(run/60*sp)):null,w=(x.wasteBy||{})[h]||0,Qv=qty&&(x.wasteBy||{})[h]!=null?qty/(qty+w):null;
+  out.push({id:'P'+h,team:'pack',name:h+'호기',short:h+'호기',sub:h==='A'||h==='E'?'SIG':h==='D'?'TETRA 미드':h==='F'?'TETRA 슬림리프':'TETRA',T:{op:op,mg:mg,ld:op-mg,st:op-mg-run,run:run},P:Pv,Q:Qv,q:qty||null,waste:w,stops:stops,src:'포장 생산작업일보'+((ST[h]||[]).length?' · 정지 현황':''),
+   note:['조업 '+hm(t0)+' (SIP) ~ '+hm(ce)+' (CIP 종료 추정) · 생산 '+fm(run)+'분',sp?'P = '+fm(qty)+'개 ÷ ('+(run/60).toFixed(1)+'h × 기준 '+fm(sp)+'개/h'+(base['S'+h]?' 설정':F[2]==='sig'?' 생산CAPA':' 레시피')+')':'P = 기준 속도 없음']})});
+ return out}
+/* 자료 합치기 · 대조 — 같은 설비의 여러 자료 중 상온 기준 시각이 다 있는 웹 일지를 먼저 쓰고, 나머지는 대조용으로 */
+function mergeEq(out,journal){journal.forEach(function(j){var i=-1;out.forEach(function(o,k){if(o.id===j.id)i=k});var o=i>=0?out[i]:null;
+  if(o){if(j.P==null)j.P=o.P,j.Pfrom=o.src;if(j.Q==null)j.Q=o.Q,j.qAssumed=o.qAssumed;j.alt=[o].concat(o.alt||[]);if(o.warn)j.warn=o.warn}
+  if(j.P==null){j.P=1;j.Pest=1}if(j.Q==null){j.Q=1;j.qAssumed=1}mk(j);if(i>=0)out[i]=j;else out.push(j)});
+ out.forEach(function(o){var S=[{n:o.src||'—',main:1,run:o.T&&o.T.run,q:o.q}].concat((o.alt||[]).map(function(a){return {n:a.src||'—',run:a.T&&a.T.run,q:a.q,noSip:a.noSip}}));o.srcs=S;o.chk=(o.chk0||[]).slice();
+  (o.alt||[]).forEach(function(a){if(a.q&&o.q){var dq=(o.q-a.q)/Math.max(o.q,a.q);if(Math.abs(dq)>.05)o.chk.push('생산량 차이 '+(dq*100).toFixed(1)+'% ('+(o.src||'')+' '+fm(o.q)+' / '+(a.src||'')+' '+fm(a.q)+')')}
+   if(a.T&&o.T&&a.T.run&&o.T.run){var dr=(o.T.run-a.T.run)/Math.max(o.T.run,a.T.run);if(Math.abs(dr)>.15)o.chk.push('가동시간 차이 '+(dr*100).toFixed(0)+'% ('+fm(o.T.run)+'분 / '+fm(a.T.run)+'분'+(a.noSip?' · 포털 자료는 SIP·CIP 제외':'')+')')}})});
+ return out}
+
 /* 설비 하루 — 시간 구조 */
 var EQC={};
 function mk(o){var T=o.T;if(T&&T.ld>0){o.A=cl(T.run/T.ld)}o.O=o.A!=null&&o.P!=null&&o.Q!=null?o.A*o.P*o.Q:null;
  if(T&&T.ld>0&&o.O!=null){T.net=T.run*o.P;T.val=T.net*o.Q;T.spL=T.run-T.net;T.qL=T.net-T.val}return o}
 function eqDay(D){var k=D+'|'+sig()+'|'+Object.keys(PXD).length;if(EQC[k])return EQC[k];var R=rangeW(D),PR=(R&&R.PR)||{},out=[],base=cfg().base||{};
- /* 착즙 */
- var j=(PR.juice||{})[D];if(j&&(j.prodH!=null||j.raw!=null)){var ph=(+j.prodH||0)*60,sh=(+j.stopH||0)*60,rph=ph&&j.raw?j.raw/(ph/60):null;var bj=+base.J||best(PR.juice||{},D,function(o){return o.prodH&&o.raw?o.raw/o.prodH:null}),ts=j.ts;
-  out.push(mk({id:'J',team:'juice',name:'착즙 라인',short:'라인',sub:'빈쿠커 #1~4',T:ph+sh>0?{op:ph+sh,mg:0,ld:ph+sh,st:sh,run:ph}:null,P:rph&&bj?cl(rph/bj):null,Q:ts==null?null:(Math.abs(ts-10)<=0.2?1:cl(1-Math.abs(ts-10)/10)),q:j.raw,
-   stops:sh?[{c:'기타',m:sh,t:'분리액 생산 중단'}]:[],note:['P = 시간당 원액 '+fm(rph)+'kg ÷ 기준 '+fm(bj)+'kg','Q = 원액 T.S '+(ts!=null?ts.toFixed(2):'—')+' (10±0.2)']}))}
+ /* 착즙 · 배합 — 웹 일지 */
+ try{juiceEq(D,PR,base).forEach(function(o){out.push(o)})}catch(e){console.warn('[OEE 착즙]',e)}
+ try{mixEq(D,base).forEach(function(o){out.push(o)})}catch(e){console.warn('[OEE 배합]',e)}
  /* 멸균 */
  var S=ster(D);(S&&S.units||[]).forEach(function(u){var segs=u.segs||[];if(!u.on&&!segs.length)return;var T={op:0,mg:0,ld:0,st:0,run:0},stops=[];
   segs.forEach(function(s){var m=+s.m||0,g=String(s.g||'');if(!m||/^(휴지|시작 전|종료|미가동)$/.test(g))return;T.op+=m;if(g==='생산'){T.run+=m;return}var c=codeOf(g+' '+(s.why||''),m);if(c==='계획정지')T.mg+=m;else T.st+=m;stops.push({c:c,m:m,t:g+(s.why?' · '+s.why:''),a:s.a||s.s||''})});
@@ -20579,6 +20685,7 @@ function eqDay(D){var k=D+'|'+sig()+'|'+Object.keys(PXD).length;if(EQC[k])return
   else return;
   var Q=ea+w>0&&(x.ln||{})[h]!=null?ea/(ea+w):null;var o=mk({noSip:src==='포장팀 포털 일별 자료',id:'P'+h,team:'pack',name:h+'호기',short:h+'호기',sub:h==='A'||h==='E'?'SIG':h==='D'?'TETRA 미드':h==='F'?'TETRA 슬림리프':'TETRA',T:T,P:P,Q:Q==null?1:Q,qAssumed:Q==null,q:ea,waste:w,stops:stops,warn:bad?'점검 X '+bad+'건':'',src:src,note:note.concat((src==='포장팀 포털 일별 자료'?['A = 포장팀 자료 가동 · 정지 시간 (SIP·CIP 시간 미포함 → 상온 기준보다 높게 나옴)']:[]).concat([Q==null?'Q = 불량 기록 없음 → 100%로 계산':'Q = 양품 ÷ (양품 + 불량팩 '+fm(w)+')']))});
   if(!T&&M[h]&&M[h].availability_pct!=null){o.A=cl(M[h].availability_pct/100);o.Aest=1;o.O=o.A*o.P*o.Q}out.push(o)});
+ try{mergeEq(out,sterJ(D).concat(packJ(D,PR,base)))}catch(e){console.warn('[OEE 합치기]',e)}
  out.forEach(function(o){var f=o.stops.filter(function(s){return s.c==='고장'});o.fails=f.length;o.failM=f.reduce(function(a,s){return a+s.m},0)});
  EQC[k]=out;return out}
 /* 팀 · 부문 합산 (시간 가중) */
@@ -20594,9 +20701,9 @@ function mainLoss(g){if(!g.T||!g.T.ld||g.O==null)return null;var L=[['정지',g.
 function delta(a,b){if(a==null||b==null)return '<div class="o2-dl n"><small>전일 대비</small><b>—</b></div>';var d=(a-b)*100;return '<div class="o2-dl '+(d>=0?'up':'dn')+'"><small>전일 대비</small><b>'+(d>=0?'▲ +':'▼ ')+d.toFixed(1)+'%p</b></div>'}
 function minS(v){return v==null?'—':fm(v)+'분'}
 function teamCard(t,D,i){var L=eqDay(D).filter(function(o){return o.team===t.k}),g=tsum(L),g0=teamDay(addD(D,-1),t.k),ml=mainLoss(g),bad1=t.k==='pack';
- var tiles=t.k==='juice'?'':(function(){var ids=t.k==='ster'?['1','2','3','4','5']:'ABCDEF'.split('');return '<div class="o2-tiles"><div class="o2-th"><b>'+(t.k==='ster'?'1~5호기':'A~F호기')+' · 설비별 OEE</b><a data-ex="'+t.k+'|tbl">호기별 상세 ›</a></div><div class="o2-tg">'+ids.map(function(h,j){var o=L.filter(function(x){return x.id===(t.k==='ster'?'S':'P')+h})[0],b=BASE1[(t.k==='ster'?'S':'P')+h];
-   if(!o||o.O==null)return '<div class="o2-tl off"><span>'+h+'호기</span><b>—</b><i></i><small>'+(o?'자료 부족':'비생산 · 제외')+'</small></div>';
-   return '<div class="o2-tl" style="--dl:'+(j*60)+'ms" data-ex="'+t.k+'|u|'+o.id+'" role="button" tabindex="0" title="눌러서 상세보기"><span>'+h+'호기'+(o.Aest?' <em>A 임시</em>':o.Pest?' <em>P 월 기준</em>':o.noSip?' <em>SIP·CIP 미포함</em>':'')+'</span><b data-n="'+(o.O*100).toFixed(1)+'">0</b><small class="u">%</small><i><u style="--w:'+(o.O*100).toFixed(1)+'%"></u></i>'+(b?'<small>1차 기준 '+pc(b.O)+'%</small>':'<small>'+E(o.sub||'')+'</small>')+'</div>'}).join('')+'</div></div>'})();
+ var TL={juice:['J',['1','2','3','4'],'빈쿠커 #1~4'],mix:['M',['1','2','3','4','5'],'1~5호기'],ster:['S',['1','2','3','4','5'],'1~5호기'],pack:['P','ABCDEF'.split(''),'A~F호기']}[t.k];var tiles=(function(){var ids=TL[1];return '<div class="o2-tiles"><div class="o2-th"><b>'+TL[2]+' · 설비별 OEE</b><a data-ex="'+t.k+'|tbl">호기별 상세 ›</a></div><div class="o2-tg">'+ids.map(function(h,j){var o=L.filter(function(x){return x.id===TL[0]+h})[0],b=BASE1[TL[0]+h],lb=t.k==='juice'?'#'+h:h+'호기';
+   if(!o||o.O==null)return '<div class="o2-tl off"><span>'+lb+'</span><b>—</b><i></i><small>'+(o?'자료 부족':'비생산 · 제외')+'</small></div>';
+   return '<div class="o2-tl" style="--dl:'+(j*60)+'ms" data-ex="'+t.k+'|u|'+o.id+'" role="button" tabindex="0" title="눌러서 상세보기"><span>'+lb+((o.chk||[]).length?' <em class="w">⚠ 자료 차이</em>':'')+(o.Aest?' <em>A 임시</em>':o.Pest?' <em>'+(o.src==='멸균팀 포털 업무일지'?'P 월 기준':'P 기준 없음')+'</em>':o.noSip?' <em>SIP·CIP 미포함</em>':'')+'</span><b data-n="'+(o.O*100).toFixed(1)+'">0</b><small class="u">%</small><i><u style="--w:'+(o.O*100).toFixed(1)+'%"></u></i>'+(b?'<small>1차 기준 '+pc(b.O)+'%</small>':'<small>'+E(o.sub||'')+'</small>')+'</div>'}).join('')+'</div></div>'})();
  return '<section class="o2-c o2-team" style="--c:'+t.c+';--dl:'+(i*90)+'ms"><header><i></i><b>'+t.n+'</b><small>'+g.n+'/'+g.all+'대 산출</small><a data-ex="'+t.k+'|O">상세보기 ›</a></header>'+
   '<div class="o2-tb"><div class="o2-tl1" data-ex="'+t.k+'|O" role="button" tabindex="0">'+donut(g.O,t.c)+delta(g.O,g0.O)+'</div><div class="o2-tm">'+bar3(g,t.k)+'</div><div class="o2-tq" data-ex="'+t.k+'|q" role="button" tabindex="0"><small>'+t.un+' 생산량</small><b data-n="'+(g.q||'')+'" data-i="1">'+(g.q?'0':'—')+'</b><em>'+t.u+'</em>'+(g.fails?'<div class="o2-mt" data-ex="'+t.k+'|mt" role="button"><span>MTBF <b>'+(g.mtbf/60).toFixed(1)+'h</b></span><span>MTTR <b>'+g.mttr.toFixed(1)+'분</b></span></div>':'')+'</div></div>'+
   '<div class="o2-ml" data-ex="'+t.k+'|O" role="button" tabindex="0">주요 손실 : '+(ml?ml[0]+' '+pc(ml[1])+'%':'—')+'</div>'+
@@ -20608,8 +20715,8 @@ function portalStrip(k,D){var n=function(v,d){return v==null||isNaN(v)?'—':(+v
  if(k==='juice'){var B=window.yumJuiceBoardRaw&&D===kst(0)?yumJuiceBoardRaw(D):null;lab='착즙팀 포털 · 지금';if(B&&B.lines){var c={};B.lines.forEach(function(l){c[l.status]=(c[l.status]||0)+1});it=[['가동',(c.run||0)+' / '+B.lines.length+'라인'],['기록 대기',(c.late||0)+''],['정지',(c.stop||0)+''],['완료',(c.done||0)+''],['기준 시각',B.now||'']]}else st=D===kst(0)?'착즙팀 포털 연결 후 표시':'오늘 날짜에서만 표시'}
  if(!it.length&&!st)return '';return '<div class="o2-ps"><b>'+E(lab)+'</b>'+(it.length?it.map(function(x){return '<span>'+x[0]+' <em>'+E(x[1])+'</em></span>'}).join(''):'<span>'+E(st)+'</span>')+'</div>'}
 function detail(L){if(!L.length)return '<div class="oe-empty">이 날 기록이 없습니다</div>';
- return '<div class="o2-tbw"><table class="o2-tbl"><thead><tr><th>설비</th><th>조업</th><th>관리</th><th>부하</th><th>정지</th><th>가동</th><th>A</th><th>P</th><th>Q</th><th>OEE</th><th>생산</th><th>고장</th><th>근거</th></tr></thead><tbody>'+
-  L.map(function(o){var T=o.T||{};return '<tr><td><b>'+E(o.name)+'</b><small>'+E(o.sub||'')+'</small></td><td>'+fm(T.op)+'</td><td>'+fm(T.mg)+'</td><td>'+fm(T.ld)+'</td><td>'+fm(T.st)+'</td><td>'+fm(T.run)+'</td><td>'+pc(o.A)+(o.Aest?'*':'')+'</td><td>'+pc(o.P)+'</td><td>'+pc(o.Q)+(o.qAssumed?'*':'')+'</td><td><b>'+pc(o.O)+'</b></td><td>'+fm(o.q)+'</td><td>'+(o.fails||0)+'건</td><td class="n">'+E((o.src?o.src+' · ':'')+(o.note||[]).join(' · '))+(o.warn?' · ⚠ '+E(o.warn):'')+'</td></tr>'}).join('')+'</tbody></table></div><div class="o2-fn">시간 단위 분 · * 표시는 임시값(A = 포장팀 포털 월 가동률, Q = 불량 기록 없음 100%)</div>'}
+ return '<div class="o2-tbw"><table class="o2-tbl"><thead><tr><th>설비</th><th>조업</th><th>관리</th><th>부하</th><th>정지</th><th>가동</th><th>A</th><th>P</th><th>Q</th><th>OEE</th><th>생산</th><th>고장</th><th>근거 · 자료 대조</th></tr></thead><tbody>'+
+  L.map(function(o){var T=o.T||{};return '<tr><td><b>'+E(o.name)+'</b><small>'+E(o.sub||'')+'</small></td><td>'+fm(T.op)+'</td><td>'+fm(T.mg)+'</td><td>'+fm(T.ld)+'</td><td>'+fm(T.st)+'</td><td>'+fm(T.run)+'</td><td>'+pc(o.A)+(o.Aest?'*':'')+'</td><td>'+pc(o.P)+'</td><td>'+pc(o.Q)+(o.qAssumed?'*':'')+'</td><td><b>'+pc(o.O)+'</b></td><td>'+fm(o.q)+'</td><td>'+(o.fails||0)+'건</td><td class="n">'+E((o.src?o.src+' · ':'')+(o.note||[]).join(' · '))+(o.warn?' · ⚠ '+E(o.warn):'')+((o.alt||[]).length?'<br><span class="o2-alt">대조 자료: '+o.alt.map(function(x){return E(x.src||'')}).join(' · ')+'</span>':'')+((o.chk||[]).length?'<br><span class="o2-chk">⚠ '+o.chk.map(E).join('<br>⚠ ')+'</span>':((o.alt||[]).length?'<br><span class="o2-ok">✓ 자료 일치</span>':''))+'</td></tr>'}).join('')+'</tbody></table></div><div class="o2-fn">시간 단위 분 · * 표시는 임시값(A = 포장팀 포털 월 가동률, Q = 불량 기록 없음 100%)</div>'}
 function spark(t,D,N){var pts=[];for(var i=N-1;i>=0;i--){var d=addD(D,-i);pts.push([d,teamDay(d,t.k).O])}var W=300,H=118,Lx=30,B=18,Tp=8,X=function(i){return Lx+i*(W-Lx-10)/Math.max(1,N-1)},Y=function(v){return Tp+(H-Tp-B)*(1-v)};
  var g='';[.2,.6,1].forEach(function(v){g+='<line x1="'+Lx+'" x2="'+W+'" y1="'+Y(v)+'" y2="'+Y(v)+'" class="oe-gl"/><text x="'+(Lx-5)+'" y="'+(Y(v)+4)+'" class="oe-ax" text-anchor="end">'+v*100+'%</text>'});
  var seg=[],cur=[];pts.forEach(function(p,i){if(p[1]==null){if(cur.length)seg.push(cur);cur=[]}else cur.push([X(i),Y(p[1]),p[0],p[1]])});if(cur.length)seg.push(cur);
@@ -20623,10 +20730,15 @@ function lossCmp(D){var rows=TEAMS2.map(function(t){var g=teamDay(D,t.k);if(!g.T
  return '<div class="o2-lg2">'+[['OEE','#3B82F6'],['정지LOSS','#F59E0B'],['속도LOSS','#8B5CF6'],['품질LOSS','#EC4899']].map(function(x){return '<span><i style="background:'+x[1]+'"></i>'+x[0]+'</span>'}).join('')+'<small>부하시간 = 100% · 오른쪽 = 관리LOSS 비중</small></div>'+rows+
   '<div class="o2-tops"><b>주요 손실 상세</b>'+(top.length?top.map(function(k){var p=k.split('|'),tn=(TEAMS2.filter(function(t){return t.k===p[1]})[0]||{}).n||'';return '<details class="o2-top"><summary><i style="background:'+(CODEC[p[0]]||'#64748B')+'"></i>'+E(p[0])+' · '+E(tn.split(' ')[0])+' <b>'+fm(all[k])+'분</b><em>세부내역 보기 ›</em></summary><ul>'+ent[k].sort(function(a,b){return b[1].m-a[1].m}).slice(0,12).map(function(e){return '<li><b>'+E(e[0])+'</b>'+(e[1].a?' '+E(e[1].a):'')+' · '+fm(e[1].m)+'분 · '+E(e[1].t||'')+'</li>'}).join('')+'</ul></details>'}).join(''):'<div class="oe-empty">이 날 기록된 정지가 없습니다</div>')+'</div>'}
 function weekly(D){var t=new Date(D+'T00:00:00Z'),dw=(t.getUTCDay()+6)%7,mon=addD(D,-dw),W=[];for(var i=4;i>=0;i--)W.push(addD(mon,-7*i));
- var rows=[['포장 양품 (천 개)','pack',1000],['멸균 생산','ster',1],['착즙 원액 (톤)','juice',1000]];
- var val=W.map(function(w){var s={pack:0,ster:0,juice:0},has={};for(var d=0;d<7;d++){var dd=addD(w,d);if(dd>D)break;eqDay(dd).forEach(function(o){if(o.q){s[o.team]+=+o.q;has[o.team]=1}})}return {s:s,has:has}});
+ var rows=[['배합 이송 (톤)','mix',1000],['멸균 생산','ster',1],['포장 양품 (천 개)','pack',1000]];
+ var val=W.map(function(w){var s={pack:0,ster:0,juice:0,mix:0},has={};for(var d=0;d<7;d++){var dd=addD(w,d);if(dd>D)break;eqDay(dd).forEach(function(o){if(o.q){s[o.team]+=+o.q;has[o.team]=1}})}return {s:s,has:has}});
  return '<div class="o2-tbw"><table class="o2-wk"><thead><tr><th>구분</th>'+W.map(function(w,i){var m=+w.slice(5,7),wk=Math.ceil((+w.slice(8)+new Date(Date.UTC(+w.slice(0,4),m-1,1)).getUTCDay())/7);return '<th class="'+(i===4?'cur':'')+'">'+m+'월 '+wk+'주<small>'+md(w)+'~'+md(addD(w,6))+'</small></th>'}).join('')+'</tr></thead><tbody>'+
   rows.map(function(r){return '<tr><td>'+r[0]+'</td>'+val.map(function(v,i){return '<td class="'+(i===4?'cur':'')+'">'+(v.has[r[1]]?(v.s[r[1]]/r[2]).toLocaleString('ko-KR',{maximumFractionDigits:r[2]>1?1:0}):'—')+'</td>'}).join('')+'</tr>'}).join('')+'</tbody></table></div>'}
+function review(D){var all=eqDay(D);if(!all.length)return '';var nC=all.filter(function(o){return (o.chk||[]).length}).length,nA=all.filter(function(o){return (o.alt||[]).length}).length;
+ return '<section class="o2-c"><header><i style="background:#0F172A"></i><b>자료 검토 · 출처 대조</b><small>웹 일지 + 팀 포털 자료를 모두 모아, 같은 설비를 서로 맞춰 본 결과 · 상온 기준 시각(SIP ~ CIP)이 다 있는 웹 일지를 먼저 씁니다</small></header>'+
+  '<div class="o2-rvs"><span><b>'+all.length+'</b>대 산출</span><span class="ok"><b>'+(nA-nC)+'</b>대 자료 일치</span><span class="w"><b>'+nC+'</b>대 자료 차이 — 확인 필요</span><span><b>'+(all.length-nA)+'</b>대 단일 자료</span></div>'+
+  '<div class="o2-tbw"><table class="o2-tbl"><thead><tr><th>공정</th><th>설비</th><th>사용한 자료 (OEE 계산)</th><th>대조한 자료</th><th>검토 결과</th></tr></thead><tbody>'+
+  all.map(function(o){var tn=(TEAMS2.filter(function(t){return t.k===o.team})[0]||{}).n||'';return '<tr><td>'+E(tn)+'</td><td><b>'+E(o.name)+'</b></td><td class="n">'+E(o.src||'—')+'</td><td class="n">'+((o.alt||[]).length?o.alt.map(function(x){return E(x.src||'')}).join(' · '):'—')+'</td><td class="n">'+((o.chk||[]).length?'<span class="o2-chk">⚠ '+o.chk.map(E).join('<br>⚠ ')+'</span>':((o.alt||[]).length?'<span class="o2-ok">✓ 일치</span>':'<span class="o2-mu2">대조할 다른 자료 없음</span>'))+((o.Pest||o.qAssumed||o.Aest)?'<br><span class="o2-mu2">임시값: '+[o.Aest?'A':'',o.Pest?'P':'',o.qAssumed?'Q':''].filter(Boolean).join(' · ')+'</span>':'')+'</td></tr>'}).join('')+'</tbody></table></div></section>'}
 function stdBox(){var lv=[['조업시간','SIP 시작 ~ CIP 종료 (점유시간)','#1E293B',100,''],['부하시간','조업 − 관리LOSS','#334155',86,'관리LOSS · 계획정지 · 정비 · 교육 · 휴식 (OEE 제외)'],['가동시간','A 시간가동률 = 가동 ÷ 부하','#475569',66,'정지LOSS · SIP·CIP(A안 포함) · 고장 · 순간정지 · 상하류 대기 · 중간 CIP · 준비교체 · 자재 대기'],['정미가동시간','P 성능가동률 = 실제 속도 ÷ 기준 속도','#5B6B83',58,'속도LOSS · 기준 속도보다 느린 운전'],['가치가동시간','Q 양품률 = 양품 ÷ 생산','#3B82F6',55,'품질LOSS · 불량 · 폐기 팩']];
  return '<section class="o2-c o2-std"><header><i></i><b>상온 OEE 측정 기준</b><small>11/12 OEE 2차 TF 확정 · OEE = A × P × Q = 가치가동시간 ÷ 부하시간</small></header><div class="o2-sg">'+
   '<div class="o2-tree">'+lv.map(function(x,i){return '<div class="o2-lv" style="--dl:'+(i*140)+'ms"><div class="o2-lvb" style="--w:'+x[3]+'%;background:'+x[2]+'"><b>'+x[0]+'</b><small>'+x[1]+'</small></div>'+(x[4]?'<div class="o2-lvl">'+x[4]+'</div>':'')+'</div>'}).join('')+'</div>'+
@@ -20652,7 +20764,7 @@ function exHTML(k,kind,id,D){var L=eqDay(D).filter(function(o){return k==='all'|
  else if(kind==='A'){ttl=tn+' · 시간가동률 A '+pc(g.A)+'%';var ssum=cs.reduce(function(x,c){return x+c[1]},0),unk=Math.round((T.st||0)-ssum);if(unk>5){cs=cs.concat([['사유 미기록',unk,0]]).sort(function(a,b){return b[1]-a[1]});CODEC['사유 미기록']='#CBD5E1'}
   W[0]='<b>멈추지 않고 돈 시간의 비율</b>입니다. 상온 기준은 SIP 시작 ~ CIP 종료 사이를 다 봅니다. SIP · CIP, 고장, 순간정지, 유액 대기 같은 시간은 모두 「정지 손실」로 빠집니다 (계획정지 · 정비만 제외).';
   W[1]='A = 가동시간 ÷ 부하시간'+(ld?'<br>= '+fm(T.run)+'분 ÷ '+fm(ld)+'분 = <b>'+pc(g.A)+'%</b><br>정지 손실 '+fm(T.st)+'분 = 부하의 '+pc(T.st/ld)+'%':' (시간 기록 없음 — 임시값)');
-  W[2]='<p>정지 사유 (분 · 건)</p>'+hbars(cs.map(function(c){return [c[0],c[1],fm(c[1])+'분'+(c[2]?' · '+c[2]+'건':''),CODEC[c[0]]]}))+(cs[0]?'<p class="o2-key">→ <b>'+E(cs[0][0])+'</b>이(가) 정지의 '+pc(T.st?cs[0][1]/T.st:null)+'%를 차지합니다. '+({'사유 미기록':'정지 시간은 있지만 건별 사유가 적히지 않았습니다. 정지 건별 기록(사유 코드)을 남기면 원인이 바로 보입니다.','SIP·CIP':'SIP · CIP 시간이 표준보다 길어졌는지(재멸균 · 전처리 지연) 확인하세요.','상류(유액) 대기':'멸균 · 배합에서 유액이 늦게 왔습니다. 배합 이송 시각과 맞춰 보세요.','고장':'10분 이상 고장입니다. 호기별 상세에서 어떤 설비인지 보세요.','순간정지':'짧은 멈춤이 자주 반복됐습니다 (팩 밀림 · 과산화수소 보충 등).'}[cs[0][0]]||'')+'</p>':'')+(L.length>1?'<p>호기별 A</p>'+hbars(unitRows('A',function(x){return pc(x.A)+'%'+(x.Aest?' (임시)':'')})):'')}
+  W[2]='<p>정지 사유 (분 · 건)</p>'+hbars(cs.map(function(c){return [c[0],c[1],fm(c[1])+'분'+(c[2]?' · '+c[2]+'건':''),CODEC[c[0]]]}))+(cs[0]?'<p class="o2-key">→ <b>'+E(cs[0][0])+'</b>이(가) 정지의 '+pc(T.st?cs[0][1]/T.st:null)+'%를 차지합니다. '+({'사유 미기록':'정지 시간은 있지만 건별 사유가 적히지 않았습니다. 정지 건별 기록(사유 코드)을 남기면 원인이 바로 보입니다.','SIP·CIP':'SIP · CIP 시간이 표준보다 길어졌는지(재멸균 · 전처리 지연) 확인하세요.','상류(유액) 대기':'멸균 · 배합에서 유액이 늦게 왔습니다. 배합 이송 시각과 맞춰 보세요.','고장':'10분 이상 고장입니다. 호기별 상세에서 어떤 설비인지 보세요.','순간정지':'짧은 멈춤이 자주 반복됐습니다 (팩 밀림 · 과산화수소 보충 등).','하류(후공정) 대기':'다음 공정이 받지 못해 기다렸습니다. 멸균 가동 · 배합 요청 시각과 맞춰 보면 병목이 보입니다.','SIP·CIP':'CIP · 가열 준비 시간이 차지합니다. CIP 일보 시작 · 종료 시각이 표준보다 길었는지 보세요.'}[cs[0][0]]||'')+'</p>':'')+(L.length>1?'<p>호기별 A</p>'+hbars(unitRows('A',function(x){return pc(x.A)+'%'+(x.Aest?' (임시)':'')})):'')}
  else if(kind==='P'){ttl=tn+' · 성능가동률 P '+pc(g.P)+'%';
   W[0]='<b>돌고 있는 동안 제 속도를 냈는지</b>입니다. 기준 속도(설계 또는 최근 최고 속도)보다 느리게 돌면 그만큼 「속도 손실」이 됩니다.';
   W[1]='P = 실제 속도 ÷ 기준 속도 (= 정미가동시간 ÷ 가동시간)'+(ld&&T.run?'<br>= '+fm(T.net)+'분 ÷ '+fm(T.run)+'분 = <b>'+pc(g.P)+'%</b>':'');
@@ -20685,18 +20797,18 @@ function view(){var D=ST.d,N=ST.n||7,all=eqDay(D),G=tsum(all),G0=tsum(eqDay(addD
   '<div class="o2-hk">'+[['부하시간',G.T.ld?fm(G.T.ld)+'분':'—','조업 '+(G.T.op?fm(G.T.op):'—')+' − 관리 '+(G.T.op?fm(G.T.mg):'—')],['비가동 비중',G.A!=null?pc(1-G.A)+'%':'—','= 100% − 시간가동률'],['MTBF / MTTR',G.fails?(G.mtbf/60).toFixed(1)+'h / '+G.mttr.toFixed(1)+'분':'—','고장 '+G.fails+'건 (10분 이상)'],['전일 대비',G.O!=null&&G0.O!=null?((G.O-G0.O)*100>=0?'+':'')+((G.O-G0.O)*100).toFixed(1)+'%p':'—','부문 OEE']].map(function(x,i){return '<div style="--dl:'+(i*90)+'ms" data-ex="all|'+['time','A','mt','O'][i]+'" role="button" tabindex="0"><span>'+x[0]+'</span><b>'+x[1]+'</b><small>'+x[2]+'</small></div>'}).join('')+'</div>'+
   '<div class="o2-b1"><span>1차 측정 기준점 (10/26~11/6)</span>'+[['D호기 · 테트라 미드',BASE1.PD,dD],['F호기 · 테트라 슬림리프',BASE1.PF,dF]].map(function(x){return '<div><b>'+x[0]+'</b><em>기준 '+pc(x[1].O)+'%</em><strong class="'+(x[2]&&x[2].O!=null?(x[2].O>=x[1].O?'up':'dn'):'')+'">'+(x[2]&&x[2].O!=null?'현재 '+pc(x[2].O)+'%'+(x[2].noSip?' (SIP·CIP 미포함)':''):'이 날 산출 없음')+'</strong></div>'}).join('')+'</div></div>'+
   '<div class="oe-hg"><div data-ex="all|O" role="button" tabindex="0" class="o2-gz">'+gauge(G)+'</div><div class="oe-apqbig">'+[['A','시간가동률',G.A,'#38BDF8'],['P','성능가동률',G.P,'#A78BFA'],['Q','양품률',G.Q,'#34D399']].map(function(x){return '<div style="--c:'+x[3]+'" data-ex="all|'+x[0]+'" role="button" tabindex="0"><i>'+x[0]+'</i><span>'+x[1]+'</span><b data-n="'+(x[2]==null?'':(x[2]*100).toFixed(1))+'">'+(x[2]==null?'—':'0')+'</b><small>%</small></div>'}).join('')+'</div></div></header>'+
-  '<div class="o2-x o2-xh" data-xp="all" hidden></div><div class="o2-g3">'+teamCard(TEAMS2[2],D,0)+teamCard(TEAMS2[1],D,1)+teamCard(TEAMS2[0],D,2)+'</div>'+
+  '<div class="o2-x o2-xh" data-xp="all" hidden></div><div class="o2-g3">'+TEAMS2.map(function(t,i){return teamCard(t,D,i)}).join('')+'</div>'+
   '<div class="o2-g2"><section class="o2-c"><header><i style="background:#0F172A"></i><b>최근 '+N+'일 · 공정별 OEE 추이</b><small>같은 눈금 · 공정별 분리 · '+md(addD(D,-(N-1)))+' ~ '+md(D)+'</small></header><div class="o2-sps">'+TEAMS2.map(function(t){return spark(t,D,N)}).join('')+'</div><div class="o2-fn">점을 누르면 그 날짜로 이동 · 기록 없는 날은 선을 잇지 않습니다</div></section>'+
   '<section class="o2-c"><header><i style="background:#0F172A"></i><b>공정별 손실 비교 · 개선 검토</b></header>'+lossCmp(D)+'</section></div>'+
-  '<section class="o2-c"><header><i style="background:#0F172A"></i><b>주간 생산량</b><small>월~일 · 최근 5주 · '+md(D)+'까지 · 저장된 일지 기준</small></header>'+weekly(D)+'</section>'+
+  '<section class="o2-c"><header><i style="background:#0F172A"></i><b>주간 생산량</b><small>월~일 · 최근 5주 · '+md(D)+'까지 · 저장된 일지 기준</small></header>'+weekly(D)+'</section>'+review(D)+
   stdBox()+
-  '<div class="oe-foot"><b>자료</b> 포장: 포장팀 포털 일별 생산 · 정지 건별 자료(공개 '+((PXD[D.slice(0,4)]||{}).until||'—')+'까지) → 없으면 포장 생산작업일보 · 멸균: 멸균 업무일지 구간 · 착즙: 착즙공정일보 · 원액생산작업일보 · 미입력은 — · 비생산 호기는 집계 제외 · 저장기록 기준'+setPanel2()+'</div></div>';
+  '<div class="oe-foot"><b>자료</b> 착즙: 착즙공정일보 시간대 표 · 착즙팀 CIP 일보 · 원액생산작업일보 T.S · 배합: 생산작업일보 배치별 유입 · 혼합 완료 · 이송 시각 · 배합실 CIP 일보 · 포장: 포장팀 포털 일별 생산 · 정지 건별 자료(공개 '+((PXD[D.slice(0,4)]||{}).until||'—')+'까지) → 없으면 포장 생산작업일보 · 멸균: 멸균 업무일지 구간 · 미입력은 — · 비생산 호기는 집계 제외 · 저장기록 기준'+setPanel2()+'</div></div>';
  return h}
 function setPanel2(){if(!canSet())return '';var b=cfg().base||{};
  return '<details class="oe-set"><summary>⚙ 성능 기준 설정 (결재권자)</summary><p>성능가동률(P)의 기준 속도입니다. 비워 두면 최근 90일 최고 속도(포장팀 자료) 또는 30일 최고 생산량을 씁니다.</p><div class="oe-sg">'+
   'ABCDEF'.split('').map(function(h){return '<label>'+h+'호기 기준 속도 <input type="number" data-k="S'+h+'" value="'+(b['S'+h]||'')+'" placeholder="개/분"></label>'}).join('')+
   'ABCDEF'.split('').map(function(h){return '<label>'+h+'호기 일 생산 기준 <input type="number" data-k="P'+h+'" value="'+(b['P'+h]||'')+'" placeholder="개/일"></label>'}).join('')+
-  '<label>착즙 시간당 원액 <input type="number" data-k="J" value="'+(b.J||'')+'" placeholder="kg/h"></label></div><button class="oe-btn" onclick="yumOEE.save()">저장</button></details>'}
+  [1,2,3,4,5].map(function(h){return '<label>배합 '+h+'호기 기준 혼합 시간 <input type="number" data-k="M'+h+'" value="'+(b['M'+h]||'')+'" placeholder="분/배치"></label>'}).join('')+'<label>착즙 시간당 원액 <input type="number" data-k="J" value="'+(b.J||'')+'" placeholder="kg/h"></label></div><button class="oe-btn" onclick="yumOEE.save()">저장</button></details>'}
 (function(){var s=document.createElement('style');s.textContent=
 '.o2{display:flex;flex-direction:column;gap:14px;min-width:0}.o2-c,.o2-col,.o2-g3>*,.o2-g2>*{min-width:0}.o2-tbw{max-width:100%}'+
 '.o2-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.o2-not{flex:1;min-width:280px;display:flex;gap:10px;align-items:center;padding:10px 14px;border-radius:14px;background:#fff;border:1px solid #E5E9F2;border-left:4px solid #3062D8;font-size:12.5px;color:#334155;line-height:1.5}.o2-not b{white-space:nowrap;color:#1D4ED8}'+
@@ -20705,7 +20817,7 @@ function setPanel2(){if(!canSet())return '';var b=cfg().base||{};
 '.o2-b1{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px;font-size:11.5px}.o2-b1>span{font-weight:800;opacity:.8}.o2-b1>div{display:flex;gap:8px;align-items:center;padding:6px 10px;border-radius:999px;background:rgba(200,161,90,.16);border:1px solid rgba(200,161,90,.45)}.o2-b1 em{font-style:normal;opacity:.85}.o2-b1 strong.up{color:#34D399}.o2-b1 strong.dn{color:#FCA5A5}'+
 '.o2-c{background:#fff;border:1px solid #E5E9F2;border-radius:18px;padding:16px 18px;box-shadow:0 16px 36px -30px rgba(15,23,42,.5);opacity:0;transform:translateY(12px)}.oe.in .o2-c{opacity:1;transform:none;transition:all .7s cubic-bezier(.16,1,.3,1) var(--dl,0ms)}'+
 '.o2-c>header{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}.o2-c>header>i{width:4px;height:18px;border-radius:2px;background:var(--c,#3062D8)}.o2-c>header b{font-size:16px;font-weight:900;color:#0F172A}.o2-c>header small{font-size:11.5px;color:#64748B;font-weight:700}.o2-c>header a{margin-left:auto;font-size:12px;font-weight:800;color:#64748B;cursor:pointer}.o2-c>header a:hover{color:var(--c)}'+
-'.o2-g3{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:14px;align-items:stretch}.o2-team{display:flex;flex-direction:column}.o2-team .o2-tiles{margin-top:auto}.o2-team .o2-ps{margin-top:auto}.o2-team .o2-tiles+.o2-ps{margin-top:10px}.o2-col{display:flex;flex-direction:column;gap:14px}.o2-g2{display:grid;grid-template-columns:1.25fr 1fr;gap:14px}'+
+'.o2-g3{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;align-items:stretch}.o2-g3 .o2-dn{width:104px;height:104px}.o2-g3 .o2-tq b{font-size:22px}.o2-team{display:flex;flex-direction:column}.o2-team .o2-tiles{margin-top:auto}.o2-team .o2-ps{margin-top:auto}.o2-team .o2-tiles+.o2-ps{margin-top:10px}.o2-col{display:flex;flex-direction:column;gap:14px}.o2-g2{display:grid;grid-template-columns:1.25fr 1fr;gap:14px}'+
 '.o2-tb{display:grid;grid-template-columns:auto 1fr;gap:10px 14px;align-items:center}.o2-tm{grid-column:1/-1;order:3}.o2-tl1{display:flex;flex-direction:column;align-items:center;gap:6px}.o2-dnb{fill:none;stroke:#E8EDF5;stroke-width:12}.o2-dnv{fill:none;stroke-width:12;stroke-linecap:round;transition:stroke-dashoffset 1.4s cubic-bezier(.16,1,.3,1) .2s}.o2-dnl{font-size:11px;font-weight:800;fill:#64748B;text-anchor:middle}.o2-dnn{font-size:26px;font-weight:900;fill:#0F172A;text-anchor:middle}'+
 '.o2-dl{padding:5px 10px;border-radius:10px;border:1px solid #E5E9F2;text-align:center}.o2-dl small{display:block;font-size:10.5px;color:#64748B;font-weight:700}.o2-dl b{font-size:13px;font-weight:900}.o2-dl.up b{color:#059669}.o2-dl.dn b{color:#DC2626}.o2-dl.n b{color:#94A3B8}'+
 '.o2-b3{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:7px 10px;border:1px solid #E5E9F2;border-radius:10px;margin-bottom:6px}.o2-b3 span{font-size:12px;color:#475569;font-weight:700}.o2-b3 span b{margin-right:8px;color:#0F172A}.o2-b3 em{font-style:normal;font-weight:900;font-size:14px}.o2-b3 i{grid-column:1/-1;height:4px;border-radius:999px;background:#EEF2F7;overflow:hidden}.o2-b3 u{display:block;height:100%;width:0;background:var(--c);border-radius:999px;transition:width 1.2s cubic-bezier(.16,1,.3,1) var(--dl)}.oe.in .o2-b3 u{width:var(--w)}'+
@@ -20716,6 +20828,8 @@ function setPanel2(){if(!canSet())return '';var b=cfg().base||{};
  '.o2-eh{display:flex;align-items:center;gap:10px;margin-bottom:10px}.o2-eh b{font-size:15px;font-weight:900;color:#0F172A}.o2-eh small{color:#64748B;font-weight:700}.o2-eh button{margin-left:auto;border:1px solid #E5E9F2;background:#fff;border-radius:999px;padding:4px 12px;font-weight:800;font-size:12px;cursor:pointer}'+
  '.o2-e3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.o2-e3>div{background:#fff;border:1px solid #EEF2F7;border-radius:12px;padding:10px 12px}.o2-e3 h5{margin:0 0 6px;font-size:12px;font-weight:900;color:var(--c,#3062D8)}.o2-e3 p{margin:0 0 6px;font-size:12.5px;line-height:1.65;color:#334155}.o2-fx{font-variant-numeric:tabular-nums}.o2-key{background:#FFFBEB;border-radius:8px;padding:6px 8px;color:#92400E!important}.o2-mu{color:#64748B!important;font-size:11.5px!important}'+
  '.o2-hb>div{display:grid;grid-template-columns:minmax(0,1.1fr) 1fr auto;gap:8px;align-items:center;font-size:12px;margin-bottom:5px}.o2-hb span{display:flex;align-items:center;gap:5px;font-weight:700;color:#334155;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.o2-hb span i{width:8px;height:8px;border-radius:50%;flex:none}.o2-hb em{height:8px;border-radius:999px;background:#EEF2F7;overflow:hidden}.o2-hb u{display:block;height:100%;width:0;background:var(--c);border-radius:999px;animation:o2w .9s cubic-bezier(.16,1,.3,1) var(--dl) forwards}@keyframes o2w{to{width:var(--w)}}.o2-hb b{font-size:11.5px;color:#0F172A;white-space:nowrap}'+
+ '.o2-alt{color:#64748B}.o2-chk{color:#B45309;font-weight:700}.o2-ok{color:#047857;font-weight:800}.o2-mu2{color:#94A3B8}.o2-tl span em.w{color:#B91C1C;background:#FEF2F2}.o2-rvs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}.o2-rvs span{padding:6px 12px;border-radius:999px;background:#F1F5F9;font-size:12px;font-weight:700;color:#475569}.o2-rvs b{font-size:15px;margin-right:3px;color:#0F172A}.o2-rvs .ok{background:#ECFDF5}.o2-rvs .w{background:#FFFBEB}'+
+ '.o2-g3 .o2-tt span{font-size:11px;white-space:nowrap;padding:7px 4px}.o2-g3 .o2-tt b{margin-left:2px}'+
  '.o2-ps{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px;padding:8px 10px;border-radius:12px;background:linear-gradient(90deg,color-mix(in srgb,var(--c) 7%,#fff),#fff);border:1px dashed color-mix(in srgb,var(--c) 40%,#E5E9F2);font-size:11.5px}.o2-ps b{color:var(--c);margin-right:4px}.o2-ps span{padding:2px 8px;border-radius:999px;background:#fff;border:1px solid #E5E9F2;color:#475569;font-weight:700}.o2-ps em{font-style:normal;color:#0F172A;font-weight:900}'+
  '.o2-ml{margin-top:10px;padding:7px 12px;border-radius:10px;background:#F1F5F9;font-size:12.5px;font-weight:800;color:#334155}'+
 '.o2-tt{display:grid;grid-template-columns:repeat(3,1fr);margin-top:8px;border:1px solid #E5E9F2;border-radius:10px;overflow:hidden}.o2-tt span{padding:7px;text-align:center;font-size:12px;color:#475569;font-weight:700}.o2-tt span+span{border-left:1px solid #E5E9F2}.o2-tt b{color:#0F172A;margin-left:4px}'+
@@ -20733,7 +20847,7 @@ function setPanel2(){if(!canSet())return '';var b=cfg().base||{};
 '.o2-road{display:grid;grid-template-columns:repeat(6,1fr);gap:0;margin-top:14px;position:relative}.o2-road:before{content:"";position:absolute;left:4%;right:4%;top:9px;height:2px;background:linear-gradient(90deg,#CBD5E1,#3062D8)}.o2-road>div{position:relative;text-align:center;padding-top:22px;opacity:0}.oe.in .o2-road>div{opacity:1;transition:opacity .5s var(--dl)}.o2-road>div:before{content:"";position:absolute;left:50%;top:3px;width:12px;height:12px;margin-left:-6px;border-radius:50%;background:#fff;border:3px solid #94A3B8}.o2-road>div.cur:before{border-color:#3062D8;box-shadow:0 0 0 0 rgba(48,98,216,.5);animation:o2pl 1.8s infinite}@keyframes o2pl{70%{box-shadow:0 0 0 9px rgba(48,98,216,0)}}.o2-road b{display:block;font-size:12px}.o2-road span{font-size:11px;color:#64748B}'+
 '.o2-pur{margin:12px 0 0;padding:10px 14px;border-radius:12px;background:linear-gradient(135deg,#0A1530,#12244A);color:#E2E8F0;font-size:12.5px;line-height:1.6}.o2-pur b{color:#E8D3A5}'+
 '.o2:fullscreen,.o2-fsm{background:#F4F6FA;overflow:auto;padding:18px}'+
-'@media (max-width:1200px){.o2-g3{grid-template-columns:1fr 1fr}.o2-g3>.o2-team:first-child{grid-column:1/-1}.o2-e3{grid-template-columns:1fr}.o2-g2,.o2-sg{grid-template-columns:1fr}}@media (max-width:760px){.o2-g3{grid-template-columns:1fr}.o2-sps{grid-template-columns:1fr}}@media (max-width:700px){.o2-hk{grid-template-columns:1fr 1fr}.o2-tb{grid-template-columns:1fr;justify-items:center}.o2-tm{width:100%}.o2-kp{grid-template-columns:1fr}.o2-road{grid-template-columns:repeat(3,1fr);row-gap:10px}.o2-road:before{display:none}}';
+'@media (max-width:1500px){.o2-g3{grid-template-columns:1fr 1fr}}@media (max-width:1200px){.o2-e3{grid-template-columns:1fr}.o2-g2,.o2-sg{grid-template-columns:1fr}}@media (max-width:760px){.o2-g3{grid-template-columns:1fr}.o2-sps{grid-template-columns:1fr}}@media (max-width:700px){.o2-hk{grid-template-columns:1fr 1fr}.o2-tb{grid-template-columns:1fr;justify-items:center}.o2-tm{width:100%}.o2-kp{grid-template-columns:1fr}.o2-road{grid-template-columns:repeat(3,1fr);row-gap:10px}.o2-road:before{display:none}}';
 document.head.appendChild(s)})();
 
 function anim(M){var red=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;requestAnimationFrame(function(){var r=$('.oe',M);if(r)r.classList.add('in');
