@@ -714,7 +714,7 @@ try{if(localStorage.getItem(DBK+'_backup')!=null&&localStorage.getItem(DBK)!=nul
 
 <script>
 /* PDF 내려받기 파일 이름
-   · 주간근무계획표: 「26년 11월2주 주간근무계획(ver1)_가공2팀.pdf」
+   · 주간근무계획표: 「26년11월2주 주간근무계획(ver1)_가공2팀.pdf」
    · 생산계획표:     「26년 11월2주(ver1)_가공2.pdf」
    · 주차 = 그 주 월요일이 있는 달의 몇째 주 (월요일 시작, 1일이 들어 있는 주가 1주)
    · ver = 같은 주를 내용이 바뀐 뒤 다시 내려받으면 하나씩 올라감 (내용이 같으면 그대로) — 모든 직원 공통 */
@@ -739,7 +739,7 @@ function ver(kind,key,sig){
 window.yumDlName=function(kind,ds,sig){
  if(!/^\d{4}-\d{2}-\d{2}$/.test(ds||''))return null;
  var lb=weekLabel(ds),mk=monday(ds),key=mk.getFullYear()+'-'+pad(mk.getMonth()+1)+'-'+pad(mk.getDate()),v=ver(kind,key,sig);
- return kind==='wp'?lb+' 주간근무계획(ver'+v+')_가공2팀.pdf':lb+'(ver'+v+')_가공2.pdf';
+ return kind==='wp'?lb.replace('년 ','년')+' 주간근무계획(ver'+v+')_가공2팀.pdf':lb+'(ver'+v+')_가공2.pdf';  /* 2026-11-13 주간근무계획표: 「26년11월4주」 (년 · 월 사이 띄어쓰기 없음) */
 };
 /* 생산계획표 행 이름(예: 11/2, 11/2(월))에서 날짜 */
 window.yumPlanDate=function(rows,uploadedAt){
