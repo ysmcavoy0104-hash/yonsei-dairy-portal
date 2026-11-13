@@ -18174,6 +18174,13 @@ function juice(D,now){var d=docs('FRM-009',D)[0],out=[];
   var first=-1;hrs.forEach(function(v,i){if(v&&first<0)first=i});
   var run=now!=null?(!!hrs[hh]||(last>=0&&last===hh-1)||(first>=0&&hh>=first&&hh<=last)):on>0;
   out.push({k:'j'+n,n:n,wt:n===4?'D':String(wt||'').replace(/\D/g,''),t:'빈쿠커 #'+(bk||n),sub:n===4?'→ 데칸타':(wt?'→ WT'+String(wt).replace(/\D/g,''):''),prod:nm,on:on>0,run:run,st:run?(now!=null?'가동 중':'가동 '+on+'시간'):on?'가동 '+on+'시간':'미가동'})}
+ /* 착즙팀 포털 현황판(board-feed · juice-proxy 경유)이 있으면 라인 · 상태 · 품목을 그쪽 기준으로 */
+ try{var BF=window.yumJuiceBoardRaw&&yumJuiceBoardRaw(D);if(BF&&Array.isArray(BF.lines))BF.lines.forEach(function(L){var k=+(String(L.cooker||'').match(/\d/)||[0])[0],o=out[k-1];if(!o)return;o.t='빈쿠커 #'+k;
+  var eq=String(L.equipment||''),w=/(데칸|decant)/i.test(eq)?'D':eq.replace(/\D/g,'');if(w){o.wt=w;o.sub='→ '+(w==='D'?'데칸타':'WT'+w)}
+  var ps=(L.products||[]).map(function(x){return x&&x.name}).filter(Boolean).join(', ');if(ps)o.prod=ps;
+  var stc=String(L.status||''),MP={run:'가동 중',wait:'대기',done:'완료',late:'기록 대기',stop:'정지'};
+  if(now!=null){o.run=stc==='run';o.st=(MP[stc]||L.status_label||o.st)+(L.reason&&stc!=='run'?' · '+L.reason:'')}else if(stc==='done'||stc==='run')o.st=o.st==='미가동'?'완료':o.st;
+  o.on=o.on||stc==='run'||stc==='done';o.ext='착즙팀 포털'})}catch(e){}
  return out}
 function mix(D,now){var out=[],L=docs('FRM-012',D).concat(docs('FRM-011',D)),f11=form('FRM-011');
  L.sort(function(a,b){return String(b.updatedAt||'').localeCompare(String(a.updatedAt||''))});
@@ -20978,6 +20985,9 @@ function paint(){var box=document.getElementById('lb-root');if(!box||box.classLi
 function tick(){var c=document.getElementById('lb-clock');if(!c)return;var n=new Date();c.textContent=pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds())}
 setInterval(tick,1000);setInterval(function(){if(!document.hidden)paint()},60000);
 window.addEventListener('yum-docs-synced',function(){paint()});window.addEventListener('yum-sterfeed',function(){paint()});window.addEventListener('yum-lbfeed',function(){paint()});
+window.yumJuiceBoardRaw=function(D){var c=juiceFeed(D||today());return c&&c.ok&&c.raw&&Array.isArray(c.raw.lines)?c.raw:null};
+/* 착즙 · 멸균 자료가 새로 오면 공정 흐름도도 다시 그림 */
+window.addEventListener('yum-lbfeed',function(){var w=document.getElementById('fm-wrap');if(!w||w.classList.contains('hide')||!window.yumFlowMap)return;var d=w.getAttribute('data-d');try{w.innerHTML=yumFlowMap(d)}catch(e){}});
 window.yumPmTab=function(t){try{sessionStorage.setItem('yum_pm_tab2',t)}catch(e){}[].forEach.call(document.querySelectorAll('.pm-tabs button'),function(b){b.classList.toggle('on',b.getAttribute('data-t')===t)});var a=document.getElementById('lb-root'),f=document.getElementById('fm-wrap');if(a)a.classList.toggle('hide',t!=='live');if(f)f.classList.toggle('hide',t!=='flow');if(t==='live'){FIRST=true;paint()}};
 /* 화면이 새로 그려지면(#lb-root 비어 있음) 바로 그리기 */
 setInterval(function(){var b=document.getElementById('lb-root');if(b&&!b.firstChild&&!b.classList.contains('hide')){FIRST=true;paint()}},300);
