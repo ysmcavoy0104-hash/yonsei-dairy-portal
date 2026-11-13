@@ -12090,7 +12090,7 @@ var SEC={
  admin:  {en:'SYSTEM',               ic:'⚑', a:'#56657F', d:'#1E2638', s:'#EEF0F4', rgb:'86,101,127'},
  me:     {en:'MY PROFILE',           ic:'◉', a:'#78716C', d:'#292524', s:'#F3F2F1', rgb:'120,113,108'}
 };
-var EXTRA={'#/kpi':'kpi','#/mh':'mh','#/safety':'ref','#/ndash':'data','#/reports':'data','#/report-admin':'data','#/doc':'journal','#/doc-new':'journal','#/profile':'me','#/oplogs':'data'};
+var EXTRA={'#/kpi':'kpi','#/mh':'mh','#/safety':'ref','#/ndash':'journal','#/reports':'data','#/report-admin':'data','#/doc':'journal','#/doc-new':'journal','#/profile':'me','#/oplogs':'data'};
 
 /* 모든 영역의 메뉴(다른 확장 모듈이 추가한 메뉴 포함)를 모은다 */
 function collect(){
@@ -13971,9 +13971,8 @@ function viewExec(){
  h+='<div class="ov-hd ex-hd"><div><div class="ov-en">'+(PM?'Live Production Status':'Daily Production Report')+'</div><h2>'+md(D)+' ('+dw(D)+') '+(PM?'생산 현황':'상온제품생산부문 생산 요약')+'</h2><div class="ov-sub"><span class="ex-live"><i></i>실시간</span> 일지를 저장하면 바로 반영됩니다'+(lastSave?' · 마지막 저장 '+lastSave:'')+'</div></div>'+
   '<div class="ov-act"><select onchange="yumOverview.pick(this.value)">'+dates.map(function(d){return '<option value="'+d+'"'+(d===D?' selected':'')+'>'+d+' ('+dw(d)+')</option>'}).join('')+'</select>'+(PM?'<a class="btn btn-o btn-sm" href="#/oee">OEE →</a>':'<a class="btn btn-o btn-sm" href="#/prodmap">생산 현황 →</a>')+'</div></div>';
  /* 0. 공정 흐름도 (착즙 → 배합 → 멸균 → 아셉틱 충전 → 포장) */
- if(PM){var TB='flow';try{TB=sessionStorage.getItem('yum_pm_tab2')||'flow'}catch(e){}
-  h+='<div class="pm-tabs"><button type="button" data-t="flow" class="'+(TB==='flow'?'on':'')+'" onclick="yumPmTab(\'flow\')">공정 흐름도 · 현황 상세</button><button type="button" data-t="live" class="'+(TB==='live'?'on':'')+'" onclick="yumPmTab(\'live\')">● 실시간 현황</button></div>'+
-   '<div id="lb-root" class="'+(TB==='live'?'':'hide')+'"></div><div id="fm-wrap" class="'+(TB==='flow'?'':'hide')+'" data-d="'+D+'">'+(window.yumFlowMap?yumFlowMap(D):'')+'</div>';return h+'</div>'}
+ if(PM){  /* 2026-11-13 공정 흐름도 위 · 실시간 현황 아래 — 한 화면 */
+  h+='<div id="fm-wrap" data-d="'+D+'">'+(window.yumFlowMap?yumFlowMap(D):'')+'</div><div id="lb-root" style="margin-top:18px"></div>';return h+'</div>'}
  /* 1. 공정 흐름 */
  h+='<div class="ex-sec"><span class="ex-st1">공정 흐름</span><span class="ex-flow" aria-hidden="true"></span></div><div class="ex-procs">'+
   proc('juice','착즙','❖',C.juice,jD,jR,exNum(jR&&jR.use,0,'kg')+'<div class="ex-cap">대두 사용량</div>',jR?[['부산물률',fmt(jR.byRate,1)+'%'],['원액 생산',fmt(jR.raw)+'kg']]:[],jT,dev.j,'#/juice')+
@@ -17349,15 +17348,15 @@ App.navItems=function(){
   {id:'oee',t:'OEE',i:'📈',items:[{k:'#/oee',t:'OEE 설비종합효율',i:'📈'}]},
   {id:'dash',t:'대시보드',i:'▦',items:[{k:'#/juice',t:'착즙 대시보드',i:'❖'},{k:'#/mix',t:'배합 대시보드',i:'⚗'},{k:'#/ster',t:'멸균 대시보드',i:'♨'},{k:'#/pack',t:'포장 대시보드',i:'▣'},{k:'#/notice',t:'인사이트',i:'📢'}]},
   /* 2026-11-10 메뉴 정리: 일지(작성 · 문서함 · 결재) / 자료(보고서 · 지연·정비 · 설비 매뉴얼) / 부서톡 / AI 비서 */
-  {id:'journal',t:'일지',i:'✎',items:[{k:'#/journals',t:'일지 작성',i:'✎'},{k:'#/docs',t:'문서관리 (일지함)',i:'▤'},{k:'#/approval',t:'전자결재 (잠정 중단)',i:'⏸'}]},
-  {id:'data',t:'자료',i:'📋',items:[{k:'#/reports',t:'업무 보고서함',i:'📋'},{k:'#/ndash',t:'지연·정비 기록',i:'◈'},{k:'#/notebooklm',t:'설비 매뉴얼 AI (NotebookLM)',i:'✦',act:'NB.open()'}].concat(window.yumKPICan&&yumKPICan()?[{k:'#/notebooklm-set',t:'설비 매뉴얼 AI 연결 설정',i:'⚙',act:'NB.settings()'}]:[])},
+  {id:'journal',t:'일지',i:'✎',items:[{k:'#/journals',t:'일지 작성',i:'✎'},{k:'#/docs',t:'문서관리 (일지함)',i:'▤'},{k:'#/ndash',t:'생산 지연시간 기록',i:'◈'},{k:'#/approval',t:'전자결재 (잠정 중단)',i:'⏸'}]},
+  {id:'data',t:'자료',i:'📋',items:[{k:'#/reports',t:'업무 보고서함',i:'📋'},{k:'#/notebooklm',t:'설비 매뉴얼 AI (NotebookLM)',i:'✦',act:'NB.open()'}].concat(window.yumKPICan&&yumKPICan()?[{k:'#/notebooklm-set',t:'설비 매뉴얼 AI 연결 설정',i:'⚙',act:'NB.settings()'}]:[])},
   {id:'talk',t:'부서톡',i:'💬',items:[{k:'#/talk',t:'부서톡',i:'💬'}]},
   /* KPI · 인시 · 근태 (팀장 · 부문장 · 관리자만) */
  ].concat(window.yumKPICan&&yumKPICan()?[{id:'kpi',t:'KPI',i:'◎',items:[['부문','부문 통합','◎'],['가공1팀','가공1팀','♨'],['가공2팀','가공2팀','⚗'],['포장팀','포장팀','▣']].map(function(x){return {k:'#/kpi?t='+encodeURIComponent(x[0]),t:x[1],i:x[2]}})},{id:'mh',t:'인시 · 근태 · 노무비',i:'⏱',items:[['부문','부문 통합','◎'],['가공1팀','가공1팀','♨'],['가공2팀','가공2팀','⚗'],['포장팀','포장팀','▣']].map(function(x){return {k:'#/mh?t='+encodeURIComponent(x[0]),t:x[1],i:x[2]}})}]:[]).concat([
   {id:'ai',t:'AI 비서',i:'✦',items:[{k:'#/ai',t:'AI 업무도우미',i:'✦'}]}
  ]);
  /* 2026-11-12 중요한 순서로: 대시보드 → 일지 → KPI → 인시 · 노무비 → 팀 포털 → 자료 → 안전 → 부서톡 → AI 비서 (→ 근무 · 시스템) */
- S=S.filter(function(x){return x.id!=='plan'});
+ S=S.filter(function(x){return x.id!=='plan'&&(x.id!=='data'||isSuper())});  /* 2026-11-13 자료 · 근무 · 시스템 = 최고관리자만 */
  var ORD=['oee','prod','dash','journal','kpi','mh','data','talk','ai'];S.sort(function(a,b){var x=ORD.indexOf(a.id),y=ORD.indexOf(b.id);return (x<0?99:x)-(y<0?99:y)});
  if(isSuper()){S.push({id:'work',t:'근무',i:'◷',items:[{k:'#/weekplan',t:'주간근무계획표',i:'▤'},{k:'#/worksched',t:'근무스케쥴 (근무편성)',i:'◷'}]});
   S.push({id:'admin',t:'시스템',i:'⚑',items:[{k:'#/admin',t:'시스템관리',i:'⚑',c:((DB.data.users||[]).filter(function(x){return x.status==='pending'}).length)||undefined}]})}
@@ -17418,7 +17417,7 @@ function landing(){
  var menu=document.querySelector('#lnav .menu');if(!menu)return;
  if(!LM){var keep=document.createElement('div');keep.id='lnav-keep';keep.style.display='none';[].slice.call(menu.querySelectorAll('a[id]')).forEach(function(a){keep.appendChild(a)});menu.parentNode.appendChild(keep);LM=1}
  var sup=isSuper(),kc=!!(window.yumKPICan&&yumKPICan()),sig=sup+'/'+kc,A=function(r,t){return '<a href="#'+r.slice(2)+'" onclick="lnavGo(\''+r+'\');return false" style="font-weight:700;color:#ffffff">'+t+'</a>'};
- var h=A('#/oee','OEE')+A('#/prodmap','생산 현황')+A('#/juice','대시보드')+A('#/journals','일지')+(kc?A('#/kpi?t=%EB%B6%80%EB%AC%B8','KPI')+A('#/mh?t=%EB%B6%80%EB%AC%B8','인시 · 노무비'):'')+A('#/reports','자료')+(sup?A('#/weekplan','근무')+A('#/admin','시스템'):'');
+ var h=A('#/oee','OEE')+A('#/prodmap','생산 현황')+A('#/juice','대시보드')+A('#/journals','일지')+(kc?A('#/kpi?t=%EB%B6%80%EB%AC%B8','KPI')+A('#/mh?t=%EB%B6%80%EB%AC%B8','인시 · 노무비'):'')+(sup?A('#/reports','자료'):'')+(sup?A('#/weekplan','근무')+A('#/admin','시스템'):'');
  if(menu.getAttribute('data-sig')!==sig){menu.innerHTML=h;menu.setAttribute('data-sig',sig)}
  /* 영역 카드 */
  var g=document.querySelector('#areas .ha-g');
@@ -17429,6 +17428,7 @@ function landing(){
    ['#/teams','01 · Team Portals','⊞','팀 포털','착즙 · 배합 · 멸균 · 포장 팀별 업무포털로 바로 들어갑니다. 현장 현황과 팀 인사이트를 봅니다.',['배합팀 포털 (운영 중)','착즙 · 멸균 · 포장 포털 바로가기'],'#0F8F7C','#0A3F3A','15,143,124'],
    ['#/reports','05 · Resources','📋','자료','업무 보고서함과 지연 · 정비 기록, 설비 매뉴얼 AI를 한곳에 모았습니다.',['업무 보고서함','지연 · 정비 기록','설비 매뉴얼 AI'],'#4D7C0F','#1E3305','77,124,15']];
   if(kc){C.splice(3,0,['#/kpi?t=%EB%B6%80%EB%AC%B8','KPI · Performance','◎','KPI 달성 현황','부문 · 가공1팀 · 가공2팀 · 포장팀 KPI 점수와 항목별 달성 현황 (팀장 전용).',['부문 통합 스코어카드','팀별 KPI 항목 · 월별 추이'],'#4338CA','#1E1B4B','67,56,202'],['#/mh?t=%EB%B6%80%EB%AC%B8','Labor · Man-hours','⏱','인시 · 근태 · 노무비','작업자가 쓴 근무일보로 매일 자동 계산되는 투입 인시 · OT · 추정 노무비 (팀장 전용).',['오늘 · 이번 달 투입 인시','팀별 노무비 · 근태 분석'],'#7C3AED','#2E1065','124,58,237']);}
+  if(!sup)C=C.filter(function(c){return c[0]!=='#/reports'});
   if(sup)C.push(['#/weekplan','07 · Workforce','◷','근무','근무편성과 주간 근무계획표 (최고관리자 전용).',['주간근무계획표','근무스케쥴'],'#DB2777','#500724','219,39,119']);
   C.forEach(function(c,i){c[1]=('0'+(i+1)).slice(-2)+' · '+c[1].replace(/^\d+ · /,'')});
   g.innerHTML=C.map(function(c){return '<a class="ha-c rv2 in" href="#'+c[0].slice(2)+'" onclick="lnavGo(\''+c[0]+'\');return false" style="--c:'+c[6]+';--cd:'+c[7]+';--cr:'+c[8]+';opacity:1;transform:none"><span class="ha-n">'+c[1]+'</span><span class="ha-ic">'+c[2]+'</span><h3>'+c[3]+'</h3><p>'+c[4]+'</p><ul>'+c[5].map(function(x){return '<li>'+x+'</li>'}).join('')+'</ul><span class="ha-go">'+c[3]+' 열기</span></a>'}).join('');
@@ -17453,6 +17453,7 @@ App.render=function(){
  if(GONE[p]&&!(p==='#/equipment'&&location.hash.indexOf('#/equipment/')===0)){location.replace(GONE[p]);return}
  if(p==='#/teams'){this.baseRoute='#/teams';M.innerHTML=teamsHTML();try{this.buildSidebar();this.refreshChrome()}catch(e){}return}
  if(WORK.indexOf(p)>=0&&!isSuper()&&!TEAMEMB){this.baseRoute='#/dash';M.innerHTML=lockHTML('최고관리자 전용 화면','근무편성 · 주간근무계획표는 최고관리자만 볼 수 있습니다.','<button class="btn btn-p" onclick="App.go(\'#/overview\')">대시보드로</button>');try{this.buildSidebar();this.refreshChrome()}catch(e){}return}
+ if(['#/reports','#/notebooklm','#/report-admin','#/oplogs'].indexOf(p)>=0&&!isSuper()){this.baseRoute='#/dash';M.innerHTML=lockHTML('최고관리자 전용 화면','자료(업무 보고서함 · 설비 매뉴얼 AI)는 최고관리자만 볼 수 있습니다.','<button class="btn btn-p" onclick="App.go(\'#/oee\')">OEE로</button>');try{this.buildSidebar();this.refreshChrome()}catch(e){}return}
  if(p==='#/admin'&&!isSuper()){this.baseRoute='#/dash';M.innerHTML=lockHTML('최고관리자 전용 화면','시스템관리는 최고관리자만 볼 수 있습니다.','<button class="btn btn-p" onclick="App.go(\'#/overview\')">대시보드로</button>');try{this.buildSidebar();this.refreshChrome()}catch(e){}return}
  if(PLAN.indexOf(p)>=0&&!EMB){this.baseRoute='#/teams';M.innerHTML=lockHTML('생산계획은 배합팀 업무포털로 옮겼습니다','생산계획표 변환은 이제 <b>배합팀 업무포털 → 생산계획표 변환</b> 탭에서 합니다. 변환 결과(공정 규격 · 사일로 배정)는 지금처럼 같은 서버에 저장됩니다.','<button class="btn btn-p" onclick="yumOpenMix()">배합팀 포털 열기 →</button>');try{this.buildSidebar();this.refreshChrome()}catch(e){}return}
  var res=_r.apply(this,arguments);
@@ -18290,8 +18291,8 @@ function fillerMap(D){var y=D.slice(0,4),py=String(+y-1)+D.slice(4);packExt(D);p
 function pack(D,now){var r=pack0(D,now);try{var PLm=now!=null&&window.yumPackLiveMap?yumPackLiveMap(D):null;if(PLm)r.forEach(function(o){var L=PLm[o.h];if(!L)return;o.on=true;o.run=L.run;if(L.prod)o.prod=L.prod;if(L.ea!=null)o.ea=L.ea;o.st=L.st+(L.ea!=null?' · '+Math.round(L.ea).toLocaleString()+'개':'')+(L.st==='정지'&&L.why?' · '+L.why:'')})}catch(e){}return r}
 function pack0(D,now){var PD=window.yumProcDash,R=null;try{R=PD&&PD.day?PD.day('pack',D):null}catch(e){}
  var lines=(R&&R.lines)||[],X=now==null?packExt(D):{};return ['A','B','C','D','E','F'].map(function(h){var o=lines.filter(function(x){return x.h===h})[0],x=X[h];
-  if(!o&&x)return {k:'p'+h,h:h,t:'충전 '+h+'호기',sub:'포장팀 포털',prod:x.items.join(' · '),on:true,run:false,st:Math.round(x.qty).toLocaleString()+'개 · 정지 '+x.stop+'분',ea:x.qty,box:null,ext:1};
-  return {k:'p'+h,h:h,t:'충전 '+h+'호기',sub:'Aseptic',prod:o?o.prod||'':'',on:!!o,run:!!o&&!!(o.prod||o.ea),st:o?(o.ea?Math.round(o.ea).toLocaleString()+'개':'생산 중'):'일지 없음',ea:o&&o.ea,box:o&&o.box}})}
+  if(!o&&x)return {k:'p'+h,h:h,t:'아셉틱 '+('ABCDEF'.indexOf(h)+1)+'호기',sub:'포장팀 포털',prod:x.items.join(' · '),on:true,run:false,st:Math.round(x.qty).toLocaleString()+'개 · 정지 '+x.stop+'분',ea:x.qty,box:null,ext:1};
+  return {k:'p'+h,h:h,t:'아셉틱 '+('ABCDEF'.indexOf(h)+1)+'호기',sub:'Aseptic',prod:o?o.prod||'':'',on:!!o,run:!!o&&!!(o.prod||o.ea),st:o?(o.ea?Math.round(o.ea).toLocaleString()+'개':'생산 중'):'일지 없음',ea:o&&o.ea,box:o&&o.box}})}
 
 /* ───── 그리기 ───── */
 var W=1250,TOP=56,RH=78,NH=64;
@@ -18433,7 +18434,7 @@ function render(D){
  [['j',J],['w',WN],['m',M],['s',S],['p',P],['b',B]].forEach(function(a){var c=C(a[0]);a[1].forEach(function(n,i){var wd=a[0]==='w'?wm.filter(function(q){return q[0]===i}):[],col=wd.length===1?(COL[M[wd[0][1]].h]||SOY):a[0]==='j'?(function(){var wi=-1;WN.forEach(function(w,k){if(w.wk===n.wt)wi=k});var d=wm.filter(function(q){return q[0]===wi});return d.length===1?(COL[M[d[0][1]].h]||SOY):SOY})():a[0]==='w'?SOY:a[0]==='m'||a[0]==='s'?COL[n.h]:(used[n.h]?COL[used[n.h]]:'#94A3B8');nodes+=node(n,c.x,Y[a[0]][i],c.w,col,a[0])})});
  var head=COLS.map(function(c){return '<text x="'+(c.x+c.w/2)+'" y="'+(TOP-22)+'" text-anchor="middle" class="fm-h">'+c.t+'</text>'}).join('');
  var H=TOP+RH*6+6;
- var leg='<div class="fm-leg">'+[1,2,3,4,5].map(function(h){return '<span><i style="background:'+COL[h]+'"></i>'+h+'호기 라인</span>'}).join('')+'<span><i style="background:'+SOY+'"></i>분리유액 공용 배관 (배합 호기 미확인)</span><span class="fm-legn">점선이 흐르는 구간 = 지금 이송 · 생산 중</span></div>';
+ var leg='<div class="fm-leg">'+[1,2,3,4,5].map(function(h){return '<span><i style="background:'+COL[h]+'"></i>아셉틱 '+('ABCDEF'.indexOf(h)+1)+'호기 라인</span>'}).join('')+'<span><i style="background:'+SOY+'"></i>분리유액 공용 배관 (배합 호기 미확인)</span><span class="fm-legn">점선이 흐르는 구간 = 지금 이송 · 생산 중</span></div>';
  var clock=now!=null?pad(Math.floor(now/60))+':'+pad(now%60):D.slice(5).replace('-','/')+' 기록';
  return '<div class="fm"><div class="fm-top">'+leg+'<b class="fm-clock">'+clock+'</b></div><div class="fm-sc"><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="공정 흐름도">'+head+links+nodes+'</svg></div>'+
   '<div class="fm-note">각 팀 일지(착즙 작업일보 · 생산작업일보 · 멸균 업무일지 · 포장 생산작업일보)와 생산계획표로 그립니다 · 배관은 모든 호기에 연결되어 있고, 색 선은 그날 실제로 이어지는 호기(분리유액 = 두유 제품 · 멸균 → 충전 = 같은 제품) · 노드에 마우스를 올리면 자세히</div></div>'}
@@ -20101,10 +20102,13 @@ function view(tk){var t=TM[tk],s=S(tk),D=s.d,R=range(D),Dy=day(D);if(!R)return '
 function paint(force){var tk=team(),M=document.getElementById('main');if(!tk||!M){document.documentElement.classList.remove('cc-mode');return}
  var panel=$('#main > .panel');if(!panel)return;var s=S(tk);document.documentElement.classList.add('cc-mode');M.classList.toggle('cc-det',!!s.det);
  var box=$('#cc-root',M);if(!box){box=document.createElement('div');box.id='cc-root';panel.parentNode.insertBefore(box,panel)}
- var key=tk+'|'+s.d+'|'+s.det+'|'+sig()+'|'+(tk==='ster'?(sterModel(s.d)?1:0)+sterFeedOk(s.d):'')+'|'+(tk==='pack'?(PK&&PK.k?1:0):'');if(!force&&key===LAST&&box.firstChild)return;LAST=key;
- try{box.innerHTML=view(tk)}catch(e){console.error('[컨트롤 룸]',e);box.innerHTML='<div class="cc-load">대시보드를 그리지 못했습니다: '+E(e.message)+'</div>';return}
- anim(box)}
-function anim(box){var red=window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;requestAnimationFrame(function(){box.querySelector('.cc')&&box.querySelector('.cc').classList.add('in');
+ var key=tk+'|'+s.d+'|'+s.det+'|'+sig()+'|'+(tk==='ster'?(sterModel(s.d)?1:0)+sterFeedOk(s.d):'')+'|'+(tk==='pack'?(PK&&PK.k?1:0):'');if(!force&&key===LAST&&box.firstChild)return;var y=window.scrollY;
+ /* 2026-11-13 깜빡임: 아래 기존 화면이 다시 그려져 대시보드가 지워진 경우 · 자료만 새로 온 경우 → 애니메이션 없이 조용히 (스크롤 유지) */
+ var same=key===LAST,reuse=!force&&same&&!box.firstChild&&!!LASTH,quiet=!force&&(reuse||!!box.firstChild);LAST=key;
+ try{if(reuse)box.innerHTML=LASTH;else{box.innerHTML=view(tk);LASTH=box.innerHTML}}catch(e){console.error('[컨트롤 룸]',e);box.innerHTML='<div class="cc-load">대시보드를 그리지 못했습니다: '+E(e.message)+'</div>';return}
+ box.classList.toggle('cc-q',quiet);anim(box,quiet);if(quiet)window.scrollTo(0,y)}
+var LASTH='';
+function anim(box,quiet){var red=quiet||(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);if(quiet){var c0=box.querySelector('.cc');if(c0)c0.classList.add('in')}(quiet?function(f){f()}:requestAnimationFrame)(function(){box.querySelector('.cc')&&box.querySelector('.cc').classList.add('in');
  $$('.cc-arc',box).forEach(function(a){a.style.strokeDashoffset=a.getAttribute('data-off')});
  $$('[data-n]',box).forEach(function(b){var raw=b.getAttribute('data-n');if(raw===''||red){if(raw!=='')b.textContent=fm(+raw,+(b.getAttribute('data-d')||0));return}var v=+raw,d=+(b.getAttribute('data-d')||(v%1?1:0)),t0=performance.now();(function st(t){var p=Math.min(1,(t-t0)/1200),e=1-Math.pow(1-p,4);b.textContent=fm(v*e,d);if(p<1)requestAnimationFrame(st);else b.textContent=fm(v,d)})(t0)})})}
 /* 시계 */
@@ -20113,11 +20117,12 @@ setInterval(function(){var c=document.getElementById('cc-clk');if(!c)return;var 
 document.addEventListener('click',function(e){var r=e.target.closest&&e.target.closest('#cc-root [data-d],#cc-root [data-act]');if(!r)return;var tk=team();if(!tk)return;var s=S(tk);
  if(r.hasAttribute('data-d')){s.d=r.getAttribute('data-d');try{if(tk==='ster'&&window.SterDash)SterDash.pick(s.d);else if(window.yumProcDash)yumProcDash.pick(tk,s.d)}catch(x){}paint(true)}
  else if(r.getAttribute('data-act')==='det'){s.det=!s.det;saveST();paint(true);if(s.det){var p=$('#main > .panel');if(p)setTimeout(function(){window.scrollTo({top:p.getBoundingClientRect().top+scrollY-120,behavior:'smooth'})},80)}}});
-var T=null;new MutationObserver(function(){if(!team())return;clearTimeout(T);T=setTimeout(function(){paint(false)},250)}).observe(document.documentElement,{childList:true,subtree:true});
+var T=null;new MutationObserver(function(){if(!team())return;if(!document.getElementById('cc-root')&&$('#main > .panel')){paint(false);return}clearTimeout(T);T=setTimeout(function(){paint(false)},250)}).observe(document.documentElement,{childList:true,subtree:true});
 window.addEventListener('hashchange',function(){LAST='';setTimeout(function(){paint(true)},200)});window.addEventListener('yum-sterfeed',function(){paint(false)});
 setInterval(function(){if(team())paint(false)},20000);
 window.yumCC={paint:paint};
-var st=document.createElement('style');st.textContent=
+var st=document.createElement('style');st.textContent='.cc-q,.cc-q *{transition:none!important;animation:none!important}'+
+
  'html.cc-mode #main > .panel{display:none}html.cc-mode #main.cc-det > .panel{display:block}html.cc-mode #main{background:transparent}'+
  '#cc-root{margin:0 0 18px}.cc{--bg:#070B14;--card:rgba(255,255,255,.035);--ln:rgba(255,255,255,.08);--tx:#E6ECF5;--mu:#8A97AD;color:var(--tx);background:radial-gradient(1200px 500px at 0% 0%,color-mix(in srgb,var(--a) 14%,transparent),transparent 60%),radial-gradient(900px 500px at 100% 0%,color-mix(in srgb,var(--b) 12%,transparent),transparent 60%),linear-gradient(180deg,#0A1020,#070B14 40%);border-radius:24px;padding:18px;border:1px solid rgba(255,255,255,.06);box-shadow:0 30px 60px -36px rgba(0,0,0,.8);font-variant-numeric:tabular-nums}'+
  '.cc-hero{position:relative;overflow:hidden;display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:flex-end;padding:22px 22px 18px;border-radius:18px;background:rgba(255,255,255,.03);border:1px solid var(--ln)}'+
@@ -20846,7 +20851,7 @@ function view(){var D=ST.d,N=ST.n||7,all=eqDay(D),G=tsum(all),G0=tsum(eqDay(addD
   '<section class="o2-c"><header><i style="background:#0F172A"></i><b>공정별 손실 비교 · 개선 검토</b></header>'+lossCmp(D)+'</section></div>'+
   '<section class="o2-c"><header><i style="background:#0F172A"></i><b>주간 생산량</b><small>월~일 · 최근 5주 · '+md(D)+'까지 · 저장된 일지 기준</small></header>'+weekly(D)+'</section>'+review(D)+
   stdBox()+
-  '<div class="oe-foot"><b>자료</b> 착즙: 착즙공정일보 시간대 표 · 착즙팀 CIP 일보 · 원액생산작업일보 T.S · 배합: 생산작업일보 배치별 유입 · 혼합 완료 · 이송 시각 · 배합실 CIP 일보 · 포장: 포장팀 포털 일별 생산 · 정지 건별 자료(공개 '+((PXD[D.slice(0,4)]||{}).until||'—')+'까지) → 없으면 포장 생산작업일보 · 멸균: 멸균 업무일지 구간 · 미입력은 — · 비생산 호기는 집계 제외 · 저장기록 기준'+setPanel2()+'</div></div>';
+  '<div class="oe-foot o2-foot">'+setPanel2()+'</div></div>';
  return h}
 function setPanel2(){if(!canSet())return '';var b=cfg().base||{};
  return '<details class="oe-set"><summary>⚙ 성능 기준 설정 (결재권자)</summary><p>성능가동률(P)의 기준 속도입니다. 비워 두면 최근 90일 최고 속도(포장팀 자료) 또는 30일 최고 생산량을 씁니다.</p><div class="oe-sg">'+
@@ -20882,6 +20887,7 @@ function setPanel2(){if(!canSet())return '';var b=cfg().base||{};
  '.o2-fx{display:flex;flex-direction:column;gap:6px}.o2-fl{font-size:13.5px;padding:8px 10px;border-radius:10px;background:#F8FAFC;border:1px solid #EEF2F7;color:#334155;font-variant-numeric:tabular-nums}.o2-fl.f{background:color-mix(in srgb,var(--c) 8%,#fff);border-color:color-mix(in srgb,var(--c) 30%,#E5E9F2);font-weight:800;color:#0F172A}.o2-fl b{font-size:16px;color:var(--c)}'+
  '.o2-e3 .w .o2-hb>div{grid-template-columns:minmax(120px,1.2fr) 1.4fr auto;font-size:13px;margin-bottom:8px}.o2-e3 .w .o2-hb em{height:10px}.o2-key{font-size:13px!important;line-height:1.6}'+
  '@media (max-width:1100px){.o2-e3{grid-template-columns:1fr}}'+
+ '.o2-top label{white-space:nowrap}.o2-not,.o2-hero .oe-hl>p,.o2-c>header small,.o2-hint,.o2-fn,.o2-lg2 small,.o2-hk small,.o2-b1>span{display:none!important}.o2-top{justify-content:flex-end}.o2-foot:empty{display:none}.o2 .oe-foot.o2-foot{border:0;background:none;padding:0}'+
  '.o2-ps{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px;padding:8px 10px;border-radius:12px;background:linear-gradient(90deg,color-mix(in srgb,var(--c) 7%,#fff),#fff);border:1px dashed color-mix(in srgb,var(--c) 40%,#E5E9F2);font-size:11.5px}.o2-ps b{color:var(--c);margin-right:4px}.o2-ps span{padding:2px 8px;border-radius:999px;background:#fff;border:1px solid #E5E9F2;color:#475569;font-weight:700}.o2-ps em{font-style:normal;color:#0F172A;font-weight:900}'+
  '.o2-ml{margin-top:10px;padding:7px 12px;border-radius:10px;background:#F1F5F9;font-size:12.5px;font-weight:800;color:#334155}'+
 '.o2-tt{display:grid;grid-template-columns:repeat(3,1fr);margin-top:8px;border:1px solid #E5E9F2;border-radius:10px;overflow:hidden}.o2-tt span{padding:7px;text-align:center;font-size:12px;color:#475569;font-weight:700}.o2-tt span+span{border-left:1px solid #E5E9F2}.o2-tt b{color:#0F172A;margin-left:4px}'+
@@ -21385,8 +21391,8 @@ function view(){var M=window.yumLiveModel?yumLiveModel():{juice:[],mix:[],ster:[
  var sCrew=m66.concat(SX.crew.length?[{lab:'멸균팀 포털 업무일지',time:'',on:false,names:SX.crew}]:[]);
  /* 포장팀 포털 */
  var PX=packExtra(D,now),pst=PX.ok?(Object.keys(PX.byM).length?'ok':'old'):'wait';
- var PL=packLiveMap(D);if(PL.ok){pst='live';M.pack.forEach(function(x){var m=(String(x.t).match(/([A-F])호기/)||[])[1],L=m&&PL.m[m];if(!L)return;x.lst=L.st;x.run=L.run;x.on=true;if(L.ea!=null)x.ea=L.ea;if(L.prod)x.prod=L.prod;x.src='포장팀 포털';if(L.st==='정지')x.stop={a:L.t||'',why:L.why||''};x.since=L.t})}
- M.pack.forEach(function(x){var m=(String(x.t).match(/([A-F])호기/)||[])[1];if(!m)return;var o=PX.byM[m];if(o&&!x.ea){x.ea=o.ea;x.prod=x.prod||o.items.join(', ');x.src='포장팀 포털'}var s=PX.stop[m];if(s){x.stop=s;x.run=false}});
+ var PL=packLiveMap(D);if(PL.ok){pst='live';M.pack.forEach(function(x){var m=(x.h||(String(x.t).match(/([A-F])호기/)||[])[1]),L=m&&PL.m[m];if(!L)return;x.lst=L.st;x.run=L.run;x.on=true;if(L.ea!=null)x.ea=L.ea;if(L.prod)x.prod=L.prod;x.src='포장팀 포털';if(L.st==='정지')x.stop={a:L.t||'',why:L.why||''};x.since=L.t})}
+ M.pack.forEach(function(x){var m=(x.h||(String(x.t).match(/([A-F])호기/)||[])[1]);if(!m)return;var o=PX.byM[m];if(o&&!x.ea){x.ea=o.ea;x.prod=x.prod||o.items.join(', ');x.src='포장팀 포털'}var s=PX.stop[m];if(s){x.stop=s;x.run=false}});
  var jNote=jst==='err'?'<div class="lb-warn">착즙팀 포털 연결 안 됨 — '+E(JF.err||'')+'<br><small>Supabase Edge Functions에 juice-proxy 배포와 JUICE_FEED_TOKEN 등록이 되어 있어야 합니다. 그 전까지는 우리 착즙 일지로 표시합니다.</small></div>':(JP&&!JP.eq.length&&JP.top.length?'<div class="lb-raw"><b>착즙팀 포털 원본</b>'+JP.top.map(function(t){return '<span>'+E(t)+'</span>'}).join('')+'</div>':'');
  if(JB)jNote=(JB.bad.length?'<div class="lb-warn">설비 이상 — '+E(JB.bad.join(' · '))+'</div>':'')+(JB.tanks.length?'<div class="lb-tk">'+JB.tanks.map(function(t){return '<span>'+E(t)+'</span>'}).join('')+'</div>':'');
  var sNote=sst==='err'?'<div class="lb-warn">멸균팀 포털 연결 안 됨 — '+E(SX.err||'')+'</div>':'';
@@ -21403,7 +21409,7 @@ function view(){var M=window.yumLiveModel?yumLiveModel():{juice:[],mix:[],ster:[
    body:rows(M.ster,function(x){return '<div class="lb-en"><b>'+E(x.t)+'</b><small>'+E(x.sub||'')+'</small></div>'+chip(String(x.st||'').split(' · ')[0],x.run)+'<div class="lb-pr">'+E(x.prod||'')+(/ · /.test(x.st||'')?' <em>'+E(String(x.st).split(' · ').slice(1).join(' · '))+'</em>':'')+'</div>'})+sNote,
    crew:sCrew},
   {k:'포장',en:'PACKAGING',c:'#3062D8',eq:M.pack,src:srcTag(pst==='ok'||pst==='live'?'ok':'wait',pst==='live'?'포장팀 포털 실시간'+(PL.at?' '+PL.at:''):pst==='ok'?'포장팀 포털 오늘 자료':'포장 일지 기준',PX.until?'포장팀 포털 공개 자료는 '+PX.until+'까지':''),
-   body:(function(){var mx=Math.max.apply(null,M.pack.map(function(x){return +x.ea||0}).concat([1]));return rows(M.pack,function(x){return '<div class="lb-en"><b>'+E(String(x.t).replace('충전 ',''))+'</b><small>'+E(x.sub||'')+'</small></div>'+chip(x.lst?x.lst:x.stop?'정지':x.ea?(x.run?'생산 중':'기록'):x.on?'생산 중':'일지 없음',x.run)+'<div class="lb-pr">'+E(x.prod||'')+(x.stop?' <em>'+E(x.stop.a+' '+x.stop.why)+'</em>':'')+'</div>'+(x.ea?'<div class="lb-ea"><b data-n="'+Math.round(x.ea)+'">0</b><small>개'+(x.src?' · '+E(x.src):'')+'</small></div><div class="lb-bar"><i style="--w:'+((+x.ea)/mx*100).toFixed(0)+'%"></i></div>':'')})})()+(PX.ok&&pst!=='ok'&&pst!=='live'?'<div class="lb-foot">포장팀 포털 공개 자료는 '+E(PX.until)+'까지만 올라와 있어 오늘 생산량은 포장 일지로 표시합니다 (포장팀이 매일 올리면 자동으로 바뀝니다)</div>':''),
+   body:(function(){var mx=Math.max.apply(null,M.pack.map(function(x){return +x.ea||0}).concat([1]));return rows(M.pack,function(x){return '<div class="lb-en"><b>'+E(String(x.t))+'</b><small>'+E(x.sub||'')+'</small></div>'+chip(x.lst?x.lst:x.stop?'정지':x.ea?(x.run?'생산 중':'기록'):x.on?'생산 중':'일지 없음',x.run)+'<div class="lb-pr">'+E(x.prod||'')+(x.stop?' <em>'+E(x.stop.a+' '+x.stop.why)+'</em>':'')+'</div>'+(x.ea?'<div class="lb-ea"><b data-n="'+Math.round(x.ea)+'">0</b><small>개'+(x.src?' · '+E(x.src):'')+'</small></div><div class="lb-bar"><i style="--w:'+((+x.ea)/mx*100).toFixed(0)+'%"></i></div>':'')})})()+(PX.ok&&pst!=='ok'&&pst!=='live'?'<div class="lb-foot">포장팀 포털 공개 자료는 '+E(PX.until)+'까지만 올라와 있어 오늘 생산량은 포장 일지로 표시합니다 (포장팀이 매일 올리면 자동으로 바뀝니다)</div>':''),
    crew:m6x}];
  var runN=0,allN=0,crewOn=0;C.forEach(function(c){allN+=c.eq.length;runN+=c.eq.filter(function(x){return x.run}).length;c.crew.forEach(function(g){g.names.forEach(function(n){if(typeof n==='object'?n.on:g.on)crewOn++})})});
  var h='<div class="lb"><div class="lb-head"><div><div class="lb-eye"><span class="lb-live"><i></i>LIVE</span>REAL-TIME PRODUCTION BOARD</div><h2>실시간 현황 <small>착즙 → 배합 → 멸균 → 포장</small></h2></div>'+
@@ -21525,6 +21531,50 @@ document.head.appendChild(st);
 <script>
 /* 홈 화면: 아래쪽 「영역 카드」 · 「자주 찾는 메뉴」 는 위 메뉴와 겹쳐 숨김 (2026-11-12) */
 (function(){var st=document.createElement('style');st.textContent='#areas.h2-areas,#quick.h2-quick{display:none!important}';document.head.appendChild(st)})();
+</script>
+
+<script>
+/* ============ 뒤로가기 · 4층 대체 (2026-11-13) ============
+   ① 모든 업무 화면 상단(검색창 왼쪽)에 「← 뒤로」 — 바로 직전 화면으로 (처음 들어온 화면이면 OEE로)
+   ② 주간근무계획표: 평일에 4층 우정균 · 김진명 중 1명만 근무(1명 휴무)이면 장영빈을 4층에 「(대체)」로 넣고 그날 다른 줄에서는 뺌
+      · 오늘 이후 날짜만 · 장영빈이 그날 휴무자면 넣지 않음 · 사용자가 직접 빼면 다시 넣지 않음 (W.auto4f 표시)              */
+(function(){
+'use strict';
+if(window.__YUM_NB2__)return;window.__YUM_NB2__=1;
+/* ① 뒤로가기 */
+var HS=[],BACK=false,PREV=location.hash;
+window.addEventListener('hashchange',function(){if(BACK){BACK=false;HS.pop()}else if(PREV&&PREV!==location.hash)HS.push(PREV);if(HS.length>50)HS.shift();PREV=location.hash;draw()});
+function draw(){var app=document.getElementById('page-app'),tb=document.querySelector('#page-app .topbar');if(!tb)return;var b=document.getElementById('yum-back');
+ if(!b){b=document.createElement('button');b.id='yum-back';b.type='button';b.innerHTML='<svg viewBox="0 0 24 24" width="16" height="16"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg><span>뒤로</span>';
+  b.onclick=function(){if(HS.length){BACK=true;history.back()}else{try{App.go('#/oee')}catch(e){location.hash='#/oee'}}};
+  var brand=tb.firstElementChild;if(brand&&brand.nextSibling)tb.insertBefore(b,brand.nextSibling);else tb.insertBefore(b,tb.firstChild)}
+ b.title=HS.length?'직전 화면으로 ('+(HS[HS.length-1]||'')+')':'OEE 화면으로';b.classList.toggle('home',!HS.length);b.style.display=app&&app.classList.contains('on')?'':'none'}
+setInterval(draw,1000);document.addEventListener('DOMContentLoaded',draw);
+var st=document.createElement('style');st.textContent=
+ '#yum-back{display:inline-flex;align-items:center;gap:4px;height:34px;padding:0 12px 0 8px;margin:0 10px;border-radius:999px;border:1px solid rgba(200,161,90,.55);background:rgba(255,255,255,.06);color:#E8D3A5;font-weight:800;font-size:13px;cursor:pointer;flex:none;transition:background .2s,transform .2s}'+
+ '#yum-back:hover{background:rgba(200,161,90,.22);transform:translateX(-2px)}#yum-back.home{opacity:.75}'+
+ '@media (max-width:700px){#yum-back{height:30px;padding:0 8px 0 6px;margin:0 6px;font-size:12px}#yum-back span{display:none}}@media print{#yum-back{display:none!important}}';
+document.head.appendChild(st);
+/* ② 4층 대체 — 주간근무계획표 */
+function pad(n){return ('0'+n).slice(-2)}
+function ymd(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+function base(n){return String(n||'').replace(/\(.*?\)/g,'').replace(/\s+/g,'')}
+function split(v){return String(v||'').split(/\s*,\s*/).map(function(x){return x.trim()}).filter(function(x){return x&&x!=='-'})}
+function fix(){var D=(typeof DB!=='undefined')&&DB.data,WP=D&&D.weeklyPlans;if(!WP)return 0;var today=ymd(new Date()),ch=0;
+ Object.keys(WP).forEach(function(k){if(!/^\d{4}-\d{2}-\d{2}$/.test(k))return;var W=WP[k];if(!W||!W.groups)return;var G4=W.groups.filter(function(g){return g.label==='4층'})[0];if(!G4||!G4.rows||!G4.rows[0])return;var r=G4.rows[0];
+  var off=((W.single||[]).filter(function(x){return x.label==='휴무자'})[0]||{}).values||[];W.auto4f=W.auto4f||{};
+  for(var di=0;di<5;di++){var dt=new Date(k+'T00:00:00');dt.setDate(dt.getDate()+di);if(ymd(dt)<today)continue;
+   var tm=(r.time||[])[di];if(tm==='-')continue;var L=split((r.names||[])[di]),hu=L.some(function(n){return base(n)==='우정균'}),hk=L.some(function(n){return base(n)==='김진명'});
+   if(hu===hk)continue;if(L.some(function(n){return base(n)==='장영빈'}))continue;if(W.auto4f[di])continue;   /* 넣었다가 사람이 뺀 날은 그대로 */
+   if(split(off[di]).some(function(n){return base(n)==='장영빈'}))continue;
+   W.groups.forEach(function(g){if(g===G4)return;(g.rows||[]).forEach(function(rr){var M=split((rr.names||[])[di]);var M2=M.filter(function(n){return base(n)!=='장영빈'});if(M2.length!==M.length){rr.names[di]=M2.join(', ')}})});
+   L.push('장영빈(대체)');r.names=r.names||[];r.names[di]=L.join(', ');if(!r.time)r.time=[];if(!r.time[di])r.time[di]='07:30~16:00';W.auto4f[di]=1;ch++}});
+ if(ch){try{DB.save()}catch(e){}try{if(window.SupaSync&&SupaSync.on())SupaSync.queuePush()}catch(e){}}
+ return ch}
+window.yumFix4F=fix;
+function run(){try{var n=fix();if(n&&/^#\/weekplan/.test(location.hash)){try{App.render()}catch(e){}}if(n&&window.U&&U.toast)U.toast('4층 1명 휴무인 날 '+n+'일에 장영빈을 4층(대체)으로 넣었습니다.','ok')}catch(e){console.warn('[4층 대체]',e)}}
+setTimeout(run,2500);window.addEventListener('yum-docs-synced',function(){setTimeout(run,500)});window.addEventListener('hashchange',function(){if(/^#\/weekplan/.test(location.hash))setTimeout(run,300)});setInterval(run,60000);
+})();
 </script>
 
 </body>
