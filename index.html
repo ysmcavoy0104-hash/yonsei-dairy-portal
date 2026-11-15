@@ -18197,8 +18197,10 @@ function juice(D,now){var d=docs('FRM-009',D)[0],out=[];
   var hh=now!=null?Math.floor(now/60):-1,last=-1;hrs.forEach(function(v,i){if(v)last=i});
   /* 지금 시각 칸이 체크됐거나, 일지를 아직 못 채운 경우(마지막 체크가 바로 앞 시간) 가동 중으로 */
   var first=-1;hrs.forEach(function(v,i){if(v&&first<0)first=i});
-  var run=now!=null?(!!hrs[hh]||(last>=0&&last===hh-1)||(first>=0&&hh>=first&&hh<=last)):on>0;
-  out.push({k:'j'+n,n:n,wt:n===4?'D':String(wt||'').replace(/\D/g,''),bk:+(String(bk||'').match(/\d/)||[0])[0],t:'',sub:n===4?'→ 데칸타':(wt?'→ WT'+String(wt).replace(/\D/g,''):''),prod:nm,on:on>0,run:run,st:run?(now!=null?'가동 중':'가동 '+on+'시간'):on?'가동 '+on+'시간':'미가동'})}
+  /* 지금 시각(없으면 바로 앞 시간) 칸의 코드: b 분리액 생산 · e 재시작 · g 탈피실 자동 · d 생산종료 = 가동 / a · c · j · h · f = 정지 · 대기 */
+  var cv=now!=null?String(hrs[hh]||(last>=0&&last===hh-1?hrs[last]:'')||'').trim():'',cc=cv.toLowerCase().replace(/[^a-z]/g,'').charAt(0),jstop=!!cc&&/[acjhf]/.test(cc);
+  var run=now!=null?(cv?!jstop:(first>=0&&hh>=first&&hh<=last)):on>0;
+  out.push({jrun:now!=null&&run,jcode:cc,k:'j'+n,n:n,wt:n===4?'D':String(wt||'').replace(/\D/g,''),bk:+(String(bk||'').match(/\d/)||[0])[0],t:'',sub:n===4?'→ 데칸타':(wt?'→ WT'+String(wt).replace(/\D/g,''):''),prod:nm,on:on>0,run:run,st:run?(now!=null?'가동 중':'가동 '+on+'시간'):on?'가동 '+on+'시간':'미가동'})}
  /* 빈쿠커 번호 정리 — 칸이 비면 줄 번호로 채우던 것이 다른 줄의 번호와 겹치던 문제 (같은 빈쿠커 두 번 표시) */
  (function(){var used={},keep=[];out.forEach(function(o){if(o.bk>=1&&o.bk<=4){var f=keep.filter(function(x){return x.c===o.bk})[0];
    if(f){if(o.on||o.run){f.run=f.run||o.run;f.on=f.on||o.on;if(o.prod&&f.prod.indexOf(o.prod)<0)f.prod=f.prod?f.prod+', '+o.prod:o.prod;if(o.run)f.st=o.st}return}
@@ -18211,7 +18213,9 @@ function juice(D,now){var d=docs('FRM-009',D)[0],out=[];
   var eq=String(L.equipment||''),w=/(데칸|decant)/i.test(eq)?'D':eq.replace(/\D/g,'');if(w){o.wt=w;o.sub='→ '+(w==='D'?'데칸타':'WT'+w)}
   var ps=(L.products||[]).map(function(x){return x&&x.name}).filter(Boolean).join(', ');if(ps)o.prod=ps;
   var stc=String(L.status||''),MP={run:'가동 중',wait:'대기',done:'완료',late:'기록 대기',stop:'정지'};
-  if(now!=null){o.run=stc==='run';o.st=(MP[stc]||L.status_label||o.st)+(L.reason&&stc!=='run'?' · '+L.reason:'')}else if(stc==='done'||stc==='run')o.st=o.st==='미가동'?'완료':o.st;
+  if(now!=null){o.run=stc==='run';o.st=(MP[stc]||L.status_label||o.st)+(L.reason&&stc!=='run'?' · '+L.reason:'');
+   /* 착즙팀 포털이 「기록 대기 · 대기」여도 지금 작성 중인 착즙 공정일보에 생산 코드가 있으면 가동 중 (정지 · 완료는 포털 그대로) */
+   if(!o.run&&stc!=='stop'&&stc!=='done'&&o.jrun){o.run=true;stc='run';o.st='가동 중 · '+({b:'분리액 생산',e:'생산 재시작',g:'탈피실 자동운전',d:'생산 종료 시간'}[o.jcode]||'공정일보 기준')}}else if(stc==='done'||stc==='run')o.st=o.st==='미가동'?'완료':o.st;
   o.on=o.on||stc==='run'||stc==='done';if(stc)o.fstat=stc;o.ext='착즙팀 포털'})}catch(e){}
  return out}
 function mix(D,now){var out=[],L=docs('FRM-012',D).concat(docs('FRM-011',D)),f11=form('FRM-011');
@@ -21420,8 +21424,14 @@ function view(){var M=window.yumLiveModel?yumLiveModel():{juice:[],mix:[],ster:[
  var w14=logGroups(['FRM-014'],['m14'],now,D),w28=logGroups(['FRM-028'],['m28'],now,D);
  /* 착즙팀 포털 */
  var JF=juiceFeed(D),JB=JF&&JF.ok?juiceBoard(JF.raw):null,JP=JF&&JF.ok?(JB||juiceParse(JF.raw)):null,jst=JF?(JF.ok?'ok':'err'):'wait';
- var jEq=JP&&JP.eq.length?JP.eq:M.juice;if(JP&&JP.Q&&(JP.Q.sts!=null||JP.Q.rts!=null||JP.Q.sph!=null)){var q0=Q||{};Q={t:JP.Q.t||q0.t,sts:JP.Q.sts!=null?JP.Q.sts:q0.sts,sph:JP.Q.sph!=null?JP.Q.sph:q0.sph,rts:JP.Q.rts!=null?JP.Q.rts:q0.rts,rph:JP.Q.rph!=null?JP.Q.rph:q0.rph,temp:JP.Q.temp!=null?JP.Q.temp:q0.temp,src:'착즙팀 포털'}}
- var jCrew=(JP&&JP.crew.length?[{lab:'착즙팀 포털',time:'',on:JP.crew.some(function(x){return x.on}),names:JP.crew}]:[]).concat(w28.length?w28:CP['착즙']);
+ var jEq=JP&&JP.eq.length?JP.eq:M.juice;if(JB)jEq.forEach(function(x){var o=(M.juice||[]).filter(function(y){return y.t===x.t})[0];if(o&&o.run&&!x.run&&!/^(정지|완료)/.test(x.st)){x.run=true;x.st=o.st}});if(JP&&JP.Q&&(JP.Q.sts!=null||JP.Q.rts!=null||JP.Q.sph!=null)){var q0=Q||{};Q={t:JP.Q.t||q0.t,sts:JP.Q.sts!=null?JP.Q.sts:q0.sts,sph:JP.Q.sph!=null?JP.Q.sph:q0.sph,rts:JP.Q.rts!=null?JP.Q.rts:q0.rts,rph:JP.Q.rph!=null?JP.Q.rph:q0.rph,temp:JP.Q.temp!=null?JP.Q.temp:q0.temp,src:'착즙팀 포털'}}
+ /* 2026-11-16 근무자: 4층은 착즙 칸에만 · 같은 사람은 한 번만 (착즙 칸 → 배합 칸 순서로 먼저 나온 곳에만) */
+ var C4=CP['공통'].filter(function(g){return /4층/.test(g.lab)}),CO=CP['공통'].filter(function(g){return !/4층/.test(g.lab)});
+ var jCrew=(JP&&JP.crew.length?[{lab:'착즙팀 포털',time:'',on:JP.crew.some(function(x){return x.on}),names:JP.crew}]:[]).concat(w28.length?w28:CP['착즙']).concat(C4);
+ var mCrew=(w14.length?w14:CP['배합']).concat(CO);
+ (function(){var seen={};function bn(x){return String(x&&typeof x==='object'?x.n:x).replace(/\s*\d{1,2}:\d{2}.*$/,'').replace(/\(.*?\)/g,'').replace(/\s+/g,'')}
+  function dd(G){return G.map(function(g){var L=(g.names||[]).filter(function(x){var b=bn(x);if(!b||seen[b])return false;seen[b]=1;return true});return L.length?Object.assign({},g,{names:L}):null}).filter(Boolean)}
+  jCrew=dd(jCrew);mCrew=dd(mCrew)})();
  /* 멸균팀 포털 */
  var SX=sterExtra(D),sst=SX.wait?'wait':SX.ok?'ok':'err';
  var SL=sterLiveMap();if(SL.ok&&Object.keys(SL.m).length){sst='ok';M.ster.forEach(function(x){var h=+String(x.t).replace(/\D/g,''),L=SL.m[h];if(!L)return;x.st=L.st+(L.at?' · AT'+L.at:'')+(L.t?' · '+L.t+'부터':'');x.run=L.run;x.on=true;if(L.prod)x.prod=L.prod;x.live=1})}
@@ -21442,7 +21452,7 @@ function view(){var M=window.yumLiveModel?yumLiveModel():{juice:[],mix:[],ster:[
    crew:jCrew},
   {k:'배합',en:'BLENDING',c:'#7B5CD6',eq:M.mix,src:srcTag('ok','배합 일지 실시간'),
    body:rows(M.mix,function(x){var mm=/(\d+)\/(\d+)B/.exec(x.st||''),p=mm?(+mm[1])/Math.max(1,+mm[2]):0;return '<div class="lb-en"><b>'+E(x.t)+'</b><small>'+E(x.sub||'')+'</small></div>'+chip(x.st,x.run)+'<div class="lb-pr">'+E(x.prod||'')+'</div>'+(mm?'<div class="lb-bar"><i style="--w:'+(p*100).toFixed(0)+'%"></i></div>':'')}),
-   crew:(w14.length?w14:CP['배합']).concat(CP['공통'])},
+   crew:mCrew},
   {k:'멸균',en:'STERILIZATION',c:'#12A39A',eq:M.ster,src:srcTag(SL.ok&&Object.keys(SL.m).length?'ok':'wait',SL.ok&&Object.keys(SL.m).length?'멸균팀 업무포털 실시간':'멸균팀 업무포털 실시간 연결 대기',SL.err||'')+'<button type="button" class="lb-diag" data-sdiag title="멸균팀 포털에서 받은 자료 보기 · 복사">받은 자료</button>',
    body:rows(M.ster,function(x){return '<div class="lb-en"><b>'+E(x.t)+'</b><small>'+E(x.sub||'')+'</small></div>'+chip(String(x.st||'').split(' · ')[0],x.run)+'<div class="lb-pr">'+E(x.prod||'')+(/ · /.test(x.st||'')?' <em>'+E(String(x.st).split(' · ').slice(1).join(' · '))+'</em>':'')+'</div>'})+sNote,
    crew:sCrew},
