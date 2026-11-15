@@ -18252,10 +18252,14 @@ function ster(D,now){var out=[],d=null;
     else if(inS(s1,e1)){st='멸균 중';run=true}
     else if(e1!=null&&now>=e1)st='멸균 후 대기';
     else st='시작 전'}}
-  var x=X[h];if(x&&!item&&!any){out.push({k:'s'+h,h:h,t:'멸균 '+h+'호기',sub:'멸균팀 포털',prod:x.items.join(' · '),on:true,run:x.run,st:x.st+(x.qty?' · '+Math.round(x.qty).toLocaleString()+'L':''),ext:1});continue}
+  var x=X[h];if(x&&now!=null&&(x.status||x.seg.length)&&(item||any)){out.push({k:'s'+h,h:h,t:'멸균 '+h+'호기',sub:EQ[h],prod:item||x.items.join(' · '),on:true,run:x.run,st:x.st+(x.at?' · AT'+x.at:''),at:x.at,ext:1});continue}
+  if(x&&!item&&!any){out.push({k:'s'+h,h:h,t:'멸균 '+h+'호기',sub:'멸균팀 포털',prod:x.items.join(' · '),on:true,run:x.run,st:x.st+(x.at?' · AT'+x.at:'')+(x.qty?' · '+Math.round(x.qty).toLocaleString()+'L':''),at:x.at,ext:1});continue}
   out.push({k:'s'+h,h:h,t:'멸균 '+h+'호기',sub:EQ[h],prod:maint?'':item,on:on,run:run,st:st+(isFinite(q)&&q?' · '+Math.round(q).toLocaleString():'')})}
  /* 멸균팀 포털 실시간 가동 상태가 있으면 그것을 우선 */
- try{var SLm=now!=null&&window.yumSterLiveMap?yumSterLiveMap():null;if(SLm)out.forEach(function(o){var L=SLm[o.h];if(!L)return;o.st=L.st+(L.t?' · '+L.t+'부터':'');o.run=L.run;o.on=true;if(L.prod)o.prod=L.prod})}catch(e){}
+ /* 2026-11-16 지금 상태(멸균 중 · 예정 …)는 일지로 계산하지 않고 멸균팀 업무포털 실시간 상태만 사용 */
+ try{if(now!=null){var SLm=window.yumSterLiveMap?yumSterLiveMap():null;out.forEach(function(o){var L=SLm&&SLm[o.h];o.at=null;o.ext=1;o.sub=EQ[o.h];
+   if(!L){o.st=SLm?'멸균팀 포털 자료 없음':'실시간 연결 대기';o.run=false;o.on=false;return}
+   o.st=L.st+(L.at?' · AT'+L.at:'')+(L.t?' · '+L.t+'부터':'');o.run=L.run;o.on=true;o.at=L.at||null;if(L.prod)o.prod=L.prod})}}catch(e){}
  return out}
 /* 멸균팀 업무포털 업무일지(읽기 전용 · ster-proxy 경유 · 토큰은 서버 Secret에만) — 우리 FRM-016 일지가 없는 호기에 사용 */
 var SF={},SFB={};
@@ -18276,14 +18280,20 @@ function sterFeed(D){var c=SF[D],ttl=D===today()?4*60e3:60*60e3;
 /* 멸균팀 일지 → 호기별 상태 */
 function sterExt(D,now){var c=sterFeed(D),out={};if(!c||!c.rows)return out;
  c.rows.forEach(function(r0){if(!r0||typeof r0!=='object')return;var r=sfFlat(r0);
-  var dt=sfGet(r,/^(date|day|workDate|work_date|날짜|일자|생산일자)$/i);if(dt&&String(dt).slice(0,10)!==D)return;
-  var u=sfGet(r,/(^|\.)(unit|hogi|호기|line|machine|ster|sterilizer|equip)$/i),h=+(String(u==null?'':u).match(/\d/)||[0])[0];if(!(h>=1&&h<=5))return;
+  var dt=sfGet(r,/(^|\.)(date|day|workDate|work_date|날짜|일자|생산일자|prodDate|prod_date|workday|work_day)$/i);if(dt!=null){var dd=String(dt).replace(/[.\/]\s*/g,'-').replace(/-(\d)(?!\d)/g,'-0$1').slice(0,10);if(/^\d{4}-\d{2}-\d{2}$/.test(dd)&&dd!==D)return}
+  var u=sfGet(r,/(^|\.)(unit|hogi|호기|line|machine|ster|sterilizer|equip|equipment|unit_no|unitNo|machine_no|machineNo|no|번호|설비|호기번호)$/i),h=+(String(u==null?'':u).match(/[1-5]/)||[0])[0];
+  if(!(h>=1&&h<=5)){for(var kk in r){var vv=r[kk];if(typeof vv==='string'){var hm2=/^\s*#?([1-5])\s*호기|멸균\s*([1-5])\s*호기|^([1-5])호기/.exec(vv);if(hm2){h=+(hm2[1]||hm2[2]||hm2[3]);break}}}}
+  if(!(h>=1&&h<=5)){var pk=Object.keys(r).join(' ').match(/(?:^|\.)(?:u|unit|h|hogi)?([1-5])\./);if(pk)h=+pk[1]}if(!(h>=1&&h<=5))return;
   var o=out[h]=out[h]||{items:[],qty:0,seg:[],note:[],n:0};o.n++;
   var it=sfGet(r,/(^|\.)(product|item|productName|item_name|itemName|품목|제품|name)$/i);if(it&&o.items.indexOf(String(it))<0)o.items.push(String(it));
   var q=parseFloat(String(sfGet(r,/(totalL|qtyL|liters|litre|volume|생산량|prodL|productionL|amountL)/i)||'').replace(/[^\d.]/g,''));if(isFinite(q))o.qty+=q;
   var nt=sfGet(r,/(note|remark|특이|memo)/i);if(nt)o.note.push(String(nt));
   /* 상태 칸이 있으면 그대로 사용 (예: status: 생산중 · 멸균중 · CIP · 정지 · 대기) */
-  var sv=sfGet(r,/(^|\.)(status|state|상태)$/i);if(sv!=null)o.status=String(sv);
+  var sv=sfGet(r,/(^|\.)(status|state|상태|status_label|statusLabel|stateLabel|stage|phase|진행|진행상태|가동상태)$/i);if(sv!=null)o.status=String(sv);
+  /* 멸균팀 포털 카드의 「AT 4 · 0.6%」 = 보내는 아셉틱 탱크 번호 */
+  var at=sfGet(r,/(^|\.)(at|atNo|at_no|atNum|aseptic|asepticTank|aseptic_tank|asepticNo|tank|tankNo|tank_no|AT번호|아셉틱|아셉틱탱크|탱크)$/i),am=/(\d)/.exec(String(at==null?'':at));if(am&&+am[1]>=1&&+am[1]<=6)o.at=+am[1];
+  /* 「생산 시간 10:00 ~ 23:30」처럼 한 칸에 시작~종료가 같이 있는 경우 */
+  Object.keys(r).forEach(function(k){var v=r[k];if(typeof v!=='string')return;var mm=/(\d{1,2}:\d{2})\s*[~～\-–]\s*(\d{1,2}:\d{2})/.exec(v);if(!mm)return;var a=tmin(mm[1]),b=tmin(mm[2]);if(a==null||b==null)return;if(b<=a)b+=1440;o.seg.push({k:/cip/i.test(k+v)?'cip':/(ster|멸균|heat)/i.test(k)?'ster':'prod',a:a,b:b})});
   /* 시작 · 종료 짝 찾기 (멸균 · 생산 · CIP) */
   var kinds=[['cip',/cip/i],['prod',/(prod|생산|fill)/i],['ster',/(ster|멸균|heat)/i]];
   Object.keys(r).forEach(function(k){if(!/(start|begin|시작|from|_s$|In$)/i.test(k))return;var a=sfMin(r[k],D);if(a==null)return;
@@ -18294,9 +18304,9 @@ function sterExt(D,now){var c=sterFeed(D),out={};if(!c||!c.rows)return out;
   if(now!=null){var cur=o.seg.filter(function(x){return now>=x.a&&(x.b==null||now<x.b)}).sort(function(x,y){return y.a-x.a})[0];
    if(cur){st=cur.k==='cip'?'CIP':cur.k==='ster'?'멸균 중':'생산 중';run=cur.k!=='cip'}
    else if(o.seg.length){var last=Math.max.apply(null,o.seg.map(function(x){return x.b==null?x.a:x.b}));st=now>=last?'종료':'시작 전'}}
-  else st='생산 '+o.n+'건';if(now!=null&&o.status){var t=o.status.replace(/\s/g,'');if(/생산|가동|충전|run|prod/i.test(t)){st='생산 중';run=true}else if(/멸균|ster|heat/i.test(t)){st='멸균 중';run=true}else if(/cip|세척/i.test(t)){st='CIP';run=false}else if(/정지|stop|정비|고장/i.test(t)){st='정지';run=false}else if(/대기|wait|idle|종료|end/i.test(t)){st=t.slice(0,8);run=false}}o.st=st;o.run=run});
+  else st='생산 '+o.n+'건';if(now!=null&&o.status){var t=o.status.replace(/\s/g,'');if(/예정|plan|sched|ready/i.test(t)){st='예정';run=false}else if(/멸균중|steriliz|ster$|^ster/i.test(t)){st='멸균 중';run=true}else if(/완료|done|finish|종료|end/i.test(t)){st='완료';run=false}else if(/생산|가동|충전|run|prod/i.test(t)){st='생산 중';run=true}else if(/멸균|ster|heat/i.test(t)){st='멸균 중';run=true}else if(/cip|세척/i.test(t)){st='CIP';run=false}else if(/정지|stop|정비|고장/i.test(t)){st='정지';run=false}else if(/대기|wait|idle|종료|end/i.test(t)){st=t.slice(0,8);run=false}}o.st=st;o.run=run});
  return out}
-window.yumSterFeed=function(D){return sterFeed(D||today())};window.yumJDocs={docs:docs,G:G,tmin:tmin,MIXL:MIXL};window.yumSterExt=function(D){try{return sterExt(D,null)}catch(e){return {}}};
+window.yumSterFeed=function(D){return sterFeed(D||today())};window.yumSterExtNow=function(D){var n=new Date();try{return sterExt(D||today(),n.getHours()*60+n.getMinutes())}catch(e){return {}}};window.yumJDocs={docs:docs,G:G,tmin:tmin,MIXL:MIXL};window.yumSterExt=function(D){try{return sterExt(D,null)}catch(e){return {}}};
 /* 실시간 현황판용: 지금 시각 기준 공정별 설비 상태 (착즙 빈쿠커 · 배합 호기 · 멸균 호기 · 충전/포장 호기) */
 window.yumLiveModel=function(){var D=today(),n=new Date(),now=n.getHours()*60+n.getMinutes(),o={D:D,now:now};try{o.juice=juice(D,now)}catch(e){o.juice=[]}try{o.mix=mix(D,now)}catch(e){o.mix=[]}try{o.ster=ster(D,now)}catch(e){o.ster=[]}try{o.pack=pack(D,now)}catch(e){o.pack=[]}return o};
 /* 포장팀 포털 공개 자료(하루 한 번 갱신): 호기별 날짜 · 제품 · 생산량 — 우리 포장 일지가 없는 지난 날짜에 사용 */
@@ -18440,7 +18450,7 @@ function render(D){
  var cp=C('p'),used={},bus2=cs.x+cs.w+(cp.x-cs.x-cs.w)/2;
  /* 멸균 → 충전 분배 배관 (모든 멸균기 ↔ 모든 충전기 · 어느 충전기로 갈지는 그날 생산계획에 따라) */
  /* 같은 제품으로 이어지는 멸균기 → 충전기 짝 */
- var pairs=[];S.forEach(function(sx,i){if(!sx.prod)return;P.forEach(function(px,j){if(!px.prod||!same(sx.prod,px.prod))return;pairs.push([i,j]);used[px.h]=sx.h})});
+ var pairs=[];S.forEach(function(sx,i){if(sx.at){P.forEach(function(px,j){if('ABCDEF'.indexOf(px.h)+1===sx.at){pairs.push([i,j]);used[px.h]=sx.h;px.on=true;if(!px.prod)px.prod=sx.prod;if(!px.ea&&!px.ext){px.st=(sx.run?'멸균 '+sx.h+'호기에서 받는 중':'멸균 '+sx.h+'호기 · '+String(sx.st).split(' · ')[0]);px.run=px.run||sx.run}}});return}if(!sx.prod)return;P.forEach(function(px,j){if(!px.prod||!same(sx.prod,px.prod))return;pairs.push([i,j]);used[px.h]=sx.h})});
  var sOn={},pOn={};pairs.forEach(function(q){sOn[q[0]]=1;pOn[q[1]]=1});
  S.forEach(function(sx,i){var y=Y.s[i]+NH/2;links+=sOn[i]?'<path d="M'+(cs.x+cs.w)+' '+y+' H'+bus2+'" class="fm-base"/>':'<path d="M'+(cs.x+cs.w)+' '+y+' H'+(bus2-10)+'" class="fm-base"/>'+vlv(bus2-18,y,false)});
  P.forEach(function(px,j){var y=Y.p[j]+NH/2;links+=pOn[j]?'<path d="M'+bus2+' '+y+' H'+cp.x+'" class="fm-base"/>':'<path d="M'+(bus2+10)+' '+y+' H'+cp.x+'" class="fm-base"/>'+vlv(bus2+18,y,false)});
@@ -21328,7 +21338,8 @@ function sterLiveMap(){var c=sterLive(),out={};if(!c||!c.ok||!c.raw)return {ok:f
  walk(c.raw).forEach(function(w){var o=w.o,u=pick(o,/(^|\.)(unit|hogi|호기|line|machine|ster|sterilizer|equip|equipment|id|name|label)$/i),h=+((String(u==null?'':u).match(/([1-5])\s*호기|#\s*([1-5])|^([1-5])$/)||[]).slice(1).filter(Boolean)[0]||0);
   if(!h){var pm=/([1-5])\s*호기/.exec(w.p);if(pm)h=+pm[1]}if(!(h>=1&&h<=5)||out[h])return;
   var sv=pick(o,/(^|\.)(status|state|상태|stage|step|phase|단계|mode|운전상태)$/i);if(sv==null&&typeof o.running==='boolean')sv=o.running?'가동':'대기';var mp=stMap(sv);if(!mp)return;
-  mp.prod=String(pick(o,RE_PROD)||'');mp.t=hhmm(pick(o,/^(since|start|started|startAt|start_at|from|시작|시각)$/i));out[h]=mp});
+  mp.prod=String(pick(o,RE_PROD)||'');mp.t=hhmm(pick(o,/^(since|start|started|startAt|start_at|from|시작|시각)$/i));
+  var at=pick(o,/^(at|atNo|at_no|asepticTank|aseptic_tank|aseptic|tank|tankNo|tank_no|아셉틱|탱크)$/i),am=/([1-6])/.exec(String(at==null?'':at));if(am)mp.at=+am[1];out[h]=mp});
  return {ok:true,m:out}}
 function sterPlan(D){return feed('sp|'+D,5*60e3,function(){return proxy('ster-proxy',{path:'data',set:'plan',from:D,to:D})})}
 function packFeed(D){return feed('pk|'+D.slice(0,4),10*60e3,function(){var B='https://jaehyun3163-blip.github.io/yonsei/api/data/';return Promise.all([fetch(B+'production/'+D.slice(0,4)+'.json',{cache:'no-store'}).then(function(r){return r.json()}),fetch(B+'stops/'+D.slice(0,4)+'.json',{cache:'no-store'}).then(function(r){return r.json()}).catch(function(){return {rows:[]}})]).then(function(a){return {prod:a[0],stops:a[1]}})})}
@@ -21413,7 +21424,7 @@ function view(){var M=window.yumLiveModel?yumLiveModel():{juice:[],mix:[],ster:[
  var jCrew=(JP&&JP.crew.length?[{lab:'착즙팀 포털',time:'',on:JP.crew.some(function(x){return x.on}),names:JP.crew}]:[]).concat(w28.length?w28:CP['착즙']);
  /* 멸균팀 포털 */
  var SX=sterExtra(D),sst=SX.wait?'wait':SX.ok?'ok':'err';
- var SL=sterLiveMap();if(SL.ok&&Object.keys(SL.m).length){sst='ok';M.ster.forEach(function(x){var h=+String(x.t).replace(/\D/g,''),L=SL.m[h];if(!L)return;x.st=L.st+(L.t?' · '+L.t+'부터':'');x.run=L.run;x.on=true;if(L.prod)x.prod=L.prod;x.live=1})}
+ var SL=sterLiveMap();if(SL.ok&&Object.keys(SL.m).length){sst='ok';M.ster.forEach(function(x){var h=+String(x.t).replace(/\D/g,''),L=SL.m[h];if(!L)return;x.st=L.st+(L.at?' · AT'+L.at:'')+(L.t?' · '+L.t+'부터':'');x.run=L.run;x.on=true;if(L.prod)x.prod=L.prod;x.live=1})}
  M.ster.forEach(function(x){var h=+String(x.t).replace(/\D/g,'');if(!x.prod&&SX.plan[h]){x.prod='계획 · '+SX.plan[h].prod+(SX.plan[h].t?' ('+SX.plan[h].t+')':'');if(!x.on&&/(없음|기록)/.test(x.st||'일지 없음'))x.st='계획'}});
  var sCrew=m66.concat(SX.crew.length?[{lab:'멸균팀 포털 업무일지',time:'',on:false,names:SX.crew}]:[]);
  /* 포장팀 포털 */
@@ -21432,7 +21443,7 @@ function view(){var M=window.yumLiveModel?yumLiveModel():{juice:[],mix:[],ster:[
   {k:'배합',en:'BLENDING',c:'#7B5CD6',eq:M.mix,src:srcTag('ok','배합 일지 실시간'),
    body:rows(M.mix,function(x){var mm=/(\d+)\/(\d+)B/.exec(x.st||''),p=mm?(+mm[1])/Math.max(1,+mm[2]):0;return '<div class="lb-en"><b>'+E(x.t)+'</b><small>'+E(x.sub||'')+'</small></div>'+chip(x.st,x.run)+'<div class="lb-pr">'+E(x.prod||'')+'</div>'+(mm?'<div class="lb-bar"><i style="--w:'+(p*100).toFixed(0)+'%"></i></div>':'')}),
    crew:(w14.length?w14:CP['배합']).concat(CP['공통'])},
-  {k:'멸균',en:'STERILIZATION',c:'#12A39A',eq:M.ster,src:srcTag(sst,sst==='ok'?(SL.ok&&Object.keys(SL.m).length?'멸균팀 포털 가동 상태 실시간':'멸균팀 포털 업무일지'):sst==='err'?'멸균 일지 기준':'멸균팀 포털 연결 중',SX.err),
+  {k:'멸균',en:'STERILIZATION',c:'#12A39A',eq:M.ster,src:srcTag(SL.ok&&Object.keys(SL.m).length?'ok':'wait',SL.ok&&Object.keys(SL.m).length?'멸균팀 업무포털 실시간':'멸균팀 업무포털 실시간 연결 대기',SL.err||'')+'<button type="button" class="lb-diag" data-sdiag title="멸균팀 포털에서 받은 자료 보기 · 복사">받은 자료</button>',
    body:rows(M.ster,function(x){return '<div class="lb-en"><b>'+E(x.t)+'</b><small>'+E(x.sub||'')+'</small></div>'+chip(String(x.st||'').split(' · ')[0],x.run)+'<div class="lb-pr">'+E(x.prod||'')+(/ · /.test(x.st||'')?' <em>'+E(String(x.st).split(' · ').slice(1).join(' · '))+'</em>':'')+'</div>'})+sNote,
    crew:sCrew},
   {k:'포장',en:'PACKAGING',c:'#3062D8',eq:M.pack,src:srcTag(pst==='ok'||pst==='live'?'ok':'wait',pst==='live'?'포장팀 포털 실시간'+(PL.at?' '+PL.at:''):pst==='ok'?'포장팀 포털 오늘 자료':'포장 일지 기준',PX.until?'포장팀 포털 공개 자료는 '+PX.until+'까지':''),
@@ -21453,7 +21464,7 @@ function paint(){var box=document.getElementById('lb-root');if(!box||box.classLi
 function tick(){var c=document.getElementById('lb-clock');if(!c)return;var n=new Date();c.textContent=pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds())}
 setInterval(tick,1000);setInterval(function(){if(!document.hidden)paint()},60000);
 window.addEventListener('yum-docs-synced',function(){paint()});window.addEventListener('yum-sterfeed',function(){paint()});window.addEventListener('yum-lbfeed',function(){paint()});
-window.yumSterLiveMap=function(){var r=sterLiveMap();return r.ok&&Object.keys(r.m).length?r.m:null};window.yumPackLiveMap=function(D){var r=packLiveMap(D||today());return r.ok?r.m:null};
+window.yumSterLiveRaw=function(){sterLive();return FD.sl||null};window.yumSterLiveMap=function(){var r=sterLiveMap();return r.ok&&Object.keys(r.m).length?r.m:null};window.yumPackLiveMap=function(D){var r=packLiveMap(D||today());return r.ok?r.m:null};
 window.yumJuiceBoardRaw=function(D){var c=juiceFeed(D||today());return c&&c.ok&&c.raw&&Array.isArray(c.raw.lines)?c.raw:null};
 /* 착즙 · 멸균 자료가 새로 오면 공정 흐름도도 다시 그림 */
 window.addEventListener('yum-lbfeed',function(){var w=document.getElementById('fm-wrap');if(!w||w.classList.contains('hide')||!window.yumFlowMap)return;var d=w.getAttribute('data-d');try{w.innerHTML=yumFlowMap(d)}catch(e){}});
@@ -21498,6 +21509,19 @@ var st=document.createElement('style');st.textContent=
  '@media (prefers-reduced-motion:reduce){.lb *{animation:none!important;transition:none!important}.lb-col,.lb-eq{opacity:1!important;transform:none!important}}';
 document.head.appendChild(st);
 })();
+
+/* 멸균팀 포털에서 받은 자료 보기 · 복사 (칸 이름 확인용 · 토큰은 들어 있지 않음) */
+(function(){if(window.__YUM_SDIAG__)return;window.__YUM_SDIAG__=1;
+function kst(){return new Date(Date.now()+9*36e5).toISOString().slice(0,10)}
+document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('[data-sdiag]');if(!b)return;e.preventDefault();e.stopPropagation();
+ var D=kst(),j=window.yumSterLiveRaw?yumSterLiveRaw():null,x=window.yumSterLiveMap?yumSterLiveMap():null;
+ var o={date:D,what:'멸균팀 업무포털 실시간 상태 (ster-proxy live)',ok:j?j.ok:null,err:j?j.err:'아직 못 받음',parsed:x,sample:j&&j.raw?j.raw:null};
+ var t=JSON.stringify(o,null,1);if(t.length>6000)t=t.slice(0,6000)+'\n…(이하 생략)';
+ var m=document.createElement('div');m.className='lb-dm';m.innerHTML='<div class="lb-dmb"><b>멸균팀 업무포털 실시간 응답 ('+D+')</b><span>아래 글을 「복사」해서 담당자(Claude)에게 보내 주세요. 토큰은 들어 있지 않습니다.</span><textarea readonly></textarea><div><button type="button" data-c>복사</button><button type="button" data-x>닫기</button></div></div>';
+ m.querySelector('textarea').value=t;document.body.appendChild(m);
+ m.addEventListener('click',function(ev){if(ev.target===m||ev.target.hasAttribute('data-x'))m.remove();if(ev.target.hasAttribute('data-c')){var ta=m.querySelector('textarea');ta.select();var ok=false;try{ok=document.execCommand('copy')}catch(_){}try{navigator.clipboard&&navigator.clipboard.writeText(ta.value);ok=true}catch(_){}ev.target.textContent=ok?'복사됨 ✓':'직접 선택해 복사하세요'}})},true);
+var st=document.createElement('style');st.textContent='.lb-diag{margin:4px 0 0 6px;font-size:10px;font-weight:800;padding:2px 8px;border-radius:999px;border:1px solid #CBD5E1;background:#fff;color:#475569;cursor:pointer}.lb-diag:hover{border-color:#12A39A;color:#0F766E}'+
+'.lb-dm{position:fixed;inset:0;z-index:99999;background:rgba(10,21,48,.45);display:flex;align-items:center;justify-content:center;padding:16px}.lb-dmb{background:#fff;border-radius:16px;padding:18px;width:min(760px,100%);display:flex;flex-direction:column;gap:8px;box-shadow:0 30px 60px -20px rgba(0,0,0,.5)}.lb-dmb span{font-size:12px;color:#64748B}.lb-dmb textarea{height:52vh;font:12px/1.45 ui-monospace,Consolas,monospace;border:1px solid #E2E8F0;border-radius:10px;padding:10px;resize:vertical}.lb-dmb div{display:flex;gap:8px;justify-content:flex-end}.lb-dmb button{padding:8px 16px;border-radius:999px;border:1px solid #CBD5E1;background:#fff;font-weight:800;cursor:pointer}.lb-dmb button[data-c]{background:#0A1530;color:#fff;border-color:#0A1530}';document.head.appendChild(st)})();
 </script>
 
 <script>
