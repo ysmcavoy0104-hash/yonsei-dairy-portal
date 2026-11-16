@@ -21545,7 +21545,7 @@ function packLiveMap(D){var c=packLive(D),out={};if(!c||!c.ok||!c.raw)return {ok
   var sv=pick(o,/^(status|state|상태|mode|운전상태|label|status_label)$/i);if(sv==null&&typeof o.running==='boolean')sv=o.running?'생산':'대기';var mp=stMap(sv);if(!mp)return;
   var q=num(pick(o,/^(qty|ea|count|production_qty|output|생산량|수량)$/i));mp.ea=q;mp.prod=String(pick(o,/^(item|product|name_item|품목|제품|item_name)$/i)||'');mp.t=hhmm(pick(o,/^(since|start|started|from|시작)$/i));mp.why=String(pick(o,/^(reason|stop_reason|사유|problem|원인)$/i)||'');if(o.label)mp.st=String(o.label).trim();mp.order=num(pick(o,/^(order|order_qty|target|plan|plan_qty|지시량|생산지시량)$/i));out[m]=mp});
  var ua=pick(c.raw,/(updated|generated_at|now|at)$/i),uat=/T\d{2}:\d{2}.*(Z|[+-]\d{2}:?\d{2})$/.test(String(ua||''))?(function(){var d=new Date(ua);return isNaN(d)?hhmm(ua):pad(d.getHours())+':'+pad(d.getMinutes())})():hhmm(ua);
- return {ok:Object.keys(out).length>0,m:out,at:uat}}
+ return {ok:Object.keys(out).length>0,m:out,at:uat,raw:c.raw}}
 function packExtra(D,now){var c=packFeed(D),out={ok:!!(c&&c.ok),until:'',byM:{},stop:{}};if(!c||!c.ok)return out;var pr=c.raw.prod||{},sp=c.raw.stops||{};out.until=pr.data_until||'';
  (pr.rows||[]).forEach(function(r){if(r.date!==D)return;var m=String(r.machine||'').toUpperCase();var o=out.byM[m]=out.byM[m]||{ea:0,items:[]};o.ea+=+r.qty||0;if(r.item&&o.items.indexOf(r.item)<0)o.items.push(r.item)});
  (sp.rows||[]).forEach(function(r){if(r.date!==D)return;var a=tmin(r.start),b=tmin(r.end);if(a==null)return;if(now>=a&&(b==null||now<b))out.stop[String(r.machine||'').toUpperCase()]={why:[r.equipment,r.location,r.problem].filter(Boolean).join(' · '),a:r.start}});return out}
@@ -21636,7 +21636,11 @@ function view(){var M=window.yumLiveModel?yumLiveModel():{juice:[],mix:[],ster:[
    body:(function(){var mx=Math.max.apply(null,M.pack.map(function(x){return +x.ea||0}).concat([1]));return M.pack.map(function(x,i){var st=x.lst?x.lst:x.stop?'정지':x.ea?(x.run?'생산 중':'기록'):x.on?'생산 중':'일지 없음';
      return row(x,i,'<div class="lb-en"><b>'+E(x.h?'포장 '+x.h+'호기':String(x.t))+'</b>'+(x.ea?'<small>'+Math.round(x.ea).toLocaleString()+'개</small>':'')+'</div>'+chip(short(st),x.run)+'<div class="lb-pr">'+E(x.prod||'—')+'</div>'+(packProg(x)?pbar(packProg(x),'#3062D8'):x.ea?'<div class="lb-bar"><i style="--w:'+((+x.ea)/mx*100).toFixed(0)+'%"></i></div>':''),
       kv([['설비','포장 '+(x.h||'')+'호기'],['상태',st],['정지',x.stop?(x.stop.a+' '+x.stop.why):''],['품목',x.prod],['생산량',x.ea?Math.round(x.ea).toLocaleString()+'개':''],['생산지시량',x.order?Math.round(x.order).toLocaleString()+'개':''],['진행',(packProg(x)||{}).t||''],['자료',x.src||'포장 일지']]))}).join('')})(),
-   crew:m6x}];
+   crew:(function(){var R=PL&&PL.raw,W=R&&(R.crew||R.workers||R.staff);if(!Array.isArray(W)||!W.length)return m6x;
+     var G={},ord=[];W.forEach(function(w){if(!w)return;if(typeof w==='string')w={name:w};var nm=String(w.name||w.n||'').trim();if(!nm)return;
+      var lab=String(w.team||w.group||w.shift||w.part||'포장팀').trim(),tm=String(w.time||((w.start||w.in)?(w.start||w.in)+'~'+(w.end||w.out||''):'')||'').trim(),on=w.on===true||w.working===true||/근무|출근|on/i.test(String(w.status||''));
+      if(!G[lab]){G[lab]={lab:lab,time:'',on:false,names:[]};ord.push(lab)}G[lab].on=G[lab].on||on;G[lab].names.push({n:nm+(w.machine?'('+w.machine+')':'')+(tm?' '+tm:''),on:on})});
+     return ord.map(function(k){return G[k]})})()}];
  var runN=0,allN=0,crewOn=0;C.forEach(function(c){allN+=c.eq.length;runN+=c.eq.filter(function(x){return x.run}).length;c.crew.forEach(function(g){g.names.forEach(function(n){if(typeof n==='object'?n.on:g.on)crewOn++})})});
  var h='<div class="lb"><div class="lb-head"><div><div class="lb-eye"><span class="lb-live"><i></i>LIVE</span>PROCESS STATUS BOARD</div><h2>공정별 현황 <small>착즙 → 배합 → 멸균 → 포장</small></h2></div>'+
   '<div class="lb-sum"><div><small>지금 가동</small><b><span data-n="'+runN+'">0</span><i>/ '+allN+'대</i></b></div><div><small>근무 중</small><b><span data-n="'+crewOn+'">0</span><i>명</i></b></div><div class="lb-clk"><small>'+(new Date().getMonth()+1)+'월 '+new Date().getDate()+'일</small><b id="lb-clock">--:--:--</b></div></div></div>'+
