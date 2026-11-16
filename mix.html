@@ -508,6 +508,14 @@ function computeLive(){
   var mixDur=P.batches.filter(function(b){return b.tin!=null&&b.tmix!=null&&b.tmix>b.tin}).map(function(b){return b.tmix-b.tin});
   var avgMix=mixDur.length?mixDur.reduce(function(a,b){return a+b},0)/mixDur.length:MIXDEF;
   var movEnd=null;P.batches.forEach(function(b){if(b.tmov!=null&&b.tmov+mm>m)movEnd=Math.max(movEnd||0,b.tmov+mm)});
+  /* 2026-11-16 연속 작업: 이송이 끝난 탱크에 다음 배치(예: 1B 탱크 → 4B)를 이어서 「예상」으로 표시
+     두유는 분리유액 투입(용량 약 40%) → 배합 · 혼합 → 이송 대기 순서 · 일지에 그 배치를 적으면 실제 기록으로 바뀜 */
+  function projNext(o,ni,t0){var soy=isSoy(P.product)&&L.h!==3,F=simFlow(L),recv=soy?SIM.ratio*L.cap/F*60:0,lb=(ni+1)+'B';
+   if(t0==null){var prev=P.batches.filter(function(x){return x.i===ni-1})[0];t0=prev&&prev.tin!=null?prev.tin+recv:m}
+   var ms=t0+recv,me=ms+avgMix;o.batch={i:ni,label:lb,prod:P.product,tmix:me,est:true};o.est=true;o.progTxt='예상';o.title='예상 — 이 배치를 일지에 적으면 실제 기록으로 바뀝니다';
+   if(soy&&m<ms){var q=Math.max(0,(m-t0)/Math.max(1,recv));o.state='원액 투입 중';o.color='#A16207';o.fill='#C8955B';o.pour=true;o.hot=true;o.level=Math.max(.04,SIM.ratio*q);o.prog=q;o.sub=lb+' 분리유액 투입 (예상) · '+hh(ms)+' 배합 시작';o.eta=ms}
+   else if(m<me){var p=Math.max(0,(m-ms)/Math.max(1,avgMix));o.state='혼합 중';o.color='var(--mix)';o.sp=1;o.level=Math.min(.95,(soy?SIM.ratio:.08)+(.95-(soy?SIM.ratio:.08))*p);o.sub=lb+' 배합 · 혼합 (예상) · 완료 '+hh(me);o.eta=me}
+   else{o.state='이송 대기';o.color='var(--ready)';o.sp=3;o.level=.95;o.sub=lb+' 배합 완료 (예상) · 이송 대기';o.queue=Math.max(m,movEnd||m)+mm*P.batches.filter(function(x){return x.tmix!=null&&x.tmov==null&&x.i<ni}).length}}
   var tanks=L.tk.map(function(id,ti){
    var o={id:id,ti:ti,line:L,state:pstat==='정비'&&!PL.length?'정비':'빈 탱크',sub:pstat&&!PL.length?(pstat==='정비'?'생산계획: 정비':'생산계획: 생산 없음'):'오늘 기록 없음',color:'var(--empty)',lv:'',level:0,sp:0,batch:null,msg:'',cip:null,off:false};
    if(o2&&ti===2){o.off=true;o.state='미사용';o.sub='멸균유 · A2 · 락토프리는 1 · 2번만';return o}
@@ -519,7 +527,8 @@ function computeLive(){
    if(b&&b.tmov!=null){var end=b.tmov+mm;
     if(c&&c.s>=b.tmov-10)cipState();
     else if(m<end){o.state='이송 중';o.color='var(--move)';o.sp=2;o.level=Math.max(.04,.95*(1-(m-b.tmov)/mm));o.sub='종료 예상 '+hh(end);o.eta=end;o.prog=Math.max(0,Math.min(1,(m-b.tmov)/mm))}
-    else{o.state='이송 완료';o.color='var(--move)';o.level=.03;o.prog=1;o.sub='CIP 필요';o.needCip=end;
+    else if(P.planned&&b.i+k<P.planned&&!P.batches.some(function(x){return x.i===b.i+k}))projNext(o,b.i+k,end);
+    else{o.state='이송 완료';o.color='var(--move)';o.level=.03;o.prog=1;o.sub=(P.planned&&b.i+1>=P.planned?'마지막 배치 이송 끝 · ':'')+'CIP 필요';o.needCip=end;
      if(m-end>30)missing.push({room:L.room,where:'L'+L.h+'호기 '+id+' · '+b.label,what:'이송 끝났는데 CIP 시작 기록 없음',form:L.cip.f==='FRM-042'?'CIP 및 살균 작업 일보 (기존 배합실)':'CIP 및 살균 작업 일보 (신규 배합실)'})}}
    else if(b&&b.tmix!=null){var w=m-b.tmix;o.state='이송 대기';o.color='var(--ready)';o.sp=3;o.level=.95;
     var projEnd=Math.max(m,movEnd||m)+mm,proj=projEnd-b.tmix;
@@ -529,6 +538,7 @@ function computeLive(){
     else o.sub='대기 '+dur(w)+' · 검사까지 '+dur(cat.insp-w);
     o.wait=w;o.queue=Math.max(m,movEnd||m)}
    else if(b){o.state='혼합 중';o.color='var(--mix)';o.sp=1;var st=b.tin!=null?b.tin:null;o.level=st!=null?Math.min(.95,.35+(m-st)/avgMix*.6):.6;o.sub=st!=null?'완료 예상 '+hh(st+avgMix):'유입 시각 미기록';o.eta=st!=null?st+avgMix:null}
+   else if(!b&&P.batches.length&&P.planned&&ti<P.planned&&!(c&&c.e==null))projNext(o,ti,null);
    else if(c)cipState();
    if(o.lv)flags.push({room:L.room,lv:o.lv,text:L.h+'호기 '+id+' · '+(b?b.label:'')+' — '+o.msg});
    if(o.state==='CIP 중')flags.push({room:L.room,lv:'cip',text:L.h+'호기 '+id+' CIP 진행 중 — 약 '+hh(c.s+CIPMIN)+' 종료 예상'});
@@ -555,7 +565,7 @@ function computeLive(){
   /* 다음 할 일 */
   var steps=[];tanks.forEach(function(t){if(t.off)return;var b=t.batch;
    if(t.sim){if(t.stepText&&t.eta!=null)steps.push({at:t.eta,text:t.id+' '+t.stepText});return}
-   if(t.state==='이송 중')steps.push({at:t.eta,text:t.id+' '+b.label+' 이송 종료 → CIP 시작'});
+   if(t.state==='이송 중'){var nxi=b.i+k;steps.push({at:t.eta,text:t.id+' '+b.label+' 이송 종료 → '+(P.planned&&nxi<P.planned?(nxi+1)+'B 분리유액 투입 · 배합':'CIP 시작 (마지막 배치)')})}
    if(t.state==='이송 완료')steps.push({at:m,text:t.id+' CIP 시작 (이송 끝남)',u:true});
    if(t.state==='혼합 중'&&t.eta!=null)steps.push({at:t.eta,text:t.id+' '+b.label+' 혼합 완료 → 최종 Brix · 온도 기록'});
    if(t.state==='CIP 중')steps.push({at:t.eta,text:t.id+' CIP 종료 → 다음 배치 유입'});
