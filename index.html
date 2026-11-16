@@ -17471,7 +17471,7 @@ App.render=function(){
  if(GONE[p]&&!(p==='#/equipment'&&location.hash.indexOf('#/equipment/')===0)){location.replace(GONE[p]);return}
  if(p==='#/teams'){this.baseRoute='#/teams';M.innerHTML=teamsHTML();try{this.buildSidebar();this.refreshChrome()}catch(e){}return}
  if(WORK.indexOf(p)>=0&&!isSuper()&&!TEAMEMB){this.baseRoute='#/dash';M.innerHTML=lockHTML('최고관리자 전용 화면','근무편성 · 주간근무계획표는 최고관리자만 볼 수 있습니다.','<button class="btn btn-p" onclick="App.go(\'#/overview\')">대시보드로</button>');try{this.buildSidebar();this.refreshChrome()}catch(e){}return}
- if(['#/reports','#/notebooklm','#/report-admin','#/oplogs'].indexOf(p)>=0&&!isSuper()){this.baseRoute='#/dash';M.innerHTML=lockHTML('최고관리자 전용 화면','자료(업무 보고서함 · 설비 매뉴얼 AI)는 최고관리자만 볼 수 있습니다.','<button class="btn btn-p" onclick="App.go(\'#/oee\')">OEE로</button>');try{this.buildSidebar();this.refreshChrome()}catch(e){}return}
+ if(['#/reports','#/notebooklm','#/report-admin','#/oplogs'].indexOf(p)>=0&&!isSuper()){this.baseRoute='#/dash';M.innerHTML=lockHTML('최고관리자 전용 화면','자료(업무 보고서함 · 설비 매뉴얼 AI)는 최고관리자만 볼 수 있습니다.','<button class="btn btn-p" onclick="yumGoHome()">홈으로</button>');try{this.buildSidebar();this.refreshChrome()}catch(e){}return}
  if(p==='#/admin'&&!isSuper()){this.baseRoute='#/dash';M.innerHTML=lockHTML('최고관리자 전용 화면','시스템관리는 최고관리자만 볼 수 있습니다.','<button class="btn btn-p" onclick="App.go(\'#/overview\')">대시보드로</button>');try{this.buildSidebar();this.refreshChrome()}catch(e){}return}
  if(PLAN.indexOf(p)>=0&&!EMB){this.baseRoute='#/teams';M.innerHTML=lockHTML('생산계획은 배합팀 업무포털로 옮겼습니다','생산계획표 변환은 이제 <b>배합팀 업무포털 → 생산계획표 변환</b> 탭에서 합니다. 변환 결과(공정 규격 · 사일로 배정)는 지금처럼 같은 서버에 저장됩니다.','<button class="btn btn-p" onclick="yumOpenMix()">배합팀 포털 열기 →</button>');try{this.buildSidebar();this.refreshChrome()}catch(e){}return}
  var res=_r.apply(this,arguments);
@@ -17647,6 +17647,13 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 setTimeout(boot,1500);
 console.log('[확장 모듈] 부문포털 메뉴 간소화 로드 완료');
 })();
+
+/* 2026-11-16 로그인하면 항상 홈 화면으로 (전에 보던 화면 주소가 남아 있어도 · 권한 확인 전 잠금 화면이 잠깐 뜨던 문제) */
+(function(){if(window.__YUM_LIHOME__||typeof Auth==='undefined'||!Auth.login)return;window.__YUM_LIHOME__=1;var _li=Auth.login;
+ Auth.login=function(ev){try{if(/^#\//.test(location.hash||''))history.replaceState(null,'',location.pathname+location.search+'#top')}catch(e){}return _li.apply(this,arguments)}})();
+/* 자동 로그인으로 사이트를 새로 열 때(새 탭 · 새 창)도 홈 화면부터 — 같은 탭에서 새로 고침하면 보던 화면 그대로 */
+(function(){try{if(sessionStorage.getItem('yum_tab_seen'))return;sessionStorage.setItem('yum_tab_seen','1');if(/^#\//.test(location.hash||'')){history.replaceState(null,'',location.pathname+location.search+'#top');
+ setTimeout(function(){try{var a=document.getElementById('page-app');if(a&&a.classList.contains('on')&&window.yumGoHome)yumGoHome()}catch(e){}},400)}}catch(e){}})();
 </script>
 
 <script>
@@ -21448,10 +21455,12 @@ function sterExtra(D){var c=window.yumSterFeed?yumSterFeed(D):null,p=sterPlan(D)
 /* 포장팀 포털 실시간 (pack-proxy → 포장팀 board-feed) — 형식: {machines:[{machine:'A',status,item,qty,since,reason}]} 또는 lines/units 비슷한 모양 */
 function packLive(D){return feed('pl|'+D,FD['pl|'+D]&&!FD['pl|'+D].ok?10*60e3:60e3,function(){return proxy('pack-proxy',{date:D})})}
 function packLiveMap(D){var c=packLive(D),out={};if(!c||!c.ok||!c.raw)return {ok:false,m:out};
+ /* 포장팀 publicBoard/today 문서가 어제 것이면(오늘 아직 갱신 전) 쓰지 않음 */
+ if(c.raw.date&&String(c.raw.date).slice(0,10)!==D)return {ok:false,m:out,old:String(c.raw.date).slice(0,10)};
  walk(c.raw).forEach(function(w){var o=w.o,u=pick(o,/^(machine|unit|line|호기|name|id|equipment)$/i),m=(String(u==null?'':u).toUpperCase().match(/^([A-F])(\s*호기)?$|([A-F])\s*호기/)||[]);m=m[1]||m[3];
   if(!m){var pm=/(?:^|\.)([A-F])(?:\.|$)/.exec(w.p);if(pm)m=pm[1]}if(!m||out[m])return;
   var sv=pick(o,/^(status|state|상태|mode|운전상태|label|status_label)$/i);if(sv==null&&typeof o.running==='boolean')sv=o.running?'생산':'대기';var mp=stMap(sv);if(!mp)return;
-  var q=num(pick(o,/^(qty|ea|count|production_qty|output|생산량|수량)$/i));mp.ea=q;mp.prod=String(pick(o,/^(item|product|name_item|품목|제품|item_name)$/i)||'');mp.t=hhmm(pick(o,/^(since|start|started|from|시작)$/i));mp.why=String(pick(o,/^(reason|stop_reason|사유|problem|원인)$/i)||'');out[m]=mp});
+  var q=num(pick(o,/^(qty|ea|count|production_qty|output|생산량|수량)$/i));mp.ea=q;mp.prod=String(pick(o,/^(item|product|name_item|품목|제품|item_name)$/i)||'');mp.t=hhmm(pick(o,/^(since|start|started|from|시작)$/i));mp.why=String(pick(o,/^(reason|stop_reason|사유|problem|원인)$/i)||'');if(o.label)mp.st=String(o.label).trim();out[m]=mp});
  return {ok:Object.keys(out).length>0,m:out,at:hhmm(pick(c.raw,/(updated|generated_at|now|at)$/i))}}
 function packExtra(D,now){var c=packFeed(D),out={ok:!!(c&&c.ok),until:'',byM:{},stop:{}};if(!c||!c.ok)return out;var pr=c.raw.prod||{},sp=c.raw.stops||{};out.until=pr.data_until||'';
  (pr.rows||[]).forEach(function(r){if(r.date!==D)return;var m=String(r.machine||'').toUpperCase();var o=out.byM[m]=out.byM[m]||{ea:0,items:[]};o.ea+=+r.qty||0;if(r.item&&o.items.indexOf(r.item)<0)o.items.push(r.item)});
