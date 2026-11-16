@@ -17365,7 +17365,7 @@ App.navItems=function(){
   {id:'data',t:'자료',i:'📋',items:[{k:'#/reports',t:'업무 보고서함',i:'📋'},{k:'#/notebooklm',t:'설비 매뉴얼 AI (NotebookLM)',i:'✦',act:'NB.open()'}].concat(window.yumKPICan&&yumKPICan()?[{k:'#/notebooklm-set',t:'설비 매뉴얼 AI 연결 설정',i:'⚙',act:'NB.settings()'}]:[])},
   {id:'talk',t:'부서톡',i:'💬',items:[{k:'#/talk',t:'부서톡',i:'💬'}]},
   /* KPI · 인시 · 근태 (팀장 · 부문장 · 관리자만) */
- ].concat(window.yumKPICan&&yumKPICan()?[{id:'kpi',t:'KPI',i:'◎',items:[['부문','부문 통합','◎'],['가공1팀','가공1팀','♨'],['가공2팀','가공2팀','⚗'],['포장팀','포장팀','▣']].map(function(x){return {k:'#/kpi?t='+encodeURIComponent(x[0]),t:x[1],i:x[2]}})},{id:'mh',t:'인시 · 근태 · 노무비',i:'⏱',items:[['부문','부문 통합','◎'],['가공1팀','가공1팀','♨'],['가공2팀','가공2팀','⚗'],['포장1팀','포장1팀','▣'],['포장2팀','포장2팀','▤']].map(function(x){return {k:'#/mh?t='+encodeURIComponent(x[0]),t:x[1],i:x[2]}})}]:[]).concat([
+ ].concat(window.yumKPICan&&yumKPICan()?[{id:'kpi',t:'KPI',i:'◎',items:[['부문','부문 통합','◎'],['가공1팀','가공1팀','♨'],['가공2팀','가공2팀','⚗'],['포장1팀','포장1팀','▣'],['포장2팀','포장2팀','▤']].map(function(x){return {k:'#/kpi?t='+encodeURIComponent(x[0]),t:x[1],i:x[2]}})},{id:'mh',t:'인시 · 근태 · 노무비',i:'⏱',items:[['부문','부문 통합','◎'],['가공1팀','가공1팀','♨'],['가공2팀','가공2팀','⚗'],['포장1팀','포장1팀','▣'],['포장2팀','포장2팀','▤']].map(function(x){return {k:'#/mh?t='+encodeURIComponent(x[0]),t:x[1],i:x[2]}})}]:[]).concat([
   {id:'ai',t:'AI 비서',i:'✦',items:[{k:'#/ai',t:'AI 업무도우미',i:'✦'}]}
  ]);
  /* 2026-11-12 중요한 순서로: 대시보드 → 일지 → KPI → 인시 · 노무비 → 팀 포털 → 자료 → 안전 → 부서톡 → AI 비서 (→ 근무 · 시스템) */
@@ -18378,7 +18378,8 @@ function planFor(D){var W=(DB.data&&DB.data.planWeeks)||{},S=(DB.data&&DB.data.p
   (out[m[1]]=out[m[1]]||[]).push({name:nm,short:String(c.name||'').trim(),mat:String(sp.material||''),time:String(c.time||''),filler:c.filler||null})});return out}
 function toks(s){return String(s||'').split(/[\s·,()\/]+/).map(function(x){return x.replace(/[^가-힣A-Za-z0-9]/g,'')}).filter(function(x){return x.length>=2&&!/^\d+$/.test(x)})}
 /* 밸브 기호: 열림(색) · 닫힘(회색 · 본관과 떨어진 배관) */
-function vlv(x,y,open,c){if(!open)return '';return '<g transform="translate('+x+' '+y+')"><path d="M-5 -4 L5 4 L5 -4 L-5 4 Z" fill="'+(open?c:'#1B2421')+'" stroke="'+(open?c:'#4B5A55')+'" stroke-width="1.2" stroke-linejoin="round"/>'+(open?'':'<line x1="0" y1="-7" x2="0" y2="7" stroke="#4B5A55" stroke-width="1.4"/>')+'</g>'}
+/* 2026-11-17 밸브 표시 없앰 (선만) */
+function vlv(x,y,open,c){return '';return '<g transform="translate('+x+' '+y+')"><path d="M-5 -4 L5 4 L5 -4 L-5 4 Z" fill="'+(open?c:'#1B2421')+'" stroke="'+(open?c:'#4B5A55')+'" stroke-width="1.2" stroke-linejoin="round"/>'+(open?'':'<line x1="0" y1="-7" x2="0" y2="7" stroke="#4B5A55" stroke-width="1.4"/>')+'</g>'}
 /* ───── 맨 아래 줄 (2026-11-16): 데칸타 ↓ 원액 균질기 → 원액 TK → 오늘 원액을 받는 SILO · SILO S1~S5 ───── */
 function rawInfo(D,now,J){var BF=null;try{BF=window.yumJuiceBoardRaw&&yumJuiceBoardRaw(D)}catch(e){}
  var isW=function(s){return /원액/.test(String(s||''))},rl=[];
@@ -18870,7 +18871,7 @@ wrapPrint();setTimeout(wrapPrint,1500);setTimeout(wrapPrint,5000);
 try{window.JOURNAL_TEAMS=['착즙팀','배합팀','멸균팀','포장팀'];JOURNAL_TEAMS=window.JOURNAL_TEAMS}catch(e){}
 var TC={'착즙팀':['❖','#D98A1F','빈쿠커 · WT · 원료'],'배합팀':['⚗','#7B5CD6','배합 · 원액 · CIP'],'멸균팀':['♨','#12A39A','멸균 · Aseptic · HACCP'],'포장팀':['▣','#3062D8','충전 · 포장 · 점검']};
 function tcount(t){try{return (DB.data.forms||[]).filter(function(f){return f&&f.active!==false&&teamOf(f)===t}).length}catch(e){return 0}}
-function bar(cur){var u=me0();var can=!!(u&&(/^(superadmin|admin)$/.test(u.role||'')||u.title==='팀장'||u.title==='부문장'));
+function bar(cur){var u=me0();var can=true; /* 2026-11-17 모든 사람이 모든 팀 일지를 보고 작성 (소속 팀 잠금 없앰) */
  return '<div class="jt-bar">'+Object.keys(TC).map(function(t){var c=TC[t],on=t===cur,mine=u&&u.team===t,lock=!can&&!mine&&cur;
   return '<button class="jt-b'+(on?' on':'')+(lock?' lock':'')+'" style="--c:'+c[1]+'" '+(lock?'disabled title="소속 팀 일지만 작성할 수 있습니다"':'onclick="yumJTGo(\''+t+'\')"')+'><span class="ic">'+c[0]+'</span><span class="tx"><b>'+t+(mine?' <i>내 팀</i>':'')+'</b><small>'+c[2]+' · 양식 '+tcount(t)+'종</small></span></button>'}).join('')+'</div>'}
 window.yumJTGo=function(t){try{sessionStorage.removeItem('yum_jfsel:'+t)}catch(e){}App.go('#/journals?team='+encodeURIComponent(t))};
@@ -18924,7 +18925,9 @@ var TEAMS=[{k:'부문',label:'상온제품생산부문',forms:['FRM-014','FRM-02
 /* 2026-11-16 인시 · 근태 · 노무비(#/mh)는 포장팀을 포장1팀 · 포장2팀으로 나눔 (KPI 화면은 포장팀 그대로) · 업무지원팀 근무일보는 포장1팀에 포함 */
 var TK=TEAMS,TMH=TEAMS.slice(0,3).concat([{k:'포장1팀',label:'상온제품포장1팀',forms:['FRM-068','FRM-067'],u:/포장\s*1|업무지원/},{k:'포장2팀',label:'상온제품포장2팀',forms:['FRM-069'],u:/포장\s*2/}]);
 function myTeam(){var u=me()||{},t=String(u.team||'');if(u.title==='부문장')return '부문';for(var i=1;i<TEAMS.length;i++)if(TEAMS[i].u.test(t))return TEAMS[i].k;return '부문'}
-function TM(){TEAMS=MODE()==='mh'?TMH:TK;var q=/[?&]t=([^&]+)/.exec(location.hash||''),k=(q&&decodeURIComponent(q[1]))||ST.team||myTeam();return TEAMS.filter(function(t){return t.k===k})[0]||TEAMS[0]}
+function TM(){TEAMS=MODE()==='mh'?TMH:TK;var q=/[?&]t=([^&]+)/.exec(location.hash||''),k=(q&&decodeURIComponent(q[1]))||ST.team||myTeam();
+ /* 2026-11-17 KPI 화면: 포장1팀 · 포장2팀 = 포장팀 KPI를 담당 팀으로 걸러 보기 (위쪽 버튼 줄에서 선택) */
+ if(MODE()!=='mh'){if(/^포장[12]팀$/.test(k)){PKT=k.charAt(2);var pb=TK.filter(function(t){return t.k==='포장팀'})[0];if(pb)return Object.assign({},pb,{label:'상온제품'+k,pk:k})}else if(k==='포장팀')PKT='all'}return TEAMS.filter(function(t){return t.k===k})[0]||TEAMS[0]}
 function books(){var B=DB.data.kpiBooks=DB.data.kpiBooks||{};if(!B['가공2팀']){var o=DB.data.kpiBook&&DB.data.kpiBook.act?DB.data.kpiBook:JSON.parse(JSON.stringify(SEED));if(!o.at)o.at='엑셀 첨부본 (2026-11-10)';B['가공2팀']=o}
  if(SEED1&&(!B['가공1팀']||!B['가공1팀'].act)){var g=B['가공1팀']=B['가공1팀']||{att:[],role:{}},c1=JSON.parse(JSON.stringify(SEED1));g.act=c1.act;if(!g.mh)g.mh=c1.mh;if(!g.loss||!g.loss.length)g.loss=c1.loss;if(!g.acc||!g.acc.length)g.acc=c1.acc;g.errs=c1.errs;if(!g.at)g.at=c1.at}
  return B}
@@ -19022,7 +19025,7 @@ function view(){
  var tot=A.total!=null?A.total:items.reduce(function(a,it){return a+(it.score||0)},0);
  var h='<div class="kp">';
  /* 머리 */
- h+='<div class="kp-hero"><div class="kp-ht"><div class="kp-eye">'+E(TM().label)+' · FY2026 (2026.3 ~ 2027.2) · 사내 전용</div><h1>'+(TM().all?'부문 통합 ':E(TM().k)+' ')+'KPI · 인시생산성 · 근태</h1>'+
+ h+='<div class="kp-hero"><div class="kp-ht"><div class="kp-eye">'+E(TM().label)+' · FY2026 (2026.3 ~ 2027.2) · 사내 전용</div><h1>'+(TM().all?'부문 통합 ':E(TM().pk||TM().k)+' ')+'KPI · 인시생산성 · 근태</h1>'+
   '<div class="kp-meta">'+(items.length?'<span>KPI 실적 기준 <b>'+E(asOf)+' 누적</b></span>':'<span>KPI 실적 엑셀 미등록</span>')+'<span>근태 · 투입시간 <b>'+E(ymd(new Date(Date.now()-864e5)))+'</b>까지 (매일 자동 갱신)</span>'+(b.at?'<span>엑셀 자료: '+E(b.at)+'</span>':'')+'</div></div>'+
   (items.length?'<div class="kp-score">'+ring(tot/(A.gradedW||100),168,14,'var(--kp-s1)',fmt(tot,1),'/ '+(A.gradedW||100)+'점')+'<div class="kp-sl"><b>종합 점수</b><span>'+E(asOf)+' 누적 · 배점 100'+(A.gradedW&&A.gradedW<100?' 중 '+A.gradedW+'점 평가':'')+'</span>'+(A.monthScore||[]).map(function(v,i){return v!=null?'<i>'+MON[i]+' '+fmt(v,1)+'</i>':''}).join('')+'</div>'+(A.note?'<div class="kp-note" style="max-width:260px;margin-top:6px;color:rgba(255,255,255,.72)">'+E(A.note)+'</div>':'')+'</div>':'<div class="kp-sl"><b>KPI 실적 엑셀 대기</b><span>아래 「엑셀로 갱신」에서 월별 실적을 올리면 점수가 나옵니다</span></div>')+'</div>';
  /* 요약 지표 줄 */
@@ -19379,7 +19382,7 @@ function pkKpiBox(){var D=pkKpiData(),MS=['3','4','5','6','7','8','9','10','11',
  var its=D.items.filter(function(it){var tm=String(it.team||'');return PKT==='all'||!tm||tm.indexOf(PKT)>=0}),cnt=function(k){return D.items.filter(function(it){var tm=String(it.team||'');return k==='all'||!tm||tm.indexOf(k)>=0}).length};
  var ok=its.map(function(it,i){return card(it,i)}).join('');
  var tabs='<div class="pk-tabs">'+[['all','전체'],['1','포장1팀'],['2','포장2팀']].map(function(x){return '<button type="button" data-pkt="'+x[0]+'"'+(PKT===x[0]?' class="on"':'')+'>'+x[1]+' <small>'+cnt(x[0])+'</small></button>'}).join('')+'<span>공통(1·2팀) 항목은 두 팀 모두에 나옵니다</span></div>';
- return '<h2 class="kp-h2"><span class="kp-sn">07</span>상온포장 KPI 실적 <small>'+E(D.title||'')+(D.at?' · '+E(D.at)+' 업로드':'')+' · 색 = 목표 대비 (초록 달성 · 주황 90% 이상 · 빨강 미달) · 선의 점선 = 목표</small></h2>'+tabs+'<div class="pk-g">'+ok+'</div>'}
+ return '<h2 class="kp-h2"><span class="kp-sn">07</span>상온포장 KPI 실적'+(PKT!=='all'?' · 포장'+PKT+'팀 <small style="font-weight:700">(1·2팀 공통 항목 포함)</small>':'')+' <small>'+E(D.title||'')+(D.at?' · '+E(D.at)+' 업로드':'')+' · 색 = 목표 대비 (초록 달성 · 주황 90% 이상 · 빨강 미달) · 선의 점선 = 목표</small></h2><div class="pk-g">'+ok+'</div>'}
 document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('[data-pkt]');if(!b)return;PKT=b.getAttribute('data-pkt');var h=b.closest('.pk-tabs'),g=h&&h.nextElementSibling,hd=h&&h.previousElementSibling;if(!h||!g)return;var w=document.createElement('div');w.innerHTML=pkKpiBox();var nh=w.querySelector('.pk-tabs'),ng=w.querySelector('.pk-g');h.replaceWith(nh);g.replaceWith(ng)});
 /* 부문 KPI 스코어카드 */
 var LVC=['','#0E9F6E','#3B82F6','#8B5CF6','#F59E0B','#EF4444'];
