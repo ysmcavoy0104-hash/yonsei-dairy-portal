@@ -21377,7 +21377,7 @@ function proxy(fnName,body){if(!(window.SupaSync&&SupaSync.on&&SupaSync.on()))re
  return sess().then(function(ses){if(!ses)return {error:'로그인 세션 없음'};return fetch(window.SUPA_URL+'/functions/v1/'+fnName,{method:'POST',headers:{'Content-Type':'application/json',apikey:window.SUPA_ANON,Authorization:'Bearer '+ses.access_token},body:JSON.stringify(body)}).then(function(r){return r.json().catch(function(){return {error:'응답 '+r.status}}).then(function(j){if(!r.ok&&j&&!j.error)j.error='응답 '+r.status;if(r.status===404)return {error:'중계 함수('+fnName+')가 아직 배포되지 않았습니다'};return j})})})}
 function juiceFeed(D){return feed('j|'+D,60e3,function(){return proxy('juice-proxy',{date:D})})}
 /* 멸균팀 포털 실시간 가동 상태 (ster-proxy path:'live') — 받으면 일지 계산보다 우선 */
-function sterLive(){return feed('sl',FD.sl&&!FD.sl.ok?10*60e3:60e3,function(){return proxy('ster-proxy',{path:'live'})})}
+function sterLive(){return feed('sl',FD.sl&&!FD.sl.ok?2*60e3:25e3,function(){return proxy('ster-proxy',{path:'live'})})}
 function stMap(t){t=String(t||'').replace(/\s/g,'');if(!t)return null;
  /* 착즙팀 board-feed 와 같은 상태 코드 (run · wait · done · late · stop · cip) */
  var SC={run:{st:'생산 중',run:true},wait:{st:'대기',run:false},done:{st:'완료',run:false},late:{st:'기록 대기',run:false},stop:{st:'정지',run:false},cip:{st:'CIP',run:false},sip:{st:'CIP',run:false},heat:{st:'승온 중',run:true},cool:{st:'냉각 중',run:false,tone:'a'},ster:{st:'멸균 중',run:true}};if(SC[t.toLowerCase()])return JSON.parse(JSON.stringify(SC[t.toLowerCase()]));
@@ -21524,7 +21524,9 @@ function paint(){var box=document.getElementById('lb-root');if(!box||box.classLi
  var lb=box.querySelector('.lb');if(FIRST){FIRST=false;requestAnimationFrame(function(){lb&&lb.classList.add('in')})}else lb&&lb.classList.add('in','quiet');
  [].forEach.call(box.querySelectorAll('[data-n]'),function(b){var v=+b.getAttribute('data-n'),t0=performance.now();(function st(t){var p=Math.min(1,(t-t0)/1100),e=1-Math.pow(1-p,4);b.textContent=Math.round(v*e).toLocaleString();if(p<1)requestAnimationFrame(st)})(t0)});tick()}
 function tick(){var c=document.getElementById('lb-clock');if(!c)return;var n=new Date();c.textContent=pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds())}
-setInterval(tick,1000);setInterval(function(){if(!document.hidden)paint()},60000);
+setInterval(tick,1000);
+/* 멸균팀 업무포털 실시간 상태: 생산 현황 · OEE 화면이 열려 있으면 30초마다 확인 → 바뀌면 흐름도 · 현황판 바로 다시 그림 */
+setInterval(function(){if(document.hidden)return;if(document.getElementById('fm-wrap')||document.getElementById('lb-root'))sterLive()},30000);setInterval(function(){if(!document.hidden)paint()},60000);
 window.addEventListener('yum-docs-synced',function(){paint()});window.addEventListener('yum-sterfeed',function(){paint()});window.addEventListener('yum-lbfeed',function(){paint()});
 window.yumSterLiveRaw=function(){sterLive();return FD.sl||null};window.yumSterLiveMap=function(){var r=sterLiveMap();return r.ok&&Object.keys(r.m).length?r.m:null};window.yumPackLiveMap=function(D){var r=packLiveMap(D||today());return r.ok?r.m:null};
 window.yumJuiceBoardRaw=function(D){var c=juiceFeed(D||today());return c&&c.ok&&c.raw&&Array.isArray(c.raw.lines)?c.raw:null};
