@@ -18274,7 +18274,7 @@ function ster(D,now){var out=[],d=null;
  /* 2026-11-16 지금 상태(멸균 중 · 예정 …)는 일지로 계산하지 않고 멸균팀 업무포털 실시간 상태만 사용 */
  try{if(now!=null){var SLm=window.yumSterLiveMap?yumSterLiveMap():null;out.forEach(function(o){var L=SLm&&SLm[o.h];o.at=null;o.ext=1;o.sub=EQ[o.h];
    if(!L){o.st=SLm?'멸균팀 포털 자료 없음':'실시간 연결 대기';o.run=false;o.on=false;return}
-   o.st=L.st+(L.at?' · AT'+L.at:'')+(L.t?' · '+L.t+'부터':'');o.run=L.run;o.on=true;o.at=L.at||null;if(L.prod)o.prod=L.prod})}}catch(e){}
+   o.st=L.st+(L.at?' · AT'+L.at:'')+(L.t?' · '+L.t+'부터':L.code==='plan'&&L.pt?' · '+L.pt:'')+(L.why?' · '+L.why:'');o.run=L.run;o.on=true;o.at=L.at||null;if(L.prod)o.prod=L.prod})}}catch(e){}
  return out}
 /* 멸균팀 업무포털 업무일지(읽기 전용 · ster-proxy 경유 · 토큰은 서버 Secret에만) — 우리 FRM-016 일지가 없는 호기에 사용 */
 var SF={},SFB={};
@@ -21387,10 +21387,14 @@ function stMap(t){t=String(t||'').replace(/\s/g,'');if(!t)return null;
  if(/(예정|plan|sched)/i.test(t))return {st:'예정',run:false};if(/(대기|idle|wait|standby|ready)/i.test(t))return {st:'대기',run:false};
  if(/(정비|maint|점검)/i.test(t))return {st:'정비',run:false};if(/(종료|완료|end|done|off)/i.test(t))return {st:'종료',run:false};return {st:t.slice(0,8),run:false}}
 function sterLiveMap(){var c=sterLive(),out={};if(!c||!c.ok||!c.raw)return {ok:false,err:c&&c.err,wait:!c,m:out};
- walk(c.raw).forEach(function(w){var o=w.o,u=pick(o,/(^|\.)(unit|hogi|호기|line|machine|ster|sterilizer|equip|equipment|id|name|label)$/i),h=+((String(u==null?'':u).match(/([1-5])\s*호기|#\s*([1-5])|^([1-5])$/)||[]).slice(1).filter(Boolean)[0]||0);
+ walk(c.raw).forEach(function(w){var o=w.o,u=o.unit!=null?o.unit:pick(o,/(^|\.)(unit|hogi|호기|line|machine|ster|sterilizer|equip|equipment|id|name)$/i),h=+((String(u==null?'':u).match(/([1-5])\s*호기|#\s*([1-5])|^([1-5])$/)||[]).slice(1).filter(Boolean)[0]||0);
   if(!h){var pm=/([1-5])\s*호기/.exec(w.p);if(pm)h=+pm[1]}if(!(h>=1&&h<=5)||out[h])return;
   var sv=pick(o,/(^|\.)(status|state|상태|stage|step|phase|단계|mode|운전상태)$/i);if(sv==null&&typeof o.running==='boolean')sv=o.running?'가동':'대기';var mp=stMap(sv);if(!mp)return;
-  mp.prod=String(pick(o,RE_PROD)||'');mp.t=hhmm(pick(o,/^(since|start|started|startAt|start_at|from|시작|시각)$/i));
+  /* 멸균팀 board-feed: code(run · plan · cip · cool · stop · wait · done) = 가동 판단, label = 멸균팀 포털 화면 글자 그대로 표시 */
+  var cd=String(o.code||'').toLowerCase();if(cd){var CM={run:true,plan:false,cip:false,cool:false,stop:false,wait:false,done:false};if(cd in CM)mp.run=CM[cd]}
+  if(o.label)mp.st=String(o.label).trim();else if(cd==='run'&&!/멸균|생산/.test(mp.st))mp.st='멸균 중';
+  mp.code=cd;mp.pt=String(o.prod_time||o.prodTime||'');mp.why=String(o.reason||'');
+  mp.prod=String(o.item||pick(o,RE_PROD)||'');mp.t=hhmm(pick(o,/^(since|start|started|startAt|start_at|from|시작|시각)$/i));
   var at=pick(o,/^(at|atNo|at_no|asepticTank|aseptic_tank|aseptic|tank|tankNo|tank_no|아셉틱|탱크)$/i),am=/([1-6])/.exec(String(at==null?'':at));if(am)mp.at=+am[1];out[h]=mp});
  return {ok:true,m:out}}
 function sterPlan(D){return feed('sp|'+D,5*60e3,function(){return proxy('ster-proxy',{path:'data',set:'plan',from:D,to:D})})}
@@ -21482,7 +21486,7 @@ function view(){var M=window.yumLiveModel?yumLiveModel():{juice:[],mix:[],ster:[
   jCrew=dd(jCrew);mCrew=dd(mCrew)})();
  /* 멸균팀 포털 */
  var SX=sterExtra(D),sst=SX.wait?'wait':SX.ok?'ok':'err';
- var SL=sterLiveMap();if(SL.ok&&Object.keys(SL.m).length){sst='ok';M.ster.forEach(function(x){var h=+String(x.t).replace(/\D/g,''),L=SL.m[h];if(!L)return;x.st=L.st+(L.at?' · AT'+L.at:'')+(L.t?' · '+L.t+'부터':'');x.run=L.run;x.on=true;if(L.prod)x.prod=L.prod;x.live=1})}
+ var SL=sterLiveMap();if(SL.ok&&Object.keys(SL.m).length){sst='ok';M.ster.forEach(function(x){var h=+String(x.t).replace(/\D/g,''),L=SL.m[h];if(!L)return;x.st=L.st+(L.at?' · AT'+L.at:'')+(L.t?' · '+L.t+'부터':L.code==='plan'&&L.pt?' · '+L.pt:'')+(L.why?' · '+L.why:'');x.run=L.run;x.on=true;if(L.prod)x.prod=L.prod;x.live=1})}
  M.ster.forEach(function(x){var h=+String(x.t).replace(/\D/g,'');if(!x.prod&&SX.plan[h]){x.prod='계획 · '+SX.plan[h].prod+(SX.plan[h].t?' ('+SX.plan[h].t+')':'');if(!x.on&&/(없음|기록)/.test(x.st||'일지 없음'))x.st='계획'}});
  var sCrew=m66.concat(SX.crew.length?[{lab:'멸균팀 포털 업무일지',time:'',on:false,names:SX.crew}]:[]);
  /* 포장팀 포털 */
