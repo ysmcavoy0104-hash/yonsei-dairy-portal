@@ -21544,7 +21544,8 @@ function packLiveMap(D){var c=packLive(D),out={};if(!c||!c.ok||!c.raw)return {ok
   if(!m){var pm=/(?:^|\.)([A-F])(?:\.|$)/.exec(w.p);if(pm)m=pm[1]}if(!m||out[m])return;
   var sv=pick(o,/^(status|state|상태|mode|운전상태|label|status_label)$/i);if(sv==null&&typeof o.running==='boolean')sv=o.running?'생산':'대기';var mp=stMap(sv);if(!mp)return;
   var q=num(pick(o,/^(qty|ea|count|production_qty|output|생산량|수량)$/i));mp.ea=q;mp.prod=String(pick(o,/^(item|product|name_item|품목|제품|item_name)$/i)||'');mp.t=hhmm(pick(o,/^(since|start|started|from|시작)$/i));mp.why=String(pick(o,/^(reason|stop_reason|사유|problem|원인)$/i)||'');if(o.label)mp.st=String(o.label).trim();mp.order=num(pick(o,/^(order|order_qty|target|plan|plan_qty|지시량|생산지시량)$/i));out[m]=mp});
- return {ok:Object.keys(out).length>0,m:out,at:hhmm(pick(c.raw,/(updated|generated_at|now|at)$/i))}}
+ var ua=pick(c.raw,/(updated|generated_at|now|at)$/i),uat=/T\d{2}:\d{2}.*(Z|[+-]\d{2}:?\d{2})$/.test(String(ua||''))?(function(){var d=new Date(ua);return isNaN(d)?hhmm(ua):pad(d.getHours())+':'+pad(d.getMinutes())})():hhmm(ua);
+ return {ok:Object.keys(out).length>0,m:out,at:uat}}
 function packExtra(D,now){var c=packFeed(D),out={ok:!!(c&&c.ok),until:'',byM:{},stop:{}};if(!c||!c.ok)return out;var pr=c.raw.prod||{},sp=c.raw.stops||{};out.until=pr.data_until||'';
  (pr.rows||[]).forEach(function(r){if(r.date!==D)return;var m=String(r.machine||'').toUpperCase();var o=out.byM[m]=out.byM[m]||{ea:0,items:[]};o.ea+=+r.qty||0;if(r.item&&o.items.indexOf(r.item)<0)o.items.push(r.item)});
  (sp.rows||[]).forEach(function(r){if(r.date!==D)return;var a=tmin(r.start),b=tmin(r.end);if(a==null)return;if(now>=a&&(b==null||now<b))out.stop[String(r.machine||'').toUpperCase()]={why:[r.equipment,r.location,r.problem].filter(Boolean).join(' · '),a:r.start}});return out}
