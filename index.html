@@ -17652,7 +17652,8 @@ console.log('[확장 모듈] 부문포털 메뉴 간소화 로드 완료');
 (function(){if(window.__YUM_LIHOME__||typeof Auth==='undefined'||!Auth.login)return;window.__YUM_LIHOME__=1;var _li=Auth.login;
  Auth.login=function(ev){try{if(/^#\//.test(location.hash||''))history.replaceState(null,'',location.pathname+location.search+'#top')}catch(e){}return _li.apply(this,arguments)}})();
 /* 자동 로그인으로 사이트를 새로 열 때(새 탭 · 새 창)도 홈 화면부터 — 같은 탭에서 새로 고침하면 보던 화면 그대로 */
-(function(){try{if(sessionStorage.getItem('yum_tab_seen'))return;sessionStorage.setItem('yum_tab_seen','1');if(/^#\//.test(location.hash||'')){history.replaceState(null,'',location.pathname+location.search+'#top');
+(function(){try{if(window.top!==window||/[?&]embed=1/.test(location.search))return;   /* 배합팀 포털 안쪽 창(생산계획표 변환 · SILO 계산)은 제외 */
+ if(sessionStorage.getItem('yum_tab_seen'))return;sessionStorage.setItem('yum_tab_seen','1');if(/^#\//.test(location.hash||'')){history.replaceState(null,'',location.pathname+location.search+'#top');
  setTimeout(function(){try{var a=document.getElementById('page-app');if(a&&a.classList.contains('on')&&window.yumGoHome)yumGoHome()}catch(e){}},400)}}catch(e){}})();
 </script>
 
