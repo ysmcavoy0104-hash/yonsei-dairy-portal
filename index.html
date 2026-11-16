@@ -18196,7 +18196,7 @@ function liveOf(fid){var L=window.__yumLive||{},out=[],now=Date.now();Object.key
 function docs(code,D){var f=form(code);if(!f)return [];var L=liveOf(f.id),ids={};L.forEach(function(d){ids[d.id]=1});
  return (DB.data.docs||[]).filter(function(d){return d&&d.formId===f.id&&!d.deleted&&d.status!=='deleted'&&!ids[d.id]}).concat(L).filter(function(d){return dateOf(d)===D}).sort(function(a,b){return String(b.updatedAt||'').localeCompare(String(a.updatedAt||''))})}
 function tmin(s){var m=/^(\d{1,2})\s*[:.]?\s*(\d{2})$/.exec(String(s||'').trim());if(!m)return null;var h=+m[1],mi=+m[2];if(h>24||mi>59)return null;return (h%24)*60+mi}
-function isSoy(p){return /두유|프로틴|오곡|이롬|콩/.test(p||'')}
+function isSoy(p){return /두유|프로틴|오곡|이롬|콩|아\s*&?\s*잣|아몬드\s*&\s*잣|호두|칼마디|진득찰|서리태|약콩/.test(p||'')}
 function norm(s){return String(s||'').replace(/\[[^\]]*\]|\([^)]*\)|\d+\s*m[lL]|\s+/g,'').replace(/[^가-힣A-Za-z0-9]/g,'')}
 function same(a,b){a=norm(a);b=norm(b);if(!a||!b)return false;if(a.indexOf(b)>=0||b.indexOf(a)>=0)return true;var k=0;while(k<a.length&&k<b.length&&a[k]===b[k])k++;return k>=4}
 
