@@ -20750,6 +20750,31 @@ function mixEq(D,base){var J=JD();if(!J)return [];var L=J.docs('FRM-012',D),out=
 var CIPSTD={A:90,B:110,C:110,D:104,E:90,F:129};
 var RATED={B:24000,C:6000,D:26500,F:40000};   /* 개/시간 — 생산작업일보 레시피 표기 */
 function T2(J,d,k){return J.tmin(J.G(d,k))}
+/* ═══ 포장 OEE = 상온포장팀 「포장기 OEE 관리 방법」(2026-11-16) ═══
+   A = 순생산 ÷ 점유(SIP 시작 ~ CIP 종료) · 정지는 코드와 상관없이 모두 순생산에서 뺌
+   P = 생산량 ÷ (CAPA × 순생산 h) · Q = 포장 L(개 × ml ÷ 1,000) ÷ 멸균기 적산량 L(멸균 업무일지)
+   SIP · CIP 가 없으면 생산 시작 −70분 · 생산 종료 +120분 (F호기 −100 · +150) 추정 「*」 · 고장 = 10분 이상 정지 */
+var PKCAPA={A:24000,B:24000,C:6000,D:26500,E:24000,F:40000};
+function pkCapa(h,D){return h==='D'&&D<='2026-10-29'?24000:PKCAPA[h]}
+function pkPre(h){return h==='F'?100:70}function pkPost(h){return h==='F'?150:120}
+function codeDoc(t,m){t=String(t||'');
+ if(/중간\s*(CIP|세척)/i.test(t))return '중간 CIP';
+ if(/(유액|전처리|dairy\s*not\s*ready|멸균기?\s*(대기|이상|깨짐)|배합|공급|이송\s*대기|성분\s*미달)/i.test(t))return '상류(유액) 대기';
+ if(/(휴식|교육|식사|점심|계획\s*정지)/.test(t))return '계획정지';
+ if(/(품목|제품|규격|레시피)\s*(변경|교체|전환)|준비\s*교체/.test(t))return '준비교체';
+ if(/(자재|포장재|팩\s*부족|트레이|스트로우|스트로|paper)/i.test(t))return '자재 대기';
+ return m>=10?'고장':'순간정지'}
+function pkNorm(x){return String(x||'').replace(/\[[^\]]*\]|\([^)]*\)|\d+\s*m[lL]|외\s*\d+\s*종|\s+/g,'').replace(/[^가-힣A-Za-z0-9]/g,'')}
+function pkSame(a,b){a=pkNorm(a);b=pkNorm(b);if(!a||!b)return false;if(a.indexOf(b)>=0||b.indexOf(a)>=0)return true;var k=0;while(k<a.length&&k<b.length&&a[k]===b[k])k++;return k>=3}
+function pkMl(items,D,h){var m=null;(items||[]).forEach(function(it){var x=/(\d{2,4})\s*m\s*l/i.exec(String(it||''))||/(?:^|[^\d])(1[0-9]{2}|2[0-9]{2}|3[0-9]{2}|500|1000)(?:\s*$|[^\d])/.exec(String(it||''));if(x&&!m)m=+x[1]});
+ if(!m){var R=recData();R.days.slice().reverse().forEach(function(d){if(m||!d.ml)return;if((items||[]).some(function(it){return pkSame(it,d.item)}))m=d.ml})}return m}
+/* 멸균기 적산량(L): 같은 날 멸균 업무일지(FRM-016)에서 품목이 닮은 멸균 호기 → 없으면 멸균팀 포털 업무일지 */
+function pkSterL(D,items){var J=JD();if(!J)return null;var d=J.docs('FRM-016',D)[0],hit=null;
+ if(d)for(var h=1;h<=5&&!hit;h++){var it=J.G(d,'s'+h+'_item'),q=parseFloat(String(J.G(d,'s'+h+'_qty')).replace(/[^\d.]/g,''));if(!it||!(q>0))continue;if((items||[]).some(function(x){return pkSame(x,it)}))hit={h:h,L:q,src:'멸균 업무일지'}}
+ if(!hit&&window.yumSterExt){var X=yumSterExt(D)||{};Object.keys(X).forEach(function(h){var o=X[h];if(hit||!(o.qty>0))return;if((o.items||[]).some(function(it){return (items||[]).some(function(x){return pkSame(x,it)})}))hit={h:+h,L:o.qty,src:'멸균팀 포털 업무일지'}})}
+ return hit}
+/* 보완 입력 (포장팀 · 최고관리자) — cfg().pko[날짜][호기] = {sip, ce, ml, sl(적산량 L), sh(멸균 호기), od(지시량)} */
+function pkOv(D,h){var c=cfg();return ((c.pko||{})[D]||{})[h]||{}}
 function after(t,ref){if(t==null)return null;while(ref!=null&&t<ref-360)t+=1440;return t}
 /* 구간 합치기 — 겹치는 시간은 한 번만 (탱크 2개를 같은 시간에 쓰면 두 번 세지 않음) */
 function ivUnion(L){L=L.filter(function(x){return x&&x[1]>x[0]}).sort(function(a,b){return a[0]-b[0]});var o=[];L.forEach(function(x){var l=o[o.length-1];if(l&&x[0]<=l[1])l[1]=Math.max(l[1],x[1]);else o.push([x[0],x[1]])});return o}
@@ -20779,22 +20804,24 @@ function packJ(D,PR,base){var J=JD();if(!J)return [];var out=[],x=(PR.pack||{})[
   else{var cr=F[2]==='tf'?[3]:[4,5],sr=F[2]==='tf'?[5,6,7]:[7,8,9,10,11];var c6=F[2]==='tf'?[[6,0,18],[28,21,39]]:[[6,0,18],[27,21,37]];
    cr.forEach(function(r){c6.forEach(function(c){var a=T2(J,d,P+'_'+r+'_'+c[0])||T2(J,d,P+'_'+r+'_'+c[1]),s=T2(J,d,P+'_'+r+'_'+c[2]);if(a!=null)sip.push(a);if(s!=null)ps.push(s)})});
    sr.forEach(function(r){var a=T2(J,d,P+'_'+r+'_0'),b=T2(J,d,P+'_'+r+'_3'),e=T2(J,d,P+'_'+r+'_8'),why=J.G(d,P+'_'+r+'_16');if(e!=null)pe.push(e);if(a!=null)ls.push({a:a,b:b,why:why})})}
-  if(!ps.length)return;var t0=sip.length?Math.min.apply(null,sip):Math.min.apply(null,ps);if(t0>Math.min.apply(null,ps))t0=Math.min.apply(null,ps);
+  if(!ps.length)return;var ov=pkOv(D,h),estS=!sip.length&&!ov.sip;if(ov.sip&&J.tmin(ov.sip)!=null)sip=[J.tmin(ov.sip)];var t0=sip.length?Math.min.apply(null,sip):Math.min.apply(null,ps)-pkPre(h);if(!estS&&t0>Math.min.apply(null,ps))t0=Math.min.apply(null,ps);
   ps=ps.map(function(v){return after(v,t0)}).sort(function(a,b){return a-b});pe=pe.map(function(v){return after(v,t0)}).sort(function(a,b){return a-b});if(!pe.length)return;
-  var stops=[],run=0;if(ps[0]>t0)stops.push({c:'SIP·CIP',m:ps[0]-t0,t:'SIP 시작 ~ 생산 시작',a:hm(t0)});
+  var stops=[],run=0;if(ps[0]>t0)stops.push({c:'SIP·CIP',m:ps[0]-t0,t:'SIP 시작 ~ 생산 시작'+(estS?' (추정 *)':''),a:hm(t0)});
   ps.forEach(function(s,i){var e=pe[i]!=null?pe[i]:pe[pe.length-1];if(e>s)run+=e-s;var nx=ps[i+1];if(nx!=null&&pe[i]!=null&&nx>pe[i])stops.push({c:'중간 CIP',m:nx-pe[i],t:'생산 종료 ~ 다음 생산 시작 (재멸균 · 중간 CIP)',a:hm(pe[i])})});
-  var lastE=pe[pe.length-1],ce=lastE+(CIPSTD[h]||110);stops.push({c:'SIP·CIP',m:ce-lastE,t:'생산 종료 ~ CIP 종료 (표준 '+(CIPSTD[h]||110)+'분 추정)',a:hm(lastE)});
+  var lastE=pe[pe.length-1],cj=[];if(F[2]!=='sig')[3,4,5,6,7,8,9,10,11].forEach(function(r){var c=T2(J,d,P+'_'+r+'_11');if(c!=null)cj.push(after(c,lastE))});if(ov.ce&&J.tmin(ov.ce)!=null)cj=[after(J.tmin(ov.ce),lastE)];cj=cj.filter(function(c){return c>lastE&&c-lastE<600});
+  var estC=!cj.length,ce=estC?lastE+pkPost(h):Math.max.apply(null,cj);stops.push({c:'SIP·CIP',m:ce-lastE,t:'생산 종료 ~ CIP 종료'+(estC?' (추정 *)':''),a:hm(lastE)});
   /* 생산 중 정지 — 일지 정지 칸 + 정지 현황 일지 (같은 시각은 한 번만) */
-  var seen={};ls.forEach(function(s){var a=after(s.a,t0),b=after(s.b,a);var m=b!=null&&b>a?b-a:0;if(!m)return;seen[a]=1;var c=codeOf(s.why,m);stops.push({c:c,m:m,t:s.why||'정지',a:hm(a)});if(c!=='계획정지')run-=m});
-  (ST[h]||[]).forEach(function(s){var a=after(s.a,t0);if(seen[a])return;seen[a]=1;var c=codeOf(s.why,s.m);stops.push({c:c,m:s.m,t:(s.why||'정지')+' · '+s.src,a:hm(a)});if(c!=='계획정지')run-=s.m});
-  run=Math.max(0,run);var op=ce-t0,mg=stops.filter(function(s){return s.c==='계획정지'}).reduce(function(a,s){return a+s.m},0);
+  var seen={};ls.forEach(function(s){var a=after(s.a,t0),b=after(s.b,a);var m=b!=null&&b>a?b-a:0;if(!m)return;seen[a]=1;var c=codeDoc(s.why,m);stops.push({c:c,m:m,t:s.why||'정지',a:hm(a),fail:c==='고장'});run-=m});
+  (ST[h]||[]).forEach(function(s){var a=after(s.a,t0);if(seen[a])return;seen[a]=1;var c=codeDoc(s.why,s.m);stops.push({c:c,m:s.m,t:(s.why||'정지')+' · '+s.src,a:hm(a),fail:c==='고장'});run-=s.m});
+  run=Math.max(0,run);var op=ce-t0,mg=0;
   /* 생산량 (개) */
   var qty=0,tot=null;for(var r2=30;r2<=40;r2++){[7,8].forEach(function(c){var v=parseFloat(String(J.G(d,P+'_'+r2+'_'+c)).replace(/,/g,''));if(!isFinite(v)||v<=0)return;var nm=J.G(d,P+'_'+r2+'_0');if(nm&&!/합계/.test(nm))qty+=v;else if(!nm)tot=Math.max(tot||0,v)})}
   if(tot&&tot>qty)qty=tot;if(!qty&&(x.ln||{})[h])qty=(x.ln||{})[h];
-  var capa=F[2]==='sig'?parseFloat(String(J.G(d,P+'_1_35')).replace(/,/g,'')):RATED[h],sp=+base['S'+h]?+base['S'+h]*60:(isFinite(capa)&&capa>0?capa:null);
-  var Pv=sp&&run&&qty?cl(qty/(run/60*sp)):null,w=(x.wasteBy||{})[h]||0,Qv=qty&&(x.wasteBy||{})[h]!=null?qty/(qty+w):null;
-  out.push({id:'P'+h,team:'pack',name:h+'호기',short:h+'호기',sub:h==='A'||h==='E'?'SIG':h==='D'?'TETRA 미드':h==='F'?'TETRA 슬림리프':'TETRA',T:{op:op,mg:mg,ld:op-mg,st:op-mg-run,run:run},P:Pv,Q:Qv,q:qty||null,waste:w,stops:stops,src:'포장 생산작업일보'+((ST[h]||[]).length?' · 정지 현황':''),
-   note:['조업 '+hm(t0)+' (SIP) ~ '+hm(ce)+' (CIP 종료 추정) · 생산 '+fm(run)+'분',sp?'P = '+fm(qty)+'개 ÷ ('+(run/60).toFixed(1)+'h × 기준 '+fm(sp)+'개/h'+(base['S'+h]?' 설정':F[2]==='sig'?' 생산CAPA':' 레시피')+')':'P = 기준 속도 없음']})});
+  var capa=pkCapa(h,D),sp=+base['S'+h]?+base['S'+h]*60:capa;
+  var its=[];for(var r3=30;r3<=40;r3++){var nm3=J.G(d,P+'_'+r3+'_0');if(nm3&&!/합계/.test(nm3))its.push(nm3)}var px0=(PXD[D.slice(0,4)]||{P:{}}).P[D+'|'+h];if(!its.length&&px0)its=px0.items;
+  var Pv=sp&&run&&qty?cl(qty/(run/60*sp)):null,w=(x.wasteBy||{})[h]||0,ml=+ov.ml||pkMl(its,D,h),sl=+ov.sl?{h:ov.sh||'',L:+ov.sl,src:'보완 입력'}:pkSterL(D,its),PL=ml&&qty?qty*ml/1000:null,Qv=PL&&sl&&sl.L?cl(PL/sl.L):null,od=+ov.od||null;
+  out.push({id:'P'+h,team:'pack',name:h+'호기',short:h+'호기',sub:h==='A'||h==='E'?'SIG':h==='D'?'TETRA 미드':h==='F'?'TETRA 슬림리프':'TETRA',T:{op:op,mg:mg,ld:op-mg,st:op-mg-run,run:run},P:Pv,Q:Qv==null?1:Qv,qAssumed:Qv==null,q:qty||null,ach:od?qty/od:null,order:od,waste:w,stops:stops,est:estS||estC?'*':'',src:'포장 생산작업일보'+((ST[h]||[]).length?' · 정지 현황':'')+(sl?' · '+sl.src:''),
+   note:['점유 '+hm(t0)+(estS?'*':'')+' (SIP) ~ '+hm(ce)+(estC?'*':'')+' (CIP 종료) = '+fm(op)+'분 · 순생산 '+fm(run)+'분'+(estS||estC?' (* 일지에 시각 없음 → 추정)':''),'P = '+fm(qty)+'개 ÷ (CAPA '+fm(sp)+'개/h × '+(run/60).toFixed(1)+'h)',Qv!=null?'Q = 포장 '+fm(PL)+'L ('+ml+'ml) ÷ 멸균 '+(sl.h||'—')+'호기 적산량 '+fm(sl.L)+'L ('+sl.src+')':'Q = 양품률 자료 대기 ('+(ml?'':'용량 ml · ')+(sl?'':'멸균기 적산량 ')+'없음 → A × P 만 표시)']})});
  return out}
 /* 자료 합치기 · 대조 — 같은 설비의 여러 자료 중 상온 기준 시각이 다 있는 웹 일지를 먼저 쓰고, 나머지는 대조용으로 */
 function mergeEq(out,journal){journal.forEach(function(j){var i=-1;out.forEach(function(o,k){if(o.id===j.id)i=k});var o=i>=0?out[i]:null;
@@ -20821,7 +20848,7 @@ function recEq(D){var R=recData(),out=[];R.days.filter(function(x){return x.date
   if(op==null)op=prod;var pre=sip!=null?md2(sip,ps):0,post=ce!=null?md2(pe,ce):0;if(pre)stops.unshift({c:'SIP·CIP',m:pre,t:'SIP 시작 ~ 생산 시작',a:x.sip});if(post)stops.push({c:'SIP·CIP',m:post,t:'생산 종료 ~ CIP 종료',a:x.pe});
   var run=Math.max(0,prod-stm),capa=(R.up&&x.h===R.up.h&&D>=R.up.d)?R.up.capa:(R.capa||{})[x.h],qty=+x.qty||0,L=x.ml?qty*x.ml/1000:null;
   var P=capa&&run&&qty?qty/(capa*run/60):null,Q=L&&x.sterL?L/x.sterL:null;
-  out.push(mk({id:'P'+x.h,team:'pack',name:x.h+'호기',short:x.h+'호기',sub:x.h==='D'?'TETRA 미드':x.h==='F'?'TETRA 슬림리프':'',T:{op:op,mg:mg,ld:op-mg,st:op-mg-run,run:run},P:P==null?null:cl(P),Q:Q==null?null:cl(Q),q:qty||null,ach:x.order?qty/x.order:null,order:x.order||null,stops:stops,src:'포장 OEE 기록 (D·F 일일입력 · 정지기록)',
+  out.push(mk({id:'P'+x.h,team:'pack',name:x.h+'호기',short:x.h+'호기',sub:x.h==='D'?'TETRA 미드':x.h==='F'?'TETRA 슬림리프':'',T:{op:op,mg:0,ld:op,st:op-run,run:run},P:P==null?null:cl(P),Q:Q==null?null:cl(Q),q:qty||null,ach:x.order?qty/x.order:null,order:x.order||null,stops:stops,src:'포장 OEE 기록 (D·F 일일입력 · 정지기록)',
    note:['점유 '+(x.sip||'—')+' (SIP) ~ '+(x.ce||'—')+' (CIP 종료) = '+fm(op)+'분 · 생산구간 '+x.ps+' ~ '+x.pe+' = '+fm(prod)+'분 · 정지 '+fm(stm)+'분','P = '+fm(qty)+'개 ÷ (CAPA '+fm(capa)+'개/h × 순생산 '+(run/60).toFixed(1)+'h)','Q = 포장 '+fm(L)+'L ÷ 멸균기('+(x.ster||'—')+'호기) 적산량 '+fm(x.sterL)+'L',x.order?'생산 달성률 '+pc(qty/x.order)+'% (지시량 '+fm(x.order)+'개)':'',x.item?'품목 '+x.item+(x.ml?' · '+x.ml+'ml':''):'',x.note?'비고: '+x.note:''].filter(Boolean)}))});
  return out}
 /* 엑셀 올리기 — 「상온 멸균포장기 OEE 일일 기록」 양식 (일일입력 · 정지기록 · 기준 시트) */
@@ -20858,7 +20885,13 @@ function eqDay(D){var k=D+'|'+sig()+'|'+Object.keys(PXD).length;if(EQC[k])return
  /* 포장 A~F */
  var x=(PR.pack||{})[D]||{},y=D.slice(0,4),X=PXD[y]||packYear(y),K=packKpi(),M={};((K&&K.k&&K.k.machines)||[]).forEach(function(m){M[m.machine]=m});
  'ABCDEF'.split('').forEach(function(h){var p=X&&X.P[D+'|'+h],ea=(x.ln||{})[h],w=(x.wasteBy||{})[h]||0,bad=(x.badBy||{})[h]||0,T=null,stops=[],P=null,note=[],src='';
-  if(p&&(p.run||p.qty)){var L=(X.S[D+'|'+h]||[]);var mg=0,st=0;L.forEach(function(r){var m=+r.min||0,c=codeOf([r.equipment,r.location,r.problem].join(' '),m);if(c==='계획정지')mg+=m;else st+=m;stops.push({c:c,m:m,t:[r.equipment,r.location,r.problem].filter(Boolean).join(' · '),a:r.start||''})});
+  if(p&&(p.run||p.qty)){var ov=pkOv(D,h),L2=(X.S[D+'|'+h]||[]),st2=0,stp=[];L2.forEach(function(r){var m=+r.min||0;if(!m)return;var t=[r.equipment,r.location,r.problem].filter(Boolean).join(' · '),c=codeDoc(t,m);st2+=m;stp.push({c:c,m:m,t:t,a:r.start||'',fail:c==='고장'})});
+   var stm=Math.max(p.stop||0,st2),prod=p.run||0,pre=pkPre(h),post=pkPost(h),run=Math.max(0,prod-stm),op=prod+pre+post,capa=+base['S'+h]?+base['S'+h]*60:pkCapa(h,D),qty=p.qty||0;
+   stp.unshift({c:'SIP·CIP',m:pre,t:'SIP 시작 ~ 생산 시작 (추정 *)'});stp.push({c:'SIP·CIP',m:post,t:'생산 종료 ~ CIP 종료 (추정 *)'});
+   var ml=+ov.ml||pkMl(p.items,D,h),sl=+ov.sl?{h:ov.sh||'',L:+ov.sl,src:'보완 입력'}:pkSterL(D,p.items),PL=ml?qty*ml/1000:null,Qv=PL&&sl&&sl.L?cl(PL/sl.L):null,od=+ov.od||null;
+   out.push(mk({id:'P'+h,team:'pack',name:h+'호기',short:h+'호기',sub:h==='A'||h==='E'?'SIG':h==='D'?'TETRA 미드':h==='F'?'TETRA 슬림리프':'TETRA',T:{op:op,mg:0,ld:op,st:op-run,run:run},P:capa&&run&&qty?cl(qty/(capa*run/60)):null,Q:Qv==null?1:Qv,qAssumed:Qv==null,q:qty||null,ach:od?qty/od:null,order:od,stops:stp,est:'*',src:'포장팀 사이트 생산 기록'+(sl?' · '+sl.src:''),
+    note:['점유 = 생산 '+fm(prod)+'분 + SIP·준비 '+pre+'분* + CIP '+post+'분* = '+fm(op)+'분 (* SIP · CIP 시각 없음 → 추정 · 포장 생산작업일보를 쓰면 실제 시각으로 바뀜)','순생산 = '+fm(prod)+' − 정지 '+fm(stm)+' = '+fm(run)+'분','P = '+fm(qty)+'개 ÷ (CAPA '+fm(capa)+'개/h × '+(run/60).toFixed(1)+'h)',Qv!=null?'Q = 포장 '+fm(PL)+'L ('+fm(qty)+'개 × '+ml+'ml) ÷ 멸균 '+(sl.h||'—')+'호기 적산량 '+fm(sl.L)+'L ('+sl.src+')':'Q = 양품률 자료 대기 ('+(ml?'':'용량 ml · ')+(sl?'':'멸균기 적산량 ')+'없음 → A × P 만 표시)',p.items.length?'품목 '+p.items.join(' · ')+(ml?' · '+ml+'ml':''):''].filter(Boolean)}));return}
+  if(0){var L=(X.S[D+'|'+h]||[]);var mg=0,st=0;L.forEach(function(r){var m=+r.min||0,c=codeOf([r.equipment,r.location,r.problem].join(' '),m);if(c==='계획정지')mg+=m;else st+=m;stops.push({c:c,m:m,t:[r.equipment,r.location,r.problem].filter(Boolean).join(' · '),a:r.start||''})});
    var stopT=Math.max(p.stop,st+mg);T={op:p.run+stopT,mg:mg,ld:p.run+stopT-mg,st:stopT-mg,run:p.run};var sp=+base['S'+h]||pxSpeed(y,h,D);P=sp&&p.run?cl(p.qty/p.run/sp):null;if(ea==null)ea=p.qty;src='포장팀 포털 일별 자료';
    note.push('P = '+(p.run?(p.qty/p.run).toFixed(0):'—')+'개/분 ÷ 기준 '+(sp?sp.toFixed(0):'—')+'개/분'+(base['S'+h]?' (설정)':' (최근 90일 최고)'))}
   else if(ea!=null){if(h==='B'&&x.rate!=null){var ld=x.stopMin!=null&&x.rate<100?x.stopMin/(1-x.rate/100):null;if(ld){T={op:ld,mg:0,ld:ld,st:x.stopMin,run:ld-x.stopMin};stops.push({c:'기타',m:x.stopMin,t:'B호기 일지 정지'})}}
@@ -20977,7 +21010,7 @@ function exOpen(k,kind,id,quiet){var P=document.querySelector('.o2 [data-xp="'+(
 function view(){var D=ST.d,N=ST.n||7,all=eqDay(D),G=tsum(all),G0=tsum(eqDay(addD(D,-1))),dD=all.filter(function(o){return o.id==='PD'})[0],dF=all.filter(function(o){return o.id==='PF'})[0];
  var h='<div class="oe o2">'+
   '<div class="o2-top"><div class="o2-not"><b>📢 공지사항</b><span>OEE(설비종합효율) : (A) 시간적으로 얼마나 가동되었는지, (P) 본래 성능을 제대로 발휘하는지, (Q) 양품 생산 상태는 어떠한지를 종합 평가하는 설비의 부가가치 이용 효율입니다. 상온 기준 : SIP 시작 ~ CIP 종료 · SIP·CIP 손실 포함 · 계획정지 제외</span></div>'+
-  '<label>OEE 일자 <input type="date" class="o2-date" value="'+D+'" max="'+kst(0)+'"></label><label>추이 기간 <select class="o2-n">'+[[7,'최근 7일'],[14,'최근 14일'],[30,'최근 30일']].map(function(x){return '<option value="'+x[0]+'"'+(x[0]===N?' selected':'')+'>'+x[1]+'</option>'}).join('')+'</select></label><button class="o2-fs" type="button">'+(document.fullscreenElement?'전체화면 닫기':'전체화면')+'</button>'+(canSet()?'<button class="o2-setb" type="button" onclick="var x=document.getElementById(\'o2-setw\');if(x)x.hidden=!x.hidden">⚙ 설정</button>':'')+'</div>'+(canSet()?'<div id="o2-setw" class="o2-setw" hidden>'+setPanel2()+'</div>':'')+
+  '<label>OEE 일자 <input type="date" class="o2-date" value="'+D+'" max="'+kst(0)+'"></label><label>추이 기간 <select class="o2-n">'+[[7,'최근 7일'],[14,'최근 14일'],[30,'최근 30일']].map(function(x){return '<option value="'+x[0]+'"'+(x[0]===N?' selected':'')+'>'+x[1]+'</option>'}).join('')+'</select></label><button class="o2-fs" type="button">'+(document.fullscreenElement?'전체화면 닫기':'전체화면')+'</button>'+(canSet()?'<button class="o2-setb" type="button" onclick="var x=document.getElementById(\'o2-setw\');if(x)x.hidden=!x.hidden">⚙ 설정</button>':'')+'</div>'+(canSet()?'<div id="o2-setw" class="o2-setw" hidden>'+pkoPanel(D)+setPanel2()+'</div>':'')+
   '<header class="oe-hero o2-hero"><div class="oe-aur"><i></i><i></i><i></i></div><div class="oe-hl"><div class="oe-eye"><span class="oe-live"><i></i>LIVE</span>OVERALL EQUIPMENT EFFECTIVENESS</div><h1>상온제품생산부문 <em>OEE</em></h1><p>'+md(D)+' ('+wd(D)+') · '+G.n+'/'+G.all+'대 산출 · 시간가중 합산 (가치가동 ÷ 부하)</p>'+
   '<div class="o2-hk">'+[['부하시간',G.T.ld?fm(G.T.ld)+'분':'—','조업 '+(G.T.op?fm(G.T.op):'—')+' − 관리 '+(G.T.op?fm(G.T.mg):'—')],['비가동 비중',G.A!=null?pc(1-G.A)+'%':'—','= 100% − 시간가동률'],['MTBF / MTTR',G.fails?(G.mtbf/60).toFixed(1)+'h / '+G.mttr.toFixed(1)+'분':'—','고장 '+G.fails+'건 (10분 이상)'],['전일 대비',G.O!=null&&G0.O!=null?((G.O-G0.O)*100>=0?'+':'')+((G.O-G0.O)*100).toFixed(1)+'%p':'—','부문 OEE']].map(function(x,i){return '<div style="--dl:'+(i*90)+'ms" data-ex="all|'+['time','A','mt','O'][i]+'" role="button" tabindex="0"'+TIP([x[0]+' '+x[1],['OEE 계산의 100% 기준 시간 (조업 − 계획정지)','설비가 멈춰 있던 시간의 비율','MTBF = 고장 사이 평균 가동시간 · MTTR = 고장 1건 평균 수리시간','어제와 비교한 부문 OEE 변화'][i],x[2],'누르면 상세'])+'><span>'+x[0]+'</span><b>'+x[1]+'</b><small>'+x[2]+'</small></div>'}).join('')+'</div>'+
   (function(){var R=recData(),ds=R.days.map(function(x){return x.date}).sort(),lt=ds[ds.length-1];return '<div class="o2-b1">'+(lt?'<button type="button" class="o2-jump" data-d="'+lt+'"'+TIP(['포장 OEE 기록 (D·F호기)',R.file+' · '+ds[0]+' ~ '+lt+' · '+R.days.length+'건','누르면 가장 최근 기록 날짜로 이동'])+'>📒 D·F OEE 기록 '+md(ds[0])+'~'+md(lt)+' 보기</button>':'')})()+'<span>1차 측정 기준점 (10/26~11/6)</span>'+[['D호기 · 테트라 미드',BASE1.PD,dD],['F호기 · 테트라 슬림리프',BASE1.PF,dF]].map(function(x){return '<div><b>'+x[0]+'</b><em>기준 '+pc(x[1].O)+'%</em><strong class="'+(x[2]&&x[2].O!=null?(x[2].O>=x[1].O?'up':'dn'):'')+'">'+(x[2]&&x[2].O!=null?'현재 '+pc(x[2].O)+'%'+(x[2].noSip?' (SIP·CIP 미포함)':''):'이 날 산출 없음')+'</strong></div>'}).join('')+'</div></div>'+
@@ -20988,13 +21021,21 @@ function view(){var D=ST.d,N=ST.n||7,all=eqDay(D),G=tsum(all),G0=tsum(eqDay(addD
   '<section class="o2-c"><header><i style="background:#0F172A"></i><b>주간 생산량</b><small>월~일 · 최근 5주 · '+md(D)+'까지 · 저장된 일지 기준</small></header>'+weekly(D)+'</section>'+review(D)+
   '</div>';
  return h}
+/* 포장 보완 입력 — 자동으로 못 채운 값을 호기 · 날짜별로 직접 (넣은 값이 자동 값보다 우선) */
+function pkoPanel(D){if(!canSet())return '';var L=eqDay(D).filter(function(o){return o.team==='pack'}),c=(cfg().pko||{})[D]||{};
+ var hs='ABCDEF'.split('').filter(function(h){return L.some(function(o){return o.id==='P'+h})||c[h]});if(!hs.length)hs=['A','B','C','D','E','F'];
+ var F=[['sip','SIP 시작','08:10'],['ce','CIP 종료','23:10'],['ml','용량 ml','190'],['sl','멸균기 적산량 L','58386'],['sh','멸균 호기','2'],['od','생산지시량 개','300000']];
+ return '<details class="oe-pko" open><summary>✎ 포장 보완 입력 · '+D.slice(5).replace('-','/')+'</summary><p>자동으로 못 채운 값만 넣습니다. 넣은 값이 일지 · 포장팀 사이트 자료보다 우선합니다. 「*」 = 추정값 (SIP 생산 시작 −70분 · CIP 생산 종료 +120분, F호기 −100 · +150)</p>'+
+  '<div class="oe-pkw"><table class="oe-pkt"><thead><tr><th>호기</th><th>지금 값</th>'+F.map(function(f){return '<th>'+f[1]+'</th>'}).join('')+'</tr></thead><tbody>'+hs.map(function(h){var o=L.filter(function(x){return x.id==='P'+h})[0],v=c[h]||{};
+   return '<tr><td><b>'+h+'</b></td><td class="mu">'+(o?(o.O!=null?pc(o.O)+'%':'—')+(o.est?' *':'')+(o.qAssumed?' · Q 대기':''):'자료 없음')+'</td>'+F.map(function(f){return '<td><input data-pk="'+h+'|'+f[0]+'" value="'+E(v[f[0]]==null?'':v[f[0]])+'" placeholder="'+f[2]+'"></td>'}).join('')+'</tr>'}).join('')+'</tbody></table></div>'+
+  '<button class="oe-btn" onclick="yumOEE.pkoSave(\''+D+'\')">보완 입력 저장</button></details>'}
 function setPanel2(){if(!canSet())return '';var b=cfg().base||{};
  return '<details class="oe-set"><summary>⚙ 성능 기준 설정 (결재권자)</summary><p>성능가동률(P)의 기준 속도입니다. 비워 두면 최근 90일 최고 속도(포장팀 자료) 또는 30일 최고 생산량을 씁니다.</p><div class="oe-sg">'+
   'ABCDEF'.split('').map(function(h){return '<label>'+h+'호기 기준 속도 <input type="number" data-k="S'+h+'" value="'+(b['S'+h]||'')+'" placeholder="개/분"></label>'}).join('')+
   'ABCDEF'.split('').map(function(h){return '<label>'+h+'호기 일 생산 기준 <input type="number" data-k="P'+h+'" value="'+(b['P'+h]||'')+'" placeholder="개/일"></label>'}).join('')+
   [1,2,3,4,5].map(function(h){return '<label>배합 '+h+'호기 기준 혼합 시간 <input type="number" data-k="M'+h+'" value="'+(b['M'+h]||'')+'" placeholder="분/배치"></label>'}).join('')+'<label>착즙 시간당 원액 <input type="number" data-k="J" value="'+(b.J||'')+'" placeholder="kg/h"></label></div><button class="oe-btn" onclick="yumOEE.save()">저장</button></details>'}
 (function(){var s=document.createElement('style');s.textContent=
-'.o2-setb{height:36px;padding:0 14px;border-radius:10px;border:1px solid #CBD5E1;background:#fff;font-weight:800;cursor:pointer;margin-left:6px}.o2-setw{margin:6px 0 4px;padding:12px 14px;border:1px solid #E2E8F0;border-radius:14px;background:#fff}.o2-setw .oe-set[open]>summary,.o2-setw .oe-set>summary{cursor:pointer}.o2{display:flex;flex-direction:column;gap:14px;min-width:0}.o2-c,.o2-col,.o2-g3>*,.o2-g2>*{min-width:0}.o2-tbw{max-width:100%}'+
+'.oe-pko{margin:0 0 10px}.oe-pko>summary{cursor:pointer;font-weight:800}.oe-pko p{font-size:12px;color:#64748B;margin:6px 0}.oe-pkw{overflow:auto}.oe-pkt{border-collapse:collapse;font-size:12.5px;min-width:760px}.oe-pkt th{background:#F8FAFC;color:#475569;padding:6px 8px;text-align:left;white-space:nowrap}.oe-pkt td{padding:4px 6px;border-bottom:1px solid #F1F5F9}.oe-pkt td.mu{color:#64748B;white-space:nowrap}.oe-pkt input{width:96px;height:30px;border:1px solid #CBD5E1;border-radius:8px;padding:0 8px}.o2-setb{height:36px;padding:0 14px;border-radius:10px;border:1px solid #CBD5E1;background:#fff;font-weight:800;cursor:pointer;margin-left:6px}.o2-setw{margin:6px 0 4px;padding:12px 14px;border:1px solid #E2E8F0;border-radius:14px;background:#fff}.o2-setw .oe-set[open]>summary,.o2-setw .oe-set>summary{cursor:pointer}.o2{display:flex;flex-direction:column;gap:14px;min-width:0}.o2-c,.o2-col,.o2-g3>*,.o2-g2>*{min-width:0}.o2-tbw{max-width:100%}'+
 '.o2-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.o2-not{flex:1;min-width:280px;display:flex;gap:10px;align-items:center;padding:10px 14px;border-radius:14px;background:#fff;border:1px solid #E5E9F2;border-left:4px solid #3062D8;font-size:12.5px;color:#334155;line-height:1.5}.o2-not b{white-space:nowrap;color:#1D4ED8}'+
 '.o2-top label{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;color:#334155}.o2-top input,.o2-top select{height:36px;border:1px solid #D7DEEA;border-radius:10px;padding:0 10px;font:inherit;font-weight:700;background:#fff}.o2-fs{height:36px;padding:0 14px;border-radius:10px;border:1px solid #0A1530;background:#fff;font-weight:800;cursor:pointer}.o2-fs:hover{background:#0A1530;color:#fff}'+
 '.o2-hk{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:14px}.o2-hk>div{padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);opacity:0;transform:translateY(8px)}.oe.in .o2-hk>div{opacity:1;transform:none;transition:all .6s cubic-bezier(.16,1,.3,1) var(--dl)}.o2-hk span{display:block;font-size:11px;font-weight:700;opacity:.75}.o2-hk b{display:block;font-size:19px;font-weight:900;margin:2px 0}.o2-hk small{font-size:10.5px;opacity:.7}'+
@@ -21064,7 +21105,8 @@ function paint(mode){if(mode===true)mode='user';if(mode===false||mode==null)mode
  var R=$('.oe',M);if(quiet&&R){R.classList.add('o2q','in')}anim(M,quiet);
  if(keep&&M.querySelector('.o2')){var kp=keep.split('|');EX=null;try{exOpen(kp[0],kp[1],kp[2],true)}catch(e){}}
  if(mode!=='enter')window.scrollTo(0,y)}
-window.yumOEE={save:function(){var b=cfg().base={};$$('.oe-set input').forEach(function(i){var v=+i.value;if(v>0)b[i.getAttribute('data-k')]=v});try{DB.save()}catch(e){}try{if(window.SupaSync&&SupaSync.on())SupaSync.queuePush()}catch(e){}SC={};AC={};EQC={};RG=null;paint(true);try{U.toast('성능 기준을 저장했습니다.','ok')}catch(e){}},data:oeeDay,eq:eqDay,team:teamDay};
+window.yumOEE={save:function(){var b=cfg().base={};$$('.oe-set input').forEach(function(i){var v=+i.value;if(v>0)b[i.getAttribute('data-k')]=v});try{DB.save()}catch(e){}try{if(window.SupaSync&&SupaSync.on())SupaSync.queuePush()}catch(e){}SC={};AC={};EQC={};RG=null;paint(true);try{U.toast('성능 기준을 저장했습니다.','ok')}catch(e){}},
+ pkoSave:function(D){var c=cfg();c.pko=c.pko||{};var o={};$$('.oe-pko input[data-pk]').forEach(function(i){var k=i.getAttribute('data-pk').split('|'),v=String(i.value||'').trim();if(!v)return;(o[k[0]]=o[k[0]]||{})[k[1]]=/^(sip|ce)$/.test(k[1])?v:(+String(v).replace(/[^\d.]/g,'')||v)});c.pko[D]=Object.keys(o).length?o:undefined;try{DB.save()}catch(e){}try{if(window.SupaSync&&SupaSync.on())SupaSync.queuePush()}catch(e){}SC={};AC={};EQC={};RG=null;paint(true);try{U.toast('포장 보완 입력을 저장했습니다.','ok')}catch(e){}},data:oeeDay,eq:eqDay,team:teamDay};
 document.addEventListener('click',function(e){var c=e.target.closest&&e.target.closest('.o2 [data-exc]');if(c){var P=c.closest('.o2-x');if(P){P.hidden=true;EX=null;[].forEach.call(document.querySelectorAll('.o2 [data-ex].on'),function(x){x.classList.remove('on')})}return}var q=e.target.closest&&e.target.closest('.o2 [data-ex]');if(q){var p=q.getAttribute('data-ex').split('|');exOpen(p[0],p[1],p[2]);return}});
 document.addEventListener('keydown',function(e){if(e.key!=='Enter')return;var q=e.target.closest&&e.target.closest('.o2 [data-ex]');if(q){var p=q.getAttribute('data-ex').split('|');exOpen(p[0],p[1],p[2])}});
 document.addEventListener('click',function(e){var x=e.target.closest&&e.target.closest('.o2 [data-x]');if(x){var k=x.getAttribute('data-x'),p=document.querySelector('.o2 [data-xp="'+k+'"]');if(p){p.hidden=!p.hidden;if(!p.hidden)p.scrollIntoView({behavior:'smooth',block:'nearest'})}return}
