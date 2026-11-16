@@ -18169,7 +18169,7 @@ document.addEventListener('keydown',function(ev){
 'use strict';
 if(window.yumFlowMap)return;
 /* 분리유액 공용 배관(어느 배합 호기로 가는지 아직 모름)은 호기 색과 헷갈리지 않게 은백색 */
-var COL={1:'#60A5FA',2:'#F472B6',3:'#FACC15',4:'#5EEAD4',5:'#FB923C',6:'#A78BFA'},SOY='#CBD5E1';
+var COL={1:'#60A5FA',2:'#F472B6',3:'#FACC15',4:'#5EEAD4',5:'#FB923C',6:'#A78BFA'},SOY='#CBD5E1',JRUN='#84CC16';   /* JRUN: 가동 중인데 받는 배합 호기를 아직 모르는 착즙 라인 */
 var MIXL={1:[6000,5000],2:[10000,6000],3:[6000,6000],4:[8000,8000],5:[6000,6000]};
 function pad(n){return String(n).padStart(2,'0')}
 function today(){var n=new Date();return n.getFullYear()+'-'+pad(n.getMonth()+1)+'-'+pad(n.getDate())}
@@ -18200,10 +18200,13 @@ function juice(D,now){var d=docs('FRM-009',D)[0],out=[];
   /* 지금 시각(없으면 바로 앞 시간) 칸의 코드: b 분리액 생산 · e 재시작 · g 탈피실 자동 · d 생산종료 = 가동 / a · c · j · h · f = 정지 · 대기 */
   var cv=now!=null?String(hrs[hh]||(last>=0&&last===hh-1?hrs[last]:'')||'').trim():'',cc=cv.toLowerCase().replace(/[^a-z]/g,'').charAt(0),jstop=!!cc&&/[acjhf]/.test(cc);
   var run=now!=null?(cv?!jstop:(first>=0&&hh>=first&&hh<=last)):on>0;
-  out.push({jrun:now!=null&&run,jcode:cc,k:'j'+n,n:n,wt:n===4?'D':String(wt||'').replace(/\D/g,''),bk:+(String(bk||'').match(/\d/)||[0])[0],t:'',sub:n===4?'→ 데칸타':(wt?'→ WT'+String(wt).replace(/\D/g,''):''),prod:nm,on:on>0,run:run,st:run?(now!=null?'가동 중':'가동 '+on+'시간'):on?'가동 '+on+'시간':'미가동'})}
+  /* 공정일보를 몇 시간씩 몰아서 쓰는 경우: 지금 시각 이전 마지막으로 적힌 칸(4시간 안)이 생산 코드(b · e · g)면 아직 생산 중 */
+  var lb=-1;if(now!=null)for(var q=Math.min(hh,24);q>=0;q--){if(hrs[q]){lb=q;break}}var lc=lb>=0?String(hrs[lb]).toLowerCase().replace(/[^a-z]/g,'').charAt(0):'';
+  var jr=now!=null&&lb>=0&&hh-lb<=4&&/[beg]/.test(lc);if(jr&&!cc)cc=lc;if(now!=null&&!run&&jr)run=true;
+  out.push({jrun:now!=null&&(run||jr),jcode:cc,k:'j'+n,n:n,wt:n===4?'D':String(wt||'').replace(/\D/g,''),bk:+(String(bk||'').match(/\d/)||[0])[0],t:'',sub:n===4?'→ 데칸타':(wt?'→ WT'+String(wt).replace(/\D/g,''):''),prod:nm,on:on>0,run:run,st:run?(now!=null?'가동 중':'가동 '+on+'시간'):on?'가동 '+on+'시간':'미가동'})}
  /* 빈쿠커 번호 정리 — 칸이 비면 줄 번호로 채우던 것이 다른 줄의 번호와 겹치던 문제 (같은 빈쿠커 두 번 표시) */
  (function(){var used={},keep=[];out.forEach(function(o){if(o.bk>=1&&o.bk<=4){var f=keep.filter(function(x){return x.c===o.bk})[0];
-   if(f){if(o.on||o.run){f.run=f.run||o.run;f.on=f.on||o.on;if(o.prod&&f.prod.indexOf(o.prod)<0)f.prod=f.prod?f.prod+', '+o.prod:o.prod;if(o.run)f.st=o.st}return}
+   if(f){f.jrun=f.jrun||o.jrun;if(!f.jcode)f.jcode=o.jcode;if(o.on||o.run){f.run=f.run||o.run;f.on=f.on||o.on;if(o.prod&&f.prod.indexOf(o.prod)<0)f.prod=f.prod?f.prod+', '+o.prod:o.prod;if(o.run)f.st=o.st}return}
    o.c=o.bk;used[o.c]=1;keep.push(o)}else keep.push(o)});
   keep.forEach(function(o){if(o.c)return;var c=!used[o.n]?o.n:[1,2,3,4].filter(function(x){return !used[x]})[0];if(!c)return;o.c=c;used[c]=1});
   out=keep.filter(function(o){return o.c});[1,2,3,4].forEach(function(c){if(!used[c])out.push({k:'j'+c,n:c,c:c,wt:'',sub:'',prod:'',on:false,run:false,st:'미가동'})});
@@ -18431,7 +18434,7 @@ function render(D){
  /* 빈쿠커 → WT 선도 그 WT가 보내는 배합 호기 색으로 (한 호기로만 갈 때) */
  /* 빈쿠커 → WT 선: 빈쿠커가 지금 가동 중이거나, 오늘 가동했고 그 WT가 보내는 배합 호기가 지금 진행(혼합 · 이송) 중이면 흐름 */
  /* 흐르는 선은 마지막에 그려서 다른 선 위로 */
- var JLs=JL.map(function(a){var d=wm.filter(function(q){return q[0]===a[0]}),c=d.length===1?(COL[M[d[0][1]].h]||SOY):SOY,md=a[2]==='on'&&d.some(function(q){return M[q[1]].run||M[q[1]].mv})?'flow':a[2];return [a[1],c,md]});
+ var JLs=JL.map(function(a){var d=wm.filter(function(q){return q[0]===a[0]}),c=d.length===1?(COL[M[d[0][1]].h]||SOY):SOY,md=a[2]==='on'&&d.some(function(q){return M[q[1]].run||M[q[1]].mv})?'flow':a[2];if(c===SOY&&md==='flow')c=JRUN;return [a[1],c,md]});
  JLs.filter(function(x){return x[2]!=='flow'}).concat(JLs.filter(function(x){return x[2]==='flow'})).forEach(function(x){links+=link(x[0],x[1],x[2],null)});
  /* 짝마다 따로 배관(레인)을 그림: 나가는 선은 칸 위쪽, 들어가는 선은 칸 아래쪽 → 서로 겹치지 않음 (교차할 때는 끊어서 그림) */
  var nP=wm.length,gapL=cw.x+cw.w,gapR=cm.x,laneX=function(k){return Math.round(busX+(k-(nP-1)/2)*20)};
@@ -18466,10 +18469,10 @@ function render(D){
   links+=link(path(cs.x+cs.w,y1,cp.x,y2,mx),c,(sx.run||(sx.plan&&px.run))&&px.run?'flow':((sx.on||sx.plan)&&px.on?'on':''),sx.h,mx,(y1+y2)/2)+vlv(bus2+18,y2,true,c)});
  /* 충전 → 포장 */
  var cb=C('b');P.forEach(function(p,j){var y=Y.p[j]+NH/2,c=used[p.h]?COL[used[p.h]]:'#94A3B8';links+=link('M'+(cp.x+cp.w)+' '+y+' H'+cb.x,c,p.run?'flow':p.on?'on':'',null)});
- [['j',J],['w',WN],['m',M],['s',S],['p',P],['b',B]].forEach(function(a){var c=C(a[0]);a[1].forEach(function(n,i){var wd=a[0]==='w'?wm.filter(function(q){return q[0]===i}):[],col=wd.length===1?(COL[M[wd[0][1]].h]||SOY):a[0]==='j'?(function(){var wi=-1;WN.forEach(function(w,k){if(w.wk===n.wt)wi=k});var d=wm.filter(function(q){return q[0]===wi});return d.length===1?(COL[M[d[0][1]].h]||SOY):SOY})():a[0]==='w'?SOY:a[0]==='m'||a[0]==='s'?COL[n.h]:(used[n.h]?COL[used[n.h]]:'#94A3B8');nodes+=node(n,c.x,Y[a[0]][i],c.w,col,a[0])})});
+ [['j',J],['w',WN],['m',M],['s',S],['p',P],['b',B]].forEach(function(a){var c=C(a[0]);a[1].forEach(function(n,i){var wd=a[0]==='w'?wm.filter(function(q){return q[0]===i}):[],col=wd.length===1?(COL[M[wd[0][1]].h]||SOY):a[0]==='j'?(function(){var wi=-1;WN.forEach(function(w,k){if(w.wk===n.wt)wi=k});var d=wm.filter(function(q){return q[0]===wi});return d.length===1?(COL[M[d[0][1]].h]||SOY):SOY})():a[0]==='w'?SOY:a[0]==='m'||a[0]==='s'?COL[n.h]:(used[n.h]?COL[used[n.h]]:'#94A3B8');if(col===SOY&&n.run&&(a[0]==='j'||a[0]==='w'))col=JRUN;nodes+=node(n,c.x,Y[a[0]][i],c.w,col,a[0])})});
  var head=COLS.map(function(c){return '<text x="'+(c.x+c.w/2)+'" y="'+(TOP-22)+'" text-anchor="middle" class="fm-h">'+c.t+'</text>'}).join('');
  var H=TOP+RH*6+6;
- var leg='<div class="fm-leg">'+[1,2,3,4,5].map(function(h){return '<span><i style="background:'+COL[h]+'"></i>배합 '+h+'호기 라인</span>'}).join('')+'<span><i style="background:'+SOY+'"></i>분리유액 공용 배관 (배합 호기 미확인)</span><span class="fm-legn">점선이 흐르는 구간 = 지금 이송 · 생산 중</span></div>';
+ var leg='<div class="fm-leg">'+[1,2,3,4,5].map(function(h){return '<span><i style="background:'+COL[h]+'"></i>배합 '+h+'호기 라인</span>'}).join('')+'<span><i style="background:'+SOY+'"></i>분리유액 공용 배관 (배합 호기 미확인)</span><span><i style="background:'+JRUN+'"></i>착즙 가동 중 (배합 호기 미확인)</span><span class="fm-legn">점선이 흐르는 구간 = 지금 이송 · 생산 중</span></div>';
  var clock=now!=null?pad(Math.floor(now/60))+':'+pad(now%60):D.slice(5).replace('-','/')+' 기록';
  return '<div class="fm"><div class="fm-top">'+leg+'<b class="fm-clock">'+clock+'</b></div><div class="fm-sc"><svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="공정 흐름도">'+head+links+nodes+'</svg></div>'+
   '<div class="fm-note">각 팀 일지(착즙 작업일보 · 생산작업일보 · 멸균 업무일지 · 포장 생산작업일보)와 생산계획표로 그립니다 · 배관은 모든 호기에 연결되어 있고, 색 선은 그날 실제로 이어지는 호기(분리유액 = 두유 제품 · 멸균 → 충전 = 같은 제품) · 노드에 마우스를 올리면 자세히</div></div>'}
