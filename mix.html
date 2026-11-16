@@ -303,6 +303,7 @@ body{font-family:'Pretendard','Noto Sans KR',system-ui,sans-serif;letter-spacing
   <button type="button" role="tab" id="tab-silo" onclick="setTab('silo')">SILO 현황판</button>
   <button type="button" role="tab" id="tab-mgr" onclick="setTab('mgr')">관리 분석</button>
   <button type="button" role="tab" id="tab-plan" onclick="setTab('plan')">생산계획표 변환</button>
+  <button type="button" role="tab" id="tab-delay" onclick="setTab('delay')">지연 · 정비 기록</button>
   <button type="button" role="tab" id="tab-work" onclick="setTab('work')">근무</button>
  </div>
  <div id="v-live" style="display:flex;flex-direction:column;gap:16px">
@@ -322,6 +323,10 @@ body{font-family:'Pretendard','Noto Sans KR',system-ui,sans-serif;letter-spacing
   <div id="handover"></div>
   <div class="grid2"><div id="todos"></div><div id="missing"></div></div>
   <div id="rules"></div>
+ </div>
+<div id="v-delay" class="hide" style="flex-direction:column;gap:10px">
+  <div class="note">생산 지연 · 정비 기록을 여기서 바로 작성합니다 (가공2팀 · 배합 · 착즙 공용) · 저장하면 부문포털과 같은 서버에 반영되고 OEE · 보고서에도 쓰입니다</div>
+  <iframe id="delayFrame" title="지연 · 정비 기록" style="width:100%;height:calc(100vh - 210px);min-height:680px;border:1px solid var(--line);border-radius:14px;background:#fff"></iframe>
  </div>
 <div id="v-work" class="hide" style="flex-direction:column;gap:10px">
   <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between">
@@ -826,10 +831,11 @@ function renderMgr(){
 function workGo(r){var f=document.getElementById('workFrame');var url='index.html?embed=1&team=mix#/'+r;
  document.getElementById('wk-week').classList.toggle('on',r==='weekplan');document.getElementById('wk-sched').classList.toggle('on',r==='worksched');
  try{if(f.contentWindow&&f.contentWindow.location&&/team=mix/.test(f.contentWindow.location.search)){f.contentWindow.location.hash='#/'+r;return}}catch(e){}f.setAttribute('src',url)}
-function setTab(t){if(t==='live')t='old';TAB=t;var view={old:'live',new:'live',silo:'silo',mgr:'mgr',plan:'plan',work:'work'};
- ['old','new','silo','mgr','plan','work'].forEach(function(k){document.getElementById('tab-'+k).classList.toggle('on',k===t)});
+function setTab(t){if(t==='live')t='old';TAB=t;var view={old:'live',new:'live',silo:'silo',mgr:'mgr',plan:'plan',delay:'delay',work:'work'};
+ ['old','new','silo','mgr','plan','delay','work'].forEach(function(k){document.getElementById('tab-'+k).classList.toggle('on',k===t)});
  if(t==='work'){var wf=document.getElementById('workFrame');if(!wf.getAttribute('src'))workGo('weekplan')}
- ['live','silo','mgr','plan','work'].forEach(function(v){var e=document.getElementById('v-'+v),on=view[t]===v;e.classList.toggle('hide',!on);e.style.display=on?'flex':'none'});
+ if(t==='delay'){var df=document.getElementById('delayFrame');if(!df.getAttribute('src'))df.setAttribute('src','index.html?embed=1&team=mix#/ndash')}
+ ['live','silo','mgr','plan','delay','work'].forEach(function(v){var e=document.getElementById('v-'+v),on=view[t]===v;e.classList.toggle('hide',!on);e.style.display=on?'flex':'none'});
  if(t==='plan'){var f=document.getElementById('planFrame');if(!f.getAttribute('src'))f.setAttribute('src','index.html?embed=1#/planconv')}
  if(t==='silo'){if(!SILOFR)siloFrameLoad();else siloFrameCalc()}
  if(t==='old'||t==='new'){var tk=SEL&&LINES.filter(function(L){return L.tk.indexOf(SEL)>=0})[0];if(tk&&tk.room!==ROOM())SEL=null;document.querySelectorAll('.line').forEach(function(l){l.dataset.sig=''})}
