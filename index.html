@@ -18259,7 +18259,7 @@ function mix(D,now){var out=[],L=docs('FRM-012',D).concat(docs('FRM-011',D)),f11
   else{/* 2026-11-16 「이송 중 2B · 총 6B」 — 지금 이송 중인 배치 번호 + 오늘 계획 총 배치 */
    var tot=Math.max(planB,B.length),cur=B.filter(function(b){return b.tmv!=null&&now>=b.tmv&&now<b.tmv+mm}).map(function(b){return b.n})[0],wt=B.filter(function(b){return b.tmx!=null&&b.tmv==null}).map(function(b){return b.n})[0],mx=B.filter(function(b){return b.tmx==null&&b.tmv==null}).map(function(b){return b.n})[0];
    st=cur?'이송 중 '+cur+'B':wt?'이송 대기 '+wt+'B':mx?'혼합 중 '+mx+'B':moved>=tot?'이송 완료':'다음 배치 대기';st+=' · 총 '+tot+'B'+(moved&&!cur?' (이송 '+moved+'B 끝)':'');run=mv||mixing||waiting}
-  out.push({k:'m'+h,h:h,t:'배합 '+h+'호기',sub:MIXL[h][0].toLocaleString()+'TK',prod:prods.join(' · '),on:!!(d&&(prods.length||B.length)),started:B.length>0,run:run,mv:mv,st:st,moved:moved,tot:Math.max(planB,B.length),soy:isSoy(prods.join(' '))})}
+  out.push({k:'m'+h,h:h,t:'배합 '+h+'호기',sub:MIXL[h][0].toLocaleString()+'TK',prod:prods.join(' · '),on:!!(d&&(prods.length||B.length)),started:B.length>0,run:run,mv:mv,st:st,moved:moved,tot:Math.max(planB,B.length),lastMv:B.filter(function(b){return b.tmv!=null}).map(function(b){return b.n}).pop()||0,pend:mixing||waiting,soy:isSoy(prods.join(' '))})}
  return out}
 var EQ={1:'FLEX#1',2:'FLEX#2',3:'PHE',4:'FLEX',5:'IUHT'};
 function ster(D,now){var out=[],d=null;
@@ -18286,7 +18286,7 @@ function ster(D,now){var out=[],d=null;
  /* 2026-11-16 지금 상태(멸균 중 · 예정 …)는 일지로 계산하지 않고 멸균팀 업무포털 실시간 상태만 사용 */
  try{if(now!=null){var SLm=window.yumSterLiveMap?yumSterLiveMap():null;out.forEach(function(o){var L=SLm&&SLm[o.h];o.at=null;o.ext=1;o.sub=EQ[o.h];
    if(!L){o.st=SLm?'멸균팀 포털 자료 없음':'실시간 연결 대기';o.run=false;o.on=false;return}
-   o.st=L.st+(L.at?' · AT'+L.at:'')+(L.t?' · '+L.t+'부터':L.code==='plan'&&L.pt?' · '+L.pt:'')+(L.why?' · '+L.why:'');o.run=L.run;o.on=true;o.at=L.at||null;if(L.prod)o.prod=L.prod})}}catch(e){}
+   o.st=L.st+(L.at?' · AT'+L.at:'')+(L.t?' · '+L.t+'부터':L.code==='plan'&&L.pt?' · '+L.pt:'')+(L.why?' · '+L.why:'');o.pt=L.pt;o.run=L.run;o.on=true;o.at=L.at||null;if(L.prod)o.prod=L.prod})}}catch(e){}
  return out}
 /* 멸균팀 업무포털 업무일지(읽기 전용 · ster-proxy 경유 · 토큰은 서버 Secret에만) — 우리 FRM-016 일지가 없는 호기에 사용 */
 var SF={},SFB={};
@@ -18335,7 +18335,7 @@ function sterExt(D,now){var c=sterFeed(D),out={};if(!c||!c.rows)return out;
  return out}
 window.yumSterFeed=function(D){return sterFeed(D||today())};window.yumSterExtNow=function(D){var n=new Date();try{return sterExt(D||today(),n.getHours()*60+n.getMinutes())}catch(e){return {}}};window.yumJDocs={docs:docs,G:G,tmin:tmin,MIXL:MIXL};window.yumSterExt=function(D){try{return sterExt(D,null)}catch(e){return {}}};
 /* 실시간 현황판용: 지금 시각 기준 공정별 설비 상태 (착즙 빈쿠커 · 배합 호기 · 멸균 호기 · 충전/포장 호기) */
-window.yumLiveModel=function(){var D=today(),n=new Date(),now=n.getHours()*60+n.getMinutes(),o={D:D,now:now};try{o.juice=juice(D,now)}catch(e){o.juice=[]}try{o.mix=mix(D,now)}catch(e){o.mix=[]}try{o.ster=ster(D,now)}catch(e){o.ster=[]}try{o.pack=pack(D,now)}catch(e){o.pack=[]}return o};
+window.yumLiveModel=function(){var D=today(),n=new Date(),now=n.getHours()*60+n.getMinutes(),o={D:D,now:now};try{o.juice=juice(D,now)}catch(e){o.juice=[]}try{o.mix=mix(D,now)}catch(e){o.mix=[]}try{o.ster=ster(D,now)}catch(e){o.ster=[]}try{mixBySter(o.mix,o.ster,now)}catch(e){}try{o.pack=pack(D,now)}catch(e){o.pack=[]}return o};
 /* 포장팀 포털 공개 자료(하루 한 번 갱신): 호기별 날짜 · 제품 · 생산량 — 우리 포장 일지가 없는 지난 날짜에 사용 */
 var PEXT={};
 function packExt(D){var y=D.slice(0,4);if(PEXT[y]===undefined){PEXT[y]=null;fetch('https://jaehyun3163-blip.github.io/yonsei/api/data/production/'+y+'.json').then(function(r){return r.json()}).then(function(j){PEXT[y]=(j&&j.rows)||[];try{var w=document.getElementById('fm-wrap');if(w)w.innerHTML=render(w.getAttribute('data-d'))}catch(e){}}).catch(function(){PEXT[y]=[]})}
@@ -18399,9 +18399,14 @@ function siloInfo(D){var N=(typeof DB!=='undefined'&&DB.data&&DB.data.siloNow)||
   var kind=x?[x.kind||(x.cls==='milk'?'원유':'두유 원액'),x.type].filter(Boolean).join(' · '):'';
   return {k:'silo'+id,id:id,t:'SILO '+id.replace(/^S/,'')+(x&&x.qty?'':''),sub:x&&x.qty?Math.round(x.qty/1000)+'톤':'',prod:(x&&x.type?x.type:kind.split(' · ')[0])||'—',on:!!cur,run:!!cur&&(cur.b===D||cur.a===D),st:st,lvl:cur?(cur.b===D?.5:.9):nx?.12:0,recv:!!cur&&raw&&cur.a===D,raw:raw&&!!cur,lot:x}})}}
 function band(D){var N=(typeof DB!=='undefined'&&DB.data&&DB.data.siloNow)||null;return N?'':'<div class="fmx-hint">SILO는 「생산계획표 변환」에서 생산계획표를 올리면 사이로 배정이 계산되어 나옵니다</div>'}
+/* 2026-11-16 이송 시간(용량 ÷ 이송 속도)이 지났어도 같은 번호 멸균기가 생산 · 멸균 중이면 마지막 배치는 계속 이송 중
+   (A2 원유 · 락토프리처럼 1B 를 몇 시간씩 보내는 경우) — 멸균 상태 = 멸균팀 업무포털 실시간 → 없으면 멸균 업무일지 */
+function mixBySter(M,S,now){if(now==null)return;M.forEach(function(m){var s=S.filter(function(x){return x.h===m.h})[0];if(!s||!s.run||m.mv||!m.lastMv||m.pend)return;
+ var pt=/(\d{1,2}):(\d{2})\s*[~\-–]\s*(\d{1,2}):(\d{2})/.exec(String(s.pt||'')),e=pt?(+pt[3])*60+(+pt[4]):null;
+ m.mv=true;m.run=true;m.sterBased=1;m.st='이송 중 '+m.lastMv+'B · 총 '+m.tot+'B'+' · 멸균 '+m.h+'호기 진행 기준'+(e!=null?' ('+pt[3]+':'+pt[4]+' 종료 예정)':'')})}
 function render(D){
  var now=D===today()?(function(){var n=new Date();return n.getHours()*60+n.getMinutes()})():null;
- var J=juice(D,now),M=mix(D,now),S=ster(D,now),P=pack(D,now);
+ var J=juice(D,now),M=mix(D,now),S=ster(D,now),P=pack(D,now);mixBySter(M,S,now);
  /* 일지가 없으면 생산계획표 품목으로 (배합 N호기 · 멸균 N호기) */
  var PL=planFor(D);
  M.forEach(function(m){var pl=PL[m.h]||[];m.mats=pl.map(function(x){return x.mat}).join(' ');if(!m.prod&&pl.length){m.prod=pl.map(function(x){return x.name}).join(' · ');m.plan=1;if(/일지 없음/.test(m.st))m.st='생산계획 (일지 전)'}});

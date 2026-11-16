@@ -482,7 +482,19 @@ function sterFeedLoad(){if(SFBUSY||!SB||Date.now()-SFAT<4*60e3)return;SFBUSY=tru
   var j=await r.json().catch(function(){return null});SFAT=Date.now();if(r.ok&&j&&!j.error){SFD={d:D,rows:sfRows(j)};document.querySelectorAll('.line').forEach(function(l){l.dataset.sig=''});render()}
  }catch(e){console.warn('[멸균팀 자료]',e)}finally{SFBUSY=false}})()}
 /* 멸균 h호기 지금 가동(멸균 · 생산) 중인지 → {run, src, t} */
+/* 2026-11-16 멸균팀 업무포털 실시간 상태 (ster-proxy path:'live' → /api/board-feed) — 1분마다 · 있으면 일지보다 우선 */
+var SLV=null,SLVAT=0,SLVBUSY=false;
+function sterLiveLoad(){if(SLVBUSY||!SB||Date.now()-SLVAT<55e3)return;SLVBUSY=true;(async function(){try{
+  var g=await SB.auth.getSession(),ses=g&&g.data&&g.data.session;if(!ses)return;
+  var r=await fetch(SUPA_URL+'/functions/v1/ster-proxy',{method:'POST',headers:{'Content-Type':'application/json',apikey:SUPA_ANON,Authorization:'Bearer '+ses.access_token},body:JSON.stringify({path:'live'})});
+  var j=await r.json().catch(function(){return null});SLVAT=Date.now();var M={};
+  if(r.ok&&j&&!j.error&&Array.isArray(j.machines))j.machines.forEach(function(o){var h=+(String(o.unit==null?'':o.unit).match(/[1-5]/)||[0])[0];if(!h)return;var cd=String(o.code||'').toLowerCase(),lb=String(o.label||o.status||''),pt=/(\d{1,2}:\d{2})\s*[~\-–]\s*(\d{1,2}:\d{2})/.exec(String(o.prod_time||''));
+   var run=cd?cd==='run':/(멸균|생산|가동)\s*중|run|ster/i.test(lb)&&!/cip|정지|대기|예정|완료|종료/i.test(lb);M[h]={run:run,code:cd,label:lb,a:pt?tmin(pt[1]):null,b:pt?tmin(pt[2]):null,since:o.since?tmin(o.since):null}});
+  SLV=j&&!j.error?{d:today(),m:M}:null;document.querySelectorAll('.line').forEach(function(l){l.dataset.sig=''});render()
+ }catch(e){console.warn('[멸균팀 실시간]',e)}finally{SLVBUSY=false}})()}
+setInterval(function(){if(!document.hidden)sterLiveLoad()},60e3);setTimeout(sterLiveLoad,2500);
 function sterNow(h){var D=today(),m=nowMin();
+ if(SLV&&SLV.d===D&&SLV.m[h]){var X=SLV.m[h],b=X.b,a=X.a;if(a!=null&&b!=null&&b<=a)b+=1440;return {run:X.run,src:'멸균팀 업무포털 실시간',t:X.since!=null?X.since:a,end:b,code:X.code,label:X.label,live:true}}
  try{var f=form('FRM-016');if(f){var ds=(DATA.docs||[]).filter(function(d){return d.formId===f.id&&!d.deleted&&d.status!=='deleted'&&docDate(d)===D}).concat(liveDocs(f.id).filter(function(d){return docDate(d)===D}));var d=latest(ds);
   if(d){var p='s'+h+'_',T=function(k){return tmin(G(d,p+k))},ins=function(a,b){return a!=null&&m>=a&&(b==null||m<b)};
    var cs=T('cs1');if(ins(T('ps1'),T('pe1'))&&!ins(cs,T('ce1')))return {run:true,src:'멸균 업무일지',t:T('ps1')};if(ins(T('s1'),T('e1')))return {run:true,src:'멸균 업무일지',t:T('s1')}}}}catch(e){}
@@ -532,6 +544,10 @@ function computeLive(){
    if(b&&b.tmov!=null){var end=b.tmov+mm;
     if(c&&c.s>=b.tmov-10)cipState();
     else if(m<end){o.state='이송 중';o.color='var(--move)';o.sp=2;o.level=Math.max(.04,.95*(1-(m-b.tmov)/mm));o.sub='종료 예상 '+hh(end);o.eta=end;o.prog=Math.max(0,Math.min(1,(m-b.tmov)/mm))}
+    else if((function(){var SNx=(pstat==='정비')?null:sterNow(L.h),last=!P.batches.some(function(x){return x.tmov!=null&&x.tmov>b.tmov});if(!(SNx&&SNx.run&&last))return false;
+      var eE=SNx.end!=null&&SNx.end>m?SNx.end:null,pg=SNx.t!=null&&eE!=null?Math.max(0,Math.min(1,(m-SNx.t)/Math.max(1,eE-SNx.t))):null;
+      o.state='이송 중';o.color='var(--move)';o.sp=2;o.level=pg!=null?Math.max(.06,.95*(1-pg)):.5;o.prog=pg!=null?pg:.5;o.progTxt=pg!=null?Math.round(pg*100)+'%':'멸균 기준';o.eta=eE||m+10;o.sterBased=true;
+      o.sub='멸균 '+L.h+'호기 '+(SNx.label&&SNx.live?SNx.label:'가동 중')+(eE?' · '+hh(eE)+' 종료 예정':'')+' · 멸균 진행 기준';o.title='이송 시간(용량 ÷ 이송 속도)은 지났지만 멸균 '+L.h+'호기가 아직 생산 중이라 이송 중으로 봅니다 — 근거: '+SNx.src;return true})()){}
     else if(P.planned&&b.i+k<P.planned&&!P.batches.some(function(x){return x.i===b.i+k}))projNext(o,b.i+k,end);
     else{o.state='이송 완료';o.color='var(--move)';o.level=.03;o.prog=1;o.sub=(P.planned&&b.i+1>=P.planned?'마지막 배치 이송 끝 · ':'')+'CIP 필요';o.needCip=end;
      if(m-end>30)missing.push({room:L.room,where:'L'+L.h+'호기 '+id+' · '+b.label,what:'이송 끝났는데 CIP 시작 기록 없음',form:L.cip.f==='FRM-042'?'CIP 및 살균 작업 일보 (기존 배합실)':'CIP 및 살균 작업 일보 (신규 배합실)'})}}
