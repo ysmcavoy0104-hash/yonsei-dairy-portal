@@ -612,6 +612,8 @@ function computeLive(){
   var moved=P.batches.filter(function(b){return b.tmov!=null}).length,remain=Math.max(0,P.planned-moved);
   var foot=(o2?'탱크 1 · 2번 교대 운영 · ':'')+(P.planned?'남은 배치 '+remain+'B'+(remain?' · 생산 종료 예상 '+hh(Math.max(m,movEnd||m)+remain*mm):' · 계획 배치 완료'):(pstat&&!PL.length?'오늘 '+pstat:'작업현황(품목 · 생산량) 미입력'));
   var mixT=tanks.filter(function(t){return !t.off&&(t.state==='배합 중'||t.state==='혼합 중')})[0],recvT=tanks.filter(function(t){return t.state==='원액 투입 중'})[0];
+  /* 2026-11-17 두유 호기는 혼합 중인 탱크로 분리유액이 계속 들어옴 → 혼합 중이면 분리유액 투입도 같이 표시 */
+  if(!recvT&&mixT&&mixT.state==='혼합 중'&&L.h!==3&&(isSoy(P.product)||planSoy(L.h,P.product)))recvT=mixT;
   lines.push({sim:simOn,mixT:mixT,recvT:recvT,L:L,plan:PL,pstat:pstat,doc:doc,off:off,P:P,cat:cat,ck:ck,tanks:tanks,steps:steps.slice(0,4),foot:foot,moved:moved,remain:remain})});
  /* SILO */
  var silos=SILOS.map(function(s){var ce=cipEvents('FRM-042','cB',s.row,11,12,[Y,T]),c=ce[ce.length-1];return {s:s,cip:c,all:ce}});
