@@ -6581,7 +6581,7 @@ function solve(m){var S0=S(m),N=days(m),H=hset(m),st=allStaff().filter(function(
  var cnt={};st.forEach(function(p){var c={오전:0,정상:0,오후:0,휴무:0,근무:0,wk:0,hol:0};for(var d=1;d<=N;d++){var v=A[p.n][d-1];if(v in c)c[v]++;if(v&&v!=='휴무')c[H[d]?'hol':'wk']++}cnt[p.n]=c});
  var V=[];
  PD.forEach(function(d){G.forEach(function(g){var r=reqOf(S0,d,g,m),got={오전:0,정상:0,오후:0};var leads=st.filter(function(p){return p.st===g&&p.lead}),hl={};
-  st.forEach(function(p){if(p.st===g&&A[p.n][d-1]in got){got[A[p.n][d-1]]++;if(p.lead)hl[A[p.n][d-1]]=1}});if(g==='배합')st.forEach(function(p){if(A[p.n][d-1]==='배합지원')got['정상']++});
+  st.forEach(function(p){if(p.st===g&&A[p.n][d-1]in got){got[A[p.n][d-1]]++;if(p.lead)hl[A[p.n][d-1]]=1}});if(g==='배합')st.forEach(function(p){if(A[p.n][d-1]==='배합지원')got['정상']++});if(g==='착즙')st.forEach(function(p){if(A[p.n][d-1]==='착즙지원'&&('오전' in got))got['오전']++});
   Object.keys(r).forEach(function(k){if(got[k]<(+r[k]||0))V.push({d:d,rule:'필요인원 부족',n:g+' '+k+' 필요'+r[k]+'/배치'+got[k]});
    if(leads.length&&(+r[k]||0)>0&&!hl[k])V.push({d:d,rule:'조장 미배치',n:g+' '+k})})})});
  st.forEach(function(p){var o=cnt[p.n].휴무;if(o!==T)V.push({d:0,rule:'휴무일수 불일치',n:p.n+' '+o+'/'+T+'일'});
@@ -7597,7 +7597,7 @@ function wcPlanDays(){var o=M(CUR_YM),staff=[];try{staff=(window.YSched&&YSched.
  weekList().forEach(function(w){var W=(DB.data.weeklyPlans||{})[w.key];if(!W)return;
   for(var i=0;i<7;i++){var d=w.s+i;if(d<1||d>daysInMonth(CUR_YM))continue;var day={d:d,wk:w.lab,conf:!!W.confirmed,v:{}};
    (W.groups||[]).forEach(function(g){(g.rows||[]).forEach(function(r){wcSplit((r.names||[])[i]).forEach(function(nm){var b=wcBare(nm),p=ST[b];if(!p)return;var v;
-     if(g.label==='오전')v='오전';else if(g.label==='오후')v='오후';else if(g.label==='중간')v=p.st==='배합'?'정상':(p.st==='착즙'?'배합지원':'정상');
+     if(g.label==='오전')v=((r.sub||'')==='착즙'&&p.st!=='착즙')?'착즙지원':'오전';else if(g.label==='오후')v='오후';else if(g.label==='중간')v=p.st==='배합'?'정상':(p.st==='착즙'?'배합지원':'정상');
      else if(g.label==='4층')v=p.st==='4층'?'정상':(/대체/.test(nm)?'4층대체':'4층교육');else if(g.label==='정상')v=p.st==='지원'?'정상':'정상교육';else v='근무';day.v[p.n]=v})})});
    (W.single||[]).forEach(function(x){if(x.label!=='휴무자')return;wcSplit((x.values||[])[i]).forEach(function(nm){var p=ST[wcBare(nm)];if(p)day.v[p.n]='휴무'})});
    out.push(day)}});
@@ -7606,7 +7606,7 @@ function wcDiff(){var o=M(CUR_YM),A=o.asg||{},D=wcPlanDays(),out=[];
  D.forEach(function(day){Object.keys(day.v).forEach(function(n){var plan=day.v[n],cur=(A[n]||[])[day.d-1]||'';
   var po=plan==='휴무',co=cur==='휴무';if(po!==co)out.push({n:n,d:day.d,plan:plan,cur:cur||'(없음)',conf:day.conf,wk:day.wk})})});
  return out}
-var WCLAB={'오전':'오전','정상':'중간·정상','오후':'오후','배합지원':'배합지원','4층교육':'4층(교육)','4층대체':'4층(대체)','정상교육':'정상(교육)','근무':'근무','휴무':'휴무','(없음)':'기록 없음'};
+var WCLAB={'오전':'오전','정상':'중간·정상','오후':'오후','배합지원':'배합지원','착즙지원':'착즙 조출(지원)','4층교육':'4층(교육)','4층대체':'4층(대체)','정상교육':'정상(교육)','근무':'근무','휴무':'휴무','(없음)':'기록 없음'};
 function wcHtml(){var o=M(CUR_YM);if(!o.result)return '';var X=wcDiff(),days=wcPlanDays().length;
  if(!days)return '<div class="wc-box ok">이 달 주간근무계획표가 아직 없어 대조할 것이 없습니다.</div>';
  if(!X.length)return '<div class="wc-box ok">✔ 주간근무계획표('+days+'일)와 휴일체크표의 휴무가 모두 일치합니다.</div>';
@@ -7695,13 +7695,13 @@ function weekPickHtml(){var W=weekList(),si=selWeekIdx();
 function buildWeeks(asg,staff,w){
  /* 필요인원보다 모자란 인원 수 (배합 오전·중간·오후 + 착즙 오전·오후) → 「1팀 지원」 칸 */
  var RQ={};try{RQ=(window.YSched&&YSched._S(CUR_YM).req)||{}}catch(e){}
- var cnt=function(d,st,sh){return staff.filter(function(p){return (p.st===st&&(asg[p.n]||[])[d-1]===sh)||(st==='배합'&&sh==='정상'&&(asg[p.n]||[])[d-1]==='배합지원')}).length};
+ var cnt=function(d,st,sh){return staff.filter(function(p){return (p.st===st&&(asg[p.n]||[])[d-1]===sh)||(st==='배합'&&sh==='정상'&&(asg[p.n]||[])[d-1]==='배합지원')||(st==='착즙'&&sh==='오전'&&(asg[p.n]||[])[d-1]==='착즙지원')}).length};
  var short=function(d){var r=RQ[d]||{},k=0;[['배합','오전','bAM'],['배합','정상','bNO'],['배합','오후','bPM'],['착즙','오전','cAM'],['착즙','오후','cPM']].forEach(function(x){k+=Math.max(0,(+r[x[2]]||0)-cnt(d,x[0],x[1]))});return k};
  var y=+CUR_YM.slice(0,4),mo=+CUR_YM.slice(5,7),WP=(DB.data.weeklyPlans=DB.data.weeklyPlans||{});
  var ds=[0,1,2,3,4,5,6].map(function(i){return w.s+i}),key=w.key,W=WP[key],on={};w.only.forEach(function(d){on[d]=1});
  var dates=ds.map(function(d){return ymd(y,mo,d)});
  var mine=function(d){return !!on[d]};                          /* 이번에 편성한 날짜만 새로 씀 — 나머지 칸은 그대로 */
- var who=function(d,st,sh){return staff.filter(function(p){return (p.st===st&&(asg[p.n]||[])[d-1]===sh)||(st==='배합'&&sh==='정상'&&(asg[p.n]||[])[d-1]==='배합지원')||(st==='4층'&&sh==='정상'&&((asg[p.n]||[])[d-1]==='4층교육'||(asg[p.n]||[])[d-1]==='4층대체'))||(st==='지원'&&sh==='정상'&&(asg[p.n]||[])[d-1]==='정상교육')}).map(function(p){var v0=(asg[p.n]||[])[d-1];return p.n+(v0==='4층교육'||v0==='정상교육'?'(교육)':v0==='4층대체'?'(대체)':'')}).join(',')};
+ var who=function(d,st,sh){return staff.filter(function(p){return (p.st===st&&(asg[p.n]||[])[d-1]===sh)||(st==='착즙'&&sh==='오전'&&(asg[p.n]||[])[d-1]==='착즙지원')||(st==='배합'&&sh==='정상'&&(asg[p.n]||[])[d-1]==='배합지원')||(st==='4층'&&sh==='정상'&&((asg[p.n]||[])[d-1]==='4층교육'||(asg[p.n]||[])[d-1]==='4층대체'))||(st==='지원'&&sh==='정상'&&(asg[p.n]||[])[d-1]==='정상교육')}).map(function(p){var v0=(asg[p.n]||[])[d-1];return p.n+(v0==='4층교육'||v0==='정상교육'?'(교육)':v0==='4층대체'?'(대체)':'')}).join(',')};
  var oldG=function(lab,sub,i,k){var g=W&&(W.groups||[]).filter(function(x){return x.label===lab})[0],r=g&&(g.rows||[]).filter(function(x){return (x.sub||'')===sub})[0];return r&&r[k]?(r[k][i]||''):''};
  var oldS=function(lab,i){var x=W&&(W.single||[]).filter(function(q){return q.label===lab})[0];return x&&x.values?(x.values[i]||''):''};
  var groups=WG.map(function(g){return {label:g[0],rows:g[1].map(function(r){var fixed=g[0]==='4층'||g[0]==='정상';
@@ -7768,7 +7768,7 @@ function plan(){
  var offByDay={},offByPerson={},sh={};ROSTER.forEach(function(n){offByPerson[n]=[]});
  for(var d2=1;d2<=N;d2++){offByDay[d2]=[];var c={b:[0,0,0],c:[0,0]};if(!(d2<=L0||o.planned[d2])){sh[d2]=null;continue}
   staff.forEach(function(p){var v=(asg[p.n]||[])[d2-1];if(v==='휴무'){offByDay[d2].push(p.n);(offByPerson[p.n]=offByPerson[p.n]||[]).push(d2)}
-   if(p.st==='배합'){var i=['오전','정상','오후'].indexOf(v);if(i>=0)c.b[i]++}if(v==='배합지원')c.b[1]++;if(p.st==='착즙'){var j=['오전','오후'].indexOf(v);if(j>=0)c.c[j]++}});sh[d2]=c}
+   if(p.st==='배합'){var i=['오전','정상','오후'].indexOf(v);if(i>=0)c.b[i]++}if(v==='배합지원')c.b[1]++;if(v==='착즙지원')c.c[0]++;if(p.st==='착즙'){var j=['오전','오후'].indexOf(v);if(j>=0)c.c[j]++}});sh[d2]=c}
  try{if(window.WeekPlan&&WeekPlan._D)WeekPlan._D()}catch(e){}
  var key=buildWeeks(asg,staff,{s:wk.s,key:wk.key,only:ds});
  var wks=((o.result&&o.result.weeks)||[]).filter(function(k){return k!==key});wks.push(key);wks.sort();
@@ -7790,7 +7790,7 @@ function recalc(ym,key,s,days){
   var offByDay={},offByPerson={},sh={};ROSTER.forEach(function(n){offByPerson[n]=[]});
   for(var d=1;d<=N;d++){offByDay[d]=[];if(!(d<=L||o.planned[d])){sh[d]=null;continue}var c={b:[0,0,0],c:[0,0]};
    staff.forEach(function(p){var v=(o.asg[p.n]||[])[d-1];if(v==='휴무'){offByDay[d].push(p.n);(offByPerson[p.n]=offByPerson[p.n]||[]).push(d)}
-    if(p.st==='배합'){var i=['오전','정상','오후'].indexOf(v);if(i>=0)c.b[i]++}if(v==='배합지원')c.b[1]++;if(p.st==='착즙'){var j=['오전','오후'].indexOf(v);if(j>=0)c.c[j]++}});sh[d]=c}
+    if(p.st==='배합'){var i=['오전','정상','오후'].indexOf(v);if(i>=0)c.b[i]++}if(v==='배합지원')c.b[1]++;if(v==='착즙지원')c.c[0]++;if(p.st==='착즙'){var j=['오전','오후'].indexOf(v);if(j>=0)c.c[j]++}});sh[d]=c}
   if(key&&days&&days.length)buildWeeks(o.asg,staff,{s:s,key:key,only:days});
   var wks=((o.result&&o.result.weeks)||[]).slice();if(key&&wks.indexOf(key)<0){wks.push(key);wks.sort()}
   o._u=new Date().toISOString();try{Y._S(ym)._u=o._u}catch(e){}
@@ -7948,7 +7948,7 @@ function reviewHtml(key){
    var val=function(n,d){return (A[n]||[])[d-1]||''};
    var un=byYm[ym].filter(function(x){return x.d>L&&!P[x.d]});if(un.length)iss.push('아직 편성하지 않은 날: '+un.map(lab).join(', ')+' — 근무스케쥴에서 이 주를 편성해 주세요.');
    byYm[ym].forEach(function(x){var d=x.d;if(!(P[d]||d<=L))return;var r=RQ[d]||{},sh=[];
-    var c=function(st,v){return staff.filter(function(p){return (p.st===st&&val(p.n,d)===v)||(st==='배합'&&v==='정상'&&val(p.n,d)==='배합지원')}).length};
+    var c=function(st,v){return staff.filter(function(p){return (p.st===st&&val(p.n,d)===v)||(st==='배합'&&v==='정상'&&val(p.n,d)==='배합지원')||(st==='착즙'&&v==='오전'&&val(p.n,d)==='착즙지원')}).length};
     [['배합 오전','배합','오전','bAM'],['배합 중간','배합','정상','bNO'],['배합 오후','배합','오후','bPM'],['착즙 오전','착즙','오전','cAM'],['착즙 오후','착즙','오후','cPM']].forEach(function(q){var need=+r[q[3]]||0,got=c(q[1],q[2]);
      if(got<need)sh.push(q[0]+' '+got+'/'+need+'명');
      if(q[1]==='착즙'&&got>need)iss.push(lab(x)+' 착즙 '+q[2]+' '+got+'명 — 고정 '+need+'명보다 많음');
@@ -7995,7 +7995,7 @@ function edInit(key){
  /* 근무스케쥴에 기록이 없는 날은 계획표 칸에서 읽어 옴 */
  if(W)dates.forEach(function(ds,i){var has=staff.some(function(p){return vals[p.n][i]});if(has)return;
   var map={'오전':'오전','중간':'정상','오후':'오후','4층':'정상','정상':'정상'},byK={};staff.forEach(function(p){byK[EK(p.n)]=p});
-  (W.groups||[]).forEach(function(g){(g.rows||[]).forEach(function(r){String((r.names||[])[i]||'').split(',').forEach(function(x){var p=byK[EK(x.replace(/\(.*\)/,''))];if(!p)return;var v=map[g.label]||'';if(v==='정상'&&g.label==='중간'&&p.st==='착즙')v='배합지원';if(v)vals[p.n][i]=v})})});
+  (W.groups||[]).forEach(function(g){(g.rows||[]).forEach(function(r){String((r.names||[])[i]||'').split(',').forEach(function(x){var p=byK[EK(x.replace(/\(.*\)/,''))];if(!p)return;var v=map[g.label]||'';if(v==='정상'&&g.label==='중간'&&p.st==='착즙')v='배합지원';if(v==='오전'&&(r.sub||'')==='착즙'&&p.st!=='착즙')v='착즙지원';if(v)vals[p.n][i]=v})})});
   ((W.single||[]).filter(function(x){return x.label==='휴무자'})[0]||{values:[]}).values[i]&&String(W.single.filter(function(x){return x.label==='휴무자'})[0].values[i]).split(',').forEach(function(x){var p=byK[EK(x.replace(/\(.*\)/,''))];if(p)vals[p.n][i]='휴무'});
  });
  var sup=dates.map(function(ds,i){var x=W&&(W.single||[]).filter(function(q){return q.label==='1팀 지원'})[0];return x&&x.values?(x.values[i]||''):''});
@@ -8003,7 +8003,7 @@ function edInit(key){
 }
 function edReq(ds){try{var Y=window.YSched,r=Y._S(ds.slice(0,7)).req||{};return r[+ds.slice(8)]||null}catch(e){return null}}
 function edCount(i){var c={bAM:0,bNO:0,bPM:0,cAM:0,cPM:0,off:0};edStaff().forEach(function(p){var v=EDIT.vals[p.n][i];if(v==='휴무')c.off++;
- if(p.st==='배합'){if(v==='오전')c.bAM++;if(v==='정상')c.bNO++;if(v==='오후')c.bPM++}if(v==='배합지원')c.bNO++;if(p.st==='착즙'){if(v==='오전')c.cAM++;if(v==='오후')c.cPM++}});return c}
+ if(p.st==='배합'){if(v==='오전')c.bAM++;if(v==='정상')c.bNO++;if(v==='오후')c.bPM++}if(v==='배합지원')c.bNO++;if(v==='착즙지원')c.cAM++;if(p.st==='착즙'){if(v==='오전')c.cAM++;if(v==='오후')c.cPM++}});return c}
 function edFootHtml(){var dates=weekDates(EDIT.key);
  return [['bAM','배합 오전'],['bNO','배합 중간'],['bPM','배합 오후'],['cAM','착즙 오전'],['cPM','착즙 오후'],['off','휴무']].map(function(q){
   return '<tr class="wpe-sum"><td class="wp-lab" colspan="2">'+q[1]+'</td>'+dates.map(function(ds,i){var c=edCount(i)[q[0]],r=edReq(ds),need=r&&q[0]!=='off'?(+r[q[0]]||0):null,bad=need!=null&&c<need;
@@ -8011,15 +8011,15 @@ function edFootHtml(){var dates=weekDates(EDIT.key);
 function edPrev(n,i){var dates=weekDates(EDIT.key);if(i>0)return EDIT.vals[n][i-1];var ds=dates[0],t=new Date(ds+'T00:00:00');t.setDate(t.getDate()-1);
  var p=t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0'),o=DB.data.workSched&&DB.data.workSched.months&&DB.data.workSched.months[p];return o&&o.asg&&o.asg[n]?(o.asg[n][t.getDate()-1]||''):''}
 function edCellStyle(n,i){var v=EDIT.vals[n][i],pv=edPrev(n,i),bad=pv==='오후'&&v&&v!=='오후'&&v!=='휴무';
- var bg={오전:'#EAF1FB',정상:'#F3F6FA',오후:'#FFF3E3',휴무:'#E9F7EF',배합지원:'#E3EDFF'}[v]||'#fff';return 'background:'+bg+(bad?';box-shadow:inset 0 0 0 2px #C0392B':'')}
+ var bg={오전:'#EAF1FB',정상:'#F3F6FA',오후:'#FFF3E3',휴무:'#E9F7EF',배합지원:'#E3EDFF',착즙지원:'#E6F6EC'}[v]||'#fff';return 'background:'+bg+(bad?';box-shadow:inset 0 0 0 2px #C0392B':'')}
 /* 주간근무계획표 모양 그대로 수정: 칸마다 이름 × (빼면 휴무) · ＋ 선택 (그 칸으로 옮김) · 휴무자는 어느 칸에도 없는 사람 */
 var EROWS=[['오전','배합','배합','오전','06:00~15:00'],['오전','착즙','착즙','오전','05:30~14:30'],['중간','배합','배합','정상','07:00~16:00'],['오후','배합','배합','오후','16:00~'],['오후','착즙','착즙','오후','14:30~23:00'],['4층','','4층','정상','07:30~16:00'],['정상','','지원','정상','07:00~16:00']];
 var SUPN=['장영빈','이연우'];
-function edInRow(p,r,v){if(r[2]==='배합'&&r[3]==='정상'&&v==='배합지원')return true;if(r[2]==='지원'&&r[3]==='정상'&&v==='정상교육')return true;return p.st===r[2]&&v===r[3]}
+function edInRow(p,r,v){if(r[2]==='배합'&&r[3]==='정상'&&v==='배합지원')return true;if(r[2]==='착즙'&&r[3]==='오전'&&v==='착즙지원')return true;if(r[2]==='지원'&&r[3]==='정상'&&v==='정상교육')return true;return p.st===r[2]&&v===r[3]}
 function edMaintDay(ds){try{var o=DB.data.workSched.months[ds.slice(0,7)];var m=(o&&o.maintWd)||{6:1};return !!m[(new Date(ds+'T00:00:00').getDay()+6)%7]}catch(e){return false}}
-function edChip(p,i,v){var pv=edPrev(p.n,i),bad=pv==='오후'&&v&&v!=='오후'&&v!=='휴무',sup=v==='배합지원';
+function edChip(p,i,v){var pv=edPrev(p.n,i),bad=pv==='오후'&&v&&v!=='오후'&&v!=='휴무',sup=v==='배합지원'||v==='착즙지원';
  var on=EDIT.sel&&EDIT.sel.n===p.n&&EDIT.sel.i===i;return '<span class="wpe-chip'+(bad?' bad':'')+(sup?' sup':'')+(on?' sel':'')+'" title="'+(bad?'전날 오후 근무 — 오전·중간 불가':sup?'착즙 인원 배합 지원':'눌러서 같은 날 다른 사람과 맞바꾸기')+'"><u onclick="WeekPlan.edPick(\''+esc(p.n)+'\','+i+')">'+esc(p.n)+(p.lead?'<i>★</i>':'')+(v==='정상교육'?'<small class="wpe-edu">교육</small>':'')+'</u><b onclick="WeekPlan.edSet(\''+esc(p.n)+'\','+i+',\'휴무\')" title="빼기 (휴무)">×</b></span>'}
-function edAddSel(r,i,staff){var opts=staff.filter(function(p){var v=EDIT.vals[p.n][i];if(edInRow(p,r,v))return false;if(r[2]==='지원'&&r[3]==='정상')return true;if(r[2]==='배합'&&r[3]==='정상'&&p.st==='착즙'&&SUPN.indexOf(EK(p.n))>=0)return true;return p.st===r[2]});
+function edAddSel(r,i,staff){var opts=staff.filter(function(p){var v=EDIT.vals[p.n][i];if(edInRow(p,r,v))return false;if(r[2]==='지원'&&r[3]==='정상')return true;if(r[2]==='배합'&&r[3]==='정상'&&p.st==='착즙'&&SUPN.indexOf(EK(p.n))>=0)return true;if(r[2]==='착즙'&&r[3]==='오전'&&p.st!=='착즙')return true;return p.st===r[2]});
  if(!opts.length)return r[2]==='4층'?'':'<select class="wpe-add" disabled title="이 줄에 넣을 수 있는 사람이 모두 이미 배치되어 있습니다"><option>＋ (모두 배치됨)</option></select>';var lab=function(v){return v==='정상교육'?'정상(교육)':v==='4층교육'?'4층(교육)':v==='4층대체'?'4층(대체)':v==='정상'?'중간/정상':v==='배합지원'?'배합지원':(v||'미정')};
  return '<select class="wpe-add" onchange="if(this.value)WeekPlan.edPut(this.value,'+i+',\''+r[2]+'\',\''+r[3]+'\')"><option value="">＋</option>'+opts.map(function(p){return '<option value="'+esc(p.n)+'">'+esc(p.n)+(r[2]==='지원'&&p.st!=='지원'?' — '+esc(p.st)+' · 지금 '+lab(EDIT.vals[p.n][i])+' → 정상(교육)':' ('+lab(EDIT.vals[p.n][i])+')')+'</option>'}).join('')+'</select>'}
 function editInner(wk){
@@ -8049,19 +8049,19 @@ function editGridHtml(wk){
 }
 function edRedraw(){var b=document.getElementById('wpe-box');if(b&&EDIT){var y=window.scrollY;b.innerHTML=editInner(D()[EDIT.key]);window.scrollTo(0,y)}}
 /* 맞바꾸기: 같은 날 두 사람을 차례로 누르면 근무를 서로 바꿈 */
-function edOk(p,v){if(!v||v==='휴무')return true;if(p.st==='4층'||p.st==='지원')return v==='정상';if(p.st==='배합')return ['오전','정상','오후'].indexOf(v)>=0;if(p.st==='착즙')return ['오전','오후'].indexOf(v)>=0||(v==='배합지원'&&SUPN.indexOf(EK(p.n))>=0);return false}
+function edOk(p,v){if(!v||v==='휴무'||v==='착즙지원')return true;if(p.st==='4층'||p.st==='지원')return v==='정상';if(p.st==='배합')return ['오전','정상','오후'].indexOf(v)>=0;if(p.st==='착즙')return ['오전','오후'].indexOf(v)>=0||(v==='배합지원'&&SUPN.indexOf(EK(p.n))>=0);return false}
 function edConv(p,v){if(p.st==='배합'&&v==='배합지원')return '정상';if(p.st==='착즙'&&v==='정상'&&SUPN.indexOf(EK(p.n))>=0)return '배합지원';return v}
 function edPick(n,i){if(!EDIT)return;var S=EDIT.sel;
  if(!S||S.i!==i){EDIT.sel={n:n,i:i};edRedraw();return}
  if(S.n===n){EDIT.sel=null;edRedraw();return}
  var st=edStaff(),a=st.filter(function(x){return x.n===S.n})[0],b=st.filter(function(x){return x.n===n})[0];if(!a||!b)return;
- var va=EDIT.vals[a.n][i],vb=EDIT.vals[b.n][i],na=edConv(a,vb),nb=edConv(b,va);
+ var va=EDIT.vals[a.n][i],vb=EDIT.vals[b.n][i],na=(b.st==='착즙'&&vb==='오전'&&a.st!=='착즙')?'착즙지원':(vb==='착즙지원'&&a.st==='착즙')?'오전':edConv(a,vb),nb=(a.st==='착즙'&&va==='오전'&&b.st!=='착즙')?'착즙지원':(va==='착즙지원'&&b.st==='착즙')?'오전':edConv(b,va);
  if(!edOk(a,na)||!edOk(b,nb)){try{U.toast(a.n+' ↔ '+b.n+' 맞바꿀 수 없습니다 (팀이 달라 그 근무에 들어갈 수 없음). ＋ 목록으로 옮겨 주세요.','bad')}catch(e){}EDIT.sel=null;edRedraw();return}
  EDIT.vals[a.n][i]=na;EDIT.vals[b.n][i]=nb;EDIT.sel=null;edRedraw();
  try{U.toast(a.n+' ↔ '+b.n+' 근무를 맞바꿨습니다.','ok')}catch(e){}}
 function edSet(n,i,v){if(!EDIT||!EDIT.vals[n])return;EDIT.vals[n][i]=v;edRedraw()}
 function edPut(n,i,st,v){if(!EDIT||!EDIT.vals[n])return;var p=edStaff().filter(function(x){return x.n===n})[0];if(!p)return;
- EDIT.vals[n][i]=(st==='배합'&&v==='정상'&&p.st==='착즙')?'배합지원':(st==='지원'&&v==='정상'&&p.st!=='지원')?'정상교육':v;edRedraw()}
+ EDIT.vals[n][i]=(st==='착즙'&&v==='오전'&&p.st!=='착즙')?'착즙지원':(st==='배합'&&v==='정상'&&p.st==='착즙')?'배합지원':(st==='지원'&&v==='정상'&&p.st!=='지원')?'정상교육':v;edRedraw()}
 function edSup(i,v){if(!EDIT)return;EDIT.sup[i]=v;EDIT.supT[i]=1}
 function edStart(){var k=CUR;if(!D()[k])return;edInit(k);var box=$('#wp-root');if(box)box.innerHTML=innerView()}
 function edCancel(){EDIT=null;var box=$('#wp-root');if(box)box.innerHTML=innerView()}
@@ -16399,8 +16399,8 @@ function staff(){try{return (YSched._staff()||[]).filter(function(p){return p.ac
 function isSup(){try{var u=Auth.user();return !!u&&u.role==='superadmin'}catch(e){return false}}
 function key(){try{return WeekPlan.cur()}catch(e){return null}}
 function week(k){k=k||key();return k?[0,1,2,3,4,5,6].map(function(i){return addD(k,i)}):[]}
-var WORK=['오전','정상','오후','배합지원','교육'];
-var LAB={'오전':'오전','정상':'중간','오후':'오후','배합지원':'중간(배합지원)'};
+var WORK=['오전','정상','오후','배합지원','착즙지원','교육'];
+var LAB={'오전':'오전','정상':'중간','오후':'오후','배합지원':'중간(배합지원)','착즙지원':'착즙 조출(지원)'};
 
 /* 주간근무계획표 「정상」 칸에 교육 줄 */
 window.yumEduHtml=function(k,glabel,di){
@@ -16533,7 +16533,7 @@ function fill(){
     o.asg=o.asg||{};
     if(staff.some(function(p){return (o.asg[p.n]||[])[d-1]}))continue;   /* 이미 기록 있음 */
     var vals={},any=false;
-    (W.groups||[]).forEach(function(g){(g.rows||[]).forEach(function(r){String((r.names||[])[i]||'').split(/[,\n]/).forEach(function(x){var p=byK[EK(x)];if(!p)return;var v=MAP[g.label]||'';if(v==='정상'&&g.label==='중간'&&p.st==='착즙')v='배합지원';if(v){vals[p.n]=v;any=true}})})});
+    (W.groups||[]).forEach(function(g){(g.rows||[]).forEach(function(r){String((r.names||[])[i]||'').split(/[,\n]/).forEach(function(x){var p=byK[EK(x)];if(!p)return;var v=MAP[g.label]||'';if(v==='정상'&&g.label==='중간'&&p.st==='착즙')v='배합지원';if(v==='오전'&&(r.sub||'')==='착즙'&&p.st!=='착즙')v='착즙지원';if(v){vals[p.n]=v;any=true}})})});
     var off=(W.single||[]).filter(function(x){return x.label==='휴무자'})[0];
     if(off&&off.values)String(off.values[i]||'').split(/[,\n]/).forEach(function(x){var p=byK[EK(x)];if(p){vals[p.n]='휴무';any=true}});
     if(!any)continue;
