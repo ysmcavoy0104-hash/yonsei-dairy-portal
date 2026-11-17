@@ -21712,7 +21712,14 @@ function med(k){return '<span class="lb-med"><svg viewBox="0 0 24 24" width="20"
 function chip(st,run){var t=tone(st,run);return '<span class="lb-st '+t+'">'+(t==='g'?'<i></i>':'')+E(st||'기록 없음')+'</span>'}
 function rows(list,fn){return list.map(function(x,i){return '<div class="lb-eq'+(x.run?' run':'')+(x.code==='ster'?' steri':x.code==='plan'&&x.k&&/^s/.test(x.k)?' splan':'')+'" style="--d:'+(i*60)+'ms">'+fn(x)+'</div>'}).join('')}
 function crewHtml(groups){if(!groups.length)return '<div class="lb-none">오늘 근무 기록이 없습니다</div>';
- return groups.map(function(g){return '<div class="lb-cg'+(g.on?' on':'')+'"><div class="lb-cgh"><b>'+E(g.lab)+'</b>'+(g.time?'<em>'+E(g.time)+'</em>':'')+(g.on?'<span class="lb-now">근무 중</span>':'')+'</div><div class="lb-names">'+g.names.map(function(n){var t=String(n&&typeof n==='object'?n.n:n),m=/^(.*?)\s+(\d{1,2}:\d{2}.*)$/.exec(t);return {on:(typeof n==='object'?n.on:g.on),nm:m?m[1]:t,tm:m?m[2]:'',k:m?(function(q){return q?('0'+q[1]).slice(-2)+':'+q[2]:'99'})(/(\d{1,2}):(\d{2})/.exec(m[2])):'99'}}).sort(function(a,b){return a.k===b.k?a.nm.localeCompare(b.nm,'ko'):a.k<b.k?-1:1}).map(function(x){return '<span class="'+(x.on?'on':'')+'"><b>'+E(x.nm)+'</b>'+(x.tm?'<em>'+E(x.tm)+'</em>':'')+'</span>'}).join('')+'</div></div>'}).join('')}
+ /* 2026-11-17 근무표 통일: 팀 이름 → 근무 시간 묶음(위) → 그 시간 근무자 이름(아래) */
+ return groups.map(function(g){var B={},ord=[];
+  (g.names||[]).forEach(function(n){var t=String(n&&typeof n==='object'?n.n:n),m=/^(.*?)\s+(\d{1,2}:\d{2}.*)$/.exec(t),nm=(m?m[1]:t).trim(),tm=(m?m[2]:(g.time||'')).trim(),on=typeof n==='object'?!!n.on:!!g.on;
+   var k=tm||'—';if(!B[k]){B[k]={tm:tm,L:[],on:false};ord.push(k)}B[k].L.push({nm:nm,on:on});B[k].on=B[k].on||on});
+  var key=function(t){var q=/(\d{1,2}):(\d{2})/.exec(t||'');return q?('0'+q[1]).slice(-2)+q[2]:'9999'};
+  ord.sort(function(a,b){return key(B[a].tm)<key(B[b].tm)?-1:key(B[a].tm)>key(B[b].tm)?1:0});
+  return '<div class="lb-cg'+(g.on?' on':'')+'"><div class="lb-cgh"><b>'+E(g.lab)+'</b></div>'+ord.map(function(k){var b=B[k];
+    return (b.tm?'<div class="lb-ct'+(b.on?' on':'')+'"><em>'+E(b.tm)+'</em>'+(b.on?'<i>근무 중</i>':'')+'</div>':'')+'<div class="lb-names">'+b.L.sort(function(x,y){return x.nm.localeCompare(y.nm,'ko')}).map(function(x){return '<span class="'+(x.on?'on':'')+'"><b>'+E(x.nm)+'</b></span>'}).join('')+'</div>'}).join('')+'</div>'}).join('')}
 function qCell(lab,v,lo,hi,u,d){var ok=v==null?null:(v>=lo&&v<=hi);return '<div class="lb-q '+(ok==null?'n':ok?'ok':'bad')+'"><small>'+lab+'</small><b>'+(v==null?'—':v.toFixed(d==null?2:d))+(u||'')+'</b><em>'+(ok==null?'측정 없음':ok?'✓ 기준 안':'! 기준 밖')+'</em></div>'}
 function view(){var M=window.yumLiveModel?yumLiveModel():{juice:[],mix:[],ster:[],pack:[],now:0,D:today()},now=M.now,D=M.D;
  var Q=quality(D),CP=crewPlan(now),R=null;try{R=window.YumReportCore?YumReportCore.analyze(DB.data,window.__YUM_NOTION_FINAL__||{delay:[],maint:[]},YumReportCore.period('daily',D),{}):null}catch(e){}
@@ -21904,6 +21911,8 @@ document.head.appendChild(st)})();
 '#lb-root .lb-crh{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;font-size:13px!important}#lb-root .lb-crh b{color:#0F172A;font-size:13px}#lb-root .lb-crh small{margin-left:auto;font-size:11px;color:#059669;font-weight:800}'+
 '#lb-root .lb-cg{margin-bottom:8px}#lb-root .lb-cgh{font-size:12px}#lb-root .lb-cgh .lb-now{display:none}'+
 '#lb-root .lb-names{grid-template-columns:1fr!important;gap:3px!important}#lb-root .lb-names span{background:#F8FAFC!important;color:#475569!important;box-shadow:none!important;border:1px solid #EEF2F7;padding:4px 8px!important}'+
+'#lb-root .lb-ct{display:flex;align-items:center;gap:6px;margin:6px 0 2px}#lb-root .lb-ct em{font-style:normal;font-size:13px;font-weight:900;color:#0F172A;font-variant-numeric:tabular-nums}#lb-root .lb-ct.on em{color:#047857}#lb-root .lb-ct i{font-style:normal;font-size:10.5px;font-weight:800;color:#fff;background:#10B981;border-radius:999px;padding:1px 7px}'+
+'#lb-root .lb-names{grid-template-columns:repeat(2,minmax(0,1fr))!important}'+
 '#lb-root .lb-names span em{font-style:normal;font-size:11px;color:#94A3B8;font-variant-numeric:tabular-nums;white-space:nowrap}'+
 '#lb-root .lb-names span.on{background:#ECFDF5!important;border-color:#A7F3D0;color:#065F46!important}#lb-root .lb-names span.on b::before{content:"● ";color:#10B981}#lb-root .lb-names span.on em{color:#047857}';
 document.head.appendChild(st)})();
