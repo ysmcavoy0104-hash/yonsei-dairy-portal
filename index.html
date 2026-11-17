@@ -21959,7 +21959,10 @@ var TI={'착즙':'<path d="M12 4.2c3.6 0 6.3 3.2 6.3 7.3 0 4.6-2.9 8.3-6.3 8.3S5
 function med(k){return '<span class="lb-med"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#E8D3A5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'+TI[k]+'</svg></span>'}
 function chip(st,run){var t=tone(st,run);return '<span class="lb-st '+t+'">'+(t==='g'?'<i></i>':'')+E(st||'기록 없음')+'</span>'}
 function rows(list,fn){return list.map(function(x,i){return '<div class="lb-eq'+(x.run?' run':'')+(x.code==='ster'?' steri':(x.code==='cool'||(x.k&&/^s/.test(x.k)&&/냉각/.test(String(x.st||''))))?' cool':x.code==='plan'&&x.k&&/^s/.test(x.k)?' splan':'')+'" style="--d:'+(i*60)+'ms">'+fn(x)+'</div>'}).join('')}
-function crewHtml(groups){if(!groups.length)return '<div class="lb-none">오늘 근무 기록이 없습니다</div>';
+document.addEventListener('toggle',function(e){var d=e.target;if(d&&d.classList&&d.classList.contains('lb-more2')){window.__lbOpen=window.__lbOpen||{};window.__lbOpen[d.getAttribute('data-mk')]=d.open}},true);
+/* 멸균 · 포장: 지금 근무 중인 사람만 */
+function onlyOn(G){return (G||[]).map(function(g){var L=(g.names||[]).filter(function(n){return n&&typeof n==='object'?!!n.on&&!n.off:!!g.on});return L.length?Object.assign({},g,{names:L,on:true}):null}).filter(Boolean)}
+function crewHtml(groups){if(!groups.length)return '<div class="lb-none">지금 근무 중인 기록이 없습니다</div>';
  /* 2026-11-17 근무표 통일: 팀 이름 → 근무 시간 묶음(위) → 그 시간 근무자 이름(아래) */
  return groups.map(function(g){var B={},ord=[];
   (g.names||[]).forEach(function(n){var t=String(n&&typeof n==='object'?n.n:n),m=/^(.*?)\s+(\d{1,2}:\d{2}.*)$/.exec(t),nm=(m?m[1]:t).trim(),tm=(m?m[2]:(g.time||'')).trim(),on=typeof n==='object'?!!n.on:!!g.on,off=!!(n&&typeof n==='object'&&n.off),sh=n&&typeof n==='object'&&n.sh?String(n.sh):'';
@@ -21967,7 +21970,7 @@ function crewHtml(groups){if(!groups.length)return '<div class="lb-none">오늘 
   var key=function(k){if(B[k].off)return 'zzzz';var q=/(\d{1,2}):(\d{2})/.exec(B[k].tm||'');return q?('0'+q[1]).slice(-2)+q[2]:'9999'};
   ord.sort(function(a,b){return key(a)<key(b)?-1:key(a)>key(b)?1:0});
   return '<div class="lb-cg'+(g.on?' on':'')+(g.off?' off':'')+'">'+(g.lab&&!g.off?'<div class="lb-cgh"><b>'+E(g.lab)+'</b></div>':'')+ord.map(function(k){var b=B[k];
-    return (b.off?'<div class="lb-ct off"><span class="lb-sh off">휴무</span></div>':b.tm?'<div class="lb-ct'+(b.on?' on':'')+'">'+(b.sh&&b.sh!==g.lab&&!/^(4층)$/.test(b.sh)?'<span class="lb-sh">'+E(b.sh)+'</span>':'')+'<em>'+E(b.tm)+'</em>'+(b.on?'<i>근무 중</i>':'')+'</div>':'')+'<div class="lb-names">'+b.L.sort(function(x,y){return x.nm.localeCompare(y.nm,'ko')}).map(function(x){return '<span class="'+(x.on?'on':x.off?'off':'')+'"><b>'+E(x.nm)+'</b></span>'}).join('')+'</div>'}).join('')+'</div>'}).join('')}
+    return (b.off?'<div class="lb-ct off"><span class="lb-sh off">휴무</span></div>':b.tm?'<div class="lb-ct'+(b.on?' on':'')+'">'+(b.sh&&b.sh!==g.lab&&!/^(4층)$/.test(b.sh)?'<span class="lb-sh">'+E(b.sh)+'</span>':'')+'<em>'+E(b.tm)+'</em>'+(b.on?'<i>근무 중</i>':'')+'</div>':'')+(function(){var L=b.L.sort(function(x,y){return x.nm.localeCompare(y.nm,'ko')}),sp=function(x){return '<span class="'+(x.on?'on':x.off?'off':'')+'"><b>'+E(x.nm)+'</b></span>'};return '<div class="lb-names">'+L.slice(0,2).map(sp).join('')+'</div>'+(L.length>2?'<details class="lb-more2" data-mk="'+E(g.lab+'|'+k)+'"'+((window.__lbOpen||{})[g.lab+'|'+k]?' open':'')+'><summary>+'+(L.length-2)+'명 더 보기</summary><div class="lb-names">'+L.slice(2).map(sp).join('')+'</div></details>':'')})()}).join('')+'</div>'}).join('')}
 function qCell(lab,v,lo,hi,u,d){var ok=v==null?null:(v>=lo&&v<=hi);return '<div class="lb-q '+(ok==null?'n':ok?'ok':'bad')+'"><small>'+lab+'</small><b>'+(v==null?'—':v.toFixed(d==null?2:d))+(u||'')+'</b><em>'+(ok==null?'측정 없음':ok?'✓ 기준 안':'! 기준 밖')+'</em></div>'}
 function view(){var M=window.yumLiveModel?yumLiveModel():{juice:[],mix:[],ster:[],pack:[],now:0,D:today()},now=M.now,D=M.D;
  var Q=quality(D),CP=crewPlan(now),R=null;try{R=window.YumReportCore?YumReportCore.analyze(DB.data,window.__YUM_NOTION_FINAL__||{delay:[],maint:[]},YumReportCore.period('daily',D),{}):null}catch(e){}
@@ -21980,8 +21983,8 @@ function view(){var M=window.yumLiveModel?yumLiveModel():{juice:[],mix:[],ster:[
  var jEq=JP&&JP.eq.length?JP.eq:M.juice;if(JB)jEq.forEach(function(x){var o=(M.juice||[]).filter(function(y){return y.t===x.t})[0];if(o&&o.run&&!x.run&&!/^(정지|완료)/.test(x.st)){x.run=true;x.st=o.st}});if(JP&&JP.Q&&(JP.Q.sts!=null||JP.Q.rts!=null||JP.Q.sph!=null)){var q0=Q||{};Q={t:JP.Q.t||q0.t,sts:JP.Q.sts!=null?JP.Q.sts:q0.sts,sph:JP.Q.sph!=null?JP.Q.sph:q0.sph,rts:JP.Q.rts!=null?JP.Q.rts:q0.rts,rph:JP.Q.rph!=null?JP.Q.rph:q0.rph,temp:JP.Q.temp!=null?JP.Q.temp:q0.temp,src:'착즙팀 포털'}}
  /* 2026-11-16 근무자: 4층은 착즙 칸에만 · 같은 사람은 한 번만 (착즙 칸 → 배합 칸 순서로 먼저 나온 곳에만) */
  var C4=CP['공통'].filter(function(g){return /4층/.test(g.lab)}).sort(function(a,b){return (a.off?1:0)-(b.off?1:0)}),CO=CP['공통'].filter(function(g){return !/4층/.test(g.lab)});
- var offOf=function(G){return G.filter(function(g){return g.off})},noOff=function(G){return G.filter(function(g){return !g.off})};var jCrew=(JP&&JP.crew.length?[{lab:'착즙팀 포털',time:'',on:JP.crew.some(function(x){return x.on}),names:JP.crew}]:[]).concat(w28).concat(noOff(CP['착즙'])).concat(C4).concat(offOf(CP['착즙']));
- var mCrew=w14.concat(noOff(CP['배합'])).concat(CO).concat(offOf(CP['배합']));
+ var offOf=function(G){return G.filter(function(g){return g.off})},noOff=function(G){return G.filter(function(g){return !g.off})};/* 2026-11-19 착즙 · 배합 = 부문포털 주간근무계획표 기준 */ var jCrew=noOff(CP['착즙']).concat(C4).concat(offOf(CP['착즙']));
+ var mCrew=noOff(CP['배합']).concat(CO).concat(offOf(CP['배합']));
  (function(){var seen={};function bn(x){return String(x&&typeof x==='object'?x.n:x).replace(/\s*\d{1,2}:\d{2}.*$/,'').replace(/\(.*?\)/g,'').replace(/\s+/g,'')}
   function dd(G){return G.map(function(g){var L=(g.names||[]).filter(function(x){var b=bn(x);if(!b||seen[b])return false;seen[b]=1;return true});return L.length?Object.assign({},g,{names:L}):null}).filter(Boolean)}
   /* 4층 근무자는 4층 묶음에만 (착즙팀 · 배합팀 명단에 같이 있어도 4층으로 모음) */
@@ -22037,7 +22040,7 @@ function view(){var M=window.yumLiveModel?yumLiveModel():{juice:[],mix:[],ster:[
    col:dk('<h4>멸균 호기 현황</h4>'+list('멸균',['호기','상태','설비','품목'],M.ster.map(function(x){return [x.t,String(x.st||''),x.sub||'',x.prod||'']}))+(sNote?'<h4>연결</h4>'+sNote:'')+'<h4>멸균팀 업무포털</h4><button type="button" class="lb-diag" data-sdiag>멸균팀 포털에서 받은 자료 보기 · 복사</button>'),
    body:M.ster.map(function(x,i){var at=/AT\s*(\d)/.exec(x.st||'');return row(x,i,'<div class="lb-en"><b>'+E(x.t)+'</b><small>'+E(x.sub||'')+'</small></div>'+chip(short(x.st),x.run)+'<div class="lb-pr">'+(at?'<em class="lb-at">AT'+at[1]+'</em> ':'')+E(x.prod||'—')+'</div>'+pbar(sterProg(x),'#12A39A'),
      kv([['설비',x.t+(x.sub?' ('+x.sub+')':'')],['상태',String(x.st||'').split(' · ')[0]],['자세히',rest(x.st)],['품목',x.prod],['생산 시간',x.pt||''],['진행',(sterProg(x)||{}).t||''],['자료',x.live?'멸균팀 업무포털 실시간':'멸균 일지 · 생산계획']]))}).join('')+(sNote?'<div class="lb-mini-w">멸균팀 포털 연결 확인 필요 ›</div>':''),
-   crew:sCrew},
+   crew:onlyOn(sCrew)},
   {k:'포장',en:'PACKAGING',c:'#3062D8',eq:M.pack,src:srcTag(pst==='ok'||pst==='live'?'ok':'wait',pst==='live'||pst==='ok'?'실시간':'포장 일지 기준',PX.until?'포장팀 포털 공개 자료는 '+PX.until+'까지':''),
    col:dk('<h4>포장 호기 현황</h4>'+list('포장',['호기','상태','생산량','품목'],M.pack.map(function(x){return ['포장 '+(x.h||'')+'호기',(x.lst||(x.stop?'정지':x.ea?(x.run?'생산 중':'기록'):x.on?'생산 중':'일지 없음'))+(x.stop?' · '+x.stop.a+' '+x.stop.why:''),x.ea?Math.round(x.ea).toLocaleString()+'개':'',x.prod||'']}))+(PX.ok&&pst!=='ok'&&pst!=='live'?'<div class="lbd-n">포장팀 포털 공개 자료는 '+E(PX.until)+'까지만 올라와 있어 오늘 생산량은 포장 일지로 표시합니다</div>':'')+'<h4>포장팀 포털</h4><a class="lb-diag" href="https://jaehyun3163-blip.github.io/yonsei/?view=1" target="_blank" rel="noopener">포장팀 포털 보기 전용 화면 열기 ↗ (A~F호기 지금 생산 · 정지 상태)</a>'),
    body:(function(){var mx=Math.max.apply(null,M.pack.map(function(x){return +x.ea||0}).concat([1]));return M.pack.map(function(x,i){var st=x.lst?x.lst:x.stop?'정지':x.ea?(x.run?'생산 중':'기록'):x.on?'생산 중':'일지 없음';
@@ -22048,6 +22051,7 @@ function view(){var M=window.yumLiveModel?yumLiveModel():{juice:[],mix:[],ster:[
       var lab=String(w.team||w.group||w.shift||w.part||'포장팀').trim(),tm=String(w.time||((w.start||w.in)?(w.start||w.in)+'~'+(w.end||w.out||''):'')||'').trim(),on=w.on===true||w.working===true||/근무|출근|on/i.test(String(w.status||''));
       if(!G[lab]){G[lab]={lab:lab,time:'',on:false,names:[]};ord.push(lab)}G[lab].on=G[lab].on||on;G[lab].names.push({n:nm+(w.machine?'('+w.machine+')':'')+(tm?' '+tm:''),on:on})});
      return ord.map(function(k){return G[k]})})()}];
+ C.forEach(function(c){if(c.k==='포장'||/포장/.test(c.t||c.k||''))c.crew=onlyOn(c.crew)});
  var runN=0,allN=0,crewOn=0;C.forEach(function(c){allN+=c.eq.length;runN+=c.eq.filter(function(x){return x.run}).length;c.crew.forEach(function(g){g.names.forEach(function(n){if(typeof n==='object'?n.on:g.on)crewOn++})})});
  var h='<div class="lb"><div class="lb-head"><div><div class="lb-eye"><span class="lb-live"><i></i>LIVE</span>PROCESS STATUS BOARD</div><h2>공정별 현황 <small>착즙 → 배합 → 멸균 → 포장</small></h2></div>'+
   '<div class="lb-sum"><div><small>지금 가동</small><b><span data-n="'+runN+'">0</span><i>/ '+allN+'대</i></b></div><div><small>근무 중</small><b><span data-n="'+crewOn+'">0</span><i>명</i></b></div><div class="lb-clk"><small>'+(new Date().getMonth()+1)+'월 '+new Date().getDate()+'일</small><b id="lb-clock">--:--:--</b></div></div></div>'+
@@ -22165,6 +22169,7 @@ document.head.appendChild(st)})();
 '#lb-root .lb-names{grid-template-columns:repeat(2,minmax(0,1fr))!important}'+
 '#lb-root .lb-names span em{font-style:normal;font-size:11px;color:#94A3B8;font-variant-numeric:tabular-nums;white-space:nowrap}'+
 '#lb-root .lb-sh{font-size:10.5px;font-weight:800;color:#1E3A5F;background:#E8EEF7;border-radius:999px;padding:1px 7px;margin-right:2px}#lb-root .lb-sh.off{color:#64748B;background:#F1F5F9}#lb-root .lb-names span.off{background:#fff!important;color:#94A3B8!important;border-style:dashed}#lb-root .lb-cg.off{margin-top:4px;padding-top:6px;border-top:1px dashed #E2E8F0}'+
+'#lb-root .lb-more2{margin:3px 0 2px}#lb-root .lb-more2>summary{list-style:none;cursor:pointer;font-size:11.5px;font-weight:800;color:#1E3A5F;padding:2px 2px}#lb-root .lb-more2>summary::-webkit-details-marker{display:none}#lb-root .lb-more2>summary::before{content:"▸ "}#lb-root .lb-more2[open]>summary::before{content:"▾ "}#lb-root .lb-more2[open]>summary{color:#64748B}'+
 '#lb-root .lb-names span.on{background:#ECFDF5!important;border-color:#A7F3D0;color:#065F46!important}#lb-root .lb-names span.on b::before{content:"● ";color:#10B981}#lb-root .lb-names span.on em{color:#047857}';
 document.head.appendChild(st)})();
 </script>
