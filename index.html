@@ -22131,5 +22131,21 @@ document.head.appendChild(st);
 })();
 </script>
 
+<script>
+/* 2026-11-17 깜빡임 없애기 — 같은 주소의 화면을 다시 그릴 때(다른 사람이 저장해서 서버 자료가 들어옴 · 자동 갱신)
+   카드 떠오르기 · 숫자 올라가기 같은 처음 움직임을 다시 하지 않고 스크롤 위치도 그대로 둠. 다른 화면으로 이동할 때는 그대로 움직임 */
+(function(){'use strict';if(window.__YUM_QUIET__)return;window.__YUM_QUIET__=1;
+var QUIET=0,QT=null,LASTH=null,_mm=window.matchMedia?window.matchMedia.bind(window):null;
+if(_mm)window.matchMedia=function(q){if(QUIET&&/prefers-reduced-motion/.test(String(q)))return {matches:true,media:q,onchange:null,addListener:function(){},removeListener:function(){},addEventListener:function(){},removeEventListener:function(){},dispatchEvent:function(){return false}};return _mm(q)};
+var st=document.createElement('style');st.textContent='html.yum-quiet #main *,html.yum-quiet #main *::before,html.yum-quiet #main *::after{animation-duration:0s!important;animation-delay:0s!important;transition-duration:0s!important;transition-delay:0s!important}';document.head.appendChild(st);
+function on(){QUIET=1;document.documentElement.classList.add('yum-quiet');clearTimeout(QT);QT=setTimeout(function(){QUIET=0;document.documentElement.classList.remove('yum-quiet')},1800)}
+window.yumQuiet=on;window.addEventListener('hashchange',function(){QUIET=0;clearTimeout(QT);document.documentElement.classList.remove('yum-quiet')});
+function wrap(){if(typeof App==='undefined'||!App.render||App.render.__q)return;var inner=App.render;
+ var w=function(){var h=location.hash,same=LASTH!==null&&h===LASTH;LASTH=h;if(!same)return inner.apply(this,arguments);
+  on();var sx=window.scrollX,sy=window.scrollY;try{return inner.apply(this,arguments)}finally{var fix=function(){if(Math.abs(window.scrollY-sy)>2)window.scrollTo(sx,sy)};try{fix();requestAnimationFrame(fix);setTimeout(fix,60)}catch(e){}}};
+ w.__q=1;App.render=w}
+wrap();setInterval(wrap,1000);window.addEventListener('load',wrap);
+})();
+</script>
 </body>
 </html>
