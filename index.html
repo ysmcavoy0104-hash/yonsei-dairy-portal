@@ -18363,7 +18363,8 @@ function atLevels(D,now){var o={};
  return o}
 function applyLevels(P,LV){P.forEach(function(p){var n='ABCDEF'.indexOf(p.h)+1,L=LV[n];
  var base=String(p.st||'').split(' · ').filter(function(x){return x&&!/^[\d,]+\s*개/.test(x)&&!/^정지 \d+분$/.test(x)}).join(' · ');
- if(L){var v=Math.round(L.v*10)/10;p.lvl=Math.max(0,Math.min(1,v/100));p.st='레벨 '+v+'%'+(L.t?' ('+L.t+')':'')+(p.run?' · 받는 중':'')}
+ p.stx=base;var tail=(/(멸균\s*중|사전\s*가열\s*중|냉각\s*중|예정)/.exec(base)||[])[1];
+ if(L){var v=Math.round(L.v*10)/10;p.lvl=Math.max(0,Math.min(1,v/100));p.st='레벨 '+v+'%'+(L.t?' ('+L.t+')':'')+(tail?' · '+tail:p.run?' · 받는 중':'')}
  else{p.lvl=null;p.st=base&&!/일지 없음/.test(base)?base:'레벨 —'}})}
 /* ───── 그리기 ───── */
 var W=1340,TOP=56,RH=78,NH=64;
@@ -18378,14 +18379,15 @@ function icon(kind,x,y,c,run,lvl){var g='';
  else g='<rect x="'+x+'" y="'+(y+4)+'" width="24" height="16" rx="2" fill="'+(run?c:'#2B3633')+'" opacity="'+(run?.85:1)+'" stroke="#56645F"/><path d="M'+x+' '+(y+9)+' h24 M'+(x+12)+' '+(y+4)+' v5" stroke="#0E1714" stroke-width="1.2"/>';
  return g}
 function node(n,x,y,w,c,kind){var act=n.run,on=n.on,b=act?c:on?'#46544F':'#2B3633';
- return '<g class="fm-n'+(act?' act':'')+((n.code==='ster'||isSteri(n))?' fm-steri':n.code==='plan'?' fm-splan':'')+'" style="--c:'+c+'"><title>'+E(n.t+(n.prod?' · '+n.prod:'')+' · '+n.st)+'</title>'+
+ return '<g class="fm-n'+(act?' act':'')+((n.code==='ster'||isSteri(n))?' fm-steri':isCool(n)?' fm-cool':(n.code==='plan'||(/^p/.test(String(n.k||''))&&/예정/.test(String(n.st||'')+' '+String(n.stx||''))))?' fm-splan':'')+'" style="--c:'+c+'"><title>'+E(n.t+(n.prod?' · '+n.prod:'')+' · '+n.st)+'</title>'+
   '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+NH+'" rx="10" fill="#141D1A" stroke="'+b+'" stroke-width="'+(act?2:1.2)+'"/>'+
   '<circle cx="'+(x+w-11)+'" cy="'+(y+11)+'" r="3.6" fill="'+(act?c:on?'#64748B':'#334155')+'"'+(act?' class="fm-dot"':'')+'/>'+
   '<text x="'+(x+10)+'" y="'+(y+19)+'" class="fm-t">'+E(n.t)+'</text>'+(n.sub?'<text x="'+(x+w-20)+'" y="'+(y+19)+'" class="fm-s" text-anchor="end">'+E(cut(n.sub,10))+'</text>':'')+
   icon(kind,x+10,y+27,c,act,n.lvl)+
   '<text x="'+(x+52)+'" y="'+(y+37)+'" class="fm-p">'+E(cut(n.prod||'—',kind==='j'?11:12))+'</text>'+
   '<text x="'+(x+52)+'" y="'+(y+53)+'" class="fm-st" fill="'+(act?c:'#7C8A85')+'">'+E(cut(n.st,16))+'</text></g>'}
-function isSteri(n){return !!(n&&String(n.k||'').charAt(0)==='s'&&/(멸균\s*중|사전\s*가열|예열|승온|preheat|steriliz)/i.test(String(n.st||'')+' '+String(n.lst||'')))}
+function isCool(n){return !!(n&&/^[sp]/.test(String(n.k||''))&&(n.code==='cool'||/(냉각|cool)/i.test(String(n.st||'')+' '+String(n.lst||'')+' '+String(n.stx||''))))}
+function isSteri(n){return !!(n&&/^[sp]/.test(String(n.k||''))&&/(멸균\s*중|사전\s*가열|예열|승온|preheat|steriliz)/i.test(String(n.st||'')+' '+String(n.lst||'')+' '+String(n.stx||'')))}
 function path(x1,y1,x2,y2,mx){return 'M'+x1+' '+y1+' H'+mx+' V'+y2+' H'+x2}
 function link(d,c,mode,badge,bx,by){if(mode!=='flow')return '';var s='';
  if(mode==='flow')s+='<path d="'+d+'" class="fm-flow" stroke="'+c+'"/>';else if(mode==='on')s+='<path d="'+d+'" class="fm-on" stroke="'+c+'"/>';
@@ -18567,7 +18569,7 @@ var CSS='.fmx{margin:10px 0 2px;display:flex;flex-direction:column;gap:10px;bord
  '.fm-base{fill:none;stroke:#26332F;stroke-width:4;stroke-linejoin:round}.fm-on{fill:none;stroke-width:2.2;opacity:.45;stroke-linejoin:round}'+
  '.fm-flow{fill:none;stroke-width:3.2;stroke-dasharray:9 7;stroke-linecap:round;stroke-linejoin:round;animation:fmflow .9s linear infinite}@keyframes fmflow{from{stroke-dashoffset:16}to{stroke-dashoffset:0}}'+
  '.fm-splan>rect:first-of-type{stroke:#22C55E!important;stroke-width:3!important;animation:fmSplan 1.4s ease-in-out infinite}@keyframes fmSplan{0%,100%{stroke-opacity:1;filter:drop-shadow(0 0 7px rgba(34,197,94,.8))}50%{stroke-opacity:.15;filter:none}}@media (prefers-reduced-motion:reduce){.fm-splan>rect:first-of-type{animation:none}}'+
- '.fm-steri>rect:first-of-type{stroke:#EF4444!important;stroke-width:3!important;animation:fmSteri 1s ease-in-out infinite}@keyframes fmSteri{0%,100%{stroke-opacity:1;filter:drop-shadow(0 0 7px rgba(239,68,68,.85))}50%{stroke-opacity:.15;filter:none}}@media (prefers-reduced-motion:reduce){.fm-steri>rect:first-of-type{animation:none}}'+
+ '.fm-cool>rect:first-of-type{stroke:#3B82F6!important;stroke-width:3!important;animation:fmCool 1.2s ease-in-out infinite}@keyframes fmCool{0%,100%{stroke-opacity:1;filter:drop-shadow(0 0 7px rgba(59,130,246,.85))}50%{stroke-opacity:.15;filter:none}}.fm-steri>rect:first-of-type{stroke:#EF4444!important;stroke-width:3!important;animation:fmSteri 1s ease-in-out infinite}@keyframes fmSteri{0%,100%{stroke-opacity:1;filter:drop-shadow(0 0 7px rgba(239,68,68,.85))}50%{stroke-opacity:.15;filter:none}}@media (prefers-reduced-motion:reduce){.fm-steri>rect:first-of-type{animation:none}}'+
  '.fm-n.act rect{filter:drop-shadow(0 0 6px color-mix(in srgb,var(--c) 45%,transparent))}.fm-dot{animation:fmdot 1.4s ease-in-out infinite}@keyframes fmdot{0%,100%{opacity:1}50%{opacity:.35}}'+
  '.fm-note{font-size:11px;color:#6B7A75;margin-top:6px}@media (prefers-reduced-motion:reduce){.fm-flow,.fm-dot{animation:none}}';
 /* 다른 사람이 일지를 쓰면 몇 초 안에 흐름도 다시 그림 */
@@ -20326,22 +20328,22 @@ function beanCard(D,p,cd,pd,B){var R=[['r','볶음콩','볶음 탈피 공정','#
 function viewJuice(t,D,p){var cd=curDates(D,p),pd=prevDates(D,p),B=buckets(D,p),Jd=function(ds){var L=ds.map(jDay).filter(Boolean);return {use:S2(L.map(function(x){return x.use})),raw:S2(L.map(function(x){return x.raw})),tsN:S2(L.map(function(x){return x.tsN}))||0,tsBad:S2(L.map(function(x){return x.tsBad}))||0,dev:S2(L.map(function(x){return x.dev}))||0,ph:S2(L.map(function(x){return x.prodH})),sh:S2(L.map(function(x){return x.stopH})),has:L.some(function(x){return x.has})}};
  var c=Jd(cd),pv=Jd(pd),F=B[0].ds[0],YR=yRows(F,D),y=YR?ySum(YR,cd):null,yp=YR?ySum(YR,pd):null,qr=c.tsN?(c.tsN-c.tsBad)/c.tsN*100:null,dl=dly(t,D,p);
  var K=[];
- K.push({l:'WT 콩 수율',v:y?y.wt:null,u:'%',d:1,ic:'⚙',lv:'',note:YR?'':'착즙팀 포털 연동 대기',ch:y&&yp?chg(y.wt,yp.wt,'up'):'',tip:'두유 Output ÷ 대두 투입량 × 100 · 착즙팀 포털 두유수율 (WT1~4 · 계획표 없는 WT 포함)'});
- K.push({l:'데칸타 콩 수율',v:y?y.dc:null,u:'%',d:1,ic:'🌀',lv:'',note:YR?'':'착즙팀 포털 연동 대기',ch:y&&yp?chg(y.dc,yp.dc,'up'):'',tip:'두유 Output ÷ 대두 투입량 × 100 · 착즙팀 포털 두유수율'});
+ K.push({l:'WT 콩 수율',v:y&&y.wt!=null?y.wt/100:null,u:'kg',d:2,ic:'⚙',lv:'',note:YR?(y&&y.wt!=null?'대두 1kg당 두유 · 두유수율 '+fm(y.wt,1)+'%':''):'착즙팀 포털 연동 대기',ch:y&&yp?chg(y.wt,yp.wt,'up'):'',tip:'대두 1kg으로 만든 두유 kg (두유 Output ÷ 대두 투입량) · 착즙팀 포털 두유수율 ÷ 100 · WT1~4 · 계획표 없는 WT 포함'});
+ K.push({l:'데칸타 콩 수율',v:y&&y.dc!=null?y.dc/100:null,u:'kg',d:2,ic:'🌀',lv:'',note:YR?(y&&y.dc!=null?'대두 1kg당 두유 · 두유수율 '+fm(y.dc,1)+'%':''):'착즙팀 포털 연동 대기',ch:y&&yp?chg(y.dc,yp.dc,'up'):'',tip:'대두 1kg으로 만든 두유 kg (두유 Output ÷ 대두 투입량) · 착즙팀 포털 두유수율 ÷ 100'});
  K.push({l:'대두 사용량',v:c.use,u:'kg',ic:'🫘',ch:chg(c.use,pv.use,'up'),note:PLONG[p]});
  if(c.raw)K.push({l:'원액 생산',v:c.raw,u:'kg',ic:'🥛',ch:chg(c.raw,pv.raw,'up'),note:'원액 생산일'});
  var rb=beanAgg(cd,'r'),rbp=beanAgg(pd,'r'),ry=rb.use&&rb.prod?rb.prod/rb.use*100:null,ryp=rbp.use&&rbp.prod?rbp.prod/rbp.use*100:null;
  K.push({l:'볶음콩 수율',v:ry,u:'%',d:1,g:ry!=null?Math.min(1,ry/100):0,c:'#D97706',lv:'',ch:ry!=null&&ryp!=null?chg(ry,ryp,'up'):'',note:ry==null?'볶음 탈피 일지 필요':'',tip:'볶음콩 생산량(실 생산량) ÷ 금일 투입량 · 볶음 탈피 공정 작업 일보'});
  K.push({l:'기준 이탈',v:c.has?c.dev:null,u:'건',ic:'⚠',lv:c.has?(c.dev?'r':'g'):''});
  /* 공정 흐름 */
- var node=function(ic,l,v,u,col,sub,dly2){return '<div class="c2-n" style="--c:'+col+';--d:'+(dly2||0)+'ms"><em>'+ICO(ic)+'</em><small>'+l+'</small><b data-n="'+(v==null||v===''?'':v)+'" data-d="'+(u==='%'?1:0)+'">'+(v==null||v===''?'—':'0')+'</b><span>'+u+'</span>'+(sub?'<p>'+sub+'</p>':'')+'</div>'};
+ var node=function(ic,l,v,u,col,sub,dly2){return '<div class="c2-n" style="--c:'+col+';--d:'+(dly2||0)+'ms"><em>'+ICO(ic)+'</em><small>'+l+'</small><b data-n="'+(v==null||v===''?'':v)+'" data-d="'+(u==='%'?1:(v!=null&&v!==''&&+v%1?2:0))+'">'+(v==null||v===''?'—':'0')+'</b><span>'+u+'</span>'+(sub?'<p>'+sub+'</p>':'')+'</div>'};
  var pipe=function(cls){return '<div class="c2-p '+(cls||'')+'"><i></i><i></i><i></i></div>'};
  var flow='<div class="c2-flow">'+node('🫘','대두 투입',c.use,'kg','#F59E0B','',0)+pipe()+'<div class="c2-split">'+
-  '<div class="c2-br">'+node('⚙','WT 수율',y?y.wt:null,'%','#34D399','분리유액 → 배합',150)+pipe('g')+node('🧪','분리유액','','','#34D399','배합 1~5호기',300)+'</div>'+
-  '<div class="c2-br">'+node('🌀','데칸타 수율',y?y.dc:null,'%','#60A5FA','원액',150)+pipe('b')+node('🥛','원액',c.raw||null,c.raw?'kg':'','#60A5FA',c.raw?'저장탱크 · SILO':'생산 없음',300)+'</div></div></div>'+
+  '<div class="c2-br">'+node('⚙','WT 수율 (대두 1kg당)',y&&y.wt!=null?+(y.wt/100).toFixed(2):null,'kg','#34D399','분리유액 → 배합',150)+pipe('g')+node('🧪','분리유액','','','#34D399','배합 1~5호기',300)+'</div>'+
+  '<div class="c2-br">'+node('🌀','데칸타 수율 (대두 1kg당)',y&&y.dc!=null?+(y.dc/100).toFixed(2):null,'kg','#60A5FA','원액',150)+pipe('b')+node('🥛','원액',c.raw||null,c.raw?'kg':'','#60A5FA',c.raw?'저장탱크 · SILO':'생산 없음',300)+'</div></div></div>'+
   (YR?'':'<div class="c2-wait">WT · 데칸타 수율은 착즙팀 포털의 날짜별 콩 투입 · 생산량을 받으면 자동으로 채워집니다</div>');
  /* 추이: 수율 (막대 WT · 선 데칸타) 또는 대두 사용량 */
- var tr=YR?chart(B,B.map(function(b){return ySum(YR,b.ds).wt}),'#34D399','%',{v:B.map(function(b){return ySum(YR,b.ds).dc}),c:'#60A5FA',l:'데칸타 수율',bl:'WT 수율'}):chart(B,B.map(function(b){return Jd(b.ds).use}),'#F59E0B','kg',{v:B.map(function(b){var z=Jd(b.ds);return z.tsN?(z.tsN-z.tsBad)/z.tsN*100:null}),c:'#A78BFA',l:'품질 적합률 %',bl:'대두 사용량'});
+ var tr=YR?chart(B,B.map(function(b){var z=ySum(YR,b.ds).wt;return z==null?null:z/100}),'#34D399','kg',{v:B.map(function(b){var z=ySum(YR,b.ds).dc;return z==null?null:z/100}),c:'#60A5FA',l:'데칸타 (대두 1kg당 두유 kg)',u:'kg',bl:'WT (대두 1kg당 두유 kg)'}):chart(B,B.map(function(b){return Jd(b.ds).use}),'#F59E0B','kg',{v:B.map(function(b){var z=Jd(b.ds);return z.tsN?(z.tsN-z.tsBad)/z.tsN*100:null}),c:'#A78BFA',l:'품질 적합률 %',bl:'대두 사용량'});
  var td=[];if(c.dev)td.push(['r','품질 기준 이탈 '+c.dev+'건',jDay(D)&&jDay(D).devL.slice(0,2).map(function(x){return x.item+' '+fm(x.val,2)}).join(' · ')]);
  if(y&&yp&&y.wt!=null&&yp.wt&&y.wt<yp.wt*0.97)td.push(['a','WT 수율 '+fm((1-y.wt/yp.wt)*100,0)+'% 하락','이전 '+fm(yp.wt,1)+'% → '+fm(y.wt,1)+'%']);
  if(y&&yp&&y.dc!=null&&yp.dc&&y.dc<yp.dc*0.97)td.push(['a','데칸타 수율 '+fm((1-y.dc/yp.dc)*100,0)+'% 하락','이전 '+fm(yp.dc,1)+'% → '+fm(y.dc,1)+'%']);
@@ -21956,7 +21958,7 @@ var TI={'착즙':'<path d="M12 4.2c3.6 0 6.3 3.2 6.3 7.3 0 4.6-2.9 8.3-6.3 8.3S5
  '포장':'<path d="M12 3.2 20 7.4v9.2L12 20.8 4 16.6V7.4z"/><path d="M4 7.4 12 11.6l8-4.2"/><path d="M12 11.6v9.2"/>'};
 function med(k){return '<span class="lb-med"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#E8D3A5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'+TI[k]+'</svg></span>'}
 function chip(st,run){var t=tone(st,run);return '<span class="lb-st '+t+'">'+(t==='g'?'<i></i>':'')+E(st||'기록 없음')+'</span>'}
-function rows(list,fn){return list.map(function(x,i){return '<div class="lb-eq'+(x.run?' run':'')+(x.code==='ster'?' steri':x.code==='plan'&&x.k&&/^s/.test(x.k)?' splan':'')+'" style="--d:'+(i*60)+'ms">'+fn(x)+'</div>'}).join('')}
+function rows(list,fn){return list.map(function(x,i){return '<div class="lb-eq'+(x.run?' run':'')+(x.code==='ster'?' steri':(x.code==='cool'||(x.k&&/^s/.test(x.k)&&/냉각/.test(String(x.st||''))))?' cool':x.code==='plan'&&x.k&&/^s/.test(x.k)?' splan':'')+'" style="--d:'+(i*60)+'ms">'+fn(x)+'</div>'}).join('')}
 function crewHtml(groups){if(!groups.length)return '<div class="lb-none">오늘 근무 기록이 없습니다</div>';
  /* 2026-11-17 근무표 통일: 팀 이름 → 근무 시간 묶음(위) → 그 시간 근무자 이름(아래) */
  return groups.map(function(g){var B={},ord=[];
@@ -22010,7 +22012,7 @@ function view(){var M=window.yumLiveModel?yumLiveModel():{juice:[],mix:[],ster:[
  function kv(L){return '<table class="lbd-t">'+L.filter(function(x){return x&&x[1]!=null&&String(x[1])!==''}).map(function(x){return '<tr><th>'+E(x[0])+'</th><td>'+(x[2]?x[1]:E(x[1]))+'</td></tr>'}).join('')+'</table>'}
  function short(st){st=String(st||'').split(' · ')[0];return st.length>9?st.slice(0,8)+'…':st}
  function rest(st){return String(st||'').split(' · ').slice(1).join(' · ')}
- function row(x,i,body,detail){var k=dk(detail);return '<div class="lb-eq'+(x.run?' run':'')+(x.code==='ster'?' steri':x.code==='plan'&&x.k&&/^s/.test(x.k)?' splan':'')+'" style="--d:'+(i*60)+'ms" data-lbd="'+k+'" tabindex="0" role="button" title="눌러서 자세히">'+body+'</div>'}
+ function row(x,i,body,detail){var k=dk(detail);return '<div class="lb-eq'+(x.run?' run':'')+(x.code==='ster'?' steri':(x.code==='cool'||(x.k&&/^s/.test(x.k)&&/냉각/.test(String(x.st||''))))?' cool':x.code==='plan'&&x.k&&/^s/.test(x.k)?' splan':'')+'" style="--d:'+(i*60)+'ms" data-lbd="'+k+'" tabindex="0" role="button" title="눌러서 자세히">'+body+'</div>'}
  function list(T,head,L){return '<table class="lbd-l"><thead><tr>'+head.map(function(h){return '<th>'+E(h)+'</th>'}).join('')+'</tr></thead><tbody>'+L.map(function(r){return '<tr>'+r.map(function(c,ci){return '<td'+(ci===1?' class="st"':'')+'>'+E(c==null?'':c)+'</td>'}).join('')+'</tr>'}).join('')+'</tbody></table>'}
  /* 착즙: 빈쿠커 #1~#4 항상 4줄 · 번호 순 */
  var jAll=[1,2,3,4].map(function(c){var nm='빈쿠커 #'+c,f=(jEq||[]).filter(function(x){return x.t===nm})[0]||(M.juice||[]).filter(function(x){return x.t===nm})[0];return f||{t:nm,sub:'',st:'미가동',run:false,prod:''}});
@@ -22110,7 +22112,7 @@ var st=document.createElement('style');st.textContent=
  '.pm-tabs{display:flex;gap:6px;margin:0 0 12px}.pm-tabs button{padding:8px 16px;border-radius:999px;border:1px solid #E5E9F2;background:#fff;font-weight:800;font-size:13px;color:#0F172A;cursor:pointer;transition:all .25s}.pm-tabs button.on{background:linear-gradient(135deg,#0A1530,#12244A);color:#fff;border-color:#C8A15A;box-shadow:0 8px 18px -10px rgba(10,21,48,.8)}#lb-root.hide,#fm-wrap.hide{display:none}'+
  '@media (max-width:1300px){.lb-grid{grid-template-columns:1fr 1fr;gap:12px}.lb-arrow{display:none}}@media (max-width:700px){.lb-grid{grid-template-columns:1fr}.lb-head{padding:16px}.lb-head h2{font-size:22px}.lb-head h2 small{display:block;margin:4px 0 0;font-size:12px}.lb-sum{width:100%;gap:6px}.lb-sum>div{flex:1;min-width:0;padding:8px 10px}.lb-sum b{font-size:20px}.lb-clk b{font-size:16px}}'+
  '.lb-eq.splan{border:2px solid #22C55E!important;animation:lbSplan 1.4s ease-in-out infinite!important}@keyframes lbSplan{0%,100%{border-color:#22C55E;box-shadow:0 0 0 3px rgba(34,197,94,.22)}50%{border-color:rgba(34,197,94,.12);box-shadow:none}}'+
-'.lb-eq.steri{border:2px solid #EF4444!important;animation:lbSteri 1s ease-in-out infinite!important}@keyframes lbSteri{0%,100%{border-color:#EF4444;box-shadow:0 0 0 3px rgba(239,68,68,.22)}50%{border-color:rgba(239,68,68,.12);box-shadow:none}}'+
+'.lb-eq.cool{border:2px solid #3B82F6!important;animation:lbCool 1.2s ease-in-out infinite!important}@keyframes lbCool{0%,100%{border-color:#3B82F6;box-shadow:0 0 0 3px rgba(59,130,246,.22)}50%{border-color:rgba(59,130,246,.15);box-shadow:none}}.lb-eq.steri{border:2px solid #EF4444!important;animation:lbSteri 1s ease-in-out infinite!important}@keyframes lbSteri{0%,100%{border-color:#EF4444;box-shadow:0 0 0 3px rgba(239,68,68,.22)}50%{border-color:rgba(239,68,68,.12);box-shadow:none}}'+
 '@media (prefers-reduced-motion:reduce){.lb *{animation:none!important;transition:none!important}.lb-col,.lb-eq{opacity:1!important;transform:none!important}}';
 document.head.appendChild(st);
 })();
