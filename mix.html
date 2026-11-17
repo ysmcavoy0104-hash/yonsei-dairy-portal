@@ -372,13 +372,21 @@ function catOf(p){p=p||'';return /고단백|단백질|프로틴|HSM|하이셰어
 function liq(p){p=p||'';return /딸기/.test(p)?'#F7A1B8':/초코|코코아/.test(p)?'#8B5A3C':/바나나/.test(p)?'#FCE38A':/커피/.test(p)?'#B08968':/녹차|말차/.test(p)?'#A3C585':isSoy(p)?'#DCC199':/오렌지|감귤/.test(p)?'#FDBA74':/포도/.test(p)?'#7E3F98':/사과|음료|주스/.test(p)?'#FCD34D':'#FFFDF5'}
 /* 두유류: 이름에 두유가 없어도 두유인 제품 (A2 프로틴 · 이롬 블랙오곡 등) */
 /* 분리유액(두유 원액)이 들어오는 제품: 이름에 두유 · 콩 · 아(몬드)&잣 · 호두 · 칼마디 … 이 있거나, 생산계획표 규격에 WT · 데칸타 / 원료 두유 · 콩으로 등록된 품목 (2026-11-16) */
-var SOYRE=/두유|프로틴|오곡|이롬|콩|아\s*&?\s*잣|아몬드\s*&\s*잣|호두|칼마디|진득찰|서리태|약콩/i,SOYC={};
+var SOYRE=/두유|프로틴|오곡|이롬|콩|참두|베지밀|아\s*&?\s*잣|아몬드\s*&\s*잣|호두|칼마디|진득찰|서리태|약콩/i,SOYC={};
 function isSoy(p){p=String(p||'');if(!p)return false;if(SOYRE.test(p))return true;if(p in SOYC)return SOYC[p];var r=false;
  try{var S=(DATA&&DATA.planSpec)||{},toks=p.replace(/\[[^\]]*\]|\([^)]*\)|\d+\s*m[lL]/g,' ').split(/[\s·,/]+/).map(function(t){return t.replace(/[^가-힣A-Za-z0-9&]/g,'')}).filter(function(t){return t.length>=2});
-  if(toks.length)Object.keys(S).some(function(c){var s=S[c]||{},n=String(s.name||'').replace(/\s+/g,'');if(!n||!(s.wt||/두유|콩|원액/.test(s.material||'')))return false;if(toks.every(function(t){return n.indexOf(t)>=0||n.replace(/아몬드/g,'아').indexOf(t.replace(/아몬드/g,'아'))>=0})){r=true;return true}return false})}catch(e){}
+  var soyS=function(s){return !!(s.wt||/두유|콩|대두|원액|분리/.test(s.material||'')||SOYRE.test(String(s.name||'')))};
+  var cd=/\b(1\d{4})\b/.exec(p);if(cd&&S[cd[1]]&&soyS(S[cd[1]])){SOYC[p]=true;return true}
+  [toks,toks.slice(1)].some(function(TK){if(!TK.length)return false;return Object.keys(S).some(function(c){var s=S[c]||{},n=String(s.name||'').replace(/\s+/g,'');if(!n||!soyS(s))return false;if(TK.every(function(t){return n.indexOf(t)>=0||n.replace(/아몬드/g,'아').indexOf(t.replace(/아몬드/g,'아'))>=0})){r=true;return true}return false})});
+  if(0)Object.keys(S).some(function(c){var s=S[c]||{},n=String(s.name||'').replace(/\s+/g,'');if(!n||!(s.wt||/두유|콩|원액/.test(s.material||'')))return false;if(toks.every(function(t){return n.indexOf(t)>=0||n.replace(/아몬드/g,'아').indexOf(t.replace(/아몬드/g,'아'))>=0})){r=true;return true}return false})}catch(e){}
  SOYC[p]=r;return r}
 function only2(L,p){return (L.h===2||L.h===3)&&!isSoy(p)&&/멸균|흰우유|A2|락토프리|전용목장/i.test(p||'')}
 /* 생산계획표(PDF 변환 결과) — 오늘 이 호기(멸균 N호기 = 배합 N호기)에 잡힌 품목 */
+/* 2026-11-17 오늘 생산계획표의 그 호기 품목 코드 → 규격표 원료가 두유 · 볶은콩 · 대두면 분리유액 받는 호기 */
+function planSoy(h,prod){try{var S=(DATA&&DATA.planSpec)||{},it=planToday(h).items||[];if(!it.length)return false;
+ var soy=function(x){var sp=S[x.code]||{};return !!(sp.wt||/두유|콩|대두|원액|분리/.test(sp.material||'')||SOYRE.test(sp.name||x.name||''))},sy=it.filter(soy);if(!sy.length)return false;if(sy.length===it.length)return true;
+ var tk=String(prod||'').replace(/\[[^\]]*\]|\([^)]*\)/g,' ').split(/[\s·,/]+/).map(function(t){return t.replace(/[^가-힣A-Za-z0-9&]/g,'')}).filter(function(t){return t.length>=2});
+ return sy.some(function(x){var n=String((S[x.code]||{}).name||x.name||'').replace(/\s+/g,'');return tk.some(function(t){return n.indexOf(t)>=0})})}catch(e){return false}}
 function planToday(h){var W=(DATA&&DATA.planWeeks)||{},S=(DATA&&DATA.planSpec)||{},n=new Date(),lbl=(n.getMonth()+1)+'/'+n.getDate(),best=null;
  Object.keys(W).forEach(function(k){var w=W[k];if(!w||!w.rows||w.rows.indexOf(lbl)<0)return;if(!best||(w.uploadedAt||0)>(best.uploadedAt||0))best=w});
  if(!best)return {week:false,items:[],maint:false};var cells=best.cells||{};cells=Array.isArray(cells)?cells:Object.keys(cells).map(function(k){return cells[k]});
@@ -464,7 +472,7 @@ var SIM={recv0:6*60+30,mix0:7*60+30,ratio:.4};
 function simFlow(L){return L.cap>=8000?5100:4000}
 function simMixMin(prod){return catOf(prod)==='C'?60:30}
 function simTank(L,prod,i,m){
- var soy=isSoy(prod)&&L.h!==3,F=simFlow(L),recv=SIM.ratio*L.cap/F*60,rs=SIM.recv0+i*recv,re=rs+recv,mm=simMixMin(prod);
+ var soy=(isSoy(prod)||planSoy(L.h,prod))&&L.h!==3,F=simFlow(L),recv=SIM.ratio*L.cap/F*60,rs=SIM.recv0+i*recv,re=rs+recv,mm=simMixMin(prod);
  var ms=SIM.mix0+i*mm;if(soy)ms=Math.max(ms,re);var me=ms+mm,SOYC='#C8955B',o={sim:true,batch:{label:(i+1)+'B',prod:prod}};
  if(soy&&m<rs){o.state='원액 투입 예정';o.color='var(--empty)';o.sub=hh(rs)+' 분리유액 투입 예정';o.eta=rs;o.stepText='분리유액 투입 시작 (상단 주입)'}
  else if(soy&&m<re){var q=(m-rs)/recv;o.state='원액 투입 중';o.color='#A16207';o.fill=SOYC;o.pour=true;o.hot=true;o.level=Math.max(.04,SIM.ratio*q);o.prog=q;o.progTxt='원액';
@@ -535,7 +543,7 @@ function computeLive(){
   var movEnd=null;P.batches.forEach(function(b){if(b.tmov!=null&&b.tmov+mm>m)movEnd=Math.max(movEnd||0,b.tmov+mm)});
   /* 2026-11-16 연속 작업: 이송이 끝난 탱크에 다음 배치(예: 1B 탱크 → 4B)를 이어서 「예상」으로 표시
      두유는 분리유액 투입(용량 약 40%) → 배합 · 혼합 → 이송 대기 순서 · 일지에 그 배치를 적으면 실제 기록으로 바뀜 */
-  function projNext(o,ni,t0){var soy=isSoy(P.product)&&L.h!==3,F=simFlow(L),recv=soy?SIM.ratio*L.cap/F*60:0,lb=(ni+1)+'B';
+  function projNext(o,ni,t0){var soy=(isSoy(P.product)||planSoy(L.h,P.product))&&L.h!==3,F=simFlow(L),recv=soy?SIM.ratio*L.cap/F*60:0,lb=(ni+1)+'B';
    if(t0==null){var rec=P.batches.filter(function(x){return x.tin!=null&&x.i<ni}).sort(function(a,b){return b.i-a.i})[0];t0=rec?Math.max(m,rec.tin+(ni-rec.i)*Math.max(recv,10)):m+ni*Math.max(recv,10)}
    var ms=t0+recv,me=ms+avgMix;o.batch={i:ni,label:lb,prod:P.product,tmix:me,est:true};o.est=true;o.progTxt='예상';o.title='예상 — 이 배치를 일지에 적으면 실제 기록으로 바뀝니다';
    if(soy&&m<ms){var q=Math.max(0,(m-t0)/Math.max(1,recv));o.state='원액 투입 중';o.color='#A16207';o.fill='#C8955B';o.pour=true;o.hot=true;o.level=Math.max(.04,SIM.ratio*q);o.prog=q;o.sub=lb+' 분리유액 투입 (예상) · '+hh(ms)+' 배합 시작';o.eta=ms}
@@ -646,7 +654,7 @@ function lfTop(x){var T=x.tanks,n=T.length,xs=T.map(function(t,i){return (i+.5)/
  var mi=x.mixT?T.indexOf(x.mixT):-1,p=x.mixT?x.mixT.mixP:null,stg=mi<0?-1:(p==null?3:p<1/3?0:p<2/3?1:2),ri=x.recvT?T.indexOf(x.recvT):-1;
  var c=function(k,ic,t,on,sub){return '<span class="lf-c'+(on?' on':'')+'">'+LF_IC[ic]+'<b>'+t+'</b>'+(sub?'<small>'+sub+'</small>':'')+'</span>'};
  var chips='<div class="lf-chips">'+c('rm','rm','래피드 믹서',stg===0||stg===3)+'<i class="lf-ar'+(stg>=1?' on':'')+'"></i>'+c('ad','ad','첨가물 탱크',stg===1||stg===3)+'<i class="lf-ar'+(stg>=2?' on':'')+'"></i>'+
-  (isSoy(x.P.product)&&x.L.h!==3?'<span class="lf-c soy'+(ri>=0?' on':'')+'">'+LF_IC.ad+'<b>분리유액</b><small>착즙</small></span>':'')+'</div>';
+  ((isSoy(x.P.product)||planSoy(x.L.h,x.P.product))&&x.L.h!==3?'<span class="lf-c soy'+(ri>=0?' on':'')+'">'+LF_IC.ad+'<b>분리유액</b><small>착즙</small></span>':'')+'</div>';
  var g='<line x1="0" y1="5" x2="'+xs[n-1]+'" y2="5" class="lf-b"/>'+xs.map(function(X,i){return '<line x1="'+X+'" y1="5" x2="'+X+'" y2="26" class="lf-b'+(T[i].off?' off':'')+'"/>'}).join('');
  if(mi>=0&&stg>=2)g+='<path d="M0 5 H'+xs[mi]+' V26" class="lf-f mix"/>';
  if(ri>=0)g+='<path d="M300 5 H'+xs[ri]+' V26" class="lf-f soy"/>';
