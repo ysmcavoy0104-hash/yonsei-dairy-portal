@@ -13732,7 +13732,7 @@ var CSS='.pd-tag{display:inline-block;padding:1px 8px;border-radius:999px;font-s
  '@media print{.pd-act,.pd-srcs{display:none}.pd-c,.pd-k{break-inside:avoid}}';
 function css(){if(document.getElementById('pd-css'))return;var s=document.createElement('style');s.id='pd-css';s.textContent=CSS;document.head.appendChild(s)}
 function paint(){var b=document.getElementById('pd-dash');if(!b)return;var k=b.getAttribute('data-k');var sig=DB.data.docs.length+':'+(st[k].date||'')+':'+((DB.data.docs[0]||{}).updatedAt||'');if(b.getAttribute('data-sig')===sig)return;css();try{render(b)}catch(e){console.error('[공정 대시보드]',e);b.innerHTML='<div class="pd-empty">대시보드를 그리지 못했습니다: '+esc(e.message)+'</div>'}b.setAttribute('data-sig',sig)}
-window.yumProcDash={pick:function(k,d){st[k].date=d;var b=document.getElementById('pd-dash');if(b)b.removeAttribute('data-sig');paint()},
+window.yumPDx={mixDay:mixDay,juiceDay:juiceDay,packDay:packDay,dates:dates,byDate:byDate,formSum:formSum,DEF:DEF};window.yumProcDash={pick:function(k,d){st[k].date=d;var b=document.getElementById('pd-dash');if(b)b.removeAttribute('data-sig');paint()},
  print:function(){var b=document.getElementById('pd-dash');if(!b)return;var w=window.open('','_blank');if(!w){alert('팝업이 차단되었습니다');return}
   w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc((b.querySelector('h2')||{}).textContent||'공정 분석')+'</title><style>body{font-family:"Malgun Gothic",sans-serif;margin:12mm}'+CSS+'</style></head><body>'+b.innerHTML+'</body></html>');w.document.close();setTimeout(function(){w.print()},400)},
  day:function(k,d){return k==='mix'?mixDay(d):k==='pack'?packDay(d):juiceDay(d)},render:paint};
@@ -19355,6 +19355,7 @@ function pkKpiParse(rows){var out=[],MON=['3월','4월','5월','6월','7월','8�
 
 var PKKPI={"title":"상온포장 2026 KPI (3~7월 실적 집계)","items":[{"team":"1·2팀","name":"인시생산성","aggLabel":"평균","col3":"전년실적","subs":[],"note":"","targetT":"5400","target":5400,"prevT":"5046","prev":5046,"m":[5466,5331,5367,4855,5078,5063,5141.11294579414,4960,null,null,null,null],"mT":["5466","5331","5367","4855","5078","5063","5141.11294579414","4960","","","",""],"agg":5157.639118224268,"rate":[1.0122222222222221,0.9872222222222222,0.9938888888888889,0.899074074074074,0.9403703703703704,0.9375925925925926,0.9520579529248406,0.9185185185185185,0,0,0,0],"rateAgg":0.9551183552267163},{"team":"1·2팀","name":"수선비 절감 (TPPC)","aggLabel":"합계","col3":"설비","subs":[{"eq":"B호기","target":null,"m":[43918184,null,7276507,null,null,null,16784118,null,null,null,null,null],"agg":67978809},{"eq":"C호기","target":null,"m":[null,null,null,null,null,null,null,null,null,null,null,null],"agg":0},{"eq":"D호기","target":null,"m":[8690872,null,null,71827905,null,null,null,null,null,null,null,null],"agg":80518777},{"eq":"F호기","target":null,"m":[null,null,null,null,null,null,null,null,null,null,null,null],"agg":0}],"note":"","targetT":"2,04억","target":null,"prevT":"B호기","prev":null,"m":[52609056,0,7276507,71827905,0,0,16784118,0,0,0,0,0],"agg":148497586,"rate":0.72},{"team":"1·2팀","name":"폐기손감축","aggLabel":"합계","col3":"전년실적","subs":[],"note":"","targetT":"1.06억","target":null,"prevT":"2.57억","prev":null,"m":[null,null,null,null,null,null,null,null,null,null,null,null],"mT":["","","","","","","","","","","",""],"agg":null},{"team":"1팀","name":"충전기가동률","aggLabel":"합계","col3":"설비","subs":[{"eq":"A호기","target":89.27,"m":[90.25,88.58,82.95,80.61,86.46,85.25,80.07,85.67,null,null,null,null],"agg":84.97999999999998},{"eq":"B호기","target":98.68,"m":[96.28,97.95,97.4,98.31,94.39,93.98,98.71,97.81,null,null,null,null],"agg":96.85374999999999},{"eq":"C호기","target":96.86,"m":[99.72,90.92,96.75,95.73,98.64,93.81,95.42,93.8,null,null,null,null],"agg":95.59874999999998},{"eq":"D호기","target":97.78,"m":[98.95,97.72,95.14,98.29,97.86,97.54,98.77,96.19,null,null,null,null],"agg":97.5575},{"eq":"E호기","target":81.34,"m":[82.5,84.43,89.62,89.26,88.74,81.48,87.62,88.07,null,null,null,null],"agg":86.465},{"eq":"F호기","target":88.68,"m":[94.78,92.61,91.71,87.93,84.8,90.51,92.71,83.2,null,null,null,null],"agg":89.78125000000001}],"note":"","targetT":"89.27","target":89.27,"prevT":"A호기","prev":null,"m":[93.74666666666667,92.03499999999998,92.26166666666667,91.68833333333335,91.815,90.42833333333334,92.21666666666665,90.79,null,null,null,null],"agg":null},{"team":"2팀","name":"원가절감","aggLabel":"합계","col3":"","subs":[],"note":"","targetT":"50000000","target":50000000,"prevT":"","prev":null,"m":[44500000,null,null,null,2771000,10684320,2453200,null,null,null,null,null],"mT":["44500000","","","","2771000","10684320","2453200","","","","",""],"agg":60408520,"rate":[null,null,null,null,null,1.159,1.2081704,null,null,null,null,null],"rateAgg":null},{"team":"1팀","name":"테트라팩수율","aggLabel":"평균","col3":"전년실적","subs":[],"note":"","targetT":"0.9917","target":0.9917,"prevT":"0.9907","prev":0.9907,"m":[0.994,0.9891,0.992,0.9905,0.9883,0.99,0.9889,0.9862,null,null,null,null],"mT":["0.994","0.9891","0.992","0.9905","0.9883","0.99","0.9889","0.9862","","","",""],"agg":0.9899666666666668},{"team":"1팀","name":"콤비팩수율","aggLabel":"평균","col3":"전년실적","subs":[],"note":"","targetT":"0.9947","target":0.9947,"prevT":"0.9937","prev":0.9937,"m":[0.9951,0.9942,0.9944,0.9959,0.9948,0.9918,0.9945,0.9931,null,null,null,null],"mT":["0.9951","0.9942","0.9944","0.9959","0.9948","0.9918","0.9945","0.9931","","","",""],"agg":0.9941666666666666},{"team":"2팀","name":"부자재수율","aggLabel":"평균","col3":"전년실적","subs":[],"note":"","targetT":"0.99","target":0.99,"prevT":"","prev":null,"m":[0.9726,0.989,0.9924,0.985,0.983,0.985,0.9707,null,null,null,null,null],"mT":["0.9726","0.989","0.9924","0.985","0.983","0.985","0.9707","","","","",""],"agg":0.9825285714285714},{"team":"2팀","name":"E호기 선물 안정화","aggLabel":"평균","col3":"능력","subs":[],"note":"","targetT":"20400","target":20400,"prevT":"24000","prev":24000,"m":[19744,19130,null,null,null,null,null,null,null,null,null,null],"mT":["19744","19130","–","–","–","–","–","","","","",""],"agg":19437},{"team":"2팀","name":"A,B호기 선물 안정화","aggLabel":"평균","col3":"능력","subs":[],"note":"","targetT":"21600","target":21600,"prevT":"24000","prev":24000,"m":[14266,18410,17796,17317,19010,18936,17396,18430,null,null,null,null],"mT":["14266","18410","17796","17317","19010","18936","17396","18430","","","",""],"agg":17695.125,"rate":[0.6604629629629629,0.8523148148148149,0.8238888888888889,0.801712962962963,0.8800925925925925,0.8766666666666667,0.8053703703703704,0.8532407407407407,0,0,0,0],"rateAgg":0.81921875},{"team":"1팀","name":"A3/SH 업스피드","aggLabel":"평균","col3":"능력","subs":[],"note":"","targetT":"26500","target":26500,"prevT":"26500","prev":26500,"m":[null,null,null,null,null,null,null,null,null,null,null,null],"mT":["","","","","","","","D호기 ","","","",""],"agg":null,"rate":[null,null,null,null,null,null,null,0.9706,null,null,null,null],"rateAgg":null},{"team":"1·2팀","name":"생산시간단축","aggLabel":"평균","col3":"합계","subs":[],"note":"A · B","targetT":"30분","target":null,"prevT":"511/533","prev":null,"m":[null,null,null,null,null,null,null,null,null,null,null,null],"mT":["121/123","122/124","135/143","133/143","148/161","147/155","124/128","129/137","","","",""],"agg":null,"rate":[0.9837,0.9839,0.944,0.93,0.9192,0.9484,0.9688,0.9416,null,null,null,null],"rateAgg":0.9531444444444445},{"team":"1·2팀","name":"클레임예방","aggLabel":"평균","col3":"합계","subs":[],"note":"","targetT":"0.08ppm","target":null,"prevT":"14/23,760,0340","prev":null,"m":[null,null,null,null,null,null,null,null,null,null,null,null],"mT":["2/38,138,720","1/35,825,193","0/39,449,649","5/36,233,751","0/41458239","6/42487072","","","","","",""],"agg":null,"rate":[0.052,0.028,0,0.13,0,0.14,null,null,null,null,null,null],"rateAgg":0.05833333333333334},{"team":"1·2팀","name":"산업재해발생건수","aggLabel":"합계","col3":"전년실적","subs":[],"note":"","targetT":"0건","target":null,"prevT":"2건","prev":null,"m":[null,null,1,1,1,0,null,1,null,null,null,null],"mT":["","","1","1","1","0","","1","","","",""],"agg":4}]};
 function pkKpiData(){var d=DB.data.pkKpi;return d&&d.items&&d.items.length?d:PKKPI}
+window.yumPkKpi=pkKpiData;
 function pkNum(t){if(t==null)return null;if(typeof t==='number')return t;var s=String(t),m=/([\d.,]+)\s*억/.exec(s);if(m)return parseFloat(m[1].replace(',','.'))*1e8;m=/-?\d+(\.\d+)?/.exec(s.replace(/,/g,''));return m?+m[0]:null}
 var PKT='all';
 /* 2026-11-17 포장 KPI 움직임: 카드가 차례로 떠오름 · 큰 숫자 올라감 · 추이 선이 그려짐 · 점이 차례로 */
@@ -22128,6 +22129,167 @@ var st=document.createElement('style');st.textContent=
  '.yf-why{border:1px solid #CBD5E1;background:#fff;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:800;cursor:pointer}.yf-why:hover{background:#0A1530;color:#fff}.yf-d td{background:#FBFAF6;text-align:left!important;white-space:normal!important}'+
  '.yf-wy b{font-size:13.5px}.yf-wy ul{margin:6px 0 2px 18px;padding:0;font-size:13px;line-height:1.75;color:#334155}.yf-note{font-size:12px;color:#64748B;line-height:1.6;margin:6px 2px 0}.yf-empty{padding:30px;text-align:center;color:#64748B}';
 document.head.appendChild(st);
+})();
+</script>
+
+<script>
+/* ============ 임원 브리핑 (2026-11-17) — 팀 대시보드(착즙 · 배합 · 멸균 · 포장) 맨 위 ============
+   데이터를 나열하지 않고 「무엇을 챙겨야 하나」로 요약:
+   ① 종합 신호등 + 한 줄 판단  ② 핵심 지표 4개 (기준일 값 · 비교 · 14일 추이)
+   ③ 지금 챙길 것 (규칙으로 뽑아 위험 → 주의 순)  ④ 손실 원인 TOP (최근 30일 · 직전 30일 대비)
+   자료: 각 팀 일지(저장된 것) · 지연 · 정비 기록 · OEE · 포장 KPI — 자료가 없는 칸은 「기록 없음」으로 둠 */
+(function(){'use strict';if(window.__YUM_EXB__)return;window.__YUM_EXB__=1;
+var TEAM={'#/juice':{k:'juice',n:'착즙',full:'착즙팀',c:'#D98A1F',rec:function(d){return d.team==='착즙팀'}},
+ '#/mix':{k:'mix',n:'배합',full:'배합팀',c:'#7B5CD6',rec:function(d){return d.team==='배합팀'}},
+ '#/ster':{k:'sterx',n:'멸균',full:'가공1팀(멸균)',c:'#12A39A',rec:function(d){return d.div==='가공1팀'}},
+ '#/pack':{k:'pack',n:'포장',full:'포장팀',c:'#3062D8',rec:function(d){return d.div==='포장팀'}}};
+function E(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function pad(n){return ('0'+n).slice(-2)}
+function ymd(t){return t.getFullYear()+'-'+pad(t.getMonth()+1)+'-'+pad(t.getDate())}
+function addD(s,n){var d=new Date(s+'T00:00:00');d.setDate(d.getDate()+n);return ymd(d)}
+function md(s){return (+s.slice(5,7))+'/'+(+s.slice(8,10))}
+function wd(s){return '일월화수목금토'[new Date(s+'T00:00:00').getDay()]}
+function f(x,d){if(x==null||!isFinite(x))return '—';return (+x).toLocaleString('ko-KR',{maximumFractionDigits:d==null?0:d,minimumFractionDigits:0})}
+function sum(a){var s=0,n=0;a.forEach(function(x){if(x!=null&&isFinite(x)){s+=x;n++}});return n?s:null}
+function avg(a){var b=a.filter(function(x){return x!=null&&isFinite(x)});return b.length?b.reduce(function(p,c){return p+c},0)/b.length:null}
+function route(){return (location.hash||'').split('?')[0]}
+var PD=function(){return window.yumPDx||null};
+/* 지연 · 정비 기록: 최근 30일 / 직전 30일 */
+var RC={};
+function recs(T,B){var key=T.k+'|'+B+'|'+((DB.data.opLogs||[]).length);if(RC[key])return RC[key];var out={cur:[],prev:[],maint:[],pmaint:[]};
+ try{var P={kind:'custom',key:'exb',from:addD(B,-29),to:B,pFrom:addD(B,-59),pTo:addD(B,-30),label:'최근 30일'};
+  var A=YumReportCore.analyze(DB.data,window.__YUM_NOTION_FINAL__||{delay:[],maint:[]},P,{});
+  var all=(A.delays||[]).filter(T.rec);out.cur=all.filter(function(d){return d.d>=P.from&&d.d<=P.to});
+  var P2={kind:'custom',key:'exb2',from:P.pFrom,to:P.pTo,pFrom:addD(B,-89),pTo:addD(B,-60),label:'직전 30일'};var A2=YumReportCore.analyze(DB.data,window.__YUM_NOTION_FINAL__||{delay:[],maint:[]},P2,{});
+  out.prev=(A2.delays||[]).filter(T.rec);
+  var mm=function(L){return (L||[]).filter(function(m){return T.k==='juice'?m.person==='착즙팀':T.k==='mix'?m.person==='배합팀':T.k==='sterx'?m.div==='가공1팀':m.div==='포장팀'})};
+  out.maint=mm(A.maints);out.pmaint=mm(A2.maints)}catch(e){}
+ RC={};RC[key]=out;return out}
+function mins(L){return sum(L.map(function(d){return +d.min||0}))||0}
+function topBy(L,k,n){var m={};L.forEach(function(d){var x=d[k]||'기타';m[x]=(m[x]||0)+(+d.min||0)});return Object.keys(m).map(function(x){return [x,m[x]]}).sort(function(a,b){return b[1]-a[1]}).slice(0,n||4)}
+function pctChg(a,b){if(b==null||!b)return null;return (a-b)/b}
+/* 14일 */
+function days14(B){var a=[];for(var i=13;i>=0;i--)a.push(addD(B,-i));return a}
+function spark(vals,c,lo){var pts=vals.map(function(v,i){return v==null?null:[i,v]}).filter(Boolean);if(pts.length<2)return '<div class="exb-nos">추이 자료 부족</div>';
+ var ys=pts.map(function(p){return p[1]}),mn=Math.min.apply(null,ys),mx=Math.max.apply(null,ys);if(lo!=null)mn=Math.min(mn,lo);if(mx===mn){mx+=1;mn-=1}
+ var W=160,H=36,X=function(i){return 2+i*(W-4)/13},Y=function(v){return H-3-(v-mn)/(mx-mn)*(H-8)};
+ var d=pts.map(function(p,i){return (i?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)}).join(' '),L=pts[pts.length-1];
+ return '<svg class="exb-sp" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none"><path d="'+d+'" fill="none" stroke="'+c+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" pathLength="1"/><circle cx="'+X(L[0]).toFixed(1)+'" cy="'+Y(L[1]).toFixed(1)+'" r="3" fill="'+c+'"/></svg>'}
+function delta(cur,base,goodUp,unit){if(cur==null||base==null||!isFinite(cur)||!isFinite(base)||base===0)return '';var r=(cur-base)/Math.abs(base),up=r>=0,good=goodUp?up:!up,flat=Math.abs(r)<0.02;
+ return '<em class="exb-d '+(flat?'flat':good?'good':'bad')+'">'+(flat?'→':up?'▲':'▼')+' '+f(Math.abs(r)*100,0)+'%</em>'}
+/* ── 팀별 지표 · 판단 ── */
+function juice(B,P,R){var D=days14(B),T=D.map(function(d){try{return P.juiceDay(d)}catch(e){return {}}}),t=T[13]||{};
+ var raw=T.map(function(x){return x.raw}),use=T.map(function(x){return x.use}),yl=T.map(function(x){return x.raw!=null&&x.use?x.raw/x.use:null});
+ var tsN=0,tsBad=0;T.forEach(function(x){(x.ts||[]).forEach(function(a){[[a.ts1,9.8,10.2],[a.ph1,7.2,7.6],[a.ts2,9.8,10.2],[a.ph2,7.0,7.4]].forEach(function(q){if(q[0]==null)return;tsN++;if(q[0]<q[1]||q[0]>q[2])tsBad++})})});
+ var qr=tsN?(tsN-tsBad)/tsN:null,qd=T.map(function(x){var n=0,b=0;(x.ts||[]).forEach(function(a){[[a.ts1,9.8,10.2],[a.ph1,7.2,7.6],[a.ts2,9.8,10.2],[a.ph2,7.0,7.4]].forEach(function(q){if(q[0]==null)return;n++;if(q[0]<q[1]||q[0]>q[2])b++})});return n?(n-b)/n*100:null});
+ var run=T.map(function(x){return x.prodH!=null&&(x.prodH+(x.stopH||0))?x.prodH/(x.prodH+(x.stopH||0))*100:null});
+ var K=[{l:'원액 생산',v:t.raw,u:'kg',s:'14일 평균 '+f(avg(raw))+'kg',d:delta(t.raw,avg(raw.slice(0,13)),true),sp:raw},
+  {l:'대두 1kg당 원액',v:yl[13],dg:2,u:'kg',s:'수율 · 14일 평균 '+f(avg(yl),2),d:delta(yl[13],avg(yl.slice(0,13)),true),sp:yl},
+  {l:'품질 적합률 (T.S · pH)',v:qr==null?null:qr*100,dg:1,u:'%',s:'최근 14일 측정 '+tsN+'회 중 기준 밖 '+tsBad+'회',lv:qr==null?'':qr<0.9?'bad':qr<0.97?'warn':'good',sp:qd},
+  {l:'설비 가동률',v:run[13],dg:0,u:'%',s:'가동 ÷ (가동+정지) 시간 · 14일 평균 '+f(avg(run))+'%',d:delta(run[13],avg(run.slice(0,13)),true),sp:run}];
+ var A=[];if(t.dev&&t.dev.length)A.push({lv:'red',t:'품질 기준 이탈 '+t.dev.length+'건 ('+md(B)+')',d:t.dev.slice(0,3).map(function(x){return x.item+' '+f(x.val,2)}).join(' · ')+' → 원인 확인 · 해당 원액 사용 판단'});
+ if(yl[13]!=null&&avg(yl.slice(0,13))&&yl[13]<avg(yl.slice(0,13))*0.95)A.push({lv:'amber',t:'수율 하락 · 대두 1kg당 원액 '+f(yl[13],2)+'kg',d:'14일 평균('+f(avg(yl.slice(0,13)),2)+')보다 '+f((1-yl[13]/avg(yl.slice(0,13)))*100,0)+'% 낮음 → 분리 · 데칸타 손실, 대두 상태 확인'});
+ if(t.byRate!=null&&t.byRate>8)A.push({lv:'amber',t:'부산물 비율 '+f(t.byRate,1)+'%',d:'대두피 · 콩눈 · 이물 비중 확인'});
+ return {K:K,A:A,has:!!(t.d||t.o)}}
+function mix(B,P,R){var D=days14(B),T=D.map(function(d){try{return P.mixDay(d)}catch(e){return {}}}),t=T[13]||{};
+ var nb=T.map(function(x){return x.d?x.nb:null}),q=T.map(function(x){return x.d?(x.x||[]).length+(x.dev||[]).length:null});
+ var cyc=T.map(function(x){var L=(x.batches||[]).map(function(b){return b.in!=null&&b.done!=null?((b.done-b.in)+1440)%1440:null}).filter(function(v){return v!=null&&v<600});return L.length?avg(L):null});
+ var K=[{l:'생산 배치',v:t.d?t.nb:null,u:'B',s:'14일 평균 '+f(avg(nb),1)+'B · 생산량 '+f(t.q,1),d:delta(t.nb,avg(nb.slice(0,13)),true),sp:nb},
+  {l:'배치 소요 시간',v:cyc[13],u:'분',s:'투입 → 혼합 완료 평균 · 14일 '+f(avg(cyc))+'분',d:delta(cyc[13],avg(cyc.slice(0,13)),false),sp:cyc},
+  {l:'품질 이탈 · 점검 X',v:t.d?q[13]:null,u:'건',s:'최근 14일 합계 '+f(sum(q))+'건',lv:t.d?(q[13]?'bad':'good'):'',sp:q},
+  {l:'평균 최종 Brix',v:t.b1,dg:2,u:'',s:'14일 평균 '+f(avg(T.map(function(x){return x.b1})),2),sp:T.map(function(x){return x.b1})}];
+ var A=[];if(t.d&&q[13])A.push({lv:'red',t:'품질 이탈 · 점검 X '+q[13]+'건 ('+md(B)+')',d:(t.dev||[]).slice(0,2).map(function(x){return x.item}).concat((t.x||[]).slice(0,2).map(function(o){return o.item+' X'})).join(' · ')+' → 해당 배치 출고 전 확인'});
+ if(cyc[13]!=null&&avg(cyc.slice(0,13))&&cyc[13]>avg(cyc.slice(0,13))*1.15)A.push({lv:'amber',t:'배치 소요 시간 증가 · '+f(cyc[13])+'분',d:'14일 평균보다 '+f((cyc[13]/avg(cyc.slice(0,13))-1)*100,0)+'% 길어짐 → 분리유액 공급 · 이송 대기 여부 확인'});
+ return {K:K,A:A,has:!!t.d}}
+function ster(B,P,R){var D=days14(B),cfg=(P.DEF||{}).sterx||{codes:[]},hac=cfg.codes.filter(function(c){return /^FRM-0(21|29|3\d|40)$/.test(c)});
+ var S=D.map(function(d){var b=0,e=0,w=0,hw=0;cfg.codes.forEach(function(c){var x=null;try{x=P.formSum(c,d)}catch(er){}if(x){w++;b+=x.bad.length;e+=x.dev.length;if(hac.indexOf(c)>=0)hw++}});
+  var j=null;try{j=P.byDate('FRM-016')[d]}catch(er){}var L=null;if(j){var g=(j.data&&j.data.grid)||{};L=sum([1,2,3,4,5].map(function(h){var v=parseFloat(String(g['s'+h+'_qty']||'').replace(/,/g,''));return isFinite(v)?v:null}))}
+  return {w:w,b:b,e:e,hw:hw,L:L}}),t=S[13];
+ var K=[{l:'멸균 적산량',v:t.L,u:'L',s:'멸균 업무일지 1~5호기 합 · 14일 평균 '+f(avg(S.map(function(x){return x.L})))+'L',d:delta(t.L,avg(S.slice(0,13).map(function(x){return x.L})),true),sp:S.map(function(x){return x.L})},
+  {l:'CCP · 기준 이탈',v:t.w?t.e+t.b:null,u:'건',s:'HACCP · 멸균 일지 · 14일 합계 '+f(sum(S.map(function(x){return x.w?x.e+x.b:null})))+'건',lv:t.w?((t.e+t.b)?'bad':'good'):'',sp:S.map(function(x){return x.w?x.e+x.b:null})},
+  {l:'HACCP 일보 작성',v:t.hw,u:'/ '+hac.length+'종',s:'생산한 호기 · 품목 일보만 작성 대상',sp:S.map(function(x){return x.hw||null})},
+  {l:'OEE',v:null,u:'',s:'멸균 OEE 기록 시작 전 · 대기',lv:''}];
+ var A=[];if(t.w&&(t.e+t.b))A.push({lv:'red',t:'CCP · 기준 이탈 '+(t.e+t.b)+'건 ('+md(B)+')',d:'HACCP 기록 확인 → 이탈 제품 격리 · 재멸균 판단 기록'});
+ return {K:K,A:A,has:!!(t.w||t.L)}}
+function pack(B,P,R){var D=days14(B),O=D.map(function(d){try{return (yumOEE.eq(d)||[]).filter(function(o){return o.team==='pack'})}catch(e){return []}}),o=O[13]||[];
+ var oee=O.map(function(L){var a=L.filter(function(x){return x.O!=null});return a.length?avg(a.map(function(x){return x.qAssumed&&x.A!=null&&x.P!=null?x.A*x.P:x.O}))*100:null});
+ var qty=sum(o.map(function(x){return x.q})),ord=sum(o.filter(function(x){return x.order}).map(function(x){return x.order})),qOrd=sum(o.filter(function(x){return x.order}).map(function(x){return x.q})),ach=ord?qOrd/ord*100:null;
+ var stp={};O.forEach(function(L){L.forEach(function(x){(x.stops||[]).forEach(function(s){if(s.c==='SIP·CIP'||s.c==='계획정지')return;stp[s.c]=(stp[s.c]||0)+(+s.m||0)})})});
+ var top=Object.keys(stp).map(function(k){return [k,stp[k]]}).sort(function(a,b){return b[1]-a[1]});
+ var KP=null;try{KP=window.yumPkKpi&&yumPkKpi()}catch(e){}var kOk=0,kN=0,kBad=[];
+ if(KP&&KP.items)KP.items.forEach(function(it){var low=/클레임|재해|폐기/.test(it.name),v=it.agg!=null?it.agg:(typeof it.rateAgg==='number'?it.rateAgg:null),tg=it.target;if(it.subs&&it.subs.length){kN++;var ok=it.subs.filter(function(x){return x.agg!=null&&x.target!=null&&x.agg>=x.target}).length;if(ok===it.subs.length)kOk++;else kBad.push(it.name);return}
+  if(v==null||tg==null)return;kN++;var good=low?v<=tg:v>=tg;if(good)kOk++;else kBad.push(it.name)});
+ var K=[{l:'포장 OEE (평균)',v:oee[13],dg:1,u:'%',s:o.filter(function(x){return x.O!=null}).length+'개 호기 · 14일 평균 '+f(avg(oee),1)+'%',d:delta(oee[13],avg(oee.slice(0,13)),true),lv:oee[13]==null?'':oee[13]<60?'bad':oee[13]<75?'warn':'good',sp:oee},
+  {l:'생산 달성률',v:ach,dg:1,u:'%',s:'생산 '+f(qty)+'개 / 지시 '+f(ord)+'개',lv:ach==null?'':ach<90?'warn':'good',sp:O.map(function(L){var a=sum(L.filter(function(x){return x.order}).map(function(x){return x.order})),b=sum(L.filter(function(x){return x.order}).map(function(x){return x.q}));return a?b/a*100:null})},
+  {l:'가장 큰 정지 손실',v:top[0]?Math.round(top[0][1]):null,u:'분',s:top[0]?top[0][0]+' · 최근 14일 (SIP · CIP 제외)':'정지 기록 없음',lv:''},
+  {l:'KPI 목표 달성',v:kN?kOk:null,u:'/ '+kN+'항목',s:kBad.length?'미달: '+kBad.slice(0,3).join(', '):'포장 KPI 실적 기준',lv:kN?(kOk/kN<0.5?'bad':kOk<kN?'warn':'good'):''}];
+ var A=[];o.filter(function(x){var v=x.qAssumed&&x.A!=null&&x.P!=null?x.A*x.P:x.O;return v!=null&&v<0.6}).forEach(function(x){var s={};(x.stops||[]).forEach(function(q){if(q.c!=='SIP·CIP')s[q.c]=(s[q.c]||0)+(+q.m||0)});var tp=Object.keys(s).sort(function(a,b){return s[b]-s[a]})[0];
+  A.push({lv:'red',t:'포장 '+x.name+' OEE '+f((x.qAssumed?x.A*x.P:x.O)*100,1)+'%',d:'시간가동률 '+f(x.A*100,0)+'% · 성능 '+f(x.P*100,0)+'%'+(tp?' · 최대 정지 '+tp+' '+f(s[tp])+'분':'')+' → 정지 원인 조치'})});
+ if(ach!=null&&ach<90)A.push({lv:'amber',t:'생산 달성률 '+f(ach,1)+'%',d:'지시량 대비 '+f(ord-qOrd)+'개 부족 → 잔량 생산 계획 확인'});
+ if(top[0]&&top[0][0]==='하류 대기')A.push({lv:'amber',t:'하류 대기(적재로봇 · 팔레타이저 · 자동창고) 정지 '+f(top[0][1])+'분',d:'최근 14일 정지 1위 → 후공정 설비 점검'});
+ if(kBad.length)A.push({lv:'amber',t:'KPI 미달 '+kBad.length+'항목',d:kBad.slice(0,4).join(' · ')});
+ var has=o.length>0;return {K:K,A:A,has:has,loss:top.slice(0,4)}}
+/* ── 그리기 ── */
+function kpiTile(k,c,i){var lv=k.lv||'',v=k.v;return '<div class="exb-k '+lv+'" style="--d:'+(i*70)+'ms"><div class="exb-kl">'+E(k.l)+'</div><div class="exb-kv"><b>'+(v==null?'—':f(v,k.dg))+'</b><small>'+E(v==null?'':k.u)+'</small>'+(k.d||'')+'</div><div class="exb-ks">'+E(k.s||'')+'</div>'+(k.sp?spark(k.sp,lv==='bad'?'#DC2626':lv==='warn'?'#D97706':c):'')+'</div>'}
+function build(T){var P=PD();if(!P)return '';var ds=[];try{ds=P.dates(T.k)||[]}catch(e){}var td=ymd(new Date()),B=ds.filter(function(d){return d<=td})[0]||td;
+ if(T.k==='pack'){try{for(var i=0;i<14;i++){var dd=addD(td,-i);if((yumOEE.eq(dd)||[]).some(function(o){return o.team==='pack'&&o.O!=null&&o.q})){B=dd;break}}}catch(e){}}
+ var R=recs(T,B),X=T.k==='juice'?juice(B,P,R):T.k==='mix'?mix(B,P,R):T.k==='sterx'?ster(B,P,R):pack(B,P,R);
+ var cur=mins(R.cur),prev=mins(R.prev),ch=pctChg(cur,prev),tops=topBy(R.cur,'reason',4),hog=topBy(R.cur,'hogi',3),A=X.A.slice();
+ /* 공통 판단 */
+ var gap=Math.round((new Date(td+'T00:00:00')-new Date(B+'T00:00:00'))/864e5);
+ if(gap>=2)A.push({lv:'amber',t:'최근 기록이 '+md(B)+'('+wd(B)+')에서 멈춤',d:gap+'일째 '+(T.k==='pack'?'포장팀 포털 생산 기록이 들어오지 않음 → 포장팀 포털 입력 확인':T.n+' 일지가 저장되지 않음 → 일지 작성 · 저장 확인')});
+ if(cur>=120&&ch!=null&&ch>0.2)A.push({lv:ch>0.5?'red':'amber',t:'생산 지연 '+f(cur/60,1)+'시간 · 직전 30일 대비 +'+f(ch*100,0)+'%',d:tops[0]?'1위 원인 「'+tops[0][0]+'」 '+f(tops[0][1]/60,1)+'시간 ('+f(tops[0][1]/cur*100,0)+'%) → 재발 방지 대책 필요':''});
+ if(cur>=240&&hog[0]&&hog[0][1]>=90&&hog[0][1]/cur>0.35&&hog.length>1)A.push({lv:'amber',t:hog[0][0]+'에 지연 집중 ('+f(hog[0][1]/cur*100,0)+'%)',d:'최근 30일 지연 '+f(hog[0][1]/60,1)+'시간 → 해당 호기 설비 · 운영 점검'});
+ var urg=R.maint.filter(function(m){return /긴급/.test(m.mtype||'')}).length;if(urg>=2)A.push({lv:'amber',t:'긴급 정비 '+urg+'건 (최근 30일)',d:'계획 정비로 돌릴 수 있는 설비 확인 · 예방 정비 주기 점검'});
+ A.sort(function(a,b){var o={red:0,amber:1,info:2};return o[a.lv]-o[b.lv]});
+ var reds=A.filter(function(a){return a.lv==='red'}).length,ambs=A.filter(function(a){return a.lv==='amber'}).length;
+ var stv=reds?'bad':ambs?'warn':'good',stl=reds?'즉시 확인':ambs?'주의':'정상',verdict=reds?A[0].t+' — 오늘 안에 조치가 필요합니다.':ambs?A[0].t+' — 지켜볼 항목이 '+ambs+'개 있습니다.':(X.has?'핵심 지표가 정상 범위입니다. 계획대로 운영 중입니다.':'기준일에 저장된 '+T.n+' 일지가 없어 판단할 자료가 부족합니다.');
+ /* 손실 원인 */
+ var loss=T.k==='pack'?(X.loss||[]).map(function(x){return [x[0],x[1]]}):tops,lt=sum(loss.map(function(x){return x[1]}))||0,ltitle=T.k==='pack'?'정지 손실 TOP · 최근 14일':'지연 원인 TOP · 최근 30일';
+ var pv={};topBy(R.prev,'reason',30).forEach(function(x){pv[x[0]]=x[1]});
+ var lossH=loss.length?loss.map(function(x,i){var w=lt?x[1]/lt*100:0,p=pv[x[0]],tr=T.k!=='pack'&&p!=null?(x[1]>p*1.1?'<em class="exb-d bad">▲ 직전 '+f(p/60,1)+'h</em>':x[1]<p*0.9?'<em class="exb-d good">▼ 직전 '+f(p/60,1)+'h</em>':''):T.k!=='pack'?'<em class="exb-d bad">신규</em>':'';
+   return '<div class="exb-lr" style="--d:'+(i*80)+'ms"><span>'+(i+1)+'. '+E(x[0])+'</span><div class="exb-lb"><i style="--w:'+w.toFixed(1)+'%;background:'+T.c+'"></i></div><b>'+(T.k==='pack'?f(x[1])+'분':f(x[1]/60,1)+'h')+' <small>'+f(w,0)+'%</small></b>'+tr+'</div>'}).join(''):'<div class="exb-none">기록된 손실이 없습니다</div>';
+ var mt=R.maint.length;
+ return '<section class="exb" style="--c:'+T.c+'"><header class="exb-h"><div><div class="exb-eye">EXECUTIVE BRIEFING · '+E(T.full)+'</div><h2>'+E(T.n)+' 임원 브리핑 <small>기준 '+md(B)+' ('+wd(B)+')'+(B!==td?' · 마지막 기록일':'')+'</small></h2></div>'+
+  '<div class="exb-st '+stv+'"><i></i><b>'+stl+'</b></div></header>'+
+  '<p class="exb-v '+stv+'">'+E(verdict)+'</p>'+
+  '<div class="exb-ks4">'+X.K.map(function(k,i){return kpiTile(k,T.c,i)}).join('')+'</div>'+
+  '<div class="exb-2"><div class="exb-box"><h3>지금 챙길 것 <small>'+(A.length?'위험 '+reds+' · 주의 '+ambs:'없음')+'</small></h3>'+(A.length?'<ol class="exb-al">'+A.slice(0,5).map(function(a,i){return '<li class="'+a.lv+'" style="--d:'+(i*90)+'ms"><i></i><div><b>'+E(a.t)+'</b>'+(a.d?'<span>'+E(a.d)+'</span>':'')+'</div></li>'}).join('')+'</ol>':'<div class="exb-none ok">✓ 지금 따로 챙길 항목이 없습니다</div>')+'</div>'+
+  '<div class="exb-box"><h3>'+ltitle+' <small>'+(T.k==='pack'?'OEE 정지 기록':'지연 '+f(cur/60,1)+'h · '+R.cur.length+'건'+(ch!=null?' · 직전 30일 '+(ch>=0?'+':'')+f(ch*100,0)+'%':''))+'</small></h3>'+lossH+
+   '<div class="exb-ft">정비 '+mt+'건 (최근 30일)'+(R.pmaint.length?' · 직전 '+R.pmaint.length+'건':'')+(urg?' · 긴급 '+urg+'건':'')+'</div></div></div>'+
+  '<div class="exb-sep"><span>상세 분석</span></div></section>'}
+var CSS='.exb{background:linear-gradient(180deg,#fff,#FBFCFE);border:1px solid #E5E9F2;border-top:4px solid var(--c);border-radius:20px;padding:18px 20px 6px;margin:0 0 16px;box-shadow:0 18px 40px -34px rgba(10,21,48,.55)}'+
+ '.exb-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}.exb-eye{font-size:11px;font-weight:900;letter-spacing:.16em;color:var(--c)}.exb-h h2{margin:4px 0 0;font-size:24px;font-weight:900;color:#0F172A;letter-spacing:-.02em}.exb-h h2 small{font-size:13px;font-weight:700;color:#64748B;margin-left:8px;letter-spacing:0}'+
+ '.exb-st{display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:999px;font-size:15px;font-weight:900}.exb-st i{width:12px;height:12px;border-radius:50%;background:currentColor;box-shadow:0 0 0 4px color-mix(in srgb,currentColor 22%,transparent);animation:exbP 1.8s ease-in-out infinite}@keyframes exbP{50%{box-shadow:0 0 0 8px color-mix(in srgb,currentColor 0%,transparent)}}'+
+ '.exb-st.good{background:#ECFDF5;color:#059669}.exb-st.warn{background:#FFFBEB;color:#D97706}.exb-st.bad{background:#FEF2F2;color:#DC2626}'+
+ '.exb-v{margin:10px 0 14px;font-size:15px;font-weight:700;line-height:1.55;padding:10px 14px;border-radius:12px;background:#F8FAFC;color:#1E293B;border-left:4px solid #94A3B8}.exb-v.bad{border-color:#DC2626;background:#FEF2F2}.exb-v.warn{border-color:#D97706;background:#FFFBEB}.exb-v.good{border-color:#059669;background:#F0FDF4}'+
+ '.exb-ks4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.exb-k{background:#fff;border:1px solid #E5E9F2;border-radius:16px;padding:12px 14px 8px;display:flex;flex-direction:column;gap:3px;min-width:0;animation:exbIn .6s cubic-bezier(.16,1,.3,1) both;animation-delay:var(--d)}'+
+ '.exb-k.bad{border-color:#FCA5A5;background:#FFFBFB}.exb-k.warn{border-color:#FCD34D;background:#FFFEF7}.exb-kl{font-size:12.5px;font-weight:800;color:#475569}.exb-kv{display:flex;align-items:baseline;gap:5px;flex-wrap:wrap}.exb-kv b{font-size:30px;font-weight:900;color:#0F172A;letter-spacing:-.02em;font-variant-numeric:tabular-nums}.exb-k.bad .exb-kv b{color:#DC2626}.exb-k.warn .exb-kv b{color:#B45309}.exb-k.good .exb-kv b{color:#047857}.exb-kv small{font-size:13px;font-weight:800;color:#64748B}'+
+ '.exb-d{font-style:normal;font-size:11.5px;font-weight:900;padding:2px 7px;border-radius:999px;margin-left:auto}.exb-d.good{background:#ECFDF5;color:#059669}.exb-d.bad{background:#FEF2F2;color:#DC2626}.exb-d.flat{background:#F1F5F9;color:#64748B}'+
+ '.exb-ks{font-size:11.5px;color:#64748B;line-height:1.4;min-height:16px}.exb-sp{width:100%;height:36px;margin-top:2px}.exb-sp path{stroke-dasharray:1;stroke-dashoffset:1;animation:exbDraw 1.1s cubic-bezier(.65,0,.35,1) .3s forwards}@keyframes exbDraw{to{stroke-dashoffset:0}}.exb-nos{font-size:11px;color:#CBD5E1;height:36px;display:flex;align-items:center}'+
+ '.exb-2{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:12px;margin-top:12px}.exb-box{background:#fff;border:1px solid #E5E9F2;border-radius:16px;padding:14px 16px}.exb-box h3{margin:0 0 10px;font-size:15px;font-weight:900;color:#0F172A}.exb-box h3 small{font-size:11.5px;font-weight:700;color:#94A3B8;margin-left:6px}'+
+ '.exb-al{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}.exb-al li{display:flex;gap:10px;align-items:flex-start;padding:9px 11px;border-radius:12px;background:#F8FAFC;animation:exbIn .5s ease both;animation-delay:var(--d)}.exb-al li>i{flex:none;width:10px;height:10px;border-radius:50%;margin-top:5px}'+
+ '.exb-al li.red{background:#FEF2F2}.exb-al li.red>i{background:#DC2626;box-shadow:0 0 0 3px #FECACA}.exb-al li.amber{background:#FFFBEB}.exb-al li.amber>i{background:#F59E0B;box-shadow:0 0 0 3px #FDE68A}.exb-al li div{display:flex;flex-direction:column;gap:2px;min-width:0}.exb-al b{font-size:13.5px;color:#0F172A}.exb-al span{font-size:12px;color:#475569;line-height:1.5}'+
+ '.exb-lr{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr) auto;gap:8px;align-items:center;font-size:13px;margin-bottom:8px;animation:exbIn .5s ease both;animation-delay:var(--d)}.exb-lr>span{font-weight:800;color:#1E293B;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.exb-lr b{font-size:13px;white-space:nowrap}.exb-lr b small{color:#94A3B8;font-weight:700}.exb-lr .exb-d{grid-column:1/-1;justify-self:end;margin-top:-4px}'+
+ '.exb-lb{height:10px;background:#F1F5F9;border-radius:999px;overflow:hidden}.exb-lb i{display:block;height:100%;width:var(--w);border-radius:999px;animation:exbW .9s cubic-bezier(.16,1,.3,1) both}@keyframes exbW{from{width:0}}'+
+ '.exb-ft{margin-top:6px;font-size:12px;color:#64748B;border-top:1px dashed #E2E8F0;padding-top:8px}.exb-none{font-size:13px;color:#94A3B8;padding:12px;text-align:center;background:#F8FAFC;border-radius:12px}.exb-none.ok{color:#059669;background:#F0FDF4;font-weight:800}'+
+ '.exb-sep{display:flex;align-items:center;gap:10px;margin:16px 0 8px;font-size:11.5px;font-weight:900;letter-spacing:.14em;color:#94A3B8}.exb-sep::before,.exb-sep::after{content:"";flex:1;height:1px;background:#E2E8F0}'+
+ '@keyframes exbIn{from{opacity:0;transform:translateY(10px)}}'+
+ '@media (max-width:1100px){.exb-ks4{grid-template-columns:repeat(2,minmax(0,1fr))}.exb-2{grid-template-columns:1fr}}@media (max-width:560px){.exb{padding:14px 12px 4px}.exb-ks4{grid-template-columns:1fr 1fr;gap:8px}.exb-kv b{font-size:24px}.exb-h h2{font-size:20px}}'+
+ '@media (prefers-reduced-motion:reduce){.exb *{animation:none!important}.exb-sp path{stroke-dashoffset:0}}@media print{.exb{box-shadow:none;break-inside:avoid}}';
+var SIG='';
+function mount(){var T=TEAM[route()],M=document.getElementById('main');var old=M&&M.querySelector('#exb-wrap');
+ if(!T||!M){if(old)old.remove();return}
+ if(!document.getElementById('exb-css')){var st=document.createElement('style');st.id='exb-css';st.textContent=CSS;document.head.appendChild(st)}
+ var rdy=0;if(T.k==='pack'){try{for(var i=0;i<3;i++)rdy+=(yumOEE.eq(addD(ymd(new Date()),-i))||[]).filter(function(o){return o.team==='pack'&&o.O!=null}).length}catch(e){}}
+ var sig=route()+'|'+rdy+'|'+Math.floor(Date.now()/300000)+'|'+((DB.data.docs||[]).length)+'|'+((DB.data.opLogs||[]).length)+'|'+ymd(new Date())+'|'+(DB.data.docs&&DB.data.docs[0]&&DB.data.docs[0].updatedAt||'');
+ if(old&&old.getAttribute('data-sig')===sig&&placed(M,old))return;
+ var html='';try{html=build(T)}catch(e){console.warn('[임원 브리핑]',e);return}if(!html)return;
+ var w=old||document.createElement('div');w.id='exb-wrap';w.setAttribute('data-sig',sig);if(old&&!old.__q){try{window.yumQuiet&&yumQuiet()}catch(e){}}w.innerHTML=html;w.__q=0;
+ if(!placed(M,w)){var after=M.querySelector(':scope > .yum-nb')||M.querySelector(':scope > .sec-rib');if(after)after.insertAdjacentElement('afterend',w);else M.insertBefore(w,M.firstChild)}}
+function placed(M,w){if(w.parentNode!==M)return false;var p=w.previousElementSibling;return !p||p.classList.contains('yum-nb')||p.classList.contains('sec-rib')}
+setInterval(function(){if(!document.hidden)try{mount()}catch(e){}},1200);window.addEventListener('hashchange',function(){setTimeout(mount,60)});window.addEventListener('yum-docs-synced',function(){setTimeout(mount,300)});
+window.yumExecBrief={mount:mount,build:function(r){return build(TEAM[r||route()])}};
 })();
 </script>
 
