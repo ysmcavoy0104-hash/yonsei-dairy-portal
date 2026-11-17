@@ -22170,7 +22170,7 @@ function topBy(L,k,n){var m={};L.forEach(function(d){var x=d[k]||'기타';m[x]=(
 function pctChg(a,b){if(b==null||!b)return null;return (a-b)/b}
 /* 14일 */
 function days14(B){var a=[];for(var i=13;i>=0;i--)a.push(addD(B,-i));return a}
-function spark(vals,c,lo){var pts=vals.map(function(v,i){return v==null?null:[i,v]}).filter(Boolean);if(pts.length<2)return '<div class="exb-nos">추이 자료 부족</div>';
+function spark(vals,c,lo){var pts=vals.map(function(v,i){return v==null?null:[i,v]}).filter(Boolean);if(pts.length<2)return '<div class="exb-nos"></div>';
  var ys=pts.map(function(p){return p[1]}),mn=Math.min.apply(null,ys),mx=Math.max.apply(null,ys);if(lo!=null)mn=Math.min(mn,lo);if(mx===mn){mx+=1;mn-=1}
  var W=160,H=36,X=function(i){return 2+i*(W-4)/13},Y=function(v){return H-3-(v-mn)/(mx-mn)*(H-8)};
  var d=pts.map(function(p,i){return (i?'L':'M')+X(p[0]).toFixed(1)+' '+Y(p[1]).toFixed(1)}).join(' '),L=pts[pts.length-1];
@@ -22184,32 +22184,32 @@ function juice(B,P,R){var D=days14(B),T=D.map(function(d){try{return P.juiceDay(
  var qr=tsN?(tsN-tsBad)/tsN:null,qd=T.map(function(x){var n=0,b=0;(x.ts||[]).forEach(function(a){[[a.ts1,9.8,10.2],[a.ph1,7.2,7.6],[a.ts2,9.8,10.2],[a.ph2,7.0,7.4]].forEach(function(q){if(q[0]==null)return;n++;if(q[0]<q[1]||q[0]>q[2])b++})});return n?(n-b)/n*100:null});
  var run=T.map(function(x){return x.prodH!=null&&(x.prodH+(x.stopH||0))?x.prodH/(x.prodH+(x.stopH||0))*100:null});
  var K=[{l:'원액 생산',v:t.raw,u:'kg',s:'14일 평균 '+f(avg(raw))+'kg',d:delta(t.raw,avg(raw.slice(0,13)),true),sp:raw},
-  {l:'대두 1kg당 원액',v:yl[13],dg:2,u:'kg',s:'수율 · 14일 평균 '+f(avg(yl),2),d:delta(yl[13],avg(yl.slice(0,13)),true),sp:yl},
-  {l:'품질 적합률 (T.S · pH)',v:qr==null?null:qr*100,dg:1,u:'%',s:'최근 14일 측정 '+tsN+'회 중 기준 밖 '+tsBad+'회',lv:qr==null?'':qr<0.9?'bad':qr<0.97?'warn':'good',sp:qd},
-  {l:'설비 가동률',v:run[13],dg:0,u:'%',s:'가동 ÷ (가동+정지) 시간 · 14일 평균 '+f(avg(run))+'%',d:delta(run[13],avg(run.slice(0,13)),true),sp:run}];
- var A=[];if(t.dev&&t.dev.length)A.push({lv:'red',t:'품질 기준 이탈 '+t.dev.length+'건 ('+md(B)+')',d:t.dev.slice(0,3).map(function(x){return x.item+' '+f(x.val,2)}).join(' · ')+' → 원인 확인 · 해당 원액 사용 판단'});
- if(yl[13]!=null&&avg(yl.slice(0,13))&&yl[13]<avg(yl.slice(0,13))*0.95)A.push({lv:'amber',t:'수율 하락 · 대두 1kg당 원액 '+f(yl[13],2)+'kg',d:'14일 평균('+f(avg(yl.slice(0,13)),2)+')보다 '+f((1-yl[13]/avg(yl.slice(0,13)))*100,0)+'% 낮음 → 분리 · 데칸타 손실, 대두 상태 확인'});
- if(t.byRate!=null&&t.byRate>8)A.push({lv:'amber',t:'부산물 비율 '+f(t.byRate,1)+'%',d:'대두피 · 콩눈 · 이물 비중 확인'});
+  {l:'수율 (원액 ÷ 대두)',v:yl[13],dg:2,u:'kg',s:'수율 · 14일 평균 '+f(avg(yl),2),d:delta(yl[13],avg(yl.slice(0,13)),true),sp:yl},
+  {l:'품질 적합률',v:qr==null?null:qr*100,dg:1,u:'%',s:'최근 14일 측정 '+tsN+'회 중 기준 밖 '+tsBad+'회',lv:qr==null?'':qr<0.9?'bad':qr<0.97?'warn':'good',sp:qd},
+  {l:'가동률',v:run[13],dg:0,u:'%',s:'가동 ÷ (가동+정지) 시간 · 14일 평균 '+f(avg(run))+'%',d:delta(run[13],avg(run.slice(0,13)),true),sp:run}];
+ var A=[];if(t.dev&&t.dev.length)A.push({lv:'red',t:'품질 이탈 '+t.dev.length+'건',d:t.dev.slice(0,3).map(function(x){return x.item+' '+f(x.val,2)}).join(' · ')+' → 원인 확인 · 해당 원액 사용 판단'});
+ if(yl[13]!=null&&avg(yl.slice(0,13))&&yl[13]<avg(yl.slice(0,13))*0.95)A.push({lv:'amber',t:'수율 하락 '+f((1-yl[13]/avg(yl.slice(0,13)))*100,0)+'%',d:'14일 평균('+f(avg(yl.slice(0,13)),2)+')보다 '+f((1-yl[13]/avg(yl.slice(0,13)))*100,0)+'% 낮음 → 분리 · 데칸타 손실, 대두 상태 확인'});
+ if(t.byRate!=null&&t.byRate>8)A.push({lv:'amber',t:'부산물 '+f(t.byRate,1)+'%',d:'대두피 · 콩눈 · 이물 비중 확인'});
  return {K:K,A:A,has:!!(t.d||t.o)}}
 function mix(B,P,R){var D=days14(B),T=D.map(function(d){try{return P.mixDay(d)}catch(e){return {}}}),t=T[13]||{};
  var nb=T.map(function(x){return x.d?x.nb:null}),q=T.map(function(x){return x.d?(x.x||[]).length+(x.dev||[]).length:null});
  var cyc=T.map(function(x){var L=(x.batches||[]).map(function(b){return b.in!=null&&b.done!=null?((b.done-b.in)+1440)%1440:null}).filter(function(v){return v!=null&&v<600});return L.length?avg(L):null});
  var K=[{l:'생산 배치',v:t.d?t.nb:null,u:'B',s:'14일 평균 '+f(avg(nb),1)+'B · 생산량 '+f(t.q,1),d:delta(t.nb,avg(nb.slice(0,13)),true),sp:nb},
-  {l:'배치 소요 시간',v:cyc[13],u:'분',s:'투입 → 혼합 완료 평균 · 14일 '+f(avg(cyc))+'분',d:delta(cyc[13],avg(cyc.slice(0,13)),false),sp:cyc},
-  {l:'품질 이탈 · 점검 X',v:t.d?q[13]:null,u:'건',s:'최근 14일 합계 '+f(sum(q))+'건',lv:t.d?(q[13]?'bad':'good'):'',sp:q},
-  {l:'평균 최종 Brix',v:t.b1,dg:2,u:'',s:'14일 평균 '+f(avg(T.map(function(x){return x.b1})),2),sp:T.map(function(x){return x.b1})}];
- var A=[];if(t.d&&q[13])A.push({lv:'red',t:'품질 이탈 · 점검 X '+q[13]+'건 ('+md(B)+')',d:(t.dev||[]).slice(0,2).map(function(x){return x.item}).concat((t.x||[]).slice(0,2).map(function(o){return o.item+' X'})).join(' · ')+' → 해당 배치 출고 전 확인'});
- if(cyc[13]!=null&&avg(cyc.slice(0,13))&&cyc[13]>avg(cyc.slice(0,13))*1.15)A.push({lv:'amber',t:'배치 소요 시간 증가 · '+f(cyc[13])+'분',d:'14일 평균보다 '+f((cyc[13]/avg(cyc.slice(0,13))-1)*100,0)+'% 길어짐 → 분리유액 공급 · 이송 대기 여부 확인'});
+  {l:'배치 소요',v:cyc[13],u:'분',s:'투입 → 혼합 완료 평균 · 14일 '+f(avg(cyc))+'분',d:delta(cyc[13],avg(cyc.slice(0,13)),false),sp:cyc},
+  {l:'품질 이탈',v:t.d?q[13]:null,u:'건',s:'최근 14일 합계 '+f(sum(q))+'건',lv:t.d?(q[13]?'bad':'good'):'',sp:q},
+  {l:'Brix',v:t.b1,dg:2,u:'',s:'14일 평균 '+f(avg(T.map(function(x){return x.b1})),2),sp:T.map(function(x){return x.b1})}];
+ var A=[];if(t.d&&q[13])A.push({lv:'red',t:'품질 이탈 '+q[13]+'건',d:(t.dev||[]).slice(0,2).map(function(x){return x.item}).concat((t.x||[]).slice(0,2).map(function(o){return o.item+' X'})).join(' · ')+' → 해당 배치 출고 전 확인'});
+ if(cyc[13]!=null&&avg(cyc.slice(0,13))&&cyc[13]>avg(cyc.slice(0,13))*1.15)A.push({lv:'amber',t:'배치 소요 +'+f((cyc[13]/avg(cyc.slice(0,13))-1)*100,0)+'%',d:'14일 평균보다 '+f((cyc[13]/avg(cyc.slice(0,13))-1)*100,0)+'% 길어짐 → 분리유액 공급 · 이송 대기 여부 확인'});
  return {K:K,A:A,has:!!t.d}}
 function ster(B,P,R){var D=days14(B),cfg=(P.DEF||{}).sterx||{codes:[]},hac=cfg.codes.filter(function(c){return /^FRM-0(21|29|3\d|40)$/.test(c)});
  var S=D.map(function(d){var b=0,e=0,w=0,hw=0;cfg.codes.forEach(function(c){var x=null;try{x=P.formSum(c,d)}catch(er){}if(x){w++;b+=x.bad.length;e+=x.dev.length;if(hac.indexOf(c)>=0)hw++}});
   var j=null;try{j=P.byDate('FRM-016')[d]}catch(er){}var L=null;if(j){var g=(j.data&&j.data.grid)||{};L=sum([1,2,3,4,5].map(function(h){var v=parseFloat(String(g['s'+h+'_qty']||'').replace(/,/g,''));return isFinite(v)?v:null}))}
   return {w:w,b:b,e:e,hw:hw,L:L}}),t=S[13];
- var K=[{l:'멸균 적산량',v:t.L,u:'L',s:'멸균 업무일지 1~5호기 합 · 14일 평균 '+f(avg(S.map(function(x){return x.L})))+'L',d:delta(t.L,avg(S.slice(0,13).map(function(x){return x.L})),true),sp:S.map(function(x){return x.L})},
-  {l:'CCP · 기준 이탈',v:t.w?t.e+t.b:null,u:'건',s:'HACCP · 멸균 일지 · 14일 합계 '+f(sum(S.map(function(x){return x.w?x.e+x.b:null})))+'건',lv:t.w?((t.e+t.b)?'bad':'good'):'',sp:S.map(function(x){return x.w?x.e+x.b:null})},
-  {l:'HACCP 일보 작성',v:t.hw,u:'/ '+hac.length+'종',s:'생산한 호기 · 품목 일보만 작성 대상',sp:S.map(function(x){return x.hw||null})},
+ var K=[{l:'멸균량',v:t.L,u:'L',s:'멸균 업무일지 1~5호기 합 · 14일 평균 '+f(avg(S.map(function(x){return x.L})))+'L',d:delta(t.L,avg(S.slice(0,13).map(function(x){return x.L})),true),sp:S.map(function(x){return x.L})},
+  {l:'CCP 이탈',v:t.w?t.e+t.b:null,u:'건',s:'HACCP · 멸균 일지 · 14일 합계 '+f(sum(S.map(function(x){return x.w?x.e+x.b:null})))+'건',lv:t.w?((t.e+t.b)?'bad':'good'):'',sp:S.map(function(x){return x.w?x.e+x.b:null})},
+  {l:'HACCP 일보',v:t.hw,u:'/ '+hac.length+'종',s:'생산한 호기 · 품목 일보만 작성 대상',sp:S.map(function(x){return x.hw||null})},
   {l:'OEE',v:null,u:'',s:'멸균 OEE 기록 시작 전 · 대기',lv:''}];
- var A=[];if(t.w&&(t.e+t.b))A.push({lv:'red',t:'CCP · 기준 이탈 '+(t.e+t.b)+'건 ('+md(B)+')',d:'HACCP 기록 확인 → 이탈 제품 격리 · 재멸균 판단 기록'});
+ var A=[];if(t.w&&(t.e+t.b))A.push({lv:'red',t:'CCP 이탈 '+(t.e+t.b)+'건',d:'HACCP 기록 확인 → 이탈 제품 격리 · 재멸균 판단 기록'});
  return {K:K,A:A,has:!!(t.w||t.L)}}
 function pack(B,P,R){var D=days14(B),O=D.map(function(d){try{return (yumOEE.eq(d)||[]).filter(function(o){return o.team==='pack'})}catch(e){return []}}),o=O[13]||[];
  var oee=O.map(function(L){var a=L.filter(function(x){return x.O!=null});return a.length?avg(a.map(function(x){return x.qAssumed&&x.A!=null&&x.P!=null?x.A*x.P:x.O}))*100:null});
@@ -22219,28 +22219,30 @@ function pack(B,P,R){var D=days14(B),O=D.map(function(d){try{return (yumOEE.eq(d
  var KP=null;try{KP=window.yumPkKpi&&yumPkKpi()}catch(e){}var kOk=0,kN=0,kBad=[];
  if(KP&&KP.items)KP.items.forEach(function(it){var low=/클레임|재해|폐기/.test(it.name),v=it.agg!=null?it.agg:(typeof it.rateAgg==='number'?it.rateAgg:null),tg=it.target;if(it.subs&&it.subs.length){kN++;var ok=it.subs.filter(function(x){return x.agg!=null&&x.target!=null&&x.agg>=x.target}).length;if(ok===it.subs.length)kOk++;else kBad.push(it.name);return}
   if(v==null||tg==null)return;kN++;var good=low?v<=tg:v>=tg;if(good)kOk++;else kBad.push(it.name)});
- var K=[{l:'포장 OEE (평균)',v:oee[13],dg:1,u:'%',s:o.filter(function(x){return x.O!=null}).length+'개 호기 · 14일 평균 '+f(avg(oee),1)+'%',d:delta(oee[13],avg(oee.slice(0,13)),true),lv:oee[13]==null?'':oee[13]<60?'bad':oee[13]<75?'warn':'good',sp:oee},
-  {l:'생산 달성률',v:ach,dg:1,u:'%',s:'생산 '+f(qty)+'개 / 지시 '+f(ord)+'개',lv:ach==null?'':ach<90?'warn':'good',sp:O.map(function(L){var a=sum(L.filter(function(x){return x.order}).map(function(x){return x.order})),b=sum(L.filter(function(x){return x.order}).map(function(x){return x.q}));return a?b/a*100:null})},
-  {l:'가장 큰 정지 손실',v:top[0]?Math.round(top[0][1]):null,u:'분',s:top[0]?top[0][0]+' · 최근 14일 (SIP · CIP 제외)':'정지 기록 없음',lv:''},
-  {l:'KPI 목표 달성',v:kN?kOk:null,u:'/ '+kN+'항목',s:kBad.length?'미달: '+kBad.slice(0,3).join(', '):'포장 KPI 실적 기준',lv:kN?(kOk/kN<0.5?'bad':kOk<kN?'warn':'good'):''}];
+ var K=[{l:'OEE',v:oee[13],dg:1,u:'%',s:o.filter(function(x){return x.O!=null}).length+'개 호기 · 14일 평균 '+f(avg(oee),1)+'%',d:delta(oee[13],avg(oee.slice(0,13)),true),lv:oee[13]==null?'':oee[13]<60?'bad':oee[13]<75?'warn':'good',sp:oee},
+  {l:'달성률',v:ach,dg:1,u:'%',s:'생산 '+f(qty)+'개 / 지시 '+f(ord)+'개',lv:ach==null?'':ach<90?'warn':'good',sp:O.map(function(L){var a=sum(L.filter(function(x){return x.order}).map(function(x){return x.order})),b=sum(L.filter(function(x){return x.order}).map(function(x){return x.q}));return a?b/a*100:null})},
+  {l:top[0]?'정지 1위 · '+top[0][0]:'최대 정지',v:top[0]?Math.round(top[0][1]):null,u:'분',s:top[0]?top[0][0]+' · 최근 14일 (SIP · CIP 제외)':'정지 기록 없음',lv:''},
+  {l:'KPI 달성',v:kN?kOk:null,u:'/ '+kN+'항목',s:kBad.length?'미달: '+kBad.slice(0,3).join(', '):'포장 KPI 실적 기준',lv:kN?(kOk/kN<0.5?'bad':kOk<kN?'warn':'good'):''}];
  var A=[];o.filter(function(x){var v=x.qAssumed&&x.A!=null&&x.P!=null?x.A*x.P:x.O;return v!=null&&v<0.6}).forEach(function(x){var s={};(x.stops||[]).forEach(function(q){if(q.c!=='SIP·CIP')s[q.c]=(s[q.c]||0)+(+q.m||0)});var tp=Object.keys(s).sort(function(a,b){return s[b]-s[a]})[0];
   A.push({lv:'red',t:'포장 '+x.name+' OEE '+f((x.qAssumed?x.A*x.P:x.O)*100,1)+'%',d:'시간가동률 '+f(x.A*100,0)+'% · 성능 '+f(x.P*100,0)+'%'+(tp?' · 최대 정지 '+tp+' '+f(s[tp])+'분':'')+' → 정지 원인 조치'})});
- if(ach!=null&&ach<90)A.push({lv:'amber',t:'생산 달성률 '+f(ach,1)+'%',d:'지시량 대비 '+f(ord-qOrd)+'개 부족 → 잔량 생산 계획 확인'});
- if(top[0]&&top[0][0]==='하류 대기')A.push({lv:'amber',t:'하류 대기(적재로봇 · 팔레타이저 · 자동창고) 정지 '+f(top[0][1])+'분',d:'최근 14일 정지 1위 → 후공정 설비 점검'});
+ if(ach!=null&&ach<90)A.push({lv:'amber',t:'달성률 '+f(ach,1)+'%',d:'지시량 대비 '+f(ord-qOrd)+'개 부족 → 잔량 생산 계획 확인'});
+ if(top[0]&&top[0][0]==='하류 대기')A.push({lv:'amber',t:'하류 대기 정지 '+f(top[0][1])+'분',d:'최근 14일 정지 1위 → 후공정 설비 점검'});
  if(kBad.length)A.push({lv:'amber',t:'KPI 미달 '+kBad.length+'항목',d:kBad.slice(0,4).join(' · ')});
  var has=o.length>0;return {K:K,A:A,has:has,loss:top.slice(0,4)}}
 /* ── 그리기 ── */
-function kpiTile(k,c,i){var lv=k.lv||'',v=k.v;return '<div class="exb-k '+lv+'" style="--d:'+(i*70)+'ms"><div class="exb-kl">'+E(k.l)+'</div><div class="exb-kv"><b>'+(v==null?'—':f(v,k.dg))+'</b><small>'+E(v==null?'':k.u)+'</small>'+(k.d||'')+'</div><div class="exb-ks">'+E(k.s||'')+'</div>'+(k.sp?spark(k.sp,lv==='bad'?'#DC2626':lv==='warn'?'#D97706':c):'')+'</div>'}
+function kpiTile(k,c,i){var lv=k.lv||'',v=k.v,col=lv==='bad'?'#DC2626':lv==='warn'?'#D97706':lv==='good'?'#059669':c,pct=k.u==='%'&&v!=null;
+ return '<div class="exb-k '+lv+'" style="--d:'+(i*70)+'ms;--kc:'+col+'" title="'+E(k.s||'')+'"><div class="exb-kl">'+E(k.l)+'</div><div class="exb-kv"><b>'+(v==null?'—':f(v,k.dg))+'</b><small>'+E(v==null?'':k.u)+'</small>'+(k.d||'')+'</div>'+
+  (pct?'<div class="exb-g"><i style="--w:'+Math.max(0,Math.min(100,v)).toFixed(1)+'%"></i></div>':'')+(k.sp?spark(k.sp,col):'')+'</div>'}
 function build(T){var P=PD();if(!P)return '';var ds=[];try{ds=P.dates(T.k)||[]}catch(e){}var td=ymd(new Date()),B=ds.filter(function(d){return d<=td})[0]||td;
  if(T.k==='pack'){try{for(var i=0;i<14;i++){var dd=addD(td,-i);if((yumOEE.eq(dd)||[]).some(function(o){return o.team==='pack'&&o.O!=null&&o.q})){B=dd;break}}}catch(e){}}
  var R=recs(T,B),X=T.k==='juice'?juice(B,P,R):T.k==='mix'?mix(B,P,R):T.k==='sterx'?ster(B,P,R):pack(B,P,R);
  var cur=mins(R.cur),prev=mins(R.prev),ch=pctChg(cur,prev),tops=topBy(R.cur,'reason',4),hog=topBy(R.cur,'hogi',3),A=X.A.slice();
  /* 공통 판단 */
  var gap=Math.round((new Date(td+'T00:00:00')-new Date(B+'T00:00:00'))/864e5);
- if(gap>=2)A.push({lv:'amber',t:'최근 기록이 '+md(B)+'('+wd(B)+')에서 멈춤',d:gap+'일째 '+(T.k==='pack'?'포장팀 포털 생산 기록이 들어오지 않음 → 포장팀 포털 입력 확인':T.n+' 일지가 저장되지 않음 → 일지 작성 · 저장 확인')});
- if(cur>=120&&ch!=null&&ch>0.2)A.push({lv:ch>0.5?'red':'amber',t:'생산 지연 '+f(cur/60,1)+'시간 · 직전 30일 대비 +'+f(ch*100,0)+'%',d:tops[0]?'1위 원인 「'+tops[0][0]+'」 '+f(tops[0][1]/60,1)+'시간 ('+f(tops[0][1]/cur*100,0)+'%) → 재발 방지 대책 필요':''});
- if(cur>=240&&hog[0]&&hog[0][1]>=90&&hog[0][1]/cur>0.35&&hog.length>1)A.push({lv:'amber',t:hog[0][0]+'에 지연 집중 ('+f(hog[0][1]/cur*100,0)+'%)',d:'최근 30일 지연 '+f(hog[0][1]/60,1)+'시간 → 해당 호기 설비 · 운영 점검'});
- var urg=R.maint.filter(function(m){return /긴급/.test(m.mtype||'')}).length;if(urg>=2)A.push({lv:'amber',t:'긴급 정비 '+urg+'건 (최근 30일)',d:'계획 정비로 돌릴 수 있는 설비 확인 · 예방 정비 주기 점검'});
+ if(gap>=2)A.push({lv:'amber',t:'기록 끊김 · '+md(B)+' 이후',d:gap+'일째 '+(T.k==='pack'?'포장팀 포털 생산 기록이 들어오지 않음 → 포장팀 포털 입력 확인':T.n+' 일지가 저장되지 않음 → 일지 작성 · 저장 확인')});
+ if(cur>=120&&ch!=null&&ch>0.2)A.push({lv:ch>0.5?'red':'amber',t:'지연 +'+f(ch*100,0)+'% · '+f(cur/60,1)+'h',d:tops[0]?'1위 원인 「'+tops[0][0]+'」 '+f(tops[0][1]/60,1)+'시간 ('+f(tops[0][1]/cur*100,0)+'%) → 재발 방지 대책 필요':''});
+ if(cur>=240&&hog[0]&&hog[0][1]>=90&&hog[0][1]/cur>0.35&&hog.length>1)A.push({lv:'amber',t:hog[0][0]+' 지연 '+f(hog[0][1]/cur*100,0)+'%',d:'최근 30일 지연 '+f(hog[0][1]/60,1)+'시간 → 해당 호기 설비 · 운영 점검'});
+ var urg=R.maint.filter(function(m){return /긴급/.test(m.mtype||'')}).length;if(urg>=2)A.push({lv:'amber',t:'긴급 정비 '+urg+'건',d:'계획 정비로 돌릴 수 있는 설비 확인 · 예방 정비 주기 점검'});
  A.sort(function(a,b){var o={red:0,amber:1,info:2};return o[a.lv]-o[b.lv]});
  var reds=A.filter(function(a){return a.lv==='red'}).length,ambs=A.filter(function(a){return a.lv==='amber'}).length;
  var stv=reds?'bad':ambs?'warn':'good',stl=reds?'즉시 확인':ambs?'주의':'정상',verdict=reds?A[0].t+' — 오늘 안에 조치가 필요합니다.':ambs?A[0].t+' — 지켜볼 항목이 '+ambs+'개 있습니다.':(X.has?'핵심 지표가 정상 범위입니다. 계획대로 운영 중입니다.':'기준일에 저장된 '+T.n+' 일지가 없어 판단할 자료가 부족합니다.');
@@ -22248,19 +22250,14 @@ function build(T){var P=PD();if(!P)return '';var ds=[];try{ds=P.dates(T.k)||[]}c
  var loss=T.k==='pack'?(X.loss||[]).map(function(x){return [x[0],x[1]]}):tops,lt=sum(loss.map(function(x){return x[1]}))||0,ltitle=T.k==='pack'?'정지 손실 TOP · 최근 14일':'지연 원인 TOP · 최근 30일';
  var pv={};topBy(R.prev,'reason',30).forEach(function(x){pv[x[0]]=x[1]});
  var lossH=loss.length?loss.map(function(x,i){var w=lt?x[1]/lt*100:0,p=pv[x[0]],tr=T.k!=='pack'&&p!=null?(x[1]>p*1.1?'<em class="exb-d bad">▲ 직전 '+f(p/60,1)+'h</em>':x[1]<p*0.9?'<em class="exb-d good">▼ 직전 '+f(p/60,1)+'h</em>':''):T.k!=='pack'?'<em class="exb-d bad">신규</em>':'';
-   return '<div class="exb-lr" style="--d:'+(i*80)+'ms"><span>'+(i+1)+'. '+E(x[0])+'</span><div class="exb-lb"><i style="--w:'+w.toFixed(1)+'%;background:'+T.c+'"></i></div><b>'+(T.k==='pack'?f(x[1])+'분':f(x[1]/60,1)+'h')+' <small>'+f(w,0)+'%</small></b>'+tr+'</div>'}).join(''):'<div class="exb-none">기록된 손실이 없습니다</div>';
- var mt=R.maint.length;
- return '<section class="exb" style="--c:'+T.c+'"><header class="exb-h"><div><div class="exb-eye">EXECUTIVE BRIEFING · '+E(T.full)+'</div><h2>'+E(T.n)+' 임원 브리핑 <small>기준 '+md(B)+' ('+wd(B)+')'+(B!==td?' · 마지막 기록일':'')+'</small></h2></div>'+
-  '<div class="exb-st '+stv+'"><i></i><b>'+stl+'</b></div></header>'+
-  '<p class="exb-v '+stv+'">'+E(verdict)+'</p>'+
+   return '<div class="exb-lr" style="--d:'+(i*80)+'ms"><span>'+(i+1)+'. '+E(x[0])+'</span><div class="exb-lb"><i style="--w:'+w.toFixed(1)+'%;background:'+T.c+'"></i></div><b>'+(T.k==='pack'?f(x[1])+'분':f(x[1]/60,1)+'h')+' <small>'+f(w,0)+'%</small></b>'+'</div>'}).join(''):'<div class="exb-none">—</div>';
+ return '<section class="exb" style="--c:'+T.c+'"><header class="exb-h"><span class="exb-dt">'+md(B)+' ('+wd(B)+')</span><div class="exb-st '+stv+'" title="'+E(verdict)+'"><i></i><b>'+stl+'</b></div></header>'+
   '<div class="exb-ks4">'+X.K.map(function(k,i){return kpiTile(k,T.c,i)}).join('')+'</div>'+
-  '<div class="exb-2"><div class="exb-box"><h3>지금 챙길 것 <small>'+(A.length?'위험 '+reds+' · 주의 '+ambs:'없음')+'</small></h3>'+(A.length?'<ol class="exb-al">'+A.slice(0,5).map(function(a,i){return '<li class="'+a.lv+'" style="--d:'+(i*90)+'ms"><i></i><div><b>'+E(a.t)+'</b>'+(a.d?'<span>'+E(a.d)+'</span>':'')+'</div></li>'}).join('')+'</ol>':'<div class="exb-none ok">✓ 지금 따로 챙길 항목이 없습니다</div>')+'</div>'+
-  '<div class="exb-box"><h3>'+ltitle+' <small>'+(T.k==='pack'?'OEE 정지 기록':'지연 '+f(cur/60,1)+'h · '+R.cur.length+'건'+(ch!=null?' · 직전 30일 '+(ch>=0?'+':'')+f(ch*100,0)+'%':''))+'</small></h3>'+lossH+
-   '<div class="exb-ft">정비 '+mt+'건 (최근 30일)'+(R.pmaint.length?' · 직전 '+R.pmaint.length+'건':'')+(urg?' · 긴급 '+urg+'건':'')+'</div></div></div>'+
-  '<div class="exb-sep"><span>상세 분석</span></div></section>'}
+  '<div class="exb-2"><div class="exb-box"><h3>챙길 것'+(A.length?' <em>'+A.length+'</em>':'')+'</h3>'+(A.length?'<ol class="exb-al">'+A.slice(0,5).map(function(a,i){return '<li class="'+a.lv+'" style="--d:'+(i*90)+'ms" title="'+E(a.d||'')+'"><i></i><b>'+E(a.t)+'</b></li>'}).join('')+'</ol>':'<div class="exb-none ok">✓</div>')+'</div>'+
+  '<div class="exb-box"><h3>'+(T.k==='pack'?'정지 손실':'지연 원인')+' TOP</h3>'+lossH+'</div></div></section>'}
 var CSS='.exb{background:linear-gradient(180deg,#fff,#FBFCFE);border:1px solid #E5E9F2;border-top:4px solid var(--c);border-radius:20px;padding:18px 20px 6px;margin:0 0 16px;box-shadow:0 18px 40px -34px rgba(10,21,48,.55)}'+
- '.exb-h{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}.exb-eye{font-size:11px;font-weight:900;letter-spacing:.16em;color:var(--c)}.exb-h h2{margin:4px 0 0;font-size:24px;font-weight:900;color:#0F172A;letter-spacing:-.02em}.exb-h h2 small{font-size:13px;font-weight:700;color:#64748B;margin-left:8px;letter-spacing:0}'+
- '.exb-st{display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:999px;font-size:15px;font-weight:900}.exb-st i{width:12px;height:12px;border-radius:50%;background:currentColor;box-shadow:0 0 0 4px color-mix(in srgb,currentColor 22%,transparent);animation:exbP 1.8s ease-in-out infinite}@keyframes exbP{50%{box-shadow:0 0 0 8px color-mix(in srgb,currentColor 0%,transparent)}}'+
+ '.exb{padding:14px 18px 16px!important}.exb-h{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.exb-dt{font-size:14px;font-weight:900;color:#334155}.exb-eye{font-size:11px;font-weight:900;letter-spacing:.16em;color:var(--c)}.exb-h h2{margin:4px 0 0;font-size:24px;font-weight:900;color:#0F172A;letter-spacing:-.02em}.exb-h h2 small{font-size:13px;font-weight:700;color:#64748B;margin-left:8px;letter-spacing:0}'+
+ '.exb-st{display:flex;align-items:center;gap:8px;padding:6px 14px;border-radius:999px;font-size:14px;font-weight:900;cursor:help}.exb-st i{width:12px;height:12px;border-radius:50%;background:currentColor;box-shadow:0 0 0 4px color-mix(in srgb,currentColor 22%,transparent);animation:exbP 1.8s ease-in-out infinite}@keyframes exbP{50%{box-shadow:0 0 0 8px color-mix(in srgb,currentColor 0%,transparent)}}'+
  '.exb-st.good{background:#ECFDF5;color:#059669}.exb-st.warn{background:#FFFBEB;color:#D97706}.exb-st.bad{background:#FEF2F2;color:#DC2626}'+
  '.exb-v{margin:10px 0 14px;font-size:15px;font-weight:700;line-height:1.55;padding:10px 14px;border-radius:12px;background:#F8FAFC;color:#1E293B;border-left:4px solid #94A3B8}.exb-v.bad{border-color:#DC2626;background:#FEF2F2}.exb-v.warn{border-color:#D97706;background:#FFFBEB}.exb-v.good{border-color:#059669;background:#F0FDF4}'+
  '.exb-ks4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.exb-k{background:#fff;border:1px solid #E5E9F2;border-radius:16px;padding:12px 14px 8px;display:flex;flex-direction:column;gap:3px;min-width:0;animation:exbIn .6s cubic-bezier(.16,1,.3,1) both;animation-delay:var(--d)}'+
@@ -22275,6 +22272,8 @@ var CSS='.exb{background:linear-gradient(180deg,#fff,#FBFCFE);border:1px solid #
  '.exb-ft{margin-top:6px;font-size:12px;color:#64748B;border-top:1px dashed #E2E8F0;padding-top:8px}.exb-none{font-size:13px;color:#94A3B8;padding:12px;text-align:center;background:#F8FAFC;border-radius:12px}.exb-none.ok{color:#059669;background:#F0FDF4;font-weight:800}'+
  '.exb-sep{display:flex;align-items:center;gap:10px;margin:16px 0 8px;font-size:11.5px;font-weight:900;letter-spacing:.14em;color:#94A3B8}.exb-sep::before,.exb-sep::after{content:"";flex:1;height:1px;background:#E2E8F0}'+
  '@keyframes exbIn{from{opacity:0;transform:translateY(10px)}}'+
+ '.exb-kl{font-size:13.5px!important;cursor:help}.exb-kv b{font-size:34px!important}.exb-g{height:8px;background:#F1F5F9;border-radius:999px;overflow:hidden;margin:4px 0 2px}.exb-g i{display:block;height:100%;width:var(--w);background:var(--kc);border-radius:999px;animation:exbW 1s cubic-bezier(.16,1,.3,1) both}.exb-sp{height:40px!important}'+
+ '.exb-box h3 em{font-style:normal;font-size:12px;background:#0F172A;color:#fff;border-radius:999px;padding:1px 8px;margin-left:6px;vertical-align:2px}.exb-al li{align-items:center;cursor:help}.exb-al li>i{margin-top:0}.exb-al b{font-size:14.5px}.exb-lr{grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) auto}.exb-lr b{font-size:14px}.exb-none.ok{font-size:28px;padding:18px}'+
  '@media (max-width:1100px){.exb-ks4{grid-template-columns:repeat(2,minmax(0,1fr))}.exb-2{grid-template-columns:1fr}}@media (max-width:560px){.exb{padding:14px 12px 4px}.exb-ks4{grid-template-columns:1fr 1fr;gap:8px}.exb-kv b{font-size:24px}.exb-h h2{font-size:20px}}'+
  '@media (prefers-reduced-motion:reduce){.exb *{animation:none!important}.exb-sp path{stroke-dashoffset:0}}@media print{.exb{box-shadow:none;break-inside:avoid}}';
 var SIG='';
