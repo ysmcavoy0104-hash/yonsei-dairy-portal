@@ -962,5 +962,19 @@ function boot(){
 }
 boot();
 </script>
+<script>
+/* 2026-11-18 스크롤이 저절로 위로 올라가던 문제: 탱크 · 현황이 다시 그려질 때 페이지 높이가 잠깐 줄어 브라우저가 스크롤을 당기던 것
+   · 같은 탭 안에서는 페이지 높이를 줄이지 않고 붙잡아 둠 (탭을 바꾸면 풀림)
+   · 직접 움직이지 않았는데 위로 크게 튀면 원래 자리로 되돌림 */
+(function(){if(window.__MIXSG__)return;window.__MIXSG__=1;
+ var intent=0,tabT=0,last=window.scrollY,maxH=0;
+ ['wheel','touchstart','touchmove','keydown','mousedown','pointerdown'].forEach(function(ev){addEventListener(ev,function(){intent=Date.now()},{passive:true,capture:true})});
+ addEventListener('scroll',function(){var y=window.scrollY,now=Date.now();if(now-intent<1500||now-tabT<1500){last=y;return}
+  if(last-y>40){var want=last,t0=now;(function fix(){if(Date.now()-intent<1500)return;if(Math.abs(window.scrollY-want)>2)window.scrollTo(0,want);if(window.scrollY<want-2&&Date.now()-t0<1500)requestAnimationFrame(fix);else last=window.scrollY})();return}last=y},{passive:true});
+ function hold(){var now=Date.now();if(now-tabT<1200){document.body.style.minHeight='';maxH=0;return}var h=document.documentElement.scrollHeight;if(h>maxH){maxH=h;document.body.style.minHeight=h+'px'}}
+ try{new ResizeObserver(hold).observe(document.body)}catch(e){}setInterval(hold,400);setTimeout(hold,1500);
+ var _st=window.setTab;if(typeof _st==='function')window.setTab=function(){tabT=Date.now();maxH=0;document.body.style.minHeight='';var r=_st.apply(this,arguments);last=window.scrollY;return r};
+})();
+</script>
 </body>
 </html>
