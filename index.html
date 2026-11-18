@@ -22397,6 +22397,27 @@ wrap();setInterval(wrap,1000);window.addEventListener('load',wrap);
 })();
 </script>
 <script>
+/* 2026-11-19 스크롤 튐 · 깜빡임 막기
+   ① 같은 화면을 다시 그리는 동안 #main 높이를 잠깐 그대로 붙잡아 둠(내용이 비는 순간 페이지가 짧아져 맨 위로 올라가는 것 방지)
+   ② 사용자가 스크롤 · 클릭 · 키 입력을 하지 않았는데 화면이 갑자기 위로 튀면 원래 위치로 되돌림 (주소가 바뀐 직후는 제외) */
+(function(){'use strict';if(window.__YUM_SG__)return;window.__YUM_SG__=1;
+var lastUser=0,lastNav=0,lastY=window.scrollY||0,hold=null,holdT=null;
+['wheel','touchstart','touchmove','keydown','mousedown','pointerdown'].forEach(function(ev){window.addEventListener(ev,function(){lastUser=Date.now()},{passive:true,capture:true})});
+window.addEventListener('hashchange',function(){lastNav=Date.now();lastY=0});
+function user(){return Date.now()-lastUser<700}
+function nav(){return Date.now()-lastNav<1200}
+window.addEventListener('scroll',function(){var y=window.scrollY;if(user()||nav()){lastY=y;return}
+ if(y<lastY-80){var want=lastY,go=function(){var max=document.documentElement.scrollHeight-window.innerHeight;if(!user()&&!nav()&&window.scrollY<want-80&&max>=want-5)window.scrollTo(window.scrollX,want)};requestAnimationFrame(go);setTimeout(go,120);setTimeout(go,400);setTimeout(go,900);return}
+ lastY=y},{passive:true});
+/* ① 다시 그리는 동안 높이 붙잡기 — App.render 감싸기 */
+function lock(){var M=document.getElementById('main');if(!M)return;var h=M.offsetHeight;if(h<200)return;M.style.minHeight=h+'px';clearTimeout(holdT);holdT=setTimeout(function(){M.style.minHeight=''},1600)}
+function wrap(){if(typeof App==='undefined'||!App.render||App.render.__sg)return;var inner=App.render,LH=location.hash;
+ var w=function(){var same=location.hash===LH;LH=location.hash;if(same&&!nav())lock();return inner.apply(this,arguments)};w.__sg=1;w.__q=inner.__q;App.render=w}
+wrap();setInterval(wrap,1000);window.addEventListener('load',wrap);
+window.yumHoldMain=lock;
+})();
+</script>
+<script>
 /* 2026-11-17 HACCP 일보 [1]~[4](멸균기 1,2): 고른 호기를 문서 제목에 「· 1호기」로 */
 (function(){var _d=window.yumDocTag;if(!_d||_d.__hp)return;var w=function(f,data){var r='';try{r=_d(f,data)}catch(e){}if(r)return r;try{if(f&&/^FRM-0(21|29|30|31)$/.test(f.code)){var g=(data&&data.grid)||{},k=Object.keys(g).filter(function(x){return /^hp\d+_ho$/.test(x)})[0],v=k?String(g[k]).trim():'';if(/^[12]$/.test(v))return ' · '+v+'호기'}}catch(e){}return ''};w.__hp=1;window.yumDocTag=w})();
 (function(){var st=document.createElement('style');st.textContent='#docpaper input[data-gk^="hp"][data-gk$="_chk"]{text-align:left!important;padding-left:6px!important}#docpaper textarea[data-gk^="a19_"],#docpaper textarea[data-gk^="a20_"]{text-align:center!important;line-height:1.25!important;resize:none!important;overflow:hidden!important}#docpaper textarea[data-gk^="a19_r16"],#docpaper textarea[data-gk^="a20_r16"],#docpaper textarea[data-gk^="a19_r"],#docpaper textarea[data-gk^="a20_r"]{height:2.7em!important;min-height:0!important;padding:0!important;display:block!important;margin:auto 0!important;font-weight:600!important;color:#000!important;vertical-align:middle!important}#docpaper td:has(>textarea[data-gk^="a19_"]),#docpaper td:has(>textarea[data-gk^="a20_"]){vertical-align:middle!important}';document.head.appendChild(st)})();
