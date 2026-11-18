@@ -7202,7 +7202,7 @@ function exportPdf(){
  var msg=document.createElement('div');msg.textContent='PDF 만드는 중...';msg.style.cssText='position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#1F2A37;color:#fff;padding:9px 16px;border-radius:8px;z-index:99999;font-size:13px';document.body.appendChild(msg);
  var box=document.createElement('div');box.style.cssText='position:fixed;left:-20000px;top:0;background:#fff;width:1050px;padding:16px';
  ensureExportLibs().then(function(){
-  box.innerHTML=renderResult();[].forEach.call(box.querySelectorAll('.pc-rcp'),function(e){e.remove()});document.body.appendChild(box);
+  var _lv=document.querySelector('#pc-result-wrap table.pc-grid[data-sp]');box.innerHTML=_lv?_lv.outerHTML:renderResult();if(_lv)box.style.width=Math.max(1050,_lv.scrollWidth+32)+'px';[].forEach.call(box.querySelectorAll('.pc-rcp'),function(e){e.remove()});document.body.appendChild(box);
   var tbl=box.querySelector('table');
   return window.html2canvas(tbl,{scale:2,backgroundColor:'#ffffff'}).then(function(cv){
    var doc=new window.jspdf.jsPDF({orientation:'portrait',unit:'mm',format:'a4'});
@@ -7218,7 +7218,7 @@ function exportPdf(){
 function exportWord(){
  if(!LAST){alert('먼저 생산계획표 PDF를 업로드해 주세요.');return}
  var html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'+
-  '<head><meta charset="utf-8"><title>생산계획표 조건표</title><style>'+PCBOXCSS+' body{font-family:"맑은 고딕",sans-serif}</style></head><body>'+renderResult().replace(/<span class="pc-box pc-rcp"[^>]*>[^<]*<\/span>/g,'')+'</body></html>';
+  '<head><meta charset="utf-8"><title>생산계획표 조건표</title><style>'+PCBOXCSS+(function(){var t='';try{[].forEach.call(document.styleSheets,function(ss){try{[].forEach.call(ss.cssRules,function(r){if(/\.sp-|pc-grid/.test(r.selectorText||''))t+=r.cssText})}catch(e){}})}catch(e){}return t})()+' body{font-family:"맑은 고딕",sans-serif}</style></head><body>'+(function(){var _lv=document.querySelector('#pc-result-wrap table.pc-grid[data-sp]');return _lv?_lv.outerHTML:renderResult()})().replace(/<span class="pc-box pc-rcp"[^>]*>[^<]*<\/span>/g,'')+'</body></html>';
  var blob=new Blob(['\ufeff',html],{type:'application/msword'});
  var a=document.createElement('a');a.href=URL.createObjectURL(blob);
  a.download=(LAST.fileName||'생산계획표').replace(/\.pdf$/i,'')+'_조건표.doc';
@@ -7332,7 +7332,7 @@ function pickWish(el){
  var n=el.dataset.n,d=+el.dataset.d,v=(el.value||'').trim();
  var o=M(CUR_YM);
  o.wishes[n]=o.wishes[n]||{};
- if(window.wsIsVac&&wsIsVac(v)){o.wishes[n][d]='하계';el.value='하계'}else if(window.wsIsEdu&&wsIsEdu(v)){o.wishes[n][d]='교육';el.value='교육'}else if(v&&/^[0-9]{1,2}$/.test(v))o.wishes[n][d]=+v;else delete o.wishes[n][d];
+ if(window.wsLvOf&&wsLvOf(v)){o.wishes[n][d]=wsLvOf(v);el.value=wsLvOf(v)}else if(window.wsIsVac&&wsIsVac(v)){o.wishes[n][d]='하계';el.value='하계'}else if(window.wsIsEdu&&wsIsEdu(v)){o.wishes[n][d]='교육';el.value='교육'}else if(v&&/^[0-9]{1,2}$/.test(v))o.wishes[n][d]=+v;else delete o.wishes[n][d];
  DB.save();
 }
 function setTarget(v){var o=M(CUR_YM);o.target=Math.max(0,+v||0);o.targetAuto=false;DB.save();rerenderStats()}
@@ -7504,7 +7504,7 @@ function dayHead(extra){var N=daysInMonth(CUR_YM),T=todayD(),H=holMap();
  return '<thead><tr><th class="ws-name">이름</th>'+Array.from({length:N},function(_,i){var d=i+1,c=dcls(d);
   return '<th class="'+c+(d===T?' tdy':'')+'"'+(H[d]?' title="'+esc(H[d])+'"':'')+'>'+d+'<span class="w">'+WD[dowOf(CUR_YM,d)]+'</span></th>'}).join('')+(extra||'')+'</tr></thead>'}
 function nameCell(n,idx){var t=TEAM3[n]||(window.yumTraineeTeam&&yumTraineeTeam(n));var _nw=!TEAM3[n]&&t;return '<td class="ws-name"><span class="ws-dot" style="background:'+(TCOL[t]||'#999')+'"></span>'+(idx!=null?(idx+1)+'. ':'')+esc(n)+'<span class="ws-tm">'+t+'</span>'+(_nw?'<span style="margin-left:4px;font-size:10px;font-weight:800;color:#B7791F;background:#FFF4DE;border-radius:5px;padding:1px 5px">신입</span>':'')+'</td>'}
-function pcls(v){return v==null||v===''?'':v==='하계'?'vac':v==='교육'?'edu':(+v<=3?'" data-p="'+(+v):'pp')}
+function pcls(v){return v==null||v===''?'':v==='하계'?'vac':v==='연차'?'vac lv-yc':v==='병가'?'vac lv-bg':v==='교육'?'edu':(+v<=3?'" data-p="'+(+v):'pp')}
 
 /* ---------- 1) 희망휴무 입력표 ---------- */
 function wishTableHtml(){
@@ -7517,7 +7517,7 @@ function wishTableHtml(){
  }).join('');
  return '<div class="wsx-tw"><table class="ws-grid">'+dayHead('<th style="min-width:54px">신청</th>')+'<tbody>'+rows+'</tbody></table></div>';
 }
-function paint(el){var td=el.parentNode,v=(el.value||'').trim();td.removeAttribute('data-p');td.classList.remove('pp');td.classList.remove('vac');td.classList.remove('edu');if(window.wsIsVac&&wsIsVac(v))td.classList.add('vac');if(window.wsIsEdu&&wsIsEdu(v))td.classList.add('edu');
+function paint(el){var td=el.parentNode,v=(el.value||'').trim();td.removeAttribute('data-p');td.classList.remove('pp');td.classList.remove('vac');td.classList.remove('edu');td.classList.remove('lv-yc');td.classList.remove('lv-bg');if(window.wsIsVac&&wsIsVac(v))td.classList.add('vac');if(window.wsLvOf&&wsLvOf(v)){td.classList.add('vac');td.classList.add(wsLvOf(v)==='연차'?'lv-yc':'lv-bg')}if(window.wsIsEdu&&wsIsEdu(v))td.classList.add('edu');
  if(/^[0-9]{1,2}$/.test(v)){if(+v<=3)td.setAttribute('data-p',+v);else td.classList.add('pp')}
  var tr=td.parentNode,k=[].filter.call(tr.querySelectorAll('input.ws-in'),function(x){return /^[0-9]{1,2}$/.test((x.value||'').trim())}).length,p=tr.querySelector('.ws-pill');
  if(p){p.textContent=k;p.style.background=k?'#EFEBFC':'#F4F6F9';p.style.color=k?'#5B3FC4':'#A0A8B5'}}
@@ -7576,9 +7576,9 @@ function checkTableHtml(){
  var N=o.result.N;
  var rows=ROSTER.concat(window.yumTraineeNames?yumTraineeNames(CUR_YM):[]).map(function(n,idx){
   var set={};(o.result.offByPerson[n]||(window.yumTraineeOff?yumTraineeOff(n,CUR_YM,o):[])).forEach(function(d){set[d]=1});
-  var VW=o.wishes[n]||{},nv=function(d){return VW[d]!=='하계'},vcnt=(o.result.offByPerson[n]||(window.yumTraineeOff?yumTraineeOff(n,CUR_YM,o):[])).filter(function(d){return !nv(d)}).length,cnt=(o.result.offByPerson[n]||(window.yumTraineeOff?yumTraineeOff(n,CUR_YM,o):[])).filter(nv).length,col=offColor(cnt,o.target);
+  var VW=o.wishes[n]||{},nv=function(d){return !(VW[d]==='하계'||VW[d]==='연차'||VW[d]==='병가')},vcnt=(o.result.offByPerson[n]||(window.yumTraineeOff?yumTraineeOff(n,CUR_YM,o):[])).filter(function(d){return !nv(d)}).length,cnt=(o.result.offByPerson[n]||(window.yumTraineeOff?yumTraineeOff(n,CUR_YM,o):[])).filter(nv).length,col=offColor(cnt,o.target);
   var cells=Array.from({length:N},function(_,i){var d=i+1,w=(o.wishes[n]||{})[d];
-   return '<td class="'+dcls(d)+'">'+(set[d]?(w==='하계'?'<span class="ws-off vac" title="하계휴가">하</span>':'<span class="ws-off'+(w!=null&&+w>1?' x':'')+'">'+(w!=null?w:'●')+'</span>'):'')+'</td>';
+   return '<td class="'+dcls(d)+'">'+(set[d]?((w==='하계'||w==='연차'||w==='병가')?'<span class="ws-off vac'+(w==='연차'?' lv-yc':w==='병가'?' lv-bg':'')+'" title="'+(w==='하계'?'하계휴가':w)+'">'+(w==='하계'?'하':w==='연차'?'연':'병')+'</span>':'<span class="ws-off'+(w!=null&&+w>1?' x':'')+'">'+(w!=null?w:'●')+'</span>'):'')+'</td>';
   }).join('');
   var cf=(o.result.offByPerson[n]||(window.yumTraineeOff?yumTraineeOff(n,CUR_YM,o):[])).filter(function(d){return CONF[d]&&nv(d)}).length;
   return '<tr>'+nameCell(n,idx)+cells+'<td class="ws-tot" style="color:#1B7F4E">'+(anyConf?cf:'-')+'</td><td class="ws-tot"><span class="ws-pill" style="background:'+col.bg+';color:'+col.fg+'">'+cnt+'</span></td></tr>';
@@ -7725,7 +7725,7 @@ function plan(){
  if(!ds.length){U.toast('이 주는 실제 근무 이력 기간이라 새로 편성하지 않습니다. 다른 주를 골라 주세요.','bad');return}
  var ws=ds[0],staff=Y._staff().filter(function(p){return p.active!==false}),prev=o.asg||{};
  /* 이 화면 입력 → 근무편성 입력 */
- var w={},VAC={};Object.keys(o.wishes||{}).forEach(function(n){var q=o.wishes[n]||{},r={};Object.keys(q).forEach(function(d){if(q[d]==='하계'){r[d]=1;(VAC[n]=VAC[n]||{})[d]=1;return}var v=+q[d];if(v>=1&&window.yumTeamRank)v=yumTeamRank(o,n,+d)||v;if(v>=1)r[d]=Math.min(3,v)});if(Object.keys(r).length)w[n]=r});
+ var w={},VAC={};Object.keys(o.wishes||{}).forEach(function(n){var q=o.wishes[n]||{},r={};Object.keys(q).forEach(function(d){if((q[d]==='하계'||q[d]==='연차'||q[d]==='병가')){r[d]=1;(VAC[n]=VAC[n]||{})[d]=1;return}var v=+q[d];if(v>=1&&window.yumTeamRank)v=yumTeamRank(o,n,+d)||v;if(v>=1)r[d]=Math.min(3,v)});if(Object.keys(r).length)w[n]=r});
  S0.wishes=w;S0.vac=VAC;S0.target=+o.target||S0.target;S0.hol=(o.holidays||[]).map(function(h){return h.d}).join(',');
  S0.req={};S0.reqTouched={};for(var d=1;d<=N;d++){S0.req[d]=splitReq(d);S0.reqTouched[d]=1}
  S0.maint={};for(var d3=1;d3<=N;d3++)if(isMaint(d3))S0.maint[d3]=1;
@@ -7777,7 +7777,7 @@ function plan(){
  var nx=weekList().findIndex(function(x,i){return i>wi&&(weekState(x)===''||weekState(x)==='part')});o.selWeek=nx>=0?nx:wi;
  DB.save();try{if(window.SupaSync&&SupaSync.on()){clearTimeout(SupaSync.pushT);SupaSync.pushNow(DB.data)}}catch(e){}
  var box=$('#ws-root');if(box)box.innerHTML=innerView();
- var OVW=[];try{var lastD=ds[ds.length-1];staff.forEach(function(p){if(p.st==='4층'||p.st==='지원')return;var a=asg[p.n]||[],used=0,fut=0,W=o.wishes[p.n]||{};for(var d4=1;d4<=lastD;d4++)if(a[d4-1]==='휴무'&&W[d4]!=='하계')used++;Object.keys(W).forEach(function(k){if(+k>lastD&&W[k]!=='하계'&&W[k]!=='교육')fut++});var tg=+o.target||0;if(fut&&used+fut>tg)OVW.push(p.n+'(편성 '+used+'일 + 뒤 희망 '+fut+'일 > 목표 '+tg+'일)')})}catch(e){}
+ var OVW=[];try{var lastD=ds[ds.length-1];staff.forEach(function(p){if(p.st==='4층'||p.st==='지원')return;var a=asg[p.n]||[],used=0,fut=0,W=o.wishes[p.n]||{};for(var d4=1;d4<=lastD;d4++)if(a[d4-1]==='휴무'&&!(W[d4]==='하계'||W[d4]==='연차'||W[d4]==='병가'))used++;Object.keys(W).forEach(function(k){if(+k>lastD&&!(W[k]==='하계'||W[k]==='연차'||W[k]==='병가')&&W[k]!=='교육')fut++});var tg=+o.target||0;if(fut&&used+fut>tg)OVW.push(p.n+'(편성 '+used+'일 + 뒤 희망 '+fut+'일 > 목표 '+tg+'일)')})}catch(e){}
  o.result.overWish=OVW;
  U.toast((wi+1)+'주차('+wk.lab+') 근무 편성 완료 — 주간근무계획표에 넣었습니다.'+(V.length?' 규칙 확인 '+V.length+'건이 있습니다.':'')+(OVW.length?' ⚠ 뒤쪽 희망휴무까지 합치면 목표 휴무를 넘는 사람: '+OVW.join(', ')+' — 이미 편성한 주에서 휴무를 줄이거나 희망휴무를 조정해 주세요.':''),OVW.length?'bad':'ok');
 }
@@ -7875,7 +7875,7 @@ function checkedOffSet(dateStr){
   var p=dateStr.split('-');var ym=p[0]+'-'+p[1];var day=+p[2];
   var ws=DB.data.workSched,o=ws&&ws.months&&ws.months[ym];if(!o)return null;
   var key=function(n){return String(n).replace(/\s+/g,'')},out={};
-  Object.keys(o.wishes||{}).forEach(function(n){if((o.wishes[n]||{})[day]!=null)out[key(n)]=(o.wishes[n]||{})[day]==='하계'?'vac':'wish'});
+  Object.keys(o.wishes||{}).forEach(function(n){if((o.wishes[n]||{})[day]!=null)out[key(n)]=((o.wishes[n]||{})[day]==='하계'||(o.wishes[n]||{})[day]==='연차'||(o.wishes[n]||{})[day]==='병가')?'vac':'wish'});
   var A=o.asg;if(A){
    var N=new Date(+p[0],+p[1],0).getDate(),wd=(new Date(+p[0],+p[1]-1,day).getDay()+6)%7,ws0=day-wd;
    Object.keys(A).forEach(function(n){var a=A[n]||[],k=key(n);if(out[k]||a[day-1]!=='휴무')return;
@@ -9491,7 +9491,7 @@ function specs(){
  if(!DB.data.milkSpecSeeded){for(var k in EST_SEED){if(!DB.data.milkSpec[k])DB.data.milkSpec[k]=JSON.parse(JSON.stringify(EST_SEED[k]))}DB.data.milkSpecSeeded=1}
  return DB.data.milkSpec;
 }
-function pspec(code){var _p=(DB.data.planSpec||{})[code]||null;try{if(window.yumSpecMerge)return yumSpecMerge(code,_p)||null}catch(e){}return _p}
+function pspec(code){var _p=(DB.data.planSpec||{})[code]||null,_sd=(window.__SPEC_SEED||{})[code]||null;if(_sd){if(!_p)_p=_sd;else if(!_p.material&&_sd.material){_p=Object.assign({},_p,{material:_sd.material})}}try{if(window.yumSpecMerge)return yumSpecMerge(code,_p)||null}catch(e){}return _p}
 function pname(code,fallback){var p=pspec(code);return (p&&p.name)||fallback||code}
 /* 제품 규격(원료)으로 기본 원유 기준 추정 */
 function defaultSpec(code,nameHint){
@@ -9508,6 +9508,11 @@ function defaultSpec(code,nameHint){
  if(/저지방/.test(m))return {kind:'원유',type:'저지방',ratio:ratio,enzyme:enz,lf:lf,auto:1};
  if(/서울원유/.test(m))return {kind:'원유',type:'서울',ratio:ratio,enzyme:enz,lf:lf,auto:1};
  if(/원유|일반,효소/.test(m))return {kind:'원유',type:'일반',ratio:ratio,enzyme:enz,lf:lf,auto:1};
+ if(!m.trim()&&/(우유|멸균유|밀크)/.test(nm)&&!/(두유|커피|음료|탈지|요구르트|발효)/.test(nm)){
+  var fr=null;if(!r){var bw=(/([가-힣A-Za-z0-9]+우유)/.exec(nm.replace(/\[[^\]]*\]|\([^)]*\)/g,'').replace(/\s+/g,''))||[])[1];
+   if(bw){var S9=specs();Object.keys(S9).some(function(k){var x=S9[k];if(!x||!(+x.ratio>0)||!x.kind)return false;if(String(pname(k,'')).replace(/\s+/g,'').indexOf(bw)>=0){fr=x;return true}return false})}}
+  return {kind:fr?fr.kind:'원유',type:/A2/i.test(nm)?'A2':(fr&&fr.type)||'일반',ratio:r?ratio:(fr?+fr.ratio:100),enzyme:false,lf:lf,auto:1,est:!r,byName:1};
+ }
  return null;
 }
 function specOf(code,nameHint){var s=specs()[code];if(s)return s;return defaultSpec(code,nameHint)}
@@ -9613,7 +9618,7 @@ function buildLots(W){
  (W.groups||[]).forEach(function(g){
   var sp=null,code=null;g.codes.some(function(c){var s=specOf(c.code,c.name);if(s&&(s.kind||s.wonaek)){sp=s;code=c.code;return true}return false});
   var rm=recipeMilk(g),B0=buildLots;
-  if(!sp&&!rm){g.codes.forEach(function(c){var s=specOf(c.code,c.name);if(s&&s.need)warn.push(dlabel(g.day)+' '+g.line+' · '+pname(c.code,c.name)+' — 효소반응 제품입니다. 원유 기준에서 원액/살균유 비율을 입력하세요.')});return}
+  if(!sp&&!rm){g.codes.forEach(function(c){var s=specOf(c.code,c.name),nm2=pname(c.code,c.name);if(!s&&/(우유|멸균유|밀크|원유)/.test(nm2)&&!/(두유|커피|음료)/.test(nm2))info.push(dlabel(g.day)+' '+g.line+' · '+nm2+' — 원유 기준(배합비 · 품목별 원유 기준 · 규격 원료)이 없어 수유를 잡지 못했습니다. 🥛 품목별 원유 기준에서 입력하세요.');if(s&&s.need)warn.push(dlabel(g.day)+' '+g.line+' · '+pname(c.code,c.name)+' — 효소반응 제품입니다. 원유 기준에서 원액/살균유 비율을 입력하세요.')});return}
   var names=g.codes.map(function(c){return pname(c.code,c.name)});
   if(rm&&g.n){
    var lf1=!!((sp&&sp.lf)||rm.lf),enz1=!!((sp&&sp.enzyme)||rm.enz)&&!lf1,kind1=(sp&&sp.kind)||rm.kind,type1=rm.type!=='일반'?rm.type:((sp&&sp.type)||'일반');
@@ -16132,7 +16137,7 @@ function addD(s,n){var d=new Date(s+'T00:00:00');d.setDate(d.getDate()+n);return
 function mon(ym){var W=DB.data.workSched=DB.data.workSched||{};W.months=W.months||{};return W.months[ym]}
 function val(n,ds){var o=mon(ds.slice(0,7));if(!o||!o.asg||!o.asg[n])return '';return o.asg[n][+ds.slice(8)-1]||''}
 function staff(){try{return (YSched._staff()||[]).filter(function(p){return p.active!==false&&p.st==='배합'})}catch(e){return []}}
-function offsMonth(n,ym){var o=mon(ym)||{},a=(o.asg||{})[n]||[],W=(o.wishes||{})[n]||{},c=0;a.forEach(function(v,i){if(v==='휴무'&&W[i+1]!=='하계')c++});return c}
+function offsMonth(n,ym){var o=mon(ym)||{},a=(o.asg||{})[n]||[],W=(o.wishes||{})[n]||{},c=0;a.forEach(function(v,i){if(v==='휴무'&&!(W[i+1]==='하계'||W[i+1]==='연차'||W[i+1]==='병가'))c++});return c}
 function key(){try{return WeekPlan.cur()}catch(e){return null}}
 function week(){var k=key();return k?[0,1,2,3,4,5,6].map(function(i){return addD(k,i)}):[]}
 function plan(){var k=key();return k&&(DB.data.weeklyPlans||{})[k]}
@@ -16411,7 +16416,7 @@ window.yumEduHtml=function(k,glabel,di){
 };
 
 /* 대체 근무자 추천 */
-function offsMonth(n,ym){var o=mon(ym)||{},a=(o.asg||{})[n]||[],W=(o.wishes||{})[n]||{},c=0;a.forEach(function(v,i){if(v==='휴무'&&W[i+1]!=='하계')c++});return c}
+function offsMonth(n,ym){var o=mon(ym)||{},a=(o.asg||{})[n]||[],W=(o.wishes||{})[n]||{},c=0;a.forEach(function(v,i){if(v==='휴무'&&!(W[i+1]==='하계'||W[i+1]==='연차'||W[i+1]==='병가'))c++});return c}
 function runIf(n,ds){var r=1,k;for(k=1;k<=10;k++){var v=val(n,addD(ds,-k));if(!v||v==='휴무')break;r++}for(k=1;k<=10;k++){var v2=val(n,addD(ds,k));if(!v2||v2==='휴무')break;r++}return r}
 function candidates(who,ds){
  var S=staff(),me=S.filter(function(p){return p.n===who})[0];if(!me)return [];
@@ -16419,7 +16424,7 @@ function candidates(who,ds){
  var leadsLeft=S.filter(function(p){return p.n!==who&&p.lead&&p.st===me.st&&val(p.n,ds)===shift}).length;
  return S.filter(function(p){return p.n!==who&&p.st===me.st&&val(p.n,ds)==='휴무'}).map(function(p){
   var bad=[],why=[],W=(o.wishes||{})[p.n]||{},w=W[+ds.slice(8)];
-  if(w==='하계')bad.push('하계휴가');else if(w==='교육')bad.push('그날 교육');else if(w)bad.push('희망휴무 날');
+  if((w==='하계'||w==='연차'||w==='병가'))bad.push(w==='하계'?'하계휴가':w);else if(w==='교육')bad.push('그날 교육');else if(w)bad.push('희망휴무 날');
   if(p.fx&&p.fx!==shift)bad.push('고정 근무 '+p.fx);
   if((p.exclDow||[]).indexOf(dow(ds))>=0)bad.push('근무 제외 요일');
   if((shift==='오전'||shift==='정상'||shift==='배합지원')&&val(p.n,addD(ds,-1))==='오후')bad.push('전날 오후 근무');
@@ -22486,6 +22491,20 @@ window.yumHoldMain=lock;
   [].forEach.call(p.querySelectorAll('button[data-v="알칼리 CIP"],button[data-v="FULL CIP"]'),function(b){b.remove()});var x=p.querySelector('button.x'),cur=window.__c17cur||'';
   [['알칼리','#E0F0FF','#1D4E89'],['AC 클린','#E8F7EE','#166534']].forEach(function(a){var b=document.createElement('button');b.type='button';b.setAttribute('data-v',a[0]);b.textContent=a[0];b.style.background=a[1];b.style.color=a[2];if(cur===a[0])b.style.boxShadow='0 0 0 2px '+a[2]+' inset';p.insertBefore(b,x)})}).observe(document.body,{childList:true});
  var st=document.createElement('style');st.textContent='.cvc[data-ck^="c17_"]:not([data-kind=""]):not(.pv) .cvt:not(:empty){display:inline-flex;align-items:center;justify-content:center;min-width:1.85em;height:1.85em;padding:0 .2em;border:1.6px solid #111;border-radius:999px;line-height:1;box-sizing:border-box}';document.head.appendChild(st);
+})();
+</script>
+<script>
+/* 2026-11-18 희망휴무 표: 연차 · 병가 — 칸에 「연」 · 「연차」 · 「병」 · 「병가」를 적거나, 버튼을 켜고 칸을 누름 (다시 누르면 해제) */
+(function(){if(window.__YUM_LV__)return;window.__YUM_LV__=1;
+window.wsLvOf=function(v){v=String(v||'').trim();return /^(연|연차|ㅇㅊ)$/.test(v)?'연차':/^(병|병가|ㅂㄱ)$/.test(v)?'병가':null};
+window.__wsLv='';
+window.wsLvMode=function(k){window.__wsLv=window.__wsLv===k?'':k;if(window.__wsLv){try{if(window.__wsVac)wsVacMode()}catch(e){}try{if(window.__wsEdu)wsEduMode()}catch(e){}}btns();
+ try{U.toast(window.__wsLv?window.__wsLv+' 입력: 날짜 칸을 누르면 그날 '+window.__wsLv+'로 표시됩니다. (다시 누르면 해제)':k+' 입력을 껐습니다.','ok')}catch(e){}};
+function btns(){[].forEach.call(document.querySelectorAll('.wslv-btn'),function(b){var k=b.getAttribute('data-k'),on=window.__wsLv===k;b.classList.toggle('on',on);b.textContent=(k==='연차'?'📅 ':'🏥 ')+k+(on?' 입력 중 (끄기)':' 입력')})}
+var o=window.wsVacClick;window.wsVacClick=function(el){if(window.__wsLv&&el){var k=window.__wsLv;el.value=el.value===k?'':k;try{WorkSched.paint(el)}catch(e){}try{WorkSched.pickWish(el)}catch(e){}el.blur();return}return o&&o.apply(this,arguments)};
+new MutationObserver(function(){var b=document.querySelector('#ws-root .wsvac-btn');if(!b||b.parentNode.querySelector('.wslv-btn'))return;var a=b.parentNode.querySelector('.wsedu-btn')||b;
+ a.insertAdjacentHTML('afterend','<span><i style="background:#2563EB"></i>연차</span><button type="button" class="wslv-btn" data-k="연차" onclick="wsLvMode(\'연차\')"></button><span><i style="background:#DC2626"></i>병가</span><button type="button" class="wslv-btn" data-k="병가" onclick="wsLvMode(\'병가\')"></button>');btns()}).observe(document.documentElement,{childList:true,subtree:true});
+document.head.insertAdjacentHTML('beforeend','<style>.ws-grid td.vac.lv-yc{background:#DBEAFE!important}.ws-grid td.vac.lv-yc input{color:#1D4ED8!important}.ws-grid td.vac.lv-bg{background:#FEE2E2!important}.ws-grid td.vac.lv-bg input{color:#B91C1C!important}.ws-off.vac.lv-yc{background:#2563EB!important}.ws-off.vac.lv-bg{background:#DC2626!important}.wslv-btn{border:1px solid #2563EB;background:#fff;color:#1D4ED8;border-radius:999px;padding:4px 11px;font-weight:800;font-size:12px;cursor:pointer;margin-left:6px}.wslv-btn[data-k="병가"]{border-color:#DC2626;color:#B91C1C}.wslv-btn.on{background:#2563EB;color:#fff}.wslv-btn[data-k="병가"].on{background:#DC2626;color:#fff}</style>');
 })();
 </script>
 </body>
