@@ -20194,7 +20194,7 @@ function $$(s,r){return [].slice.call((r||document).querySelectorAll(s))}
 function E(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 function pad(n){return ('0'+n).slice(-2)}
 function kst(off){var t=new Date(Date.now()+9*3600e3+(off||0)*864e5);return t.toISOString().slice(0,10)}
-function addD(d,n){var t=new Date(d+'T00:00:00Z');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10)}
+function addD(d,n){var t=new Date(String(d||'').slice(0,10)+'T00:00:00Z');if(isNaN(t.getTime()))return String(d||'');t.setUTCDate(t.getUTCDate()+n);return t.toISOString().slice(0,10)}
 function md(d){return (+d.slice(5,7))+'/'+(+d.slice(8))}
 function wd(d){return WD[new Date(d+'T00:00:00Z').getUTCDay()]}
 function num(v){var m=String(v==null?'':v).replace(/,/g,'').match(/-?\d+(\.\d+)?/);return m?parseFloat(m[0]):null}
@@ -20258,7 +20258,7 @@ var SC={'생산':'#38BDF8','멸균':'#34D399','멸균 후 대기':'#FBBF24','정
    한 화면 = 그 팀의 핵심 관리 항목만: 상태 신호등 · 핵심 지표(게이지 + 좋음/주의/위험) · 공정 흐름 · 추이 · 챙길 것 · 원인 TOP
    기간: 일 · 주(7일) · 월(이번 달) — 추이는 일=14일 · 주=8주 · 월=6개월 */
 function days14(D){var a=[];for(var i=13;i>=0;i--)a.push(addD(D,-i));return a}
-function rng(a,b){var o=[];for(var d=a;d<=b;d=addD(d,1))o.push(d);return o}
+function rng(a,b){var o=[];if(!/^\d{4}-\d{2}-\d{2}$/.test(String(a))||!/^\d{4}-\d{2}-\d{2}$/.test(String(b)))return o;for(var d=a;d<=b&&o.length<400;d=addD(d,1))o.push(d);return o}
 function curDates(D,p){return p==='d'?[D]:p==='w'?rng(addD(D,-6),D):rng(D.slice(0,8)+'01',D)}
 function prevDates(D,p){if(p==='d')return [addD(D,-1)];if(p==='w')return rng(addD(D,-13),addD(D,-7));var m=new Date(D.slice(0,7)+'-01T00:00:00Z');m.setUTCMonth(m.getUTCMonth()-1);var s=m.toISOString().slice(0,10),n=+D.slice(8);return rng(s,addD(s,n-1))}
 function buckets(D,p){var B=[];if(p==='d'){days14(D).forEach(function(d){B.push({l:md(d),ds:[d]})})}
@@ -20302,17 +20302,17 @@ function todo(list){if(!list.length)return '<div class="c2-ok"><i>✓</i><b>모�
 function delayIn(R,t,ds){var S={};ds.forEach(function(d){S[d]=1});return ((R&&R.delays)||[]).filter(function(x){return (x.team===t.team||(!x.team&&x.div===t.div))&&S[x.d]})}
 function topR(L,k,n){var m={};L.forEach(function(x){var z=x[k]||'(사유 없음)';m[z]=(m[z]||0)+(+x.min||0)});return Object.keys(m).map(function(z){return [z,m[z]]}).sort(function(a,b){return b[1]-a[1]}).slice(0,n||5)}
 /* 공통: 지연 (기간 · 이전 기간) */
-function dly(t,D,p){var R=memo('R2|'+t.team+'|'+D+'|'+p,function(){var C=core();var ds=curDates(D,p),pv=prevDates(D,p),a=pv[0]<ds[0]?pv[0]:ds[0],from=p==='d'?addD(D,-13):a;return C.analyze(DB.data,NF(),{kind:'custom',key:'c2',label:'',from:from,to:D,pFrom:addD(from,-30),pTo:addD(from,-1)},{})});
+function dly(t,D,p){var R=memo('R2|'+t.team+'|'+D+'|'+p,function(){var C=core();var ds=curDates(D,p),pv=prevDates(D,p),a=pv[0]<ds[0]?pv[0]:ds[0],from=p==='d'?addD(D,-13):a;try{return C.analyze(DB.data,NF(),{kind:'custom',key:'c2',label:'',from:from,to:D,pFrom:addD(from,-30),pTo:addD(from,-1)},{})}catch(e){console.error('[지연 기록 분석]',e);return {delays:[]}}});
  var ds=curDates(D,p),cur=delayIn(R,t,p==='d'?days14(D):ds),prev=delayIn(R,t,p==='d'?[]:prevDates(D,p));return {cur:cur,prev:prev,min:S2(cur.map(function(x){return +x.min||0}))||0,pmin:S2(prev.map(function(x){return +x.min||0})),top:topR(cur,'reason',5),R:R}}
 function rows(top,unitMin){var tot=S2(top.map(function(x){return x[1]}))||1;return top.map(function(x){return [x[0],x[1],unitMin?fm(x[1])+'분 · '+fm(x[1]/tot*100,0)+'%':fm(x[1]/60,1)+'h · '+fm(x[1]/tot*100,0)+'%']})}
 /* ───── 착즙 ───── */
-function jDay(d){return memo('J|'+d,function(){var P=PDX();var x=P?P.juiceDay(d):{};var n=0,b=0;(x.ts||[]).forEach(function(a){[[a.ts1,9.8,10.2],[a.ph1,7.2,7.6],[a.ts2,9.8,10.2],[a.ph2,7.0,7.4]].forEach(function(q){if(q[0]==null)return;n++;if(q[0]<q[1]||q[0]>q[2])b++})});
+function jDay(d){return memo('J|'+d,function(){var P=PDX();var x={};try{x=P?P.juiceDay(d)||{}:{}}catch(e){console.warn('[착즙 일지 읽기]',d,e)}var n=0,b=0;(x.ts||[]).forEach(function(a){[[a.ts1,9.8,10.2],[a.ph1,7.2,7.6],[a.ts2,9.8,10.2],[a.ph2,7.0,7.4]].forEach(function(q){if(q[0]==null)return;n++;if(q[0]<q[1]||q[0]>q[2])b++})});
  return {has:!!(x.d||x.o),use:x.use,raw:x.raw,tsN:n,tsBad:b,dev:(x.dev||[]).length,prodH:x.prodH,stopH:x.stopH,devL:x.dev||[]}})}
 function yRows(F,T){try{var r=window.yumJuiceYield&&yumJuiceYield(F,T);return r&&r.ok?r.rows:null}catch(e){return null}}
 function ySum(rows,ds){var S={};ds.forEach(function(d){S[d]=1});var o={wb:0,wo:0,db:0,do_:0,wp:[],dp:[]};(rows||[]).forEach(function(r){if(!S[String(r.date||'').slice(0,10)])return;var eq=String(r.equipment||r.route||r.line_name||''),dc=/데칸|decant/i.test(eq),b=+(r.bean_kg||r.bean||0),out=+(r.output_kg||r.output||r.out_kg||0),yp=r.yield_pct!=null?+r.yield_pct:null;
   if(dc){o.db+=b;o.do_+=out;if(yp!=null)o.dp.push(yp)}else{o.wb+=b;o.wo+=out;if(yp!=null)o.wp.push(yp)}});
  return {wt:o.wb&&o.wo?o.wo/o.wb*100:A2(o.wp),dc:o.db&&o.do_?o.do_/o.db*100:A2(o.dp),wb:o.wb,db:o.db}}
-function jBean(d){return memo('JB|'+d,function(){var P=PDX(),x=P?P.juiceDay(d):{},o={};(x.bean||[]).forEach(function(b){var k=/볶음/.test(b.n)?'r':/서리태|검은콩/.test(b.n)?'k':null;if(!k)return;var pr=b.real!=null&&b.real>0?b.real:b.prod;o[k]={use:b.inp||null,prod:pr||null,stock:b.stock!=null?b.stock:null,inw:b.inw||null}});return o})}
+function jBean(d){return memo('JB|'+d,function(){var P=PDX(),x={},o={};try{x=P?P.juiceDay(d)||{}:{}}catch(e){console.warn('[볶음콩 일지 읽기]',d,e)}(x.bean||[]).forEach(function(b){var k=/볶음/.test(b.n)?'r':/서리태|검은콩/.test(b.n)?'k':null;if(!k)return;var pr=b.real!=null&&b.real>0?b.real:b.prod;o[k]={use:b.inp||null,prod:pr||null,stock:b.stock!=null?b.stock:null,inw:b.inw||null}});return o})}
 function beanAgg(ds,k){var u=[],pr=[],st=null,sd=null,nd=0;ds.forEach(function(d){var z=jBean(d)[k];if(!z)return;if(z.use!=null)u.push(z.use);if(z.prod!=null){pr.push(z.prod);nd++}if(z.stock!=null){st=z.stock;sd=d}});return {use:S2(u),prod:S2(pr),day:nd?S2(pr)/nd:null,stock:st,sd:sd,has:u.length||pr.length||st!=null}}
 function beanCard(D,p,cd,pd,B){var R=[['r','볶음콩','볶음 탈피 공정','#D97706','🫘'],['k','서리태','검은콩 공정','#475569','🫘']],any=false;
  var rowH=R.map(function(r,i){var c=beanAgg(cd,r[0]),pv=beanAgg(pd,r[0]);if(!c.has)return '';any=true;var cov=c.stock!=null&&c.use&&cd.length?c.stock/(c.use/Math.max(1,cd.filter(function(d){var z=jBean(d)[r[0]];return z&&z.use}).length)):null;
@@ -20331,7 +20331,8 @@ function ystd(){var o=(typeof DB!=='undefined'&&DB.data&&DB.data.juiceYieldStd)|
 function days30(D){var a=[];for(var i=29;i>=0;i--)a.push(addD(D,-i));return a}
 function viewJuice(t,D,p,s){s=s||{};var cd=curDates(D,p),pd=prevDates(D,p),B=buckets(D,p),Jd=function(ds){var L=ds.map(jDay).filter(Boolean);return {use:S2(L.map(function(x){return x.use})),raw:S2(L.map(function(x){return x.raw})),tsN:S2(L.map(function(x){return x.tsN}))||0,tsBad:S2(L.map(function(x){return x.tsBad}))||0,dev:S2(L.map(function(x){return x.dev}))||0,ph:S2(L.map(function(x){return x.prodH})),sh:S2(L.map(function(x){return x.stopH})),has:L.some(function(x){return x.has})}};
  var c=Jd(cd),pv=Jd(pd),F=B[0].ds[0],YR=yRows(F,D),y=YR?ySum(YR,cd):null,yp=YR?ySum(YR,pd):null,qr=c.tsN?(c.tsN-c.tsBad)/c.tsN*100:null,dl=dly(t,D,p);
- var ym=s.ym==='a'?'a':'t',SD=ystd(),YA=YR?yRows(addD(D,-29),D):null,ya=YA?ySum(YA,days30(D)):null,bw=ym==='t'?SD.wt:(ya&&ya.wt),bd=ym==='t'?SD.dc:(ya&&ya.dc),
+ var ym=s.ym==='a'?'a':'t',SD=ystd(),YA=null,ya=null;try{YA=YR?yRows(addD(D,-29),D):null;ya=YA?ySum(YA,days30(D)):null}catch(e){console.error('[콩 수율 30일 평균]',e)}
+ var bw=ym==='t'?SD.wt:(ya&&ya.wt),bd=ym==='t'?SD.dc:(ya&&ya.dc),
   rt=function(v,b){return v!=null&&b?v/b*100:null},lvr=function(r){return r==null?'':r>=100?'g':r>=95?'a':'r'},bl=function(b){return b?(ym==='t'?'목표 ':'30일 평균 ')+fm(b,0)+'%':'기준 없음'},
   rw=y?rt(y.wt,bw):null,rdc=y?rt(y.dc,bd):null,rwp=yp?rt(yp.wt,bw):null,rdp=yp?rt(yp.dc,bd):null;
  var K=[];
@@ -20358,7 +20359,7 @@ function viewJuice(t,D,p,s){s=s||{};var cd=curDates(D,p),pd=prevDates(D,p),B=buc
  if(rdc!=null&&rdc<95)td.push([rdc<90?'r':'a','데칸타 수율 '+(ym==='t'?'목표':'평균')+' 대비 '+fm(rdc,1)+'%','두유수율 '+fm(y.dc,1)+'% · '+bl(bd)]);
  if(qr!=null&&qr<97)td.push([qr<90?'r':'a','품질 적합률 '+fm(qr,1)+'%',c.tsBad+'회 기준 밖']);
  if(dl.pmin&&dl.min>dl.pmin*1.2&&dl.min>=120)td.push(['a','지연 '+fm((dl.min/dl.pmin-1)*100,0)+'% 증가',fm(dl.min/60,1)+'h · 1위 '+(dl.top[0]?dl.top[0][0]:'')]);
- return {K:K,pre:YR?ysel:'',main:card('공정 흐름 · '+PLONG[p],'대두 → WT / 데칸타 → 분리유액 · 원액',flow,'w12 c2-fc')+beanCard(D,p,cd,pd,B),tr:card((YR?'콩 수율':'대두 사용 · 품질')+' 추이',p==='d'?'최근 14일':p==='w'?'최근 8주':'최근 6개월',tr,'w7'),td:td,top:rows(dl.top),tt:'지연 원인 TOP',extra:p==='d'?heatJuice(D):''}}
+ return {K:K,pre:YR?ysel:'',main:card('공정 흐름 · '+PLONG[p],'대두 → WT / 데칸타 → 분리유액 · 원액',flow,'w12 c2-fc')+(function(){try{return beanCard(D,p,cd,pd,B)}catch(e){console.error('[볶음콩 카드]',e);return ''}})(),tr:card((YR?'콩 수율':'대두 사용 · 품질')+' 추이',p==='d'?'최근 14일':p==='w'?'최근 8주':'최근 6개월',tr,'w7'),td:td,top:rows(dl.top),tt:'지연 원인 TOP',extra:p==='d'?(function(){try{return heatJuice(D)}catch(e){console.error('[빈쿠커 가동]',e);return ''}})():''}}
 function heatJuice(D){var d9=docsOf('FRM-009',D)[0];if(!d9)return '';var CL={a:['#64748B','히터'],b:['#34D399','분리액 생산'],c:['#F87171','배합요청 중단'],d:['#94A3B8','종료'],e:['#22D3EE','재시작'],f:['#A78BFA','호기 변경'],g:['#FBBF24','탈피 자동'],h:['#F87171','일시 중단'],j:['#FB7185','멸균요청 중단']};
  var heat='<div class="cc-hm"><div class="cc-hmh"><span></span>'+Array.from({length:25},function(_,i){return '<i>'+(i%3===0?i:'')+'</i>'}).join('')+'</div>',used={};
  for(var n=1;n<=4;n++){var nm=G(d9,'bk'+n)?'빈쿠커 '+G(d9,'bk'+n):'빈쿠커 #'+n,row='',on=0;for(var h=0;h<=24;h++){var v=G(d9,'ax'+n+'_'+h).toLowerCase().replace(/[^a-j]/g,'').slice(0,1);if(v){on++;used[v]=1}row+='<i style="--c:'+(v&&CL[v]?CL[v][0]:'rgba(255,255,255,.05)')+';--d:'+(h*18+n*40)+'ms" title="'+E(nm+' '+h+'시 '+(v&&CL[v]?CL[v][1]:''))+'"></i>'}
@@ -20496,7 +20497,7 @@ function view(tk){var t=TM[tk],s=S(tk),D=s.d,p=s.p||'d';if(!core()||!PDX())retur
  h+='<header class="cc-hero cc-hero2 c2-hero"><div class="cc-hl"><h1>'+t.name+'</h1><div class="c2-sig '+stv+'"><i></i><b>'+(stv==='r'?'위험':stv==='a'?'주의':'정상')+'</b></div><span class="cc-dt">'+(p==='d'?(+D.slice(5,7))+'월 '+(+D.slice(8))+'일 ('+wd(D)+')':p==='w'?md(addD(D,-6))+' ~ '+md(D):(+D.slice(5,7))+'월 1일 ~ '+md(D))+'</span></div>'+
   '<div class="cc-hr">'+pchips+dchips+'<div class="cc-act"><a class="cc-btn" href="#/journals?team='+encodeURIComponent(t.team)+'">'+ICO('✎')+' 일지</a></div></div></header>';
  h+='<div class="c2-ks n'+V.K.length+'">'+V.K.map(tile).join('')+'</div>';
- h+=(V.pre?'<div class="cc-g c2-pre">'+V.pre+'</div>':'')+'<div class="cc-g">'+V.main+(V.extra||'')+V.tr+card('챙길 것',V.td.length?'위험 '+reds+' · 주의 '+ambs:'',todo(V.td)+(V.top&&V.top.length?'<div class="cc-sub"><b>'+V.tt+'</b>'+bars(V.top,t.a)+'</div>':''),'w5')+(tk==='juice'&&p!=='m'?maintCard(D):'')+'</div></div>';
+ h+=(V.pre?'<div class="cc-g c2-pre">'+V.pre+'</div>':'')+'<div class="cc-g">'+V.main+(V.extra||'')+V.tr+card('챙길 것',V.td.length?'위험 '+reds+' · 주의 '+ambs:'',todo(V.td)+(V.top&&V.top.length?'<div class="cc-sub"><b>'+V.tt+'</b>'+bars(V.top,t.a)+'</div>':''),'w5')+(tk==='juice'&&p!=='m'?(function(){try{return maintCard(D)}catch(e){console.error('[정비 이력]',e);return ''}})():'')+'</div></div>';
  return h}
 
 /* 착즙 정비 이력 — 착즙팀 업무포털 정비기록(board-feed) 읽기 전용 · 작성은 착즙팀 포털에서 */
@@ -20515,7 +20516,7 @@ function paint(force){var tk=team(),M=document.getElementById('main');if(!tk||!M
  var key=tk+'|'+s.d+'|'+s.det+'|'+sig()+'|'+(tk==='ster'?(sterModel(s.d)?1:0)+sterFeedOk(s.d):'')+'|'+(tk==='pack'?(PK&&PK.k?1:0):'');if(!force&&key===LAST&&box.firstChild)return;var y=window.scrollY;
  /* 2026-11-13 깜빡임: 아래 기존 화면이 다시 그려져 대시보드가 지워진 경우 · 자료만 새로 온 경우 → 애니메이션 없이 조용히 (스크롤 유지) */
  var fq=force==='q';if(fq)force=false;var same=key===LAST,reuse=!fq&&!force&&same&&!box.firstChild&&!!LASTH,quiet=fq||(!force&&(reuse||!!box.firstChild));LAST=key;
- try{if(reuse)box.innerHTML=LASTH;else{var vh=view(tk);if(vh===LASTV&&box.firstChild){if(quiet)window.scrollTo(0,y);return}LASTV=vh;box.innerHTML=vh;LASTH=box.innerHTML}}catch(e){console.error('[컨트롤 룸]',e);box.innerHTML='<div class="cc-load">대시보드를 그리지 못했습니다: '+E(e.message)+'</div>';return}
+ try{if(reuse)box.innerHTML=LASTH;else{var vh=view(tk);if(vh===LASTV&&box.firstChild){if(quiet)window.scrollTo(0,y);return}LASTV=vh;box.innerHTML=vh;LASTH=box.innerHTML}}catch(e){console.error('[컨트롤 룸]',e);box.innerHTML='<div class="cc-load">대시보드를 그리지 못했습니다: '+E(e.message)+'<br><small style="opacity:.6">'+E(String(e.stack||'').split('\n').slice(1,3).join(' ').replace(/https?:\/\/[^\s)]*\//g,''))+'</small></div>';return}
  box.classList.toggle('cc-q',quiet);anim(box,quiet);if(quiet)window.scrollTo(0,y)}
 var LASTH='',LASTV='';
 function anim(box,quiet){var red=quiet||(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);if(quiet){var c0=box.querySelector('.cc');if(c0)c0.classList.add('in')}(quiet?function(f){f()}:requestAnimationFrame)(function(){box.querySelector('.cc')&&box.querySelector('.cc').classList.add('in');
