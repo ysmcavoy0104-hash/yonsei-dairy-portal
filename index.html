@@ -18387,7 +18387,7 @@ var FMK=0;function icon(kind,x,y,c,run,lvl){var g='';
  else if(kind==='w')g=(lvl==='D'?'<path d="M'+x+' '+(y+6)+' h26 l8 5 l-8 5 h-26 z" fill="'+(run?c:'#2B3633')+'" opacity="'+(run?.85:1)+'" stroke="#56645F"/><line x1="'+(x+3)+'" y1="'+(y+11)+'" x2="'+(x+26)+'" y2="'+(y+11)+'" stroke="#0E1714" stroke-dasharray="2 2"/>':'<rect x="'+x+'" y="'+(y+4)+'" width="15" height="12" rx="2" fill="#1F2A27" stroke="'+(run?c:'#56645F')+'"/><rect x="'+(x+19)+'" y="'+(y+4)+'" width="15" height="12" rx="2" fill="#1F2A27" stroke="'+(run?c:'#56645F')+'"/><text x="'+(x+7.5)+'" y="'+(y+13)+'" text-anchor="middle" font-size="6.5" fill="#9CA3AF">1차</text><text x="'+(x+26.5)+'" y="'+(y+13)+'" text-anchor="middle" font-size="6.5" fill="#9CA3AF">2차</text>');
  else if(kind==='s')g='<rect x="'+x+'" y="'+(y+2)+'" width="30" height="16" rx="3" fill="#1F2A27" stroke="#56645F"/><path d="M'+(x+3)+' '+(y+10)+' l4 -5 l4 10 l4 -10 l4 10 l4 -10 l4 5" fill="none" stroke="'+(run?c:'#56645F')+'" stroke-width="1.4"/>';
  else if(kind==='p'){/* 2026-11-18 아셉틱 탱크: 둥근 지붕 탱크 안에 유액(우유빛)이 차 있는 모양 · 레벨을 알면 그 높이, 모르면 반쯤 */
-  var lv=lvl!=null&&isFinite(lvl)?Math.max(.06,Math.min(1,lvl)):.55,T=y+3,Bt=y+23,lh=Math.round((Bt-T-3)*lv),ly=Bt-lh,uid='fmk'+(++FMK);
+  var lv=lvl!=null&&isFinite(lvl)?Math.max(.06,Math.min(1,lvl)):.55,T=y+3,Bt=y+23,lh=Math.round((Bt-T-3)*lv),ly=Bt-lh,uid='fmk'+Math.round(x)+'_'+Math.round(y);
   g='<defs><clipPath id="'+uid+'"><path d="M'+(x+2)+' '+(T+4)+' q11 -7 22 0 v'+(Bt-T-6)+' q-11 5 -22 0 z"/></clipPath></defs>'+
    '<path d="M'+(x+2)+' '+(T+4)+' q11 -7 22 0 v'+(Bt-T-6)+' q-11 5 -22 0 z" fill="#1F2A27"/>'+
    '<g clip-path="url(#'+uid+')"><rect x="'+x+'" y="'+(ly+1.5)+'" width="26" height="'+(lh+4)+'" fill="#EFE6CF" opacity=".92"/>'+
@@ -22112,14 +22112,17 @@ function view(){var M=window.yumLiveModel?yumLiveModel():{juice:[],mix:[],ster:[
   '';
  window.__LBD=DT;return h}
 var FIRST=true;
-function paint(){var box=document.getElementById('lb-root');if(!box||box.classList.contains('hide'))return;try{box.innerHTML=view()}catch(e){console.error('[실시간 현황]',e);box.innerHTML='<div class="lb-none">실시간 현황을 그리지 못했습니다: '+E(e.message)+'</div>';return}
+var LBH='',LBN={};function paint(){var box=document.getElementById('lb-root');if(!box||box.classList.contains('hide'))return;var hv;try{hv=view()}catch(e){hv=null}
+ /* 2026-11-18 내용이 같으면 다시 그리지 않음 (자료가 올 때마다 숫자 효과 · 깜빡임이 처음부터 다시 돌던 문제) */
+ if(hv!=null&&hv===LBH&&box.firstChild&&!FIRST){tick();return}
+ try{if(hv==null)hv=view();box.innerHTML=hv;LBH=hv}catch(e){console.error('[실시간 현황]',e);box.innerHTML='<div class="lb-none">실시간 현황을 그리지 못했습니다: '+E(e.message)+'</div>';return}
  var lb=box.querySelector('.lb');if(FIRST){FIRST=false;requestAnimationFrame(function(){lb&&lb.classList.add('in')})}else lb&&lb.classList.add('in','quiet');
- [].forEach.call(box.querySelectorAll('[data-n]'),function(b){var v=+b.getAttribute('data-n'),t0=performance.now();(function st(t){var p=Math.min(1,(t-t0)/1100),e=1-Math.pow(1-p,4);b.textContent=Math.round(v*e).toLocaleString();if(p<1)requestAnimationFrame(st)})(t0)});tick()}
+ [].forEach.call(box.querySelectorAll('[data-n]'),function(b,ix){var v=+b.getAttribute('data-n'),t0=performance.now(),kk=ix+'|'+(b.className||'');if(LBN[kk]===v){b.textContent=Math.round(v).toLocaleString();return}LBN[kk]=v;(function st(t){var p=Math.min(1,(t-t0)/1100),e=1-Math.pow(1-p,4);b.textContent=Math.round(v*e).toLocaleString();if(p<1)requestAnimationFrame(st)})(t0)});tick()}
 function tick(){var c=document.getElementById('lb-clock');if(!c)return;var n=new Date();c.textContent=pad(n.getHours())+':'+pad(n.getMinutes())+':'+pad(n.getSeconds())}
 setInterval(tick,1000);
 /* 멸균팀 업무포털 실시간 상태: 생산 현황 · OEE 화면이 열려 있으면 30초마다 확인 → 바뀌면 흐름도 · 현황판 바로 다시 그림 */
 setInterval(function(){if(document.hidden)return;if(document.getElementById('fm-wrap')||document.getElementById('lb-root'))sterLive()},30000);setInterval(function(){if(!document.hidden)paint()},60000);
-window.addEventListener('yum-docs-synced',function(){paint()});window.addEventListener('yum-oeefeed',function(){try{window.dispatchEvent(new CustomEvent('yum-lbfeed',{detail:'pkd'}))}catch(e){}});window.addEventListener('yum-sterfeed',function(){paint()});window.addEventListener('yum-lbfeed',function(){paint()});
+window.addEventListener('yum-docs-synced',function(){paint()});window.addEventListener('yum-oeefeed',function(){paint();fmRef()});   /* 포장 일보(publicDaily) 도착 → 다시 그림 (yum-lbfeed를 다시 쏘지 않음: OEE와 서로 부르며 끝없이 다시 그리던 문제) */window.addEventListener('yum-sterfeed',function(){paint()});window.addEventListener('yum-lbfeed',function(){paint()});
 window.yumSterLiveRaw=function(){sterLive();return FD.sl||null};window.yumSterLiveMap=function(){var r=sterLiveMap();return r.ok&&Object.keys(r.m).length?r.m:null};window.yumPackLiveMap=function(D){var r=packLiveMap(D||today());return r.ok?r.m:null};
 /* 착즙팀 정비기록 (board-feed kind:maintenance · 최근 30일) — 대시보드 표시용 · 10분마다 */
 /* 2026-11-17 착즙 수율: 착즙팀 포털 board-feed kind:'yield' (날짜 · WT/데칸타별 콩 투입 · 생산량) */
@@ -22127,7 +22130,7 @@ window.yumJuiceYield=function(F,T){var c=feed('jy|'+F+'|'+T,10*60e3,function(){r
 window.yumJuiceMaint=function(D){D=D||today();var a=new Date(D+'T00:00:00');a.setDate(a.getDate()-29);var F=a.getFullYear()+'-'+pad(a.getMonth()+1)+'-'+pad(a.getDate());var c=feed('jm|'+D,10*60e3,function(){return proxy('juice-proxy',{kind:'maintenance',from:F,to:D})});return c&&c.ok&&c.raw&&Array.isArray(c.raw.records)?{ok:true,from:F,to:D,rows:c.raw.records}:{ok:false,wait:!c,err:c&&c.err}};
 window.yumJuiceBoardRaw=function(D){var c=juiceFeed(D||today());return c&&c.ok&&c.raw&&Array.isArray(c.raw.lines)?c.raw:null};
 /* 착즙 · 멸균 자료가 새로 오면 공정 흐름도도 다시 그림 */
-window.addEventListener('yum-lbfeed',function(){var w=document.getElementById('fm-wrap');if(!w||w.classList.contains('hide')||!window.yumFlowMap)return;var d=w.getAttribute('data-d');try{w.innerHTML=yumFlowMap(d)}catch(e){}});
+var FMH='';function fmRef(){var w=document.getElementById('fm-wrap');if(!w||w.classList.contains('hide')||!window.yumFlowMap)return;var d=w.getAttribute('data-d');try{var h=yumFlowMap(d);if(h===FMH&&w.firstChild)return;FMH=h;w.innerHTML=h}catch(e){}}window.addEventListener('yum-lbfeed',fmRef);
 window.yumPmTab=function(t){try{sessionStorage.setItem('yum_pm_tab2',t)}catch(e){}[].forEach.call(document.querySelectorAll('.pm-tabs button'),function(b){b.classList.toggle('on',b.getAttribute('data-t')===t)});var a=document.getElementById('lb-root'),f=document.getElementById('fm-wrap');if(a)a.classList.toggle('hide',t!=='live');if(f)f.classList.toggle('hide',t!=='flow');if(t==='live'){FIRST=true;paint()}};
 /* 화면이 새로 그려지면(#lb-root 비어 있음) 바로 그리기 */
 setInterval(function(){var b=document.getElementById('lb-root');if(b&&!b.firstChild&&!b.classList.contains('hide')){FIRST=true;paint()}},300);
@@ -22477,6 +22480,9 @@ window.yumHoldMain=lock;
 /* 2026-11-19 멸균 CIP 일보: 종류 고르기 창에서 FULL CIP를 「산 CIP」로 · N = 고른 뒤에는 표시 안 하는 단계 */
 (function(){var o=window.yumCvOn;window.yumCvOn=function(cur,m){if(cur==='산 CIP')cur='FULL CIP';if(m==='N')return false;return o?o(cur,m):(cur==='FULL CIP'||(cur==='알칼리 CIP'&&m!=='F'))};
  document.addEventListener('mousedown',function(e){var c=e.target.closest&&e.target.closest('.cvc');window.__c17cv=!!(c&&/^c17_/.test(c.getAttribute('data-ck')||''))},true);
+ /* 2026-11-18 멸균 CIP는 모두 FULL CIP → 고르기 창에 FULL CIP · 지우기만 · 고르면 그 시간 숫자에 동그라미 */
+ new MutationObserver(function(){var p=document.querySelector('.cvpop');if(!p||p.__c17f||!window.__c17cv)return;p.__c17f=1;var a=p.querySelector('button[data-v="알칼리 CIP"]');if(a)a.remove()}).observe(document.body,{childList:true});
+ var st=document.createElement('style');st.textContent='.cvc[data-ck^="c17_"][data-kind="FULL CIP"] .cvt:not(:empty){display:inline-flex;align-items:center;justify-content:center;min-width:1.85em;height:1.85em;padding:0 .2em;border:1.6px solid #111;border-radius:999px;line-height:1;box-sizing:border-box}';document.head.appendChild(st);
 })();
 </script>
 </body>
