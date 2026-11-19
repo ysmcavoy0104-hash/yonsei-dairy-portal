@@ -6452,6 +6452,9 @@ function solve(m){var S0=S(m),N=days(m),H=hset(m),st=allStaff().filter(function(
   if(A[x.n][x.d-1]==='휴무')return;if(q[x.n]<=0&&!isFixG(p)&&x.r!==1){unmet.push({d:x.d,n:x.n,r:x.r,why:'휴무 '+T+'일 소진'});return}
   if(!isFixG(p)&&x.r!==1&&cap(x.d,p.st)<=0){unmet.push({d:x.d,n:x.n,r:x.r,why:'필요인원 부족'});return}
   if(p.lead&&!leadOk(x.d,p)){unmet.push({d:x.d,n:x.n,r:x.r,why:'조장 배치(교대마다 조장 1명)'});return}
+  if(!isFixG(p)&&!p.fx&&x.r!==1){var mcW=+p.maxConsec||6;A[x.n][x.d-1]='휴무';var need=0,run=0;for(var k9=-6;k9<1;k9++){var v9=hv(x.n,k9);run=(v9&&v9!=='휴무')?run+1:0}
+   for(var d9=1;d9<=N;d9++){if(A[x.n][d9-1]==='휴무'){need+=Math.floor(run/(mcW+1));run=0}else run++}need+=Math.floor(run/(mcW+1));A[x.n][x.d-1]='';
+   if(q[x.n]-1<need){unmet.push({d:x.d,n:x.n,r:x.r,why:'휴무 '+T+'일 안에서 연속근무 제한('+mcW+'일)에 필요한 휴무를 남겨 둠'});return}}
   A[x.n][x.d-1]='휴무';q[x.n]--});
  var flex=st.filter(function(p){return !isFixG(p)&&!p.fx});
  for(var guard=0;guard<2000;guard++){var P=null;flex.forEach(function(p){if(q[p.n]>0&&(!P||q[p.n]>q[P.n]))P=p});if(!P)break;
@@ -6467,6 +6470,19 @@ function solve(m){var S0=S(m),N=days(m),H=hset(m),st=allStaff().filter(function(
    A[p.n][bd-1]='휴무';q[p.n]--;
    if(q[p.n]<0)for(var e=dd+1;e<=N;e++){if(A[p.n][e-1]==='휴무'&&W[e]==null&&W[String(e)]==null){A[p.n][e-1]='';q[p.n]++;break}}
    run=dd-bd}});
+ /* 정해진 휴무 개수 맞추기 (휴가 · 수련회 제외하고 셈) */
+ st.forEach(function(p){if(isFixG(p)||p.fx)return;var mc=+p.maxConsec||6,W=(S0.wishes||{})[p.n]||{},v=VC[p.n]||{},ex=p.exclDow||[];
+  function runAt(d){var l=0,r=0,j;for(j=d-1;j>=-6;j--){var x=j>=1?A[p.n][j-1]:hv(p.n,j);if(!x||x==='휴무')break;l++}for(j=d+1;j<=N;j++){if(A[p.n][j-1]==='휴무')break;r++}return l+1+r}
+  for(var g2=0;g2<40;g2++){var extra=offs(p.n)-vcn(p.n)-T;if(extra<=0)break;var best=null,bk=null;
+   PD.forEach(function(d){if(A[p.n][d-1]!=='휴무'||W[d]!=null||W[String(d)]!=null||v[d]||v[String(d)]||ex.indexOf(dow(m,d))>=0)return;
+    A[p.n][d-1]='';var r=runAt(d),c=cap(d,p.st);A[p.n][d-1]='휴무';if(r>mc)return;var k=[c,-d];if(!bk||k[0]<bk[0]||(k[0]===bk[0]&&k[1]<bk[1])){bk=k;best=d}});
+   if(best==null){unmet.push({d:0,n:p.n,r:-extra,why:'휴무가 정해진 '+T+'일보다 '+extra+'일 많음 (희망휴무 · 연속근무 제한 때문)'});break}
+   A[p.n][best-1]='';q[p.n]++}});
+ var BRW={};st.forEach(function(p){if(isFixG(p)||p.fx)return;
+  for(var g3=0;g3<12;g3++){var def=T-(offs(p.n)-vcn(p.n));if(def<=2)break;var best=null,bk=null;
+   PD.forEach(function(d){if(A[p.n][d-1])return;var c=cap(d,p.st);if(c<0||(c===0&&(BRW[d+'|'+p.st]||0)>=1))return;if(p.lead&&!leadOk(d,p))return;
+    var k=[c>0?0:1,wkLoad(p.n,wk(d)),adjOff(p.n,d),(d*7+pi[p.n]*5)%11];if(!bk||cmp(k,bk)<0){bk=k;best=d}});
+   if(best==null)break;if(cap(best,p.st)<=0)BRW[best+'|'+p.st]=(BRW[best+'|'+p.st]||0)+1;A[p.n][best-1]='휴무';q[p.n]--}});
  /* 최근 7일 오후 횟수 (1일 이전은 지난달 근무 S0.prevTail 사용) */
  function hv(n,day){if(day>=1)return A[n]?A[n][day-1]:'';var t=(S0.prevTail||{})[n];return t?(t[t.length+day-1]||''):''}
  function rpm(n,d){var c=0;for(var k=d-7;k<d;k++)if(hv(n,k)==='오후')c++;return c}
@@ -6528,8 +6544,9 @@ function solve(m){var S0=S(m),N=days(m),H=hset(m),st=allStaff().filter(function(
     else{var na=(d<N&&false)?0:0}
     var na=rpm(a.n,d),nb=rpm(b.n,d);if(na!==nb)return s==='오후'?na-nb:nb-na;var fa=cntS(a.n,s),fb=cntS(b.n,s);if(fa!==fb)return fa-fb;var pa=(s==='정상'||pref(a)===s)?0:1,pb=(s==='정상'||pref(b)===s)?0:1;if(pa!==pb)return pa-pb;return pi[a.n]-pi[b.n]});
    var x=c[0];A[x.n][d-1]=s;got[s]++;if(x.lead)hasL[s]=1;av.splice(av.indexOf(x),1)});
-  if(dow(m,d)===0||(S0.maint&&S0.maint[d])){av.forEach(function(p){A[p.n][d-1]='휴무'});fixL(d,g,r);return}
-  av.forEach(function(p){if(g==='착즙'){A[p.n][d-1]=supOK(p,d)?'배합지원':'휴무';return}var s=prevPM(p)?'오후':'정상';A[p.n][d-1]=s;got[s]++});fixL(d,g,r)})});
+  var _left=function(p){return isFixG(p)||p.fx||offs(p.n)-vcn(p.n)<T},_wk=function(p){return g==='착즙'?((d>1&&A[p.n][d-2]==='오후')?'오후':'오전'):(prevPM(p)?'오후':'정상')};
+  if(dow(m,d)===0||(S0.maint&&S0.maint[d])){av.forEach(function(p){A[p.n][d-1]=_left(p)?'휴무':_wk(p)});fixL(d,g,r);return}
+  av.forEach(function(p){if(g==='착즙'){A[p.n][d-1]=supOK(p,d)?'배합지원':(_left(p)?'휴무':_wk(p));return}var s=prevPM(p)?'오후':'정상';A[p.n][d-1]=s;got[s]++});fixL(d,g,r)})});
  (function(){var W0=S0.wishes||{};
   function bcnt(d,k){var c=st.filter(function(o){return o.st==='배합'&&A[o.n][d-1]===k}).length;if(k==='정상')c+=st.filter(function(o){return A[o.n][d-1]==='배합지원'}).length;return c}
   function runIf(n,d){var r=1,i;for(i=d-1;i>=1&&A[n][i-1]&&A[n][i-1]!=='휴무';i--)r++;for(i=d+1;i<=N&&A[n][i-1]&&A[n][i-1]!=='휴무';i++)r++;return r}
@@ -7658,7 +7675,7 @@ function innerView(){
  var lg2='<div class="wsx-lg"><span><i style="background:#EAF2EC"></i>~40%</span><span><i style="background:#FDE9C8"></i>40%~</span><span><i style="background:#F6D186"></i>65%~</span><span><i style="background:#F2994A"></i>85%~</span><span><i style="background:#E53935"></i>목표 도달</span></div>';
  return '<style>'+CSS+'</style>'+hero+
   card(1,'요일별 필요인원','생산계획표 기준으로 요일마다 꼭 근무해야 하는 인원을 입력합니다.',reqInputsHtml())+
-  card(2,'희망휴무 입력','쉬고 싶은 날짜 칸에 우선순위 숫자(1, 2, 3…)를 입력하세요. 인원이 부족한 날은 숫자가 큰 순서부터 제외됩니다. 하계휴가는 「🏖 하계휴가 입력」을 누른 뒤 날짜 칸을 누르세요(칸에 「하」를 적어도 됩니다). 하계휴가 날은 반드시 휴무로 편성되고 월 목표 휴무일수에는 세지 않습니다.',wishTableHtml(),lg)+
+  card(2,'희망휴무 입력','쉬고 싶은 날짜 칸에 우선순위 숫자(1, 2, 3…)를 입력하세요. 인원이 부족한 날은 숫자가 큰 순서부터 제외됩니다. 하계휴가는 「🏖 하계휴가 입력」을 누른 뒤 날짜 칸을 누르세요(칸에 「하」를 적어도 됩니다). 하계휴가 날은 반드시 휴무로 편성되고 월 목표 휴무일수에는 세지 않습니다.',(window.yumWsTargetBox?yumWsTargetBox():'')+wishTableHtml(),lg)+
   '<div class="wsx-cta wsx-cta2"><div class="wsx-ctt"><b>편성할 주 선택</b><span>근무표는 1주일(월~일) 단위로 편성됩니다. 앞 주 근무가 이어지도록 계산하고, 다른 주는 바꾸지 않습니다.</span></div>'+weekPickHtml()+
   '<div class="wsx-ctr"><button class="go" onclick="WorkSched.plan();WorkSched.goResult()">⚡ '+(function(){var W=weekList(),i=selWeekIdx();return (i+1)+'주차 ('+W[i].lab+') 근무표 '+(weekState(W[i])==='done'?'다시 ':'')+'만들기'})()+'</button><div class="t">'+
   (o.result?'마지막 편성: <b>'+esc(o.result.wk||'')+'</b> · '+new Date(o.result.at).toLocaleString('ko-KR'):'필요인원과 희망휴무를 넣고 누르면 근무 규칙에 맞춰 그 주의 오전·중간·오후·휴무를 자동 편성하고,<br>주간근무계획표 양식으로 만들어 바로 추가합니다.')+'</div></div></div>'+
@@ -22563,6 +22580,24 @@ document.head.insertAdjacentHTML('beforeend','<style>.kd-at{display:inline-block
     L.map(function(x,i){return row(x.d).replace('<tr class="ds-r">','<tr class="ds-r ds-gi">').replace('<td style="white-space:nowrap">','<td style="white-space:nowrap"><span class="ds-gn">'+(i+1)+'/'+L.length+'</span> ')}).join('')}).join('')};
  D.tg2=function(tr){var o=!tr.classList.contains('off');tr.classList.toggle('off',o);var n=tr.nextElementSibling;while(n&&n.classList.contains('ds-gi')){n.style.display=o?'none':'';n=n.nextElementSibling}};
  document.head.insertAdjacentHTML('beforeend','<style>.ds-sort{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:-4px 0 12px;font-size:12.5px;color:#5B6576}.ds-sort>span{font-weight:800;margin-right:2px}.ds-sort button{border:1px solid #CBD5E1;background:#fff;color:#334155;border-radius:999px;padding:4px 12px;font-weight:700;font-size:12.5px;cursor:pointer}.ds-sort button.on{background:#1E3A5F;border-color:#1E3A5F;color:#fff}.ds-sort em{font-style:normal;color:#94A3B8;margin-left:6px}.ds-sh{cursor:pointer;user-select:none}.ds-sh:hover{color:#1E3A5F;text-decoration:underline}.ds-ar{font-size:9px;color:#1E3A5F}.ds-grp td{background:#FBFCFE;font-weight:800;font-size:12.5px;color:#1E3A5F;cursor:pointer;padding:6px 14px 6px 22px!important;border-top:1px dashed #D6DEEA}.ds-grp .n{font-weight:700;color:#7A8494;margin-left:4px}.ds-grp .ar{display:inline-block;transition:transform .15s}.ds-grp.off .ar{transform:rotate(-90deg)}tr.ds-gi td:first-child{border-left:3px solid #93C5FD;padding-left:14px!important}.ds-gn{display:inline-block;min-width:26px;font-size:10.5px;font-weight:800;color:#2563EB;background:#EFF6FF;border-radius:6px;padding:0 4px;margin-right:4px;text-align:center}</style>');
+})();
+</script>
+<script>
+(function(){if(window.__YUM_WSTB__)return;window.__YUM_WSTB__=1;
+ function cur(){try{var ym=WorkSched.cur();return {ym:ym,o:DB.data.workSched.months[ym]}}catch(e){return null}}
+ window.yumWsTargetBox=function(){var c=cur();if(!c||!c.o)return '';var o=c.o,m=+String(c.ym).slice(5);
+  return '<div class="wstb"><b>'+m+'월 휴무 일수</b><input type="number" min="0" max="31" value="'+(o.target==null?'':o.target)+'" onchange="WorkSched.setTarget(this.value);setTimeout(function(){try{App.render()}catch(e){}},50)"><span>일</span>'+
+   '<em>'+(o.targetAuto?'자동 (주말 + 지정휴일)':'직접 지정')+'</em>'+(o.targetAuto?'':'<button type="button" onclick="yumWsTargetAuto()">↺ 자동 계산으로</button>')+
+   '<small>노조 · 회사 창립기념일처럼 공휴일 외에 회사가 주는 휴일이 있으면 여기서 고치세요. 편성은 이 일수에 맞추는 것을 목표로 하고, 인원이 정말 모자라면 1~2일까지는 덜 쉴 수 있습니다. 하계휴가 · 연차 · 병가는 이 일수와 별도입니다.</small></div>'};
+ window.yumWsTargetAuto=function(){var c=cur();if(!c||!c.o)return;try{var u=Auth.user();if(!u||u.role!=='superadmin'){U.toast('최고관리자만 바꿀 수 있습니다.','bad');return}}catch(e){}
+  c.o.targetAuto=true;c.o.target=null;try{DB.save()}catch(e){}try{App.render()}catch(e){}};
+ /* 전체 보기에서도 칸마다 팀 안 순위 꼬리표 (배1 · 착1) */
+ function team(n){try{var p=(YSched._staff()||[]).filter(function(x){return x.n===n})[0];var t=p&&p.st;if(!t&&window.yumTraineeTeam)t=yumTraineeTeam(n);return t==='배합'?'배':t==='착즙'?'착':''}catch(e){return ''}}
+ function tag(){var c=cur();if(!c||!c.o||!window.yumTeamRank)return;[].forEach.call(document.querySelectorAll('#ws-root input.ws-in[data-n][data-d]'),function(el){var td=el.closest('td');if(!td)return;
+  var n=el.dataset.n,d=+el.dataset.d,v=((c.o.wishes||{})[n]||{})[d],t='';if(v!=null&&/^\d{1,2}$/.test(String(v))){var tm=team(n),r=yumTeamRank(c.o,n,d);if(tm&&r)t=tm+r}
+  if((td.getAttribute('data-tr')||'')!==t){if(t)td.setAttribute('data-tr',t);else td.removeAttribute('data-tr')}})}
+ setInterval(function(){if(document.getElementById('ws-root'))tag()},700);document.addEventListener('change',function(e){if(e.target&&e.target.classList&&e.target.classList.contains('ws-in'))setTimeout(tag,50)},true);
+ document.head.insertAdjacentHTML('beforeend','<style>#ws-root .wsx-ch>div:nth-child(2){flex:1 1 420px!important;min-width:280px!important}#ws-root .wsx-ch>.wsx-cr{flex:1 1 100%!important;max-width:100%!important}.wstb{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 10px;padding:9px 12px;border:1px solid #DCE3EE;border-radius:10px;background:#F8FAFD}.wstb b{font-size:13px;color:#1E3A5F}.wstb input{width:64px;padding:5px 8px;border:1px solid #CBD5E1;border-radius:7px;font-size:14px;font-weight:800;text-align:center}.wstb em{font-style:normal;font-size:12px;color:#64748B}.wstb button{border:1px solid #CBD5E1;background:#fff;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;cursor:pointer}.wstb small{flex-basis:100%;font-size:11.5px;color:#7A8494;line-height:1.5}.ws-grid td[data-tr]{position:relative}.ws-grid td[data-tr]::after{content:attr(data-tr);position:absolute;right:1px;bottom:0;font-size:8.5px;font-weight:800;line-height:1;color:#1E3A5F;background:rgba(255,255,255,.85);border-radius:3px;padding:0 1px;pointer-events:none}</style>');
 })();
 </script>
 </body>
