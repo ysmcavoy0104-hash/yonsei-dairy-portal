@@ -7589,7 +7589,7 @@ function checkTableHtml(){
   var set={};(o.result.offByPerson[n]||(window.yumTraineeOff?yumTraineeOff(n,CUR_YM,o):[])).forEach(function(d){set[d]=1});
   var VW=o.wishes[n]||{},nv=function(d){return !(VW[d]==='하계'||VW[d]==='연차'||VW[d]==='병가'||VW[d]==='수련회')},vcnt=(o.result.offByPerson[n]||(window.yumTraineeOff?yumTraineeOff(n,CUR_YM,o):[])).filter(function(d){return !nv(d)}).length,cnt=(o.result.offByPerson[n]||(window.yumTraineeOff?yumTraineeOff(n,CUR_YM,o):[])).filter(nv).length,col=offColor(cnt,o.target);
   var cells=Array.from({length:N},function(_,i){var d=i+1,w=(o.wishes[n]||{})[d];
-   return '<td class="'+dcls(d)+'">'+(set[d]?((w==='하계'||w==='연차'||w==='병가'||w==='수련회')?'<span class="ws-off vac'+(w==='연차'?' lv-yc':w==='병가'?' lv-bg':w==='수련회'?' lv-sr':'')+'" title="'+(w==='하계'?'하계휴가':w==='수련회'?'간부 수련회':w)+'">'+(w==='하계'?'하':w==='연차'?'연':w==='수련회'?'수':'병')+'</span>':'<span class="ws-off'+(w!=null&&+w>1?' x':'')+'">'+(w!=null?w:'●')+'</span>'):'')+'</td>';
+   return '<td class="'+dcls(d)+'">'+(set[d]?((w==='하계'||w==='연차'||w==='병가'||w==='수련회')?'<span class="ws-off vac'+(w==='연차'?' lv-yc':w==='병가'?' lv-bg':w==='수련회'?' lv-sr':'')+'" title="'+(w==='하계'?'하계휴가':w==='수련회'?'간부 수련회 (정상 근무)':w)+'">'+(w==='하계'?'하':w==='연차'?'연':w==='수련회'?'수':'병')+'</span>':'<span class="ws-off'+(w!=null&&+w>1?' x':'')+'">'+(w!=null?w:'●')+'</span>'):'')+'</td>';
   }).join('');
   var cf=(o.result.offByPerson[n]||(window.yumTraineeOff?yumTraineeOff(n,CUR_YM,o):[])).filter(function(d){return CONF[d]&&nv(d)}).length;
   return '<tr>'+nameCell(n,idx)+cells+'<td class="ws-tot" style="color:#1B7F4E">'+(anyConf?cf:'-')+'</td><td class="ws-tot"><span class="ws-pill" style="background:'+col.bg+';color:'+col.fg+'">'+cnt+'</span></td></tr>';
@@ -7712,7 +7712,8 @@ function buildWeeks(asg,staff,w){
  var ds=[0,1,2,3,4,5,6].map(function(i){return w.s+i}),key=w.key,W=WP[key],on={};w.only.forEach(function(d){on[d]=1});
  var dates=ds.map(function(d){return ymd(y,mo,d)});
  var mine=function(d){return !!on[d]};                          /* 이번에 편성한 날짜만 새로 씀 — 나머지 칸은 그대로 */
- var who=function(d,st,sh){return staff.filter(function(p){return (p.st===st&&(asg[p.n]||[])[d-1]===sh)||(st==='착즙'&&sh==='오전'&&(asg[p.n]||[])[d-1]==='착즙지원')||(st==='배합'&&sh==='정상'&&(asg[p.n]||[])[d-1]==='배합지원')||(st==='4층'&&sh==='정상'&&((asg[p.n]||[])[d-1]==='4층교육'||(asg[p.n]||[])[d-1]==='4층대체'))||(st==='지원'&&sh==='정상'&&(asg[p.n]||[])[d-1]==='정상교육')}).map(function(p){var v0=(asg[p.n]||[])[d-1];return p.n+(v0==='4층교육'||v0==='정상교육'?'(교육)':v0==='4층대체'?'(대체)':'')}).join(',')};
+ var who0=function(d,st,sh){return staff.filter(function(p){return (p.st===st&&(asg[p.n]||[])[d-1]===sh)||(st==='착즙'&&sh==='오전'&&(asg[p.n]||[])[d-1]==='착즙지원')||(st==='배합'&&sh==='정상'&&(asg[p.n]||[])[d-1]==='배합지원')||(st==='4층'&&sh==='정상'&&((asg[p.n]||[])[d-1]==='4층교육'||(asg[p.n]||[])[d-1]==='4층대체'))||(st==='지원'&&sh==='정상'&&(asg[p.n]||[])[d-1]==='정상교육')}).map(function(p){var v0=(asg[p.n]||[])[d-1];return p.n+(v0==='4층교육'||v0==='정상교육'?'(교육)':v0==='4층대체'?'(대체)':'')}).join(',')};
+ var who=function(d,st,sh){var a=who0(d,st,sh);if(st==='지원'&&sh==='정상'){var L=staff.filter(function(p){return (asg[p.n]||[])[d-1]==='수련회'}).map(function(p){return p.n});if(L.length)a=(a?a+' / ':'')+L.join(',')+'(간부 수련회)'}return a};
  var oldG=function(lab,sub,i,k){var g=W&&(W.groups||[]).filter(function(x){return x.label===lab})[0],r=g&&(g.rows||[]).filter(function(x){return (x.sub||'')===sub})[0];return r&&r[k]?(r[k][i]||''):''};
  var oldS=function(lab,i){var x=W&&(W.single||[]).filter(function(q){return q.label===lab})[0];return x&&x.values?(x.values[i]||''):''};
  var groups=WG.map(function(g){return {label:g[0],rows:g[1].map(function(r){var fixed=g[0]==='4층'||g[0]==='정상';
@@ -7765,7 +7766,7 @@ function plan(){
  /* 이번 주 날짜만 반영 */
  var asg={};staff.forEach(function(p){var a=(prev[p.n]||[]).slice();while(a.length<N)a.push('');
   for(var d=1;d<=L0;d++)a[d-1]=(res.assign[p.n]||[])[d-1]||a[d-1];ds.forEach(function(d){a[d-1]=(res.assign[p.n]||[])[d-1]||''});asg[p.n]=a});
- o.asg=asg;o.planned=o.planned||{};ds.forEach(function(d){o.planned[d]=1});try{if(window.yumEduPlan)yumEduPlan(CUR_YM,ds)}catch(e){console.warn('[교육 편성]',e)}
+ o.asg=asg;o.planned=o.planned||{};ds.forEach(function(d){o.planned[d]=1});try{if(window.yumEduPlan)yumEduPlan(CUR_YM,ds)}catch(e){console.warn('[교육 편성]',e)}try{var _wsh=o.wishes||{};Object.keys(_wsh).forEach(function(n){var a=asg[n];if(!a)return;ds.forEach(function(d){if((_wsh[n]||{})[d]==='수련회')a[d-1]='수련회'})})}catch(e){console.warn('[간부 수련회]',e)}
  /* 이번 주 규칙 확인 */
  var on={};ds.forEach(function(d){on[d]=1});
  var V=(res.viol||[]).filter(function(v){return on[v.d]&&v.rule!=='오후 다음날 오전/정상'&&!(v.rule==='필요인원 부족'&&isMaint(v.d))})   /* 일요일은 정비 — 인원 부족은 1팀 지원 대상 아님 */,UM=(res.unmet||[]).filter(function(x){return on[x.d]&&x.r>0})   /* 희망휴무만 (교대 인원 부족은 1팀 지원 · 편성 점검에서) */;
