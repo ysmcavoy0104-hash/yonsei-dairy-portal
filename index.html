@@ -17401,7 +17401,7 @@ App.navItems=function(){
   {id:'plan',t:'팀 포털',i:'⊞',items:[].concat(TEAMS.map(function(t){return {k:'#/teams?t='+t.k,t:t.n+' 포털',i:t.ic,act:t.url?"yumOpenTeam('"+t.k+"')":"App.go('#/teams?t="+t.k+"')"}}))},
   {id:'prod',t:'생산 현황',i:'⛓',items:[{k:'#/prodmap',t:'생산 현황 · 공정 흐름도',i:'⛓'}]},
   {id:'oee',t:'OEE',i:'📈',items:[{k:'#/oee',t:'OEE 설비종합효율',i:'📈'}]},
-  {id:'dash',t:'대시보드',i:'▦',items:[{k:'#/juice',t:'착즙 대시보드',i:'❖'},{k:'#/mix',t:'배합 대시보드',i:'⚗'},{k:'#/ster',t:'멸균 대시보드',i:'♨'},{k:'#/pack',t:'포장 대시보드',i:'▣'}]},
+  {id:'dash',t:'대시보드',i:'▦',items:[{k:'#/juice',t:'착즙 대시보드',i:'❖'},{k:'#/mix',t:'배합 대시보드',i:'⚗'},{k:'#/ster',t:'멸균 대시보드',i:'♨'},{k:'#/pack',t:'포장 대시보드',i:'▣'},{k:'#/delays',t:'지연 사유 대시보드',i:'⏱'}]},
   /* 2026-11-10 메뉴 정리: 일지(작성 · 문서함 · 결재) / 자료(보고서 · 지연·정비 · 설비 매뉴얼) / 부서톡 / AI 비서 */
   {id:'journal',t:'일지',i:'✎',items:[{k:'#/journals',t:'일지 작성',i:'✎'},{k:'#/docs',t:'문서관리 (일지함)',i:'▤'},{k:'#/approval',t:'전자결재 (잠정 중단)',i:'⏸'}]},
   {id:'data',t:'자료',i:'📋',items:[{k:'#/reports',t:'업무 보고서함',i:'📋'},{k:'#/notebooklm',t:'설비 매뉴얼 AI (NotebookLM)',i:'✦',act:'NB.open()'}].concat(window.yumKPICan&&yumKPICan()?[{k:'#/notebooklm-set',t:'설비 매뉴얼 AI 연결 설정',i:'⚙',act:'NB.settings()'}]:[])},
@@ -22615,5 +22615,163 @@ document.head.insertAdjacentHTML('beforeend','<style>.kd-at{display:inline-block
  var D=window.yumDS;if(D&&D.hogiOf&&!D.__ho2){var _h=D.hogiOf;D.hogiOf=function(d,f){var v=_h(d,f);if(v)return v;var H=hosOf(d,f);return H.length?H.join('·')+'호기':''};D.__ho2=1}
 })();
 </script>
-<style>#e4-box{display:none!important}.e4d{display:none!important}</style></body>
+<style>#e4-box{display:none!important}.e4d{display:none!important}</style><script>
+/* ============ 2026-11-20 지연 사유 통합 대시보드 (#/delays) ============
+   · 자료: 부문포털 「지연 · 정비 기록」(착즙 · 배합 · 멸균 — yumOpsAll) + 포장팀 포털 정지 기록(publicDaily · 11/15부터) + 착즙팀 포털 정비 기록
+   · 같은 날 시간이 겹치고(앞뒤 20분), 같은 라인(배합 N = 멸균 N)이거나 품목이 같은 「다른 팀」 기록은 한 건으로 묶음
+     → 발생 공정 = 가장 먼저 시작한 공정 · 지연 시간 = 묶인 기록 중 가장 긴 값 (같은 일을 여러 팀이 적어도 두 번 세지 않음)
+   · 묶인 건을 누르면 팀별로 어떻게 적었는지 펼쳐 보임
+   · 보기: 시간순 / 호기별 / 품목별 · 그래프: 품목별 · 발생 공정별 · 사유별 · 일별 */
+(function(){
+'use strict';
+if(window.__YUM_DLY__)return;window.__YUM_DLY__=1;
+var ROUTE='#/delays';
+var ORD=['착즙','배합','멸균','포장','기타'];
+var TC={'착즙':'#B7791F','배합':'#2563EB','멸균':'#0E9F8E','포장':'#7C3AED','기타':'#64748B'};
+var PKC={1:'계획정지',2:'고장',3:'준비교체',4:'자재',5:'순간정지',6:'기타',7:'상류(유액) 대기',8:'중간 CIP',9:'하류 대기'};
+function pad(n){return ('0'+n).slice(-2)}
+function today(){var n=new Date(Date.now()+9*3600e3);return n.toISOString().slice(0,10)}
+function addD(s,k){var d=new Date(s+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+k);return d.toISOString().slice(0,10)}
+function E(x){return String(x==null?'':x).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function md(s){return (+String(s).slice(5,7))+'/'+(+String(s).slice(8,10))}
+function wd(s){return '일월화수목금토'[new Date(s+'T00:00:00Z').getUTCDay()]}
+function tmin(t){var m=/(\d{1,2}):(\d{2})/.exec(String(t||''));return m?(+m[1])*60+(+m[2]):null}
+function hm(x){x=((x%1440)+1440)%1440;return pad(Math.floor(x/60))+':'+pad(x%60)}
+function hrs(m){m=Math.round(+m||0);if(m<60)return m+'분';var h=Math.floor(m/60),r=m%60;return h+'시간'+(r?' '+r+'분':'')}
+function teamOf(t){t=String(t||'');return /착즙/.test(t)?'착즙':/배합|가공2/.test(t)?'배합':/멸균|가공1/.test(t)?'멸균':/포장/.test(t)?'포장':'기타'}
+var STOPW={'두유':1,'우유':1,'멸균':1,'멸균유':1,'일반':1,'수출':1,'제품':1};
+function toks(p){return String(p||'').replace(/\[[^\]]*\]|\([^)]*\)|\d+\s*(ml|mL|ML|입|개|g|G|kg)?/g,' ').split(/[\s,·\/&]+/).map(function(t){return t.replace(/[^가-힣A-Za-z]/g,'')}).filter(function(t){return t.length>=2&&!STOPW[t]})}
+function prodSim(a,b){var A=toks(a),B=toks(b);if(!A.length||!B.length)return false;return A.some(function(t){return B.some(function(u){return t===u||(t.length>=3&&u.indexOf(t)>=0)||(u.length>=3&&t.indexOf(u)>=0)})})}
+function lineOf(team,hogi){var h=String(hogi||'');if(team==='포장'){var m=/([A-F])/i.exec(h);return m?'P'+m[1].toUpperCase():''}if(team==='배합'||team==='멸균'){var n=/([1-6])\s*호기|^\s*([1-6])\s*$/.exec(h);n=n&&(n[1]||n[2]);return n?'L'+n:''}return ''}
+function lineLab(l){return !l?'':l[0]==='P'?'포장 '+l.slice(1)+'호기':'라인 '+l.slice(1)+' (배합·멸균 '+l.slice(1)+'호기)'}
+
+/* ---------- 상태 ---------- */
+var S={p:'7',view:'time',kind:'delay',short:false,open:{},q:''};
+try{var sv=JSON.parse(sessionStorage.getItem('yum_dly')||'null');if(sv)Object.keys(S).forEach(function(k){if(sv[k]!=null&&k!=='open')S[k]=sv[k]})}catch(e){}
+function save(){try{sessionStorage.setItem('yum_dly',JSON.stringify(S))}catch(e){}}
+function range(){var t=today();if(S.p==='month')return [t.slice(0,8)+'01',t];if(S.p==='prev'){var f=addD(t.slice(0,8)+'01',-1);return [f.slice(0,8)+'01',f]}if(S.p==='custom'&&S.from&&S.to)return [S.from,S.to];var n=+S.p||7;return [addD(t,-(n-1)),t]}
+
+/* ---------- 자료 모으기 ---------- */
+function collect(F,T){var R=[],pend=0;
+ try{(window.yumOpsAll?yumOpsAll():[]).forEach(function(r){if(!r||r.kind!=='delay'||!r.d||r.d<F||r.d>T)return;var tm=teamOf(r.team||r.div);
+  var a=tmin(r.start),b=tmin(r.end),mn=+r.min||0;if(!mn&&a!=null&&b!=null)mn=((b-a)%1440+1440)%1440;
+  R.push({src:'부문포털 지연 기록',team:tm,d:r.d,hogi:r.hogi||'',line:lineOf(tm,r.hogi),product:r.product||'',cat:r.reason||'',a:a,b:b!=null?b:(a!=null&&mn?a+mn:null),min:mn,detail:r.detail||'',who:r.author||'',id:r.id})})}catch(e){}
+ for(var d=F;d<=T;d=addD(d,1)){if(d<'2026-11-15')continue;var PD=null;try{PD=window.yumPkDaily?yumPkDaily(d):null}catch(e){}
+  if(!PD){if(d>='2026-11-15')pend++;continue}
+  Object.keys(PD).forEach(function(m){var x=PD[m]||{};(x.stops||[]).forEach(function(s){var a=tmin(s.start||s.a),b=tmin(s.end||s.b),mn=+s.min||((a!=null&&b!=null)?((b-a)%1440+1440)%1440:0),c=+s.code||0;
+   if(!S.short&&!(mn>=10||c===2||c===7||c===9))return;
+   R.push({src:'포장팀 포털 정지 기록',team:'포장',d:d,hogi:m+'호기',line:'P'+m,product:x.item||x.items||'',cat:PKC[c]||'기타',a:a,b:b!=null?b:(a!=null?a+mn:null),min:mn,detail:s.reason||s.problem||'',who:''})})})}
+ return {recs:R,pend:pend}}
+function cluster(R){
+ R=R.slice().sort(function(x,y){return x.d<y.d?-1:x.d>y.d?1:((x.a==null?9999:x.a)-(y.a==null?9999:y.a))||(ORD.indexOf(x.team)-ORD.indexOf(y.team))});
+ var I=[];
+ R.forEach(function(r){var hit=null;
+  if(r.a!=null)for(var i=I.length-1;i>=0;i--){var c=I[i];if(c.d!==r.d)break;if(c.a==null)continue;var rb=r.b!=null?r.b:r.a+(r.min||0);if(rb<r.a)rb+=1440;
+   if(!(r.a<=c.b+20&&rb>=c.a-20))continue;
+   if(c.recs.some(function(x){return x.team!==r.team&&((x.line&&x.line===r.line)||prodSim(x.product,r.product))})){hit=c;break}}
+  if(hit){hit.recs.push(r);var rb2=r.b!=null?r.b:r.a+(r.min||0);if(rb2<r.a)rb2+=1440;hit.b=Math.max(hit.b,rb2);hit.a=Math.min(hit.a,r.a)}
+  else{var b0=r.b!=null?r.b:(r.a!=null?r.a+(r.min||0):null);if(b0!=null&&r.a!=null&&b0<r.a)b0+=1440;I.push({d:r.d,a:r.a,b:b0,recs:[r]})}});
+ I.forEach(function(c,k){c.id=c.d+'#'+k;c.recs.sort(function(x,y){return ((x.a==null?9999:x.a)-(y.a==null?9999:y.a))||(ORD.indexOf(x.team)-ORD.indexOf(y.team))});
+  var o=c.recs[0];c.origin=o.team;c.cat=o.cat||'기타';c.min=Math.max.apply(null,c.recs.map(function(x){return +x.min||0}));
+  var byT=c.recs.slice().sort(function(x,y){return ORD.indexOf(x.team)-ORD.indexOf(y.team)});c.product=(byT.filter(function(x){return x.product})[0]||{}).product||'';
+  c.teams=ORD.filter(function(t){return c.recs.some(function(x){return x.team===t})});
+  var L={};c.recs.forEach(function(x){if(x.line)L[x.line]=1});c.lines=Object.keys(L).sort()});
+ return I}
+
+/* ---------- 그리기 도우미 ---------- */
+function chip(t){return '<span class="dl-tc" style="--c:'+TC[t]+'">'+E(t)+'</span>'}
+function hbars(rows,unit){var mx=Math.max.apply(null,rows.map(function(r){return r.v}).concat([1]));
+ return '<div class="dl-hb">'+rows.map(function(r){var seg=(r.seg||[{t:'기타',v:r.v}]).filter(function(s){return s.v>0});
+  return '<div class="dl-hr" title="'+E(r.k+' · '+(unit==='min'?hrs(r.v):r.v+'건')+(r.n!=null?' · '+r.n+'건':'')+(seg.length>1?'\n'+seg.map(function(s){return s.t+' '+(unit==='min'?hrs(s.v):s.v)}).join('\n'):''))+'"><span class="k">'+E(r.k)+'</span><span class="bar">'+
+   seg.map(function(s){return '<i style="width:'+(s.v/mx*100).toFixed(2)+'%;background:'+(TC[s.t]||s.c||'#64748B')+'"></i>'}).join('')+'</span><b>'+(unit==='min'?hrs(r.v):r.v+'건')+(r.n!=null&&unit==='min'?' <small>'+r.n+'건</small>':'')+'</b></div>'}).join('')+'</div>'}
+function legend(){return '<div class="dl-lg">'+ORD.slice(0,4).map(function(t){return '<span><i style="background:'+TC[t]+'"></i>'+t+'</span>'}).join('')+'<em>색 = 발생 공정 (가장 먼저 멈춘 공정)</em></div>'}
+function byKey(I,f){var o={};I.forEach(function(c){var k=f(c)||'(미기재)';var x=o[k]=o[k]||{k:k,v:0,n:0,s:{}};x.v+=c.min;x.n++;x.s[c.origin]=(x.s[c.origin]||0)+c.min});
+ return Object.keys(o).map(function(k){var x=o[k];x.seg=ORD.map(function(t){return {t:t,v:x.s[t]||0}});return x}).sort(function(a,b){return b.v-a.v})}
+function shortProd(p){p=String(p||'').replace(/\s*\d{1,3}(,\d{3})+\s*개/g,'').trim();return p.length>22?p.slice(0,21)+'…':p}
+
+/* ---------- 화면 ---------- */
+function view(){var rg=range(),F=rg[0],T=rg[1],C=collect(F,T),I=cluster(C.recs);
+ if(S.q){var q=S.q.toLowerCase();I=I.filter(function(c){return c.recs.some(function(x){return (x.product+' '+x.cat+' '+x.detail+' '+x.hogi).toLowerCase().indexOf(q)>=0})})}
+ var tot=I.reduce(function(a,c){return a+c.min},0),multi=I.filter(function(c){return c.teams.length>1}).length,raw=C.recs.length;
+ var cats=byKey(I,function(c){return c.cat});
+ var P=[['7','최근 7일'],['14','14일'],['30','30일'],['month','이번 달'],['prev','지난 달']];
+ var h='<div class="dl">'+
+  '<div class="dl-hd"><div><div class="dl-eb">DELAY · DOWNTIME</div><h1>지연 사유 대시보드</h1><p>착즙 · 배합 · 멸균(부문포털 지연 기록)과 포장(포장팀 포털 정지 기록)을 모아, 같은 시간 · 같은 라인(또는 같은 품목)에서 여러 팀이 적은 기록은 <b>한 건</b>으로 묶었습니다. 줄을 누르면 팀별로 어떻게 적었는지 보입니다.</p></div>'+
+  '<div class="dl-ctl"><div class="dl-seg">'+P.map(function(p){return '<button class="'+(S.p===p[0]?'on':'')+'" onclick="yumDly.set(\'p\',\''+p[0]+'\')">'+p[1]+'</button>'}).join('')+'</div>'+
+   '<div class="dl-rg"><input type="date" value="'+F+'" onchange="yumDly.rng(this.value,null)"><span>~</span><input type="date" value="'+T+'" onchange="yumDly.rng(null,this.value)"></div>'+
+   '<label class="dl-sh"><input type="checkbox" '+(S.short?'checked':'')+' onchange="yumDly.set(\'short\',this.checked)"> 포장 짧은 정지(10분 미만 순간정지)도 포함</label></div></div>';
+ h+='<div class="dl-k">'+[['지연 건수 (묶은 뒤)',I.length+'건','기록 '+raw+'건을 묶음'],['지연 시간 합계',hrs(tot),'중복 빼고 한 건당 가장 긴 시간'],['여러 팀이 같이 적은 건',multi+'건','줄을 누르면 팀별 내용'],['가장 많은 사유',cats[0]?E(cats[0].k):'—',cats[0]?hrs(cats[0].v)+' · '+cats[0].n+'건':'']].map(function(x){return '<div><small>'+x[0]+'</small><b>'+x[1]+'</b><em>'+x[2]+'</em></div>'}).join('')+'</div>';
+ if(C.pend)h+='<div class="dl-note">포장팀 정지 기록을 불러오는 중입니다 ('+C.pend+'일) — 잠시 뒤 자동으로 채워집니다.</div>';
+ if(F<'2026-11-15')h+='<div class="dl-note">포장팀 포털 정지 기록은 11/15부터 받을 수 있어, 그 전 날짜에는 포장 정지가 빠져 있습니다.</div>';
+ /* 그래프 */
+ var days=[];for(var d=F;d<=T;d=addD(d,1))days.push(d);
+ var dayRows=days.map(function(d){var L=I.filter(function(c){return c.d===d}),s={};L.forEach(function(c){s[c.origin]=(s[c.origin]||0)+c.min});return {d:d,v:L.reduce(function(a,c){return a+c.min},0),n:L.length,s:s}}),dmx=Math.max.apply(null,dayRows.map(function(x){return x.v}).concat([1]));
+ var daySvg='<div class="dl-days" style="--n:'+days.length+'">'+dayRows.map(function(x){return '<div class="dl-dc" title="'+E(md(x.d)+'('+wd(x.d)+') · '+hrs(x.v)+' · '+x.n+'건\n'+ORD.filter(function(t){return x.s[t]}).map(function(t){return t+' '+hrs(x.s[t])}).join('\n'))+'"><div class="col">'+ORD.map(function(t){return x.s[t]?'<i style="height:'+(x.s[t]/dmx*100).toFixed(2)+'%;background:'+TC[t]+'"></i>':''}).join('')+'</div><span>'+(days.length>16&&(+x.d.slice(8))%2?'':md(x.d))+'</span></div>'}).join('')+'</div>';
+ var prods=byKey(I,function(c){return shortProd(c.product)}).slice(0,10),org=byKey(I,function(c){return c.origin}).map(function(x){x.seg=[{t:x.k,v:x.v}];return x});
+ h+='<div class="dl-g2"><section class="dl-c"><h3>품목별 지연 시간 <small>상위 10 · 중복 제외</small></h3>'+legend()+(prods.length?hbars(prods,'min'):'<div class="dl-empty">기록 없음</div>')+'</section>'+
+  '<section class="dl-c"><h3>일별 지연 시간</h3>'+legend()+daySvg+'</section></div>'+
+  '<div class="dl-g2"><section class="dl-c"><h3>발생 공정별</h3>'+(org.length?hbars(org,'min'):'<div class="dl-empty">기록 없음</div>')+'</section>'+
+  '<section class="dl-c"><h3>사유별 <small>발생 공정이 적은 사유 기준</small></h3>'+legend()+(cats.length?hbars(cats.slice(0,8),'min'):'<div class="dl-empty">기록 없음</div>')+'</section></div>';
+ /* 목록 */
+ var V=[['time','시간순'],['line','호기별'],['prod','품목별']];
+ h+='<section class="dl-c dl-list"><div class="dl-lh"><h3>지연 기록</h3><div class="dl-seg">'+V.map(function(v){return '<button class="'+(S.view===v[0]?'on':'')+'" onclick="yumDly.set(\'view\',\''+v[0]+'\')">'+v[1]+'</button>'}).join('')+'</div>'+
+  '<input class="dl-q" placeholder="품목 · 사유 · 내용 검색" value="'+E(S.q)+'" onchange="yumDly.set(\'q\',this.value)"></div>';
+ var groups=[];
+ if(S.view==='line'){var g={};I.forEach(function(c){(c.lines.length?c.lines:['']).forEach(function(l){(g[l]=g[l]||[]).push(c)})});Object.keys(g).sort(function(a,b){return (a===''?1:0)-(b===''?1:0)||a.localeCompare(b)}).forEach(function(k){groups.push({t:k?lineLab(k):'라인 미기재',L:g[k]})})}
+ else if(S.view==='prod'){var g2={};I.forEach(function(c){var k=shortProd(c.product)||'(품목 미기재)';(g2[k]=g2[k]||[]).push(c)});Object.keys(g2).sort(function(a,b){return g2[b].reduce(function(s,c){return s+c.min},0)-g2[a].reduce(function(s,c){return s+c.min},0)}).forEach(function(k){groups.push({t:k,L:g2[k]})})}
+ else{var g3={};I.forEach(function(c){(g3[c.d]=g3[c.d]||[]).push(c)});Object.keys(g3).sort().reverse().forEach(function(k){groups.push({t:md(k)+' ('+wd(k)+')',L:g3[k]})})}
+ if(!groups.length)h+='<div class="dl-empty">이 기간에 지연 기록이 없습니다.</div>';
+ groups.forEach(function(G){var sm=G.L.reduce(function(s,c){return s+c.min},0);
+  h+='<div class="dl-gh"><b>'+E(G.t)+'</b><span>'+G.L.length+'건 · '+hrs(sm)+'</span></div><table class="dl-t"><tbody>'+
+   G.L.slice().sort(function(x,y){return S.view==='time'?((x.a==null?9999:x.a)-(y.a==null?9999:y.a)):(x.d<y.d?1:x.d>y.d?-1:((x.a||0)-(y.a||0)))}).map(function(c){var op=!!S.open[c.id],o=c.recs[0];
+    return '<tr class="dl-r'+(op?' op':'')+(c.teams.length>1?' multi':'')+'" onclick="yumDly.tg(\''+c.id+'\')"><td class="t">'+(S.view==='time'?'':md(c.d)+' ')+(c.a!=null?hm(c.a)+(c.b!=null?'~'+hm(c.b):''):'시각 없음')+'</td><td>'+chip(c.origin)+'</td>'+
+     '<td class="p"><b>'+E(shortProd(c.product)||'(품목 미기재)')+'</b><small>'+E(c.lines.map(lineLab).join(' · '))+'</small></td><td class="c">'+E(c.cat)+'<small>'+E(String(o.detail||'').slice(0,40))+'</small></td>'+
+     '<td class="m">'+hrs(c.min)+'</td><td class="tm">'+c.teams.map(chip).join('')+(c.recs.length>1?'<span class="dl-n">'+c.recs.length+'건 묶음 ▾</span>':'')+'</td></tr>'+
+     (op?'<tr class="dl-x"><td colspan="6"><div class="dl-xb">'+c.recs.map(function(x){return '<div class="dl-xi" style="--c:'+TC[x.team]+'"><div class="hd">'+chip(x.team)+'<b>'+E(x.hogi||'')+'</b><span>'+(x.a!=null?hm(x.a)+(x.b!=null?' ~ '+hm(x.b):''):'')+' · '+hrs(x.min)+'</span><em>'+E(x.src)+'</em></div>'+
+      '<div class="bd"><span class="cat">'+E(x.cat||'분류 없음')+'</span>'+E(x.detail||'(상세 내용 없음)')+'</div>'+(x.product||x.who?'<div class="ft">'+E(x.product?'품목: '+shortProd(x.product):'')+(x.who?' · 작성 '+E(x.who):'')+'</div>':'')+'</div>'}).join('')+'</div></td></tr>':'')}).join('')+'</tbody></table>'});
+ h+='</section>';
+ /* 정비 */
+ var MT=maint(F,T);
+ h+='<section class="dl-c"><h3>정비 기록 <small>'+MT.length+'건 · 부문포털 정비 기록 + 착즙팀 포털 정비 기록</small></h3>'+(MT.length?'<table class="dl-t dl-mt"><thead><tr><th>날짜</th><th>팀</th><th>설비</th><th>구분</th><th>내용</th><th>작업자</th></tr></thead><tbody>'+
+  MT.map(function(r){return '<tr><td>'+md(r.d)+'</td><td>'+chip(r.team)+'</td><td><b>'+E(r.eq)+'</b></td><td>'+E(r.k)+'</td><td>'+E(r.c)+'</td><td>'+E(r.w)+'</td></tr>'}).join('')+'</tbody></table>':'<div class="dl-empty">이 기간에 정비 기록이 없습니다.</div>')+'</section>';
+ return h+'</div>'}
+function maint(F,T){var L=[];
+ try{(window.yumOpsAll?yumOpsAll():[]).forEach(function(r){if(!r||r.kind!=='maint'||!r.d||r.d<F||r.d>T)return;L.push({d:r.d,team:teamOf(r.team||r.div),eq:r.asset||'',k:r.mtype||'',c:r.content||r.etc||'',w:r.person||r.author||''})})}catch(e){}
+ try{var M=window.yumJuiceMaint?yumJuiceMaint(T):null;if(M&&M.ok)(M.rows||[]).forEach(function(r){var d=String(r.date||'').slice(0,10);if(!d||d<F||d>T)return;L.push({d:d,team:'착즙',eq:r.equipment||'',k:r.kind||'',c:((r.symptoms||[]).join(', ')||'')+(r.action?' → '+r.action:'')+(r.status?' ('+r.status+')':''),w:r.worker||''})})}catch(e){}
+ return L.sort(function(a,b){return a.d<b.d?1:a.d>b.d?-1:0})}
+
+/* ---------- 연결 ---------- */
+function on(){return (location.hash||'').split('?')[0]===ROUTE}
+function paint(){if(!on())return;var M=document.getElementById('main');if(!M)return;var y=window.scrollY;try{M.innerHTML=view()}catch(e){M.innerHTML='<div class="panel"><b>지연 사유 대시보드를 그리지 못했습니다</b><pre style="white-space:pre-wrap;font-size:12px">'+E(e.stack||e.message)+'</pre></div>'}window.scrollTo(0,y)}
+window.yumDly={set:function(k,v){S[k]=v;if(k==='p'){S.from=S.to=null}save();paint()},rng:function(f,t){var r=range();S.p='custom';S.from=f||r[0];S.to=t||r[1];if(S.to<S.from){var x=S.from;S.from=S.to;S.to=x}save();paint()},
+ tg:function(id){S.open[id]=!S.open[id];paint()},view:view};
+try{var _r=App.render;App.render=function(){var r=_r.apply(this,arguments);if(on()){var M=document.getElementById('main');if(M){try{M.innerHTML=view()}catch(e){M.innerHTML='<pre>'+E(e.stack||e.message)+'</pre>'}}}return r}}catch(e){}
+var PT=0;function soon(){clearTimeout(PT);PT=setTimeout(paint,400)}
+window.addEventListener('yum-oeefeed',function(){if(on())soon()});window.addEventListener('yum-lbfeed',function(){if(on())soon()});window.addEventListener('yum-docs-synced',function(){if(on())soon()});
+/* 메뉴: 대시보드 묶음에 추가 */
+try{var _nav=App.navItems;if(_nav)App.navItems=function(){var a=_nav.apply(this,arguments);try{if(!a.some(function(n){return n&&n.k===ROUTE})){var i=-1;a.forEach(function(n,k){if(n&&n.k==='#/pack')i=k});if(i>=0)a.splice(i+1,0,{k:ROUTE,t:'지연 사유 대시보드',i:'⏱'})}}catch(e){}return a}}catch(e){}
+var CSS='.dl{display:flex;flex-direction:column;gap:14px}.dl-hd{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;align-items:flex-end}.dl-eb{font-size:11px;font-weight:800;letter-spacing:.12em;color:#64748B}.dl-hd h1{margin:2px 0 4px;font-size:24px;color:#0F172A}.dl-hd p{margin:0;max-width:760px;font-size:13px;color:#475569;line-height:1.6}'+
+ '.dl-ctl{display:flex;flex-direction:column;gap:6px;align-items:flex-end}.dl-seg{display:inline-flex;gap:4px;flex-wrap:wrap}.dl-seg button{border:1px solid #CBD5E1;background:#fff;border-radius:999px;padding:5px 12px;font-weight:700;font-size:12.5px;color:#334155;cursor:pointer}.dl-seg button.on{background:#1E3A5F;border-color:#1E3A5F;color:#fff}'+
+ '.dl-rg{display:flex;gap:6px;align-items:center}.dl-rg input{height:32px;border:1px solid #CBD5E1;border-radius:8px;padding:0 8px;font:inherit;font-size:13px}.dl-sh{font-size:12px;color:#475569;display:flex;gap:5px;align-items:center}'+
+ '.dl-k{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.dl-k>div{background:#fff;border:1px solid #E2E8F0;border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:3px}.dl-k small{font-size:12px;color:#64748B;font-weight:700}.dl-k b{font-size:22px;color:#0F172A}.dl-k em{font-style:normal;font-size:11.5px;color:#94A3B8}'+
+ '.dl-note{font-size:12.5px;color:#92400E;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:8px 12px}'+
+ '.dl-g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.dl-c{background:#fff;border:1px solid #E2E8F0;border-radius:14px;padding:14px 16px}.dl-c h3{margin:0 0 8px;font-size:15px;color:#0F172A}.dl-c h3 small{font-size:12px;color:#94A3B8;font-weight:600;margin-left:6px}'+
+ '.dl-lg{display:flex;flex-wrap:wrap;gap:10px;font-size:11.5px;color:#475569;margin-bottom:8px}.dl-lg span{display:inline-flex;align-items:center;gap:4px}.dl-lg i{width:10px;height:10px;border-radius:3px;display:inline-block}.dl-lg em{font-style:normal;color:#94A3B8}'+
+ '.dl-hb{display:flex;flex-direction:column;gap:6px}.dl-hr{display:grid;grid-template-columns:minmax(90px,1.1fr) 2fr auto;gap:8px;align-items:center;font-size:12.5px}.dl-hr .k{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#1E293B;font-weight:600}.dl-hr .bar{display:flex;height:14px;background:#F1F5F9;border-radius:4px;overflow:hidden;gap:2px}.dl-hr .bar i{display:block;height:100%}.dl-hr .bar i:first-child{border-radius:4px 0 0 4px}.dl-hr b{font-size:12px;color:#0F172A;white-space:nowrap}.dl-hr b small{color:#94A3B8;font-weight:600}.dl-hr:hover .k{color:#1E3A5F;text-decoration:underline}'+
+ '.dl-days{display:grid;grid-template-columns:repeat(var(--n),minmax(0,1fr));gap:3px;height:170px;align-items:end}.dl-dc{display:flex;flex-direction:column;align-items:center;gap:4px;height:100%}.dl-dc .col{flex:1;width:70%;display:flex;flex-direction:column-reverse;gap:2px;justify-content:flex-start}.dl-dc .col i{display:block;width:100%;border-radius:2px}.dl-dc .col i:last-child{border-radius:4px 4px 2px 2px}.dl-dc span{font-size:10.5px;color:#64748B;white-space:nowrap}.dl-dc:hover .col{opacity:.8}'+
+ '.dl-lh{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:6px}.dl-lh h3{margin:0}.dl-q{margin-left:auto;height:32px;border:1px solid #CBD5E1;border-radius:8px;padding:0 10px;font:inherit;font-size:13px;min-width:220px}'+
+ '.dl-gh{display:flex;gap:10px;align-items:baseline;padding:10px 4px 4px;border-bottom:2px solid #E2E8F0}.dl-gh b{font-size:14px;color:#1E3A5F}.dl-gh span{font-size:12px;color:#64748B}'+
+ '.dl-t{width:100%;border-collapse:collapse;font-size:13px}.dl-t td,.dl-t th{padding:8px 8px;border-bottom:1px solid #F1F5F9;vertical-align:top;text-align:left}.dl-t th{font-size:12px;color:#64748B}.dl-r{cursor:pointer}.dl-r:hover td{background:#F8FAFC}.dl-r.multi td:first-child{box-shadow:inset 3px 0 0 #1E3A5F}'+
+ '.dl-r .t{white-space:nowrap;font-weight:700;color:#334155}.dl-r .p b{display:block;color:#0F172A}.dl-r small{display:block;font-size:11.5px;color:#64748B;margin-top:2px}.dl-r .c{color:#334155}.dl-r .m{white-space:nowrap;font-weight:800;color:#0F172A}.dl-r .tm{white-space:nowrap}'+
+ '.dl-tc{display:inline-block;padding:1px 8px;border-radius:999px;font-size:11.5px;font-weight:800;color:var(--c);background:color-mix(in srgb,var(--c) 12%,#fff);border:1px solid color-mix(in srgb,var(--c) 35%,#fff);margin:0 3px 3px 0}'+
+ '.dl-n{display:inline-block;font-size:11px;font-weight:800;color:#1E3A5F;margin-left:4px}.dl-x td{background:#F8FAFC;padding:8px 10px 12px}.dl-xb{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px}'+
+ '.dl-xi{background:#fff;border:1px solid #E2E8F0;border-left:4px solid var(--c);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:5px}.dl-xi .hd{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:12px}.dl-xi .hd span{color:#475569}.dl-xi .hd em{font-style:normal;color:#94A3B8;margin-left:auto;font-size:11px}'+
+ '.dl-xi .bd{font-size:13px;color:#1E293B;line-height:1.55}.dl-xi .cat{display:inline-block;font-size:11.5px;font-weight:800;color:#1E3A5F;background:#EEF2FF;border-radius:6px;padding:0 6px;margin-right:6px}.dl-xi .ft{font-size:11.5px;color:#64748B}'+
+ '.dl-empty{font-size:13px;color:#94A3B8;padding:14px 4px}.dl-mt td{font-size:12.5px}'+
+ '@media(max-width:900px){.dl-k{grid-template-columns:repeat(2,minmax(0,1fr))}.dl-g2{grid-template-columns:1fr}.dl-ctl{align-items:flex-start}}';
+(function(){var st=document.createElement('style');st.textContent=CSS;document.head.appendChild(st)})();
+})();
+</script>
+
+</body>
 </html>
