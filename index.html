@@ -7599,14 +7599,14 @@ function dayResultHtml(){
 
 /* ---------- 4) 휴일체크표 (확정본) ---------- */
 function checkTableHtml(){
- var o=M(CUR_YM);if(!o.result)return emptyHtml();
+ try{srFix(CUR_YM)}catch(e){}var o=M(CUR_YM);if(!o.result)return emptyHtml();
  var CONF={},anyConf=false,cw=[];weekList().forEach(function(w){var X=(DB.data.weeklyPlans||{})[w.key];if(X&&X.confirmed){anyConf=true;cw.push(w.lab);w.ds.forEach(function(d){CONF[d]=1})}});
  var N=o.result.N;
  var rows=ROSTER.concat(window.yumTraineeNames?yumTraineeNames(CUR_YM):[]).map(function(n,idx){
   var set={};(o.result.offByPerson[n]||(window.yumTraineeOff?yumTraineeOff(n,CUR_YM,o):[])).forEach(function(d){set[d]=1});
   var VW=o.wishes[n]||{},nv=function(d){return !(VW[d]==='하계'||VW[d]==='연차'||VW[d]==='병가'||VW[d]==='수련회')},vcnt=(o.result.offByPerson[n]||(window.yumTraineeOff?yumTraineeOff(n,CUR_YM,o):[])).filter(function(d){return !nv(d)}).length,cnt=(o.result.offByPerson[n]||(window.yumTraineeOff?yumTraineeOff(n,CUR_YM,o):[])).filter(nv).length,col=offColor(cnt,o.target);
   var cells=Array.from({length:N},function(_,i){var d=i+1,w=(o.wishes[n]||{})[d];
-   return '<td class="'+dcls(d)+'">'+(set[d]?((w==='하계'||w==='연차'||w==='병가'||w==='수련회')?'<span class="ws-off vac'+(w==='연차'?' lv-yc':w==='병가'?' lv-bg':w==='수련회'?' lv-sr':'')+'" title="'+(w==='하계'?'하계휴가':w==='수련회'?'간부 수련회 (정상 근무)':w)+'">'+(w==='하계'?'하':w==='연차'?'연':w==='수련회'?'수':'병')+'</span>':'<span class="ws-off'+(w!=null&&+w>1?' x':'')+'">'+(w!=null?w:'●')+'</span>'):'')+'</td>';
+   return '<td class="'+dcls(d)+'">'+(set[d]?((w==='하계'||w==='연차'||w==='병가'||w==='수련회')?'<span class="ws-off vac'+(w==='연차'?' lv-yc':w==='병가'?' lv-bg':w==='수련회'?' lv-sr':'')+'" title="'+(w==='하계'?'하계휴가':w==='수련회'?'간부 수련회 (정상 근무)':w)+'">'+(w==='하계'?'하':w==='연차'?'연':w==='수련회'?'수':'병')+'</span>':'<span class="ws-off'+(w!=null&&+w>1?' x':'')+'">'+(w!=null?w:'●')+'</span>'):(w==='수련회'?'<span class="ws-off vac lv-sr" title="간부 수련회 (정상 근무 · 휴무 개수에 안 셈)">수</span>':''))+'</td>';
   }).join('');
   var cf=(o.result.offByPerson[n]||(window.yumTraineeOff?yumTraineeOff(n,CUR_YM,o):[])).filter(function(d){return CONF[d]&&nv(d)}).length;
   return '<tr>'+nameCell(n,idx)+cells+'<td class="ws-tot" style="color:#1B7F4E">'+(anyConf?cf:'-')+'</td><td class="ws-tot"><span class="ws-pill" style="background:'+col.bg+';color:'+col.fg+'">'+cnt+'</span></td></tr>';
@@ -7627,7 +7627,7 @@ function wcPlanDays(){var o=M(CUR_YM),staff=[];try{staff=(window.YSched&&YSched.
    (W.groups||[]).forEach(function(g){(g.rows||[]).forEach(function(r){wcSplit((r.names||[])[i]).forEach(function(nm){var b=wcBare(nm),p=ST[b];if(!p)return;var v;
      if(g.label==='오전')v=((r.sub||'')==='착즙'&&p.st!=='착즙')?'착즙지원':'오전';else if(g.label==='오후')v='오후';else if(g.label==='중간')v=p.st==='배합'?'정상':(p.st==='착즙'?'배합지원':'정상');
      else if(g.label==='4층')v=p.st==='4층'?'정상':(/대체/.test(nm)?'4층대체':'4층교육');else if(g.label==='정상')v=p.st==='지원'?'정상':'정상교육';else v='근무';day.v[p.n]=v})})});
-   (W.single||[]).forEach(function(x){if(x.label!=='휴무자')return;wcSplit((x.values||[])[i]).forEach(function(nm){var p=ST[wcBare(nm)];if(p)day.v[p.n]='휴무'})});
+   (W.single||[]).forEach(function(x){if(x.label!=='휴무자')return;wcSplit((x.values||[])[i]).forEach(function(nm){var p=ST[wcBare(nm)];if(p&&((o.wishes||{})[p.n]||{})[d]!=='수련회')day.v[p.n]='휴무'})});
    out.push(day)}});
  return out}
 function wcDiff(){var o=M(CUR_YM),A=o.asg||{},D=wcPlanDays(),out=[];
@@ -7811,6 +7811,11 @@ function plan(){
  U.toast((wi+1)+'주차('+wk.lab+') 근무 편성 완료 — 주간근무계획표에 넣었습니다.'+(V.length?' 규칙 확인 '+V.length+'건이 있습니다.':'')+(OVW.length?' ⚠ 뒤쪽 희망휴무까지 합치면 목표 휴무를 넘는 사람: '+OVW.join(', ')+' — 이미 편성한 주에서 휴무를 줄이거나 희망휴무를 조정해 주세요.':''),OVW.length?'bad':'ok');
 }
 /* 주간근무계획표에서 직접 고친 근무 → 이 달 결과(휴무 개수 · 날짜별 현황 · 휴일체크표) 다시 계산 + 그 주 계획표 다시 만들기 */
+function srFix(ym){var keep=CUR_YM,ch={},n0=0;CUR_YM=ym;try{var o=M(ym),A=o.asg||{},W=o.wishes||{},P=o.planned||{},L=lockOf();
+  Object.keys(W).forEach(function(n){var a=A[n];if(!a)return;Object.keys(W[n]||{}).forEach(function(k){if(W[n][k]!=='수련회')return;var d=+k;if(!d||!(d<=L||P[d]))return;if(a[d-1]!=='수련회'){a[d-1]='수련회';ch[d]=1;n0++}})});
+  if(n0){var wl=weekList();CUR_YM=keep;wl.forEach(function(w){if(w.ds.some(function(d){return ch[d]}))recalc(ym,w.key,w.s,w.ds)});try{DB.save()}catch(e){}}
+ }catch(e){console.warn('[간부 수련회 고정]',e)}finally{CUR_YM=keep}return n0}
+window.yumSrFix=srFix;
 function recalc(ym,key,s,days){
  var keep=CUR_YM;CUR_YM=ym;
  try{
