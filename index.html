@@ -8044,11 +8044,11 @@ function edCellStyle(n,i){var v=EDIT.vals[n][i],pv=edPrev(n,i),bad=pv==='오후'
 /* 주간근무계획표 모양 그대로 수정: 칸마다 이름 × (빼면 휴무) · ＋ 선택 (그 칸으로 옮김) · 휴무자는 어느 칸에도 없는 사람 */
 var EROWS=[['오전','배합','배합','오전','06:00~15:00'],['오전','착즙','착즙','오전','05:30~14:30'],['중간','배합','배합','정상','07:00~16:00'],['오후','배합','배합','오후','16:00~'],['오후','착즙','착즙','오후','14:30~23:00'],['4층','','4층','정상','07:30~16:00'],['정상','','지원','정상','07:00~16:00']];
 var SUPN=['장영빈','이연우'];
-function edInRow(p,r,v){if(r[2]==='배합'&&r[3]==='정상'&&v==='배합지원')return true;if(r[2]==='착즙'&&r[3]==='오전'&&v==='착즙지원')return true;if(r[2]==='지원'&&r[3]==='정상'&&v==='정상교육')return true;return p.st===r[2]&&v===r[3]}
+function edInRow(p,r,v){if(r[2]==='배합'&&r[3]==='정상'&&v==='배합지원')return true;if(r[2]==='착즙'&&r[3]==='오전'&&v==='착즙지원')return true;if(r[2]==='지원'&&r[3]==='정상'&&v==='정상교육')return true;if(r[2]==='4층'&&(v==='4층교육'||v==='4층대체'))return true;return p.st===r[2]&&v===r[3]}
 function edMaintDay(ds){try{var o=DB.data.workSched.months[ds.slice(0,7)];var m=(o&&o.maintWd)||{6:1};return !!m[(new Date(ds+'T00:00:00').getDay()+6)%7]}catch(e){return false}}
 function edChip(p,i,v){var pv=edPrev(p.n,i),bad=pv==='오후'&&v&&v!=='오후'&&v!=='휴무',sup=v==='배합지원'||v==='착즙지원';
- var on=EDIT.sel&&EDIT.sel.n===p.n&&EDIT.sel.i===i;return '<span class="wpe-chip'+(bad?' bad':'')+(sup?' sup':'')+(on?' sel':'')+'" title="'+(bad?'전날 오후 근무 — 오전·중간 불가':sup?'착즙 인원 배합 지원':'눌러서 같은 날 다른 사람과 맞바꾸기')+'"><u onclick="WeekPlan.edPick(\''+esc(p.n)+'\','+i+')">'+esc(p.n)+(p.lead?'<i>★</i>':'')+(v==='정상교육'?'<small class="wpe-edu">교육</small>':'')+'</u><b onclick="WeekPlan.edSet(\''+esc(p.n)+'\','+i+',\'휴무\')" title="빼기 (휴무)">×</b></span>'}
-function edAddSel(r,i,staff){var opts=staff.filter(function(p){var v=EDIT.vals[p.n][i];if(edInRow(p,r,v))return false;if(r[2]==='지원'&&r[3]==='정상')return true;if(r[2]==='배합'&&r[3]==='정상'&&p.st==='착즙'&&SUPN.indexOf(EK(p.n))>=0)return true;if(r[2]==='착즙'&&r[3]==='오전'&&p.st!=='착즙')return true;return p.st===r[2]});
+ var on=EDIT.sel&&EDIT.sel.n===p.n&&EDIT.sel.i===i;return '<span class="wpe-chip'+(bad?' bad':'')+(sup?' sup':'')+(on?' sel':'')+'" title="'+(bad?'전날 오후 근무 — 오전·중간 불가':sup?'착즙 인원 배합 지원':'눌러서 같은 날 다른 사람과 맞바꾸기')+'"><u onclick="WeekPlan.edPick(\''+esc(p.n)+'\','+i+')">'+esc(p.n)+(p.lead?'<i>★</i>':'')+(v==='정상교육'||v==='4층교육'?'<small class="wpe-edu">교육</small>':v==='4층대체'?'<small class="wpe-edu">대체</small>':'')+'</u><b onclick="WeekPlan.edSet(\''+esc(p.n)+'\','+i+',\'휴무\')" title="빼기 (휴무)">×</b></span>'}
+function edAddSel(r,i,staff){var opts=staff.filter(function(p){var v=EDIT.vals[p.n][i];if(edInRow(p,r,v))return false;if(r[2]==='지원'&&r[3]==='정상')return true;if(r[2]==='배합'&&r[3]==='정상'&&p.st==='착즙'&&SUPN.indexOf(EK(p.n))>=0)return true;if(r[2]==='착즙'&&r[3]==='오전'&&p.st!=='착즙')return true;if(r[2]==='4층'&&EK(p.n)==='장영빈')return true;return p.st===r[2]});
  if(!opts.length)return r[2]==='4층'?'':'<select class="wpe-add" disabled title="이 줄에 넣을 수 있는 사람이 모두 이미 배치되어 있습니다"><option>＋ (모두 배치됨)</option></select>';var lab=function(v){return v==='정상교육'?'정상(교육)':v==='4층교육'?'4층(교육)':v==='4층대체'?'4층(대체)':v==='정상'?'중간/정상':v==='배합지원'?'배합지원':(v||'미정')};
  return '<select class="wpe-add" onchange="if(this.value)WeekPlan.edPut(this.value,'+i+',\''+r[2]+'\',\''+r[3]+'\')"><option value="">＋</option>'+opts.map(function(p){return '<option value="'+esc(p.n)+'">'+esc(p.n)+(r[2]==='지원'&&p.st!=='지원'?' — '+esc(p.st)+' · 지금 '+lab(EDIT.vals[p.n][i])+' → 정상(교육)':' ('+lab(EDIT.vals[p.n][i])+')')+'</option>'}).join('')+'</select>'}
 function editInner(wk){
@@ -8090,7 +8090,7 @@ function edPick(n,i){if(!EDIT)return;var S=EDIT.sel;
  try{U.toast(a.n+' ↔ '+b.n+' 근무를 맞바꿨습니다.','ok')}catch(e){}}
 function edSet(n,i,v){if(!EDIT||!EDIT.vals[n])return;EDIT.vals[n][i]=v;edRedraw()}
 function edPut(n,i,st,v){if(!EDIT||!EDIT.vals[n])return;var p=edStaff().filter(function(x){return x.n===n})[0];if(!p)return;
- EDIT.vals[n][i]=(st==='착즙'&&v==='오전'&&p.st!=='착즙')?'착즙지원':(st==='배합'&&v==='정상'&&p.st==='착즙')?'배합지원':(st==='지원'&&v==='정상'&&p.st!=='지원')?'정상교육':v;edRedraw()}
+ EDIT.vals[n][i]=(st==='착즙'&&v==='오전'&&p.st!=='착즙')?'착즙지원':(st==='배합'&&v==='정상'&&p.st==='착즙')?'배합지원':(st==='지원'&&v==='정상'&&p.st!=='지원')?'정상교육':(st==='4층'&&p.st!=='4층')?'4층교육':v;edRedraw()}
 function edSup(i,v){if(!EDIT)return;EDIT.sup[i]=v;EDIT.supT[i]=1}
 function edStart(){var k=CUR;if(!D()[k])return;edInit(k);var box=$('#wp-root');if(box)box.innerHTML=innerView()}
 function edCancel(){EDIT=null;var box=$('#wp-root');if(box)box.innerHTML=innerView()}
@@ -14238,10 +14238,10 @@ console.log('[확장 모듈 55] 문서관리 팀별 · 일자별 분류 + 폴더
 (function(){
 if(window.__YUM_OXB__)return;window.__YUM_OXB__=1;
 var MIN=12;
-var COLS={'FRM-044':[['10','작업 전'],['12','작업 중'],['14','작업 후']]};
+var COLS={'FRM-044':[['10','작업 전'],['12','작업 중'],['14','작업 후']],'FRM-018':[['10','작업 전'],['12','작업 중'],['14','작업 후']]};
 function paper(){return document.getElementById('docpaper')}
 function sels(){var p=paper();return p?[].slice.call(p.querySelectorAll('select.oxsel2')):[]}
-function formCode(){try{var id=window.__yumFormId||(window.__CURDOC&&window.__CURDOC.formId)||(document.getElementById('nf-form')||{}).value;var f=(DB.data.forms||[]).filter(function(x){return x.id===id})[0];return f?f.code:''}catch(e){return ''}}
+function formCode(){try{if(window.__CURFORM&&window.__CURFORM.code)return window.__CURFORM.code;var hm=/[?&]form=([^&]+)/.exec(location.hash||'');if(hm){var f0=(DB.data.forms||[]).filter(function(x){return x.id===decodeURIComponent(hm[1])})[0];if(f0)return f0.code}var id=window.__yumFormId||(window.__CURDOC&&window.__CURDOC.formId)||(document.getElementById('nf-form')||{}).value;var f=(DB.data.forms||[]).filter(function(x){return x.id===id})[0];return f?f.code:''}catch(e){return ''}}
 function setv(list,v,onlyEmpty){var n=0;list.forEach(function(s){if(onlyEmpty&&s.value)return;if(s.value===v)return;s.value=v;n++;
   try{s.dispatchEvent(new Event('input',{bubbles:true}));s.dispatchEvent(new Event('change',{bubbles:true}))}catch(e){}});
  if(n){window.__yumTouched=true}try{U.toast(n?(v?'○ '+n+'칸 표시했습니다. 부적합 칸은 X로 바꿔 주세요.':n+'칸을 비웠습니다.'):'바꿀 칸이 없습니다.',n?'ok':undefined)}catch(e){}}
@@ -14256,9 +14256,9 @@ function bar(){
  if(!p||L.length<MIN){if(old)old.remove();return}
  /* 「화면 크기」 줄(#zbar)은 양식 바로 위에 있어야 해서, 이 줄은 그 위에 둠 — 서로 자리를 뺏으며 계속 다시 그리던(화면 흔들림) 문제 */
  var at=p.previousElementSibling&&p.previousElementSibling.id==='zbar'?p.previousElementSibling:p;
- if(old&&old.nextElementSibling===at)return;if(old)old.remove();
+ if(old&&old.nextElementSibling===at&&old.getAttribute('data-fc')===formCode())return;if(old)old.remove();
  var cs=COLS[formCode()]||[];
- var h='<div id="oxbulk" class="oxbulk"><span class="t">✔ O/X 한꺼번에</span>'+
+ var h='<div id="oxbulk" class="oxbulk" data-fc="'+formCode()+'"><span class="t">✔ O/X 한꺼번에</span>'+
   '<button type="button" class="btn btn-p btn-sm" onclick="yumOX.all()">전체 ○</button>'+
   '<button type="button" class="btn btn-o btn-sm" onclick="yumOX.empty()">빈 칸만 ○</button>'+
   cs.map(function(c){return '<button type="button" class="btn btn-o btn-sm" onclick="yumOX.col(\''+c[0]+'\')">'+c[1]+' ○</button>'}).join('')+
@@ -22615,5 +22615,5 @@ document.head.insertAdjacentHTML('beforeend','<style>.kd-at{display:inline-block
  var D=window.yumDS;if(D&&D.hogiOf&&!D.__ho2){var _h=D.hogiOf;D.hogiOf=function(d,f){var v=_h(d,f);if(v)return v;var H=hosOf(d,f);return H.length?H.join('·')+'호기':''};D.__ho2=1}
 })();
 </script>
-</body>
+<style>#e4-box{display:none!important}.e4d{display:none!important}</style></body>
 </html>
