@@ -14171,7 +14171,7 @@ Views.docs=function(tab){
   return '<button class="ds-cat'+(c[0]===cat?' on':'')+'" style="--c:'+c[3]+'" onclick="'+href(tab,c[0])+'"><span class="ic">'+c[2]+'</span>'+c[1]+' <b>'+n+'</b></button>'}).join('')+'</div>';
  if(!shown.length)return h+'<div class="panel"><div class="empty"><b>문서가 없습니다</b>'+(cat!=='all'?'다른 팀을 고르거나 ':'')+'상단 탭을 변경하거나 새 문서를 작성해 보세요</div></div>';
  h+=(window.yumDS&&yumDS.bar?yumDS.bar():'');var head='<thead><tr><th>문서번호</th><th class="ds-sh" onclick="yumDS.sort(\'name\')">문서명'+(window.yumDS&&yumDS.ar?yumDS.ar('name'):'')+'</th><th class="ds-sh" onclick="yumDS.sort(\'kind\')">종류'+(window.yumDS&&yumDS.ar?yumDS.ar('kind'):'')+'</th><th>작성자</th><th>부서</th><th>작성일</th><th class="c">상태</th><th class="c">버전</th><th class="c"></th></tr></thead>';
- var row=function(d){var f=formMap()[d.formId]||{};return '<tr class="ds-r"><td style="white-space:nowrap">'+esc2(d.docNo)+'</td><td><a href="#/doc/'+d.id+'" class="link" style="font-weight:600">'+esc2(d.title)+'</a></td>'+
+ var row=function(d){var f=formMap()[d.formId]||{};return '<tr class="ds-r"><td style="white-space:nowrap">'+esc2(d.docNo)+'</td><td><a href="#/doc/'+d.id+'" class="link" style="font-weight:600">'+esc2(window.yumDocTitleClean?yumDocTitleClean(d.title):d.title)+'</a></td>'+
   '<td>'+esc2(f.name||'-')+(window.yumDocKindTag?yumDocKindTag(d,f):'')+'</td><td>'+userName(d.authorId)+'</td><td>'+deptName(d.dept)+'</td><td style="white-space:nowrap">'+fmtD(String(d.createdAt||'').slice(0,10))+'</td>'+
   '<td class="c">'+statusBadge(d.status)+'</td><td class="c">v'+(d.version||1)+'</td><td class="c" style="white-space:nowrap">'+window.yumRowAct(d,tab)+'</td></tr>'};
  CATS.slice(1).forEach(function(c){
@@ -22571,7 +22571,7 @@ document.head.insertAdjacentHTML('beforeend','<style>.kd-at{display:inline-block
  D.sort=function(m){try{sessionStorage.setItem('yum_dssort',m)}catch(e){}try{App.render()}catch(e){}};
  var ko=function(a,b){return String(a).localeCompare(String(b),'ko',{numeric:true})};
  var hk=function(h){return h?(/^[A-F]/.test(h)?'1'+h:'0'+('0'+parseInt(h,10)).slice(-2)):'9'};
- D.rows=function(R,row,FM){var m=mode(),K=R.map(function(d){var f=FM[d.formId]||{},h=hogiOf(d,f);return {d:d,n:String(d.title||''),k:String(f.name||''),h:h,t:String(d.createdAt||''),g:d.formId+'|'+h}});
+ D.rows=function(R,row,FM){var m=mode(),K=R.map(function(d){var f=FM[d.formId]||{},h=D.hogiOf(d,f);return {d:d,n:String(d.title||''),k:String(f.name||''),h:h,t:String(d.createdAt||''),g:d.formId+'|'+h}});
   K.sort(function(a,b){if(m==='name')return ko(a.n,b.n)||ko(a.t,b.t);if(m==='kind')return ko(a.k,b.k)||ko(hk(a.h),hk(b.h))||ko(a.t,b.t);if(m==='hogi')return ko(hk(a.h),hk(b.h))||ko(a.k,b.k)||ko(a.t,b.t);return ko(b.t,a.t)});
   var ord=[],G={};K.forEach(function(x){if(!G[x.g]){G[x.g]=[];ord.push(x.g)}G[x.g].push(x)});
   return ord.map(function(g){var L=G[g];if(L.length===1)return row(L[0].d);
@@ -22598,6 +22598,21 @@ document.head.insertAdjacentHTML('beforeend','<style>.kd-at{display:inline-block
   if((td.getAttribute('data-tr')||'')!==t){if(t)td.setAttribute('data-tr',t);else td.removeAttribute('data-tr')}})}
  setInterval(function(){if(document.getElementById('ws-root'))tag()},700);document.addEventListener('change',function(e){if(e.target&&e.target.classList&&e.target.classList.contains('ws-in'))setTimeout(tag,50)},true);
  document.head.insertAdjacentHTML('beforeend','<style>#ws-root .wsx-ch>div:nth-child(2){flex:1 1 420px!important;min-width:280px!important}#ws-root .wsx-ch>.wsx-cr{flex:1 1 100%!important;max-width:100%!important}.wstb{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 10px;padding:9px 12px;border:1px solid #DCE3EE;border-radius:10px;background:#F8FAFD}.wstb b{font-size:13px;color:#1E3A5F}.wstb input{width:64px;padding:5px 8px;border:1px solid #CBD5E1;border-radius:7px;font-size:14px;font-weight:800;text-align:center}.wstb em{font-style:normal;font-size:12px;color:#64748B}.wstb button{border:1px solid #CBD5E1;background:#fff;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:700;cursor:pointer}.wstb small{flex-basis:100%;font-size:11.5px;color:#7A8494;line-height:1.5}.ws-grid td[data-tr]{position:relative}.ws-grid td[data-tr]::after{content:attr(data-tr);position:absolute;right:1px;bottom:0;font-size:8.5px;font-weight:800;line-height:1;color:#1E3A5F;background:rgba(255,255,255,.85);border-radius:3px;padding:0 1px;pointer-events:none}</style>');
+})();
+</script>
+<script>
+(function(){
+ var RE=/\s*·\s*([A-F1-6](?:\s*·\s*[A-F1-6])*)\s*호기\s*$/;
+ window.yumDocTitleClean=function(t){return String(t||'').replace(RE,'')};
+ function hosOf(d,f){var h='';try{if(window.yumDocTag){var r=String(yumDocTag(f,(d&&d.data)||{})||'');var m=/([A-F1-6](?:\s*·\s*[A-F1-6])*)\s*호기/.exec(r);if(m)h=m[1]}}catch(e){}
+  if(!h){var m2=RE.exec(String((d&&d.title)||''));if(m2)h=m2[1]}
+  if(!h){var m3=/멸균기\s*([1-6])\s*(?:\(|$)/.exec(String((f&&f.name)||''));if(m3)h=m3[1]}
+  return h?h.split(/\s*·\s*/).filter(Boolean):[]}
+ var _k=window.yumDocKindTag;
+ window.yumDocKindTag=function(d,f){var a=_k?_k(d,f):'';if(a)return a;var H=hosOf(d,f);if(!H.length)return '';
+  return H.map(function(h){return ' <span class="kd-at" title="'+h+'호기">'+h+'호기</span>'}).join('')};
+ /* 호기별 정렬 · 묶음도 같은 호기로 */
+ var D=window.yumDS;if(D&&D.hogiOf&&!D.__ho2){var _h=D.hogiOf;D.hogiOf=function(d,f){var v=_h(d,f);if(v)return v;var H=hosOf(d,f);return H.length?H.join('·')+'호기':''};D.__ho2=1}
 })();
 </script>
 </body>
