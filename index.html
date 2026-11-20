@@ -22366,7 +22366,7 @@ function ymd(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate
 function base(n){return String(n||'').replace(/\(.*?\)/g,'').replace(/\s+/g,'')}
 function split(v){return String(v||'').split(/\s*,\s*/).map(function(x){return x.trim()}).filter(function(x){return x&&x!=='-'})}
 function fix(){var D=(typeof DB!=='undefined')&&DB.data,WP=D&&D.weeklyPlans;if(!WP)return 0;var today=ymd(new Date()),ch=0;
- Object.keys(WP).forEach(function(k){if(!/^\d{4}-\d{2}-\d{2}$/.test(k))return;var W=WP[k];if(!W||!W.groups)return;var G4=W.groups.filter(function(g){return g.label==='4층'})[0];if(!G4||!G4.rows||!G4.rows[0])return;var r=G4.rows[0];
+ Object.keys(WP).forEach(function(k){if(!/^\d{4}-\d{2}-\d{2}$/.test(k))return;var W=WP[k];if(!W||!W.groups||W.confirmed||W.edited)return;var G4=W.groups.filter(function(g){return g.label==='4층'})[0];if(!G4||!G4.rows||!G4.rows[0])return;var r=G4.rows[0];
   var off=((W.single||[]).filter(function(x){return x.label==='휴무자'})[0]||{}).values||[];W.auto4f=W.auto4f||{};
   for(var di=0;di<5;di++){var dt=new Date(k+'T00:00:00');dt.setDate(dt.getDate()+di);if(ymd(dt)<today)continue;
    var tm=(r.time||[])[di];if(tm==='-')continue;var L=split((r.names||[])[di]),hu=L.some(function(n){return base(n)==='우정균'}),hk=L.some(function(n){return base(n)==='김진명'});
