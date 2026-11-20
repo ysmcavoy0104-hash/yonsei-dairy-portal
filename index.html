@@ -18560,7 +18560,7 @@ function render(D){
  var sim=function(a,b){a=norm(a).replace(/두유$/,'');b=norm(b).replace(/두유$/,'');if(a.length<2||b.length<2)return 0;var A={},n=0,i;for(i=0;i<a.length-1;i++){var k=a.substr(i,2);A[k]=(A[k]||0)+1}for(i=0;i<b.length-1;i++){var k2=b.substr(i,2);if(A[k2]){A[k2]--;n++}}return 2*n/((a.length-1)+(b.length-1))};
  /* 2026-11-18 오늘 원액을 만들면 데칸타는 원액 살균기로만 (배합으로 잇지 않음) */
  var RI0=null;try{RI0=rawInfo(D,now,J)}catch(e){}var dX0=RI0&&RI0.on?WN.length-1:-1;
- rcvI.forEach(function(mi){var T=toks(M[mi].prod);WN.forEach(function(w,wi){if(wi!==dX0&&w.on&&(T.some(function(t){return WP[wi][t]})||WJ[wi].some(function(pp){return same(pp,M[mi].prod)||sim(pp,M[mi].prod)>=0.45}))){wm.push([wi,mi]);wU[wi]=1;mU[mi]=1}})});
+ var _cd=[];rcvI.forEach(function(mi){var T=toks(M[mi].prod);WN.forEach(function(w,wi){if(wi===dX0||!w.on)return;var sc=0;WJ[wi].forEach(function(pp){if(same(pp,M[mi].prod))sc=Math.max(sc,3);else{var q=sim(pp,M[mi].prod);if(q>=0.45)sc=Math.max(sc,2+q)}});if(!sc&&T.some(function(t){return WP[wi][t]}))sc=1;if(sc)_cd.push([wi,mi,sc])})});var _cc={};_cd.forEach(function(c){_cc['w'+c[0]]=(_cc['w'+c[0]]||0)+1;_cc['m'+c[1]]=(_cc['m'+c[1]]||0)+1});_cd.sort(function(a,b){return (b[2]-a[2])||((_cc['w'+a[0]]+_cc['m'+a[1]])-(_cc['w'+b[0]]+_cc['m'+b[1]]))||(a[0]-b[0])});_cd.forEach(function(c){if(wU[c[0]]||mU[c[1]])return;wm.push([c[0],c[1]]);wU[c[0]]=1;mU[c[1]]=1});
  var wF=[],mF=rcvI.filter(function(i){return !mU[i]});WN.forEach(function(w,i){if(w.on&&!wU[i]&&i!==dX0)wF.push(i)});
  if(wF.length===1&&mF.length===1){wm.push([wF[0],mF[0]]);wU[wF[0]]=1;mU[mF[0]]=1}
  /* 빈쿠커 → WT 선도 그 WT가 보내는 배합 호기 색으로 (한 호기로만 갈 때) */
@@ -22650,17 +22650,40 @@ function prodSim(a,b){var A=toks(a),B=toks(b);if(!A.length||!B.length)return fal
 function lineOf(team,hogi){var h=String(hogi||'');if(team==='포장'){var m=/([A-F])/i.exec(h);return m?'P'+m[1].toUpperCase():''}if(team==='배합'||team==='멸균'){var n=/([1-6])\s*호기|^\s*([1-6])\s*$/.exec(h);n=n&&(n[1]||n[2]);return n?'L'+n:''}return ''}
 function lineLab(l){return !l?'':l[0]==='P'?'포장 '+l.slice(1)+'호기':'라인 '+l.slice(1)+' (배합·멸균 '+l.slice(1)+'호기)'}
 
+var C_ST={};
 /* ---------- 상태 ---------- */
 var S={p:'7',view:'time',kind:'delay',short:false,open:{},q:''};
 try{var sv=JSON.parse(sessionStorage.getItem('yum_dly')||'null');if(sv)Object.keys(S).forEach(function(k){if(sv[k]!=null&&k!=='open')S[k]=sv[k]})}catch(e){}
 function save(){try{sessionStorage.setItem('yum_dly',JSON.stringify(S))}catch(e){}}
 function range(){var t=today();if(S.p==='month')return [t.slice(0,8)+'01',t];if(S.p==='prev'){var f=addD(t.slice(0,8)+'01',-1);return [f.slice(0,8)+'01',f]}if(S.p==='custom'&&S.from&&S.to)return [S.from,S.to];var n=+S.p||7;return [addD(t,-(n-1)),t]}
 
+/* ---------- 멸균팀 포털 지연 · 정비 기록 (ster-proxy path:'feed' · 읽기 전용) ---------- */
+var SFD={},SFB={};
+function arr(j){if(!j||typeof j!=='object')return [];if(Array.isArray(j))return j;var k=['records','rows','items','list','delays','maintenance','data','result'];for(var i=0;i<k.length;i++){var v=j[k[i]];if(Array.isArray(v))return v;if(v&&typeof v==='object'){var a=arr(v);if(a.length)return a}}return []}
+function pick(o,ks){for(var i=0;i<ks.length;i++){var v=o[ks[i]];if(v!=null&&v!=='')return v}return ''}
+function sterFeed(kind,F,T){var key=kind+'|'+F+'|'+T,c=SFD[key];
+ if((!c||Date.now()-c.at>4*60e3)&&!SFB[key]&&window.SupaSync&&SupaSync.on&&SupaSync.on()){SFB[key]=1;(async function(){try{
+   var g=await Promise.race([SupaSync.c().auth.getSession(),new Promise(function(r){setTimeout(function(){r(null)},8000)})]),ses=g&&g.data&&g.data.session;if(!ses){SFD[key]={at:Date.now(),err:'서버 로그인 정보 없음',rows:[]};return}
+   var r=await fetch(window.SUPA_URL+'/functions/v1/ster-proxy',{method:'POST',headers:{'Content-Type':'application/json',apikey:window.SUPA_ANON,Authorization:'Bearer '+ses.access_token},body:JSON.stringify({path:'feed',kind:kind,from:F,to:T})});
+   var j=await r.json().catch(function(){return null});SFD[key]={at:Date.now(),err:(!r.ok||!j||j.error)?((j&&j.error)||('응답 '+r.status)):'',rows:(r.ok&&j&&!j.error)?arr(j):[]}}
+  catch(e){SFD[key]={at:Date.now(),err:String(e&&e.message||e),rows:[]}}finally{SFB[key]=0;if(on())soon()}})()}
+ return c||null}
+function sDate(r){var v=String(pick(r,['date','d','day','work_date','prod_date','ymd'])||pick(r,['start_at','started_at','created_at','updated_at'])||'');var m=/(\d{4})[-.\/](\d{1,2})[-.\/](\d{1,2})/.exec(v);return m?m[1]+'-'+pad(+m[2])+'-'+pad(+m[3]):''}
+function sTime(v){v=String(v||'');var m=/T(\d{2}):(\d{2})/.exec(v)||/(\d{1,2}):(\d{2})/.exec(v);return m?pad(+m[1])+':'+m[2]:''}
+function sterDelays(F,T){var c=sterFeed('delay',F,T);if(!c)return {pend:1,rows:[]};
+ return {err:c.err,rows:c.rows.map(function(r){var d=sDate(r);if(!d||d<F||d>T)return null;var u=String(pick(r,['unit','hogi','machine','line','equipment','호기'])||''),a=tmin(sTime(pick(r,['start','start_time','from','begin','started_at','start_at']))),b=tmin(sTime(pick(r,['end','end_time','to','finish','ended_at','end_at'])));
+   var mn=+pick(r,['minutes','min','duration','duration_min','delay_min','loss_min'])||0;if(!mn&&a!=null&&b!=null)mn=((b-a)%1440+1440)%1440;
+   var h=/([1-6])/.exec(u);return {src:'멸균팀 포털 지연 기록',team:'멸균',d:d,hogi:h?h[1]+'호기':u,line:h?'L'+h[1]:'',product:String(pick(r,['item','product','prod','품목'])||''),cat:String(pick(r,['category','reason','cause','type','kind','분류'])||''),a:a,b:b!=null?b:(a!=null&&mn?a+mn:null),min:mn,detail:String(pick(r,['detail','content','note','memo','description','remark','상세'])||''),who:String(pick(r,['writer','author','worker','by','user','작성자'])||''),id:'st:'+(r.id||'')}}).filter(Boolean)}}
+function sterMaint(F,T){var c=sterFeed('maintenance',F,T);if(!c)return [];return c.rows.map(function(r){var d=sDate(r);if(!d||d<F||d>T)return null;var sy=r.symptoms;sy=Array.isArray(sy)?sy.join(', '):String(sy||pick(r,['symptom','problem'])||'');
+  return {d:d,team:'멸균',eq:String(pick(r,['equipment','unit','asset','machine'])||''),k:String(pick(r,['type','kind','category','mtype'])||''),c:sy+(r.action?' → '+r.action:'')+(r.status?' ('+r.status+')':''),w:String(pick(r,['worker','writer','person','author'])||'')}}).filter(Boolean)}
+
 /* ---------- 자료 모으기 ---------- */
 function collect(F,T){var R=[],pend=0;
  try{(window.yumOpsAll?yumOpsAll():[]).forEach(function(r){if(!r||r.kind!=='delay'||!r.d||r.d<F||r.d>T)return;var tm=teamOf(r.team||r.div);
   var a=tmin(r.start),b=tmin(r.end),mn=+r.min||0;if(!mn&&a!=null&&b!=null)mn=((b-a)%1440+1440)%1440;
   R.push({src:'부문포털 지연 기록',team:tm,d:r.d,hogi:r.hogi||'',line:lineOf(tm,r.hogi),product:r.product||'',cat:r.reason||'',a:a,b:b!=null?b:(a!=null&&mn?a+mn:null),min:mn,detail:r.detail||'',who:r.author||'',id:r.id})})}catch(e){}
+ var SD=sterDelays(F,T);C_ST={pend:SD.pend,err:SD.err,n:SD.rows.length};
+ SD.rows.forEach(function(x){R=R.filter(function(y){return !(y.src==='부문포털 지연 기록'&&y.team==='멸균'&&y.d===x.d&&(!y.line||!x.line||y.line===x.line)&&y.a!=null&&x.a!=null&&Math.abs(y.a-x.a)<=10)});R.push(x)});
  for(var d=F;d<=T;d=addD(d,1)){if(d<'2026-11-15')continue;var PD=null;try{PD=window.yumPkDaily?yumPkDaily(d):null}catch(e){}
   if(!PD){if(d>='2026-11-15')pend++;continue}
   Object.keys(PD).forEach(function(m){var x=PD[m]||{};(x.stops||[]).forEach(function(s){var a=tmin(s.start||s.a),b=tmin(s.end||s.b),mn=+s.min||((a!=null&&b!=null)?((b-a)%1440+1440)%1440:0),c=+s.code||0;
@@ -22706,6 +22729,8 @@ function view(){var rg=range(),F=rg[0],T=rg[1],C=collect(F,T),I=cluster(C.recs);
    '<div class="dl-rg"><input type="date" value="'+F+'" onchange="yumDly.rng(this.value,null)"><span>~</span><input type="date" value="'+T+'" onchange="yumDly.rng(null,this.value)"></div>'+
    '<label class="dl-sh"><input type="checkbox" '+(S.short?'checked':'')+' onchange="yumDly.set(\'short\',this.checked)"> 포장 짧은 정지(10분 미만 순간정지)도 포함</label></div></div>';
  h+='<div class="dl-k">'+[['지연 건수 (묶은 뒤)',I.length+'건','기록 '+raw+'건을 묶음'],['지연 시간 합계',hrs(tot),'중복 빼고 한 건당 가장 긴 시간'],['여러 팀이 같이 적은 건',multi+'건','줄을 누르면 팀별 내용'],['가장 많은 사유',cats[0]?E(cats[0].k):'—',cats[0]?hrs(cats[0].v)+' · '+cats[0].n+'건':'']].map(function(x){return '<div><small>'+x[0]+'</small><b>'+x[1]+'</b><em>'+x[2]+'</em></div>'}).join('')+'</div>';
+ if(C_ST.pend)h+='<div class="dl-note">멸균팀 포털 지연 기록을 불러오는 중입니다 — 잠시 뒤 자동으로 채워집니다.</div>';
+ else if(C_ST.err)h+='<div class="dl-note">멸균팀 포털 지연 기록을 받지 못했습니다 ('+E(C_ST.err)+'). 부문포털에 남아 있는 예전 멸균 기록만 보입니다.</div>';
  if(C.pend)h+='<div class="dl-note">포장팀 정지 기록을 불러오는 중입니다 ('+C.pend+'일) — 잠시 뒤 자동으로 채워집니다.</div>';
  if(F<'2026-11-15')h+='<div class="dl-note">포장팀 포털 정지 기록은 11/15부터 받을 수 있어, 그 전 날짜에는 포장 정지가 빠져 있습니다.</div>';
  /* 그래프 */
@@ -22743,6 +22768,7 @@ function view(){var rg=range(),F=rg[0],T=rg[1],C=collect(F,T),I=cluster(C.recs);
 function maint(F,T){var L=[];
  try{(window.yumOpsAll?yumOpsAll():[]).forEach(function(r){if(!r||r.kind!=='maint'||!r.d||r.d<F||r.d>T)return;L.push({d:r.d,team:teamOf(r.team||r.div),eq:r.asset||'',k:r.mtype||'',c:r.content||r.etc||'',w:r.person||r.author||''})})}catch(e){}
  try{var M=window.yumJuiceMaint?yumJuiceMaint(T):null;if(M&&M.ok)(M.rows||[]).forEach(function(r){var d=String(r.date||'').slice(0,10);if(!d||d<F||d>T)return;L.push({d:d,team:'착즙',eq:r.equipment||'',k:r.kind||'',c:((r.symptoms||[]).join(', ')||'')+(r.action?' → '+r.action:'')+(r.status?' ('+r.status+')':''),w:r.worker||''})})}catch(e){}
+ try{L=L.concat(sterMaint(F,T))}catch(e){}
  return L.sort(function(a,b){return a.d<b.d?1:a.d>b.d?-1:0})}
 
 /* ---------- 연결 ---------- */
