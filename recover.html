@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>근무 자료 복구</title>
+<style>
+:root{--bg:#F5F7FB;--card:#fff;--ink:#0F172A;--mu:#64748B;--line:#E2E8F0;--ac:#1E3A5F}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0B1220;--card:#111A2E;--ink:#E2E8F0;--mu:#94A3B8;--line:#1E293B;--ac:#93C5FD}}
+:root[data-theme="dark"]{--bg:#0B1220;--card:#111A2E;--ink:#E2E8F0;--mu:#94A3B8;--line:#1E293B;--ac:#93C5FD}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 "Malgun Gothic","Apple SD Gothic Neo",sans-serif}
+main{max-width:860px;margin:0 auto;padding:24px 16px 60px}
+h1{font-size:22px;margin:0 0 6px}p{margin:6px 0;color:var(--mu)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-top:14px}
+.card h2{font-size:16px;margin:0 0 8px}
+table{width:100%;border-collapse:collapse;font-size:13.5px}td,th{border-bottom:1px solid var(--line);padding:6px 4px;text-align:left}
+button{height:40px;padding:0 16px;border-radius:10px;border:1px solid var(--ac);background:var(--ac);color:#fff;font-weight:800;cursor:pointer;font:inherit}
+.warn{border-left:4px solid #F59E0B}.none{color:var(--mu)}
+</style>
+</head>
+<body>
+<main>
+<h1>근무 자료 복구</h1>
+<p>이 컴퓨터 브라우저에 남아 있는 예전 근무 자료(주간근무계획표 · 근무 편성)를 찾아 파일로 받습니다.</p>
+<p>이 페이지는 서버에 연결하지 않고, 아무것도 바꾸지 않습니다. 받은 파일은 포털의 「♻ 근무 복구」 버튼으로 불러오면 지워진 주만 되살아납니다.</p>
+<div class="card warn"><b>중요</b><p>근무가 지워진 뒤 이 컴퓨터에서 포털(index.html)을 열었다면, 이 컴퓨터 자료도 이미 서버 내용으로 바뀌었을 수 있습니다. 아래에 11월 근무가 보이면 그 컴퓨터 자료가 살아 있는 것입니다.</p></div>
+<div id="out"></div>
+</main>
+<script>
+(function(){
+var KEYS=[];try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(/^yum_portal_v1/.test(k))KEYS.push(k)}}catch(e){}
+var out=document.getElementById('out');
+if(!KEYS.length){out.innerHTML='<div class="card"><b>이 브라우저에는 포털 자료가 없습니다.</b><p>포털을 쓰던 다른 컴퓨터 · 다른 브라우저에서 이 페이지를 열어 보세요.</p></div>';return}
+function esc(x){return String(x).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]})}
+function filled(W){var n=0;try{(W.groups||[]).forEach(function(g){(g.rows||[]).forEach(function(r){(r.names||[]).forEach(function(x){if(String(x||'').trim())n++})})})}catch(e){}return n}
+KEYS.forEach(function(k){var d=null;try{d=JSON.parse(localStorage.getItem(k)||'null')}catch(e){}
+ var box=document.createElement('div');box.className='card';
+ if(!d||typeof d!=='object'){box.innerHTML='<h2>'+esc(k)+'</h2><p class="none">읽을 수 없는 자료</p>';out.appendChild(box);return}
+ var WP=d.weeklyPlans||{},wk=Object.keys(WP).filter(function(x){return /^\d{4}-\d{2}-\d{2}$/.test(x)}).sort(),M=((d.workSched||{}).months)||{};
+ var rows=wk.slice(-12).map(function(x){var W=WP[x];return '<tr><td>'+x+' 주</td><td>'+filled(W)+'칸</td><td>'+esc(String((W&&W.confirmed&&'확정')||''))+'</td><td>'+esc(String((W&&(W._u||(W.edited&&W.edited.at)))||'').slice(0,16).replace('T',' '))+'</td></tr>'}).join('');
+ var mrows=Object.keys(M).sort().slice(-4).map(function(ym){var o=M[ym]||{},n=0;Object.keys(o.asg||{}).forEach(function(p){(o.asg[p]||[]).forEach(function(v){if(v)n++})});return '<tr><td>'+ym+'</td><td>편성된 칸 '+n+'</td><td>편성한 날 '+Object.keys(o.planned||{}).length+'일</td><td>'+esc(String(o._u||'').slice(0,16).replace('T',' '))+'</td></tr>'}).join('');
+ box.innerHTML='<h2>'+esc(k)+(k===('yum_portal_v1')?' (지금 자료)':' (예전 사본)')+'</h2>'+
+  '<p>주간근무계획표 '+wk.length+'개 주 · 근무 편성 '+Object.keys(M).length+'개 월</p>'+
+  '<table><thead><tr><th>주간근무계획표</th><th>채운 칸</th><th></th><th>마지막 수정</th></tr></thead><tbody>'+(rows||'<tr><td colspan="4" class="none">없음</td></tr>')+'</tbody></table>'+
+  '<table style="margin-top:8px"><thead><tr><th>근무 편성(월)</th><th></th><th></th><th>마지막 수정</th></tr></thead><tbody>'+(mrows||'<tr><td colspan="4" class="none">없음</td></tr>')+'</tbody></table>'+
+  '<p style="margin-top:10px"><button type="button">이 자료를 파일로 받기</button></p>';
+ box.querySelector('button').onclick=function(){var o={from:k,savedAt:new Date().toISOString(),weeklyPlans:d.weeklyPlans||{},workSched:d.workSched||{},schedules:d.schedules||{}};
+  var b=new Blob([JSON.stringify(o)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='근무자료_'+k+'_'+new Date().toISOString().slice(0,10)+'.json';document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},500)};
+ out.appendChild(box)});
+})();
+</script>
+</body>
+</html>

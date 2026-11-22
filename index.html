@@ -16404,8 +16404,8 @@ function once(){
  try{if(/^#\/(weekplan|worksched|schedule)/.test(location.hash))App.render()}catch(e){}
 }
 var ADOPTED=false;
-try{var _ad=SupaSync.adopt;SupaSync.adopt=function(){var r=_ad.apply(this,arguments);ADOPTED=true;setTimeout(once,300);return r}}catch(e){}
-setTimeout(once,4000);setInterval(once,5000);
+/* 2026-11-22 자동 1회 삭제(11/9 주부터)는 껐음 — 한 번 실행 표시가 서버에 남지 않아 다른 컴퓨터 · 새 브라우저에서 다시 돌며 근무를 지웠음. 「이 주부터 삭제」 버튼만 남김 */
+void once;void ADOPTED;
 /* 버튼 */
 function addBtn(){if(!isSup())return;var b=document.querySelector('#wp-root button[onclick="WeekPlan.edStart()"]');if(!b||b.parentNode.querySelector('.wpw-btn'))return;
  var x=document.createElement('button');x.className='btn btn-ghost btn-sm wpw-btn';x.textContent='🗑 이 주부터 삭제';x.title='보고 있는 주와 그 뒤 주간근무계획표를 모두 지웁니다';
@@ -22847,5 +22847,38 @@ var CSS='.dl{display:flex;flex-direction:column;gap:14px}.dl-hd{display:flex;fle
 })();
 </script>
 
-<style>.o2-lr{align-items:center!important;gap:10px!important}.o2-lbw{min-width:0}.o2-lv{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;font-variant-numeric:tabular-nums}.o2-lv span{text-align:right;font-size:12.5px;font-weight:800}.o2-lrh{margin-bottom:2px!important}.o2-lrh .o2-lv span{color:#64748B;font-size:11px;font-weight:700}.o2-lrh>span{line-height:1}</style></body>
+<style>.o2-lr{align-items:center!important;gap:10px!important}.o2-lbw{min-width:0}.o2-lv{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;font-variant-numeric:tabular-nums}.o2-lv span{text-align:right;font-size:12.5px;font-weight:800}.o2-lrh{margin-bottom:2px!important}.o2-lrh .o2-lv span{color:#64748B;font-size:11px;font-weight:700}.o2-lrh>span{line-height:1}</style><script>
+/* 2026-11-22 근무 복구: 다른 컴퓨터에 남은 예전 자료(recover.html로 받은 파일)에서 주간근무계획표 · 근무 편성을 되살림
+   · 지금 비어 있거나(삭제됨) 칸이 더 적은 주만 되살림 · 지금 있는 근무는 덮어쓰지 않음 · 되살린 주는 삭제 표시(wpDel)도 지움 */
+(function(){
+if(window.__YUM_WSREST__)return;window.__YUM_WSREST__=1;
+function isSup(){try{var u=Auth.user();return !!u&&(u.role==='superadmin'||u.role==='admin')}catch(e){return false}}
+function cp(o){return JSON.parse(JSON.stringify(o))}
+function filled(W){var n=0;try{(W.groups||[]).forEach(function(g){(g.rows||[]).forEach(function(r){(r.names||[]).forEach(function(x){if(String(x||'').trim())n++})})})}catch(e){}return n}
+window.yumWsRestore=function(src){
+ if(src&&src.data&&!src.weeklyPlans)src=src.data;
+ var NOW=new Date().toISOString(),D=DB.data,W=D.weeklyPlans=D.weeklyPlans||{},DEL=D.wpDel=D.wpDel||{},wk=[],mo=[];
+ Object.keys(src.weeklyPlans||{}).forEach(function(k){if(!/^\d{4}-\d{2}-\d{2}$/.test(k))return;var b=src.weeklyPlans[k],c=W[k];if(!b||!filled(b))return;
+  if(!c||filled(c)<filled(b)){var n=cp(b);n._u=NOW;W[k]=n;delete DEL[k];wk.push(k)}});
+ var WS=D.workSched=D.workSched||{months:{}};WS.months=WS.months||{};
+ Object.keys(((src.workSched||{}).months)||{}).forEach(function(ym){var b=src.workSched.months[ym],c=WS.months[ym];if(!b)return;
+  if(!c){WS.months[ym]=cp(b);WS.months[ym]._u=NOW;mo.push(ym+' 전체');return}
+  var N=new Date(+ym.slice(0,4),+ym.slice(5,7),0).getDate(),ch=0;c.asg=c.asg||{};c.planned=c.planned||{};
+  Object.keys(b.asg||{}).forEach(function(n){var ba=b.asg[n]||[],ca=c.asg[n]=c.asg[n]||[];while(ca.length<N)ca.push('');for(var d=1;d<=N;d++){if(ba[d-1]&&!ca[d-1]){ca[d-1]=ba[d-1];ch++}}});
+  Object.keys(b.planned||{}).forEach(function(d){if(!c.planned[d]){c.planned[d]=1;ch++}});
+  ['wishes','wishesU','target','holidays','maintWd','weekdayReq'].forEach(function(k){if(b[k]!=null&&(c[k]==null||(typeof c[k]==='object'&&!Object.keys(c[k]).length)))c[k]=cp(b[k])});
+  if(b.result&&b.result.weeks){c.result=c.result||{};var ws=(c.result.weeks||[]).slice();b.result.weeks.forEach(function(k){if(ws.indexOf(k)<0)ws.push(k)});ws.sort();c.result.weeks=ws}
+  if(ch){c._u=NOW;mo.push(ym+' '+ch+'칸')}
+  try{WorkSched.recalc(ym,null,null,null)}catch(e){}});
+ try{DB.save()}catch(e){}try{if(window.SupaSync&&SupaSync.on()){clearTimeout(SupaSync.pushT);SupaSync.pushNow(DB.data)}}catch(e){}
+ return {weeks:wk,months:mo}};
+function pick(){var f=document.createElement('input');f.type='file';f.accept='.json,application/json';f.onchange=function(){var fl=f.files&&f.files[0];if(!fl)return;var r=new FileReader();r.onload=function(){try{var j=JSON.parse(r.result);var x=yumWsRestore(j);
+  try{App.render()}catch(e){}U.toast('근무 복구: 주간근무계획표 '+x.weeks.length+'개 주'+(x.weeks.length?' ('+x.weeks.map(function(k){return k.slice(5).replace('-','/')}).join(', ')+')':'')+' · 근무 편성 '+(x.months.join(', ')||'변경 없음'),'ok')}catch(e){U.toast('파일을 읽지 못했습니다: '+e.message,'bad')}};r.readAsText(fl)};f.click()}
+window.yumWsRestorePick=pick;
+function addBtn(){if(!isSup())return;[['#wp-root','wpr-btn'],['#ws-root','wsr-btn']].forEach(function(x){var R=document.querySelector(x[0]);if(!R||R.querySelector('.'+x[1]))return;var host=R.querySelector('button');if(!host)return;
+  var b=document.createElement('button');b.className='btn btn-ghost btn-sm '+x[1];b.textContent='♻ 근무 복구';b.title='다른 컴퓨터에서 recover.html로 받은 예전 근무 자료 파일을 불러와, 지워진 주간근무계획표 · 근무 편성만 되살립니다 (지금 있는 근무는 그대로)';b.onclick=pick;host.parentNode.appendChild(b)})}
+new MutationObserver(function(){addBtn()}).observe(document.documentElement,{childList:true,subtree:true});
+})();
+</script>
+</body>
 </html>
