@@ -23418,11 +23418,12 @@ function sim(a,b){a=nm2(a);b=nm2(b);if(!a||!b)return 0;if(a===b)return 1;if(a.le
 var CAP={1:6000,2:10000,3:6000,4:8000,5:6000};  /* 제품생산일보 머리글: 혼합 유액 1-(6,000kg) 2-(10,000kg) 3-(6,000kg) 4-(8,000kg) 5-(6,000kg) */
 function planDay(D){var out=[],md=(+D.slice(5,7))+'/'+(+D.slice(8)),by={};Object.keys(DB.data.planWeeks||{}).forEach(function(k){var w=DB.data.planWeeks[k];if(!w||w.deleted)return;(w.cells||[]).forEach(function(c){var rl=String(c.rowLabel||(w.rows||[])[c.row]||'').replace(/\s/g,'');if(rl!==md)return;var h=+(String(c.colLabel||'').match(/(\d)\s*호기/)||[])[1]||null,nm=String(c.name||'').trim();if(!nm)return;
   /* 같은 날 · 같은 호기 · 입수만 다른 제품은 한 줄로 */
-  var key=h+'|'+nm2(nm),bt=nv(c.batch),tm=String(c.time||''),o=by[key];
-  if(!o){o=by[key]={p:baseName(nm),h:h,code:String(c.code||''),codes:[],bat:bt,time:tm,times:{},names:[]};o.times[tm]=bt;out.push(o)}
+  /* 같은 호기 · 같은 시간대 = 같은 혼합액 (예: 노브랜드초코 + 건국초코에 반했다) → 한 줄 */
+  var bt=nv(c.batch),tm=String(c.time||'').replace(/\s/g,''),key=h+'|'+(tm||nm2(nm)),o=by[key];if(!o&&tm){var k2=h+'|'+nm2(nm);if(by[k2])o=by[k2]}
+  if(!o){o=by[key]=by[h+'|'+nm2(nm)]={p:baseName(nm),h:h,code:String(c.code||''),codes:[],bat:bt,time:tm,times:{},names:[]};o.times[tm]=bt;out.push(o)}
   else if(!(tm in o.times)){o.times[tm]=bt;if(bt!=null)o.bat=(o.bat||0)+bt}else if(bt!=null&&(o.times[tm]==null||bt>o.times[tm])){o.bat=(o.bat||0)-(o.times[tm]||0)+bt;o.times[tm]=bt}
   if(o.names.indexOf(nm)<0)o.names.push(nm);if(c.code&&o.codes.indexOf(String(c.code))<0)o.codes.push(String(c.code))})});
- out.forEach(function(o){if(o.names.length>1)o.merged=o.names});return out}
+ out.forEach(function(o){var bn=[];o.names.forEach(function(n){var b2=baseName(n);if(!bn.some(function(x){return nm2(x)===nm2(b2)}))bn.push(b2)});if(bn.length>1)o.p=bn.join(' · ');if(o.names.length>1)o.merged=o.names});return out}
 /* ---------- 배합비: 품목코드 → 배치 무게(kg) ---------- */
 function rcpKg(code){if(!code)return null;var R=DB.data.recipes||{},L=R.list||[],ids=(DB.data.recipeLink||{})[code]||[],c=[];ids.forEach(function(id){var r=L.find(function(x){return x.id===id});if(r)c.push(r)});L.forEach(function(r){if(r.codes&&r.codes.indexOf(String(code))>=0&&c.indexOf(r)<0)c.push(r)});var m=c.filter(function(r){return r.kind==='배합'&&+r.base>0})[0]||c.filter(function(r){return +r.base>0})[0];return m?+m.base:null}
 /* ---------- 제품생산일보(FRM-012) → 품목별 배치 (B마다 탱크레벨 · Brix) ---------- */
@@ -23440,7 +23441,8 @@ function autoDay(D){var out=[];docsOn(D).forEach(function(d){
  return out}
 /* ---------- 합치기: 엑셀 + 생산계획 + 제품생산일보 + 수정 ---------- */
 function store(){var s=DB.data.mixYield=DB.data.mixYield||{};s.ov=s.ov||{};s.add=s.add||[];s.del=s.del||{};return s}
-function best(L,a,useH){var bi=null,bs=0;L.forEach(function(r){if(r._am)return;var sc=sim(r.p,a.p);if(useH&&a.h&&r.h===a.h)sc+=0.6;if(sc>bs){bs=sc;bi=r}});return bs>=0.55?bi:null}
+function sameLv(x,y){x=(x||[]).filter(function(v){return v!=null});y=(y||[]).filter(function(v){return v!=null});if(x.length<3||x.length!==y.length)return false;for(var i=0;i<x.length;i++)if(Math.abs(x[i]-y[i])>0.01)return false;return true}
+function best(L,a,useH){var bi=null,bs=0;L.forEach(function(r){if(r._am)return;var sc=Math.max(sim(r.p,a.p),(r.names||[]).reduce(function(m,n){return Math.max(m,sim(n,a.p))},0));if(useH&&a.h&&r.h===a.h)sc+=0.6;if(useH&&a.lv&&sameLv(r.lv,a.lv))sc+=1;if(sc>bs){bs=sc;bi=r}});return bs>=0.55?bi:null}
 /* 멸균유(흰 우유) 제품은 혼합수율에 기록하지 않음 */
 function isSterMilk(n){n=String(n||'').replace(/\s+/g,'');return !!n&&(/멸균유/.test(n)||/^멸균(흰)?우유/.test(n))}
 function rowsOf(from,to){var S=store(),R=[],byD={};
@@ -23448,19 +23450,24 @@ function rowsOf(from,to){var S=store(),R=[],byD={};
  for(var D=from;D<=to;D=addD(D,1)){
   var PL=planDay(D),L=byD[D]=byD[D]||[];
   /* 1) 생산계획 품목 → 엑셀 줄과 대조 (없으면 새 줄) */
-  PL.forEach(function(c,ci){var m=best(L,c,false);if(!m){var hh=histOf(c.p);m={d:D,p:c.p,lo:hh.lo,hi:hh.hi,lv:[],T:null,U:null,X:hh.X,Y:null,src:'plan',key:'p'+D+'_'+(c.code||ci)};L.push(m)}m._am=1;m.h=c.h;m.code=c.code;m.codes=c.codes;m.bat=c.bat;m.planName=c.p;m.merged=c.merged});
+  PL.forEach(function(c,ci){var hits=[];(c.names||[c.p]).forEach(function(n){var x=best(L,{p:n},false);if(x&&hits.indexOf(x)<0){x._am=1;hits.push(x)}});hits.forEach(function(x){delete x._am});var m=hits[0]||best(L,c,false);hits.slice(1).forEach(function(x){if(!(x.lv||[]).filter(function(v){return v!=null}).length)x._drop=1});if(!m){var hh=histOf(c.p);m={d:D,p:c.p,lo:hh.lo,hi:hh.hi,lv:[],T:null,U:null,X:hh.X,Y:null,src:'plan',key:'p'+D+'_'+(c.code||ci)};L.push(m)}m._am=1;m.h=c.h;m.code=c.code;m.codes=c.codes;m.bat=c.bat;m.planName=c.p;m.merged=c.merged;m.names=c.names});
   L.forEach(function(r){delete r._am});
   /* 2) 제품생산일보 → B마다 탱크레벨 · Brix (호기가 같으면 우선) */
   if(D<=today())autoDay(D).forEach(function(a,ai){var m=best(L,a,true);
    if(!m){var hh=histOf(a.p);m={d:D,p:a.p,lo:hh.lo,hi:hh.hi,lv:[],T:null,U:null,X:hh.X,Y:null,src:'auto',key:'a'+D+'_'+ai,h:a.h};L.push(m)}
+   /* 엑셀에 같은 탱크레벨이 이미 적힌 줄이 있으면 그 줄이 같은 혼합액 → 엑셀 줄 하나로 (생산계획 줄은 합쳐서 뺌) */
+   var tw=L.filter(function(r){return r!==m&&!r._am&&r.src==='xls'&&sameLv(r.lv,a.lv)})[0];
+   if(tw&&m.src!=='xls'){['h','code','codes','bat','planName','merged','names'].forEach(function(f){if(m[f]!=null&&tw[f]==null)tw[f]=m[f]});m._drop=1;m=tw}
    m._am=1;if(!(m.lv||[]).filter(function(v){return v!=null}).length&&a.lv.length){m.lv=a.lv;m.auto=1;m.split=a.split;if(m.src==='xls')m.src='auto'}
    /* 제품명은 제품생산일보에 적은 이름으로 */
-   if(a.p&&a.p!=='(품목 미기재)'&&(m.auto||m.src!=='xls')&&m.p!==a.p){m.otherName=m.p;m.p=a.p}if(a.T!=null&&(m.T==null||m.auto))m.T=a.T;if(!m.h&&a.h)m.h=a.h});
+   m.logged=1;if(a.p&&a.p!=='(품목 미기재)'&&m.p!==a.p){m.otherName=m.p;m.p=a.p}if(a.T!=null&&(m.T==null||m.auto))m.T=a.T;if(!m.h&&a.h)m.h=a.h});
+  /* 지난 날짜인데 엑셀 기록이 이미 있는 날: 일지 · 엑셀 어느 쪽과도 맞지 않은 생산계획 줄은 빼서 두 번 나오지 않게 */
+  if(D<today()&&L.some(function(r){return r.src==='xls'&&(r.lv||[]).some(function(v){return v!=null})}))L.forEach(function(r){if(r.src==='plan'&&!r.logged)r._drop=1});
   L.forEach(function(r){delete r._am;
    /* 3) 기준탱크 = 생산계획 호기 · 계획 무게 = 배합비 (엑셀에 값이 없는 줄만) */
    if(r.src!=='xls'||r.auto){if(r.U==null&&r.h&&CAP[r.h]){r.U=CAP[r.h];r._uP=1}if(r.Y==null){var k=null;(r.codes&&r.codes.length?r.codes:[r.code]).some(function(cd){k=rcpKg(cd);return k});if(k){r.Y=k;r._yR=1}}}})}
  S.add.forEach(function(r,i){if(r.d>=from&&r.d<=to)(byD[r.d]=byD[r.d]||[]).push(Object.assign({lv:[]},r,{src:'add',key:'n'+(r.id||i)}))});
- Object.keys(byD).sort().forEach(function(D){byD[D].forEach(function(r){if(S.del[r.key])return;if(isSterMilk(r.p)||isSterMilk(r.planName))return;var o=S.ov[r.key];if(o){Object.keys(o).forEach(function(f){if(f[0]!=='_')r[f]=o[f]});r.edited=1}
+ Object.keys(byD).sort().forEach(function(D){byD[D].forEach(function(r){if(S.del[r.key]||r._drop)return;if(isSterMilk(r.p)||isSterMilk(r.planName))return;var o=S.ov[r.key];if(o){Object.keys(o).forEach(function(f){if(f[0]!=='_')r[f]=o[f]});r.edited=1}
   if(r.U==null||r.lo==null||r.Y==null){var h=histOf(r.p);['lo','hi','U','X','Y'].forEach(function(f){if(r[f]==null&&h[f]!=null){r[f]=h[f];r['_h'+f]=1}})}
   calc(r);R.push(r)})});
  return R}
