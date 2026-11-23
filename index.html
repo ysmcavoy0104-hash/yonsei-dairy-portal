@@ -14194,7 +14194,7 @@ Views.docs=function(tab){
   h+='<div class="panel ds-team" style="--c:'+c[3]+'"><div class="ds-th"><span class="ic">'+c[2]+'</span><b>'+c[1]+'</b><span class="n">'+L.length+'건</span>'+
    (tab==='all'&&temp?'<span class="ds-tmp">임시저장 '+temp+' · 저장완료 '+(L.length-temp)+'</span>':'')+'<span class="ds-sp"></span><span class="ds-dn">'+days.length+'일</span></div>'+
    '<div style="overflow-x:auto"><table class="t ds-t">'+head+'<tbody>'+days.map(function(k){var R=by[k].slice();
-    return '<tr class="ds-day" onclick="yumDS.tg(this)"><td colspan="9"><span class="ar">▾</span> 📅 '+(k==='날짜 없음'?k:k.replace(/-/g,'.')+' ('+dow(k)+')')+' <span class="n">'+R.length+'건</span></td></tr>'+(window.yumDS&&yumDS.rows?yumDS.rows(R,row,formMap()):R.map(row).join(''))}).join('')+'</tbody></table></div></div>'});
+    return '<tr class="ds-day" data-d="'+k+'" onclick="yumDS.tg(this)"><td colspan="9"><span class="ar">▾</span> 📅 '+(k==='날짜 없음'?k:k.replace(/-/g,'.')+' ('+dow(k)+')')+' <span class="n">'+R.length+'건</span></td></tr>'+(window.yumDS&&yumDS.rows?yumDS.rows(R,row,formMap()):R.map(row).join(''))}).join('')+'</tbody></table></div></div>'});
  return h};
 
 window.yumDS={tg:function(tr){var o=!tr.classList.contains('off');tr.classList.toggle('off',o);var n=tr.nextElementSibling;while(n&&!n.classList.contains('ds-day')){n.style.display=o?'none':'';n=n.nextElementSibling}}};
@@ -18857,7 +18857,10 @@ var n=0,iv=setInterval(function(){n++;if(n<3)return;try{if(apply()||n>120)clearI
 if(window.__YUM_DOCFIND__)return;window.__YUM_DOCFIND__=1;
 function pad(n){return String(n).padStart(2,'0')}
 function ymd(t){return t.getFullYear()+'-'+pad(t.getMonth()+1)+'-'+pad(t.getDate())}
-function q(){var m=/\?(.*)$/.exec(location.hash||'');return new URLSearchParams(m?m[1]:'')}
+function q(){var m=/\?(.*)$/.exec(location.hash||''),Q=new URLSearchParams(m?m[1]:'');
+ /* 2026-11-23 기간 필터 기억: 주소에 기간이 없으면(다른 화면 갔다 온 경우) 마지막에 고른 기간으로 */
+ if(!Q.has('per')&&!Q.has('d')){try{var sv=JSON.parse(localStorage.getItem('yum_df_per')||'null');if(sv&&sv.per&&sv.per!=='all'){Q.set('per',sv.per);if(sv.d)Q.set('d',sv.d)}}catch(e){}}
+ return Q}
 function dayOf(d){var g=(d.data&&d.data.grid)||{};var p=d.data&&d.data.pdate;if(p)return String(p).slice(0,10);if(g.dY&&g.dM&&g.dD)return g.dY+'-'+pad(+g.dM)+'-'+pad(+g.dD);
  var t=Date.parse(d.createdAt||'');return isNaN(t)?'':ymd(new Date(t))}
 function range(per,dd){var n=new Date(),T=ymd(n);
@@ -18880,7 +18883,8 @@ function bar(kw,per,dd,n,tot){
   '<div class="df-p">'+PER.map(function(p){return '<button class="'+(p[0]===per?'on':'')+'" onclick="yumDF.per(\''+p[0]+'\')">'+p[1]+'</button>'}).join('')+
   (per==='date'?'<input type="date" id="df-d" value="'+(dd||ymd(new Date()))+'" onchange="yumDF.set({d:this.value})">':'')+'</div>'+
   ((kw||per!=='all')?'<div class="df-n">'+n+'건 / 전체 '+tot+'건 <a href="javascript:void 0" onclick="yumDF.set({q:\'\',per:\'all\',d:\'\'})">조건 지우기</a></div>':'')+'</div>'}
-function go(p){var Q=q();Object.keys(p).forEach(function(k){if(p[k])Q.set(k,p[k]);else Q.delete(k)});var h='#/docs?'+Q.toString();
+function go(p){var Q=q();Object.keys(p).forEach(function(k){if(p[k])Q.set(k,p[k]);else Q.delete(k)});
+ try{if('per' in p||'d' in p)localStorage.setItem('yum_df_per',JSON.stringify({per:Q.get('per')||'all',d:Q.get('d')||''}))}catch(e){}var h='#/docs?'+Q.toString();
  /* 주소만 바꾸고 목록만 다시 그림 (검색칸 입력 중에도 바로 반영) */
  try{history.replaceState(null,'',location.pathname+location.search+h);var M=document.getElementById('main');if(M){M.innerHTML=Views.docs(Q.get('tab')||'all');return}}catch(e){}
  location.hash=h}
@@ -22918,6 +22922,22 @@ function run(){if(done||!isSup()||typeof DB==='undefined'||!DB.data||!window.Wor
 try{var _ad=SupaSync.adopt;SupaSync.adopt=function(){var r=_ad.apply(this,arguments);ADOPTED=true;setTimeout(run,800);return r}}catch(e){}
 setTimeout(run,5000);setTimeout(function(){ADOPTED=true},40000);var iv=setInterval(function(){if(done)clearInterval(iv);else run()},6000);
 window.yumWpRestore1122=function(){done=false;ADOPTED=true;run()};
+})();
+</script>
+<script>
+/* 2026-11-23 문서관리 날짜별 접기 기억: 오늘 날짜만 펼치고 나머지는 접힘 · 직접 펼치거나 접은 날짜는 그대로 기억 (다른 화면 갔다 와도 유지) */
+(function(){
+if(window.__YUM_DSFOLD__)return;window.__YUM_DSFOLD__=1;
+function today(){var n=new Date();return n.getFullYear()+'-'+('0'+(n.getMonth()+1)).slice(-2)+'-'+('0'+n.getDate()).slice(-2)}
+function load(){try{var o=JSON.parse(localStorage.getItem('yum_dsfold')||'{}');return o&&typeof o==='object'?o:{}}catch(e){return {}}}
+function save(o){try{var ks=Object.keys(o);if(ks.length>400){ks.sort().slice(0,ks.length-400).forEach(function(k){delete o[k]})}localStorage.setItem('yum_dsfold',JSON.stringify(o))}catch(e){}}
+function setFold(tr,o){tr.classList.toggle('off',o);var n=tr.nextElementSibling;while(n&&!n.classList.contains('ds-day')){n.style.display=o?'none':'';n=n.nextElementSibling}}
+function apply(){var F=null,T=today();[].forEach.call(document.querySelectorAll('#main tr.ds-day[data-d]:not([data-fx])'),function(tr){F=F||load();tr.setAttribute('data-fx','1');var k=tr.getAttribute('data-d'),v=F[k];setFold(tr,v!=null?!!v:k!==T)})}
+function hook(){if(!window.yumDS||yumDS.__fold)return;var _tg=yumDS.tg;yumDS.__fold=1;yumDS.tg=function(tr){var r=_tg.apply(this,arguments);try{var k=tr.getAttribute('data-d');if(k){var F=load();F[k]=tr.classList.contains('off')?1:0;save(F);
+  /* 같은 날짜가 다른 팀 칸에도 있으면 똑같이 */
+  [].forEach.call(document.querySelectorAll('#main tr.ds-day[data-d="'+k+'"]'),function(x){if(x!==tr)setFold(x,!!F[k])})}}catch(e){}return r}}
+new MutationObserver(function(){hook();apply()}).observe(document.documentElement,{childList:true,subtree:true});
+hook();
 })();
 </script>
 </body>
