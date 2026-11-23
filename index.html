@@ -18599,6 +18599,8 @@ function render(D){
  M.forEach(function(m){if(m.mv)m.run=true});   /* 이송 중(추정 포함)인 배합 호기도 테두리 · 불 켜기 */
  /* 배합 N → 멸균 N */
  var cs=C('s');M.forEach(function(m,i){var s=S[i],y1=Y.m[i]+NH/2,y2=Y.s[i]+NH/2,mx=cm.x+cm.w+(cs.x-cm.x-cm.w)/2,c=COL[m.h];
+  /* 2026-11-24 멸균기가 가동 중이 아니면(정지 · 미가동) 배합 → 멸균 선을 그리지 않음 */
+  if(!s||!s.run)return;
   links+=link(path(cm.x+cm.w,y1,cs.x,y2,mx),c,m.mv?'flow':(m.on&&s.on?'on':''),m.h,mx,(y1+y2)/2)});
  /* 멸균 → 충전 (그날 일지 제품명이 같은 호기) */
  var cp=C('p'),used={},bus2=cs.x+cs.w+(cp.x-cs.x-cs.w)/2;
