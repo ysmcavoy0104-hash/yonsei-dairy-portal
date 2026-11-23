@@ -17492,8 +17492,8 @@ var LM=null;
 function landing(){
  var menu=document.querySelector('#lnav .menu');if(!menu)return;
  if(!LM){var keep=document.createElement('div');keep.id='lnav-keep';keep.style.display='none';[].slice.call(menu.querySelectorAll('a[id]')).forEach(function(a){keep.appendChild(a)});menu.parentNode.appendChild(keep);LM=1}
- var sup=isSuper(),kc=!!(window.yumKPICan&&yumKPICan()),sig=sup+'/'+kc,A=function(r,t){return '<a href="#'+r.slice(2)+'" onclick="lnavGo(\''+r+'\');return false" style="font-weight:700;color:#ffffff">'+t+'</a>'};
- var h=A('#/journals','일지')+A('#/prodmap','생산 현황')+A('#/juice','대시보드')+A('#/oee','OEE')+(kc?A('#/kpi?t=%EB%B6%80%EB%AC%B8','KPI')+A('#/mh?t=%EB%B6%80%EB%AC%B8','인시 · 노무비'):'')+(sup?A('#/reports','자료'):'')+(sup?A('#/weekplan','근무')+A('#/admin','시스템'):'');
+ var sup=isSuper(),kc=!!(window.yumKPICan&&yumKPICan()),my=!!(window.yumMixYieldAllowed&&yumMixYieldAllowed()),sig=sup+'/'+kc+'/'+my,A=function(r,t){return '<a href="#'+r.slice(2)+'" onclick="lnavGo(\''+r+'\');return false" style="font-weight:700;color:#ffffff">'+t+'</a>'};
+ var h=A('#/journals','일지')+A('#/prodmap','생산 현황')+A('#/juice','대시보드')+A('#/oee','OEE')+(kc?A('#/kpi?t=%EB%B6%80%EB%AC%B8','KPI')+A('#/mh?t=%EB%B6%80%EB%AC%B8','인시 · 노무비'):'')+(sup?A('#/reports','자료'):'')+(sup?A('#/weekplan','근무')+A('#/admin','시스템'):'')+(my?'<a href="#/mixyield" onclick="lnavGo(\'#/mixyield\');return false" class="lnav-my" title="부문장 · 최고관리자 전용" style="font-weight:800;color:#FDE68A">⚗ 혼합수율</a>':'');
  if(menu.getAttribute('data-sig')!==sig){menu.innerHTML=h;menu.setAttribute('data-sig',sig)}
  /* 영역 카드 */
  var g=document.querySelector('#areas .ha-g');
@@ -23486,7 +23486,7 @@ function paint(){if(!on())return;var M=document.getElementById('main');if(!M)ret
 try{var _r=App.render;App.render=function(){var r=_r.apply(this,arguments);if(on()){var M=document.getElementById('main');if(M){try{M.innerHTML=view()}catch(e){M.innerHTML='<pre>'+E(e.stack||e.message)+'</pre>'}}}return r}}catch(e){}
 window.addEventListener('yum-docs-synced',function(){if(on())setTimeout(paint,300)});
 /* 메뉴: 부문장 · 최고관리자에게만 */
-try{var _nav=App.navItems;if(_nav)App.navItems=function(){var a=_nav.apply(this,arguments);try{if(!allowed())return a;var tab={id:'mixyield',t:'혼합수율',i:'⚗',items:[{k:ROUTE,t:'혼합수율 (부문장 · 관리자 전용)',i:'⚗'}]};
+try{var _nav=App.navItems;if(_nav)App.navItems=function(){var a=_nav.apply(this,arguments);try{if(true)return a;var tab={id:'mixyield',t:'혼합수율',i:'⚗',items:[{k:ROUTE,t:'혼합수율 (부문장 · 관리자 전용)',i:'⚗'}]};
  a.forEach(function(n){if(n&&n.tabs&&!n.tabs.some(function(t){return t.id==='mixyield'})){var i=-1;n.tabs.forEach(function(t,k){if(t.id==='mh')i=k});n.tabs.splice(i>=0?i+1:n.tabs.length,0,tab)}})}catch(e){}return a}}catch(e){}
 var CSS='.my{display:flex;flex-direction:column;gap:14px}.my-hd{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;align-items:flex-end}.my-eb{font-size:11px;font-weight:800;letter-spacing:.12em;color:#64748B}.my-hd h1{margin:2px 0 4px;font-size:24px;color:#0F172A}.my-hd p{margin:0;max-width:760px;font-size:13px;color:#475569;line-height:1.6}'+
  '.my-nav,.my-act{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.my-nav b{font-size:14px;color:#0F172A;padding:0 4px}.my-nav button,.my-act button{border:1px solid #CBD5E1;background:#fff;border-radius:999px;padding:5px 12px;font-weight:700;font-size:12.5px;color:#334155;cursor:pointer}.my-act{margin-left:auto}'+
