@@ -23381,11 +23381,19 @@ var SEED=null;function seed(){if(SEED)return SEED;try{SEED=JSON.parse(document.g
 var HIST=null;function hist(){if(HIST)return HIST;HIST={};seed().forEach(function(r){if(r.U==null&&r.lo==null)return;var k=norm(r.p);if(!k)return;var o=HIST[k]=HIST[k]||{};['lo','hi','U','X','Y'].forEach(function(f){if(r[f]!=null)o[f]=r[f]});o.p=r.p});return HIST}
 function histOf(p){var H=hist(),k=norm(p);if(H[k])return H[k];var best=null,bl=0;Object.keys(H).forEach(function(x){if(x.length>3&&(k.indexOf(x)>=0||x.indexOf(k)>=0)){var l=Math.min(x.length,k.length);if(l>bl){bl=l;best=H[x]}}});return best||{}}
 /* ---------- 이름 비슷한 정도 (두 글자씩 겹침) ---------- */
-function nm2(s){return norm(String(s||'').replace(/^[^)]{1,3}\)/,'').replace(/국산콩|멸균|\d+ml|\d{3,4}g\b|g$/gi,''))}
+/* 입수 · 포장 단위만 다른 같은 제품 (예: A2프로틴 오리지널 16입 · 30입) → 같은 이름 */
+function baseName(s){return String(s||'').replace(/\s*[\(\[]?\s*\d+\s*(입|개입|EA|ea|팩|P|p)\s*[\)\]]?/g,'').replace(/\s*\((CS|cs|BOX|box|박스)\)/g,'').replace(/\s*(\d+\s*ml)\s*\*\s*\d+/gi,' $1').replace(/\s{2,}/g,' ').trim()}
+function nm2(s){return norm(baseName(s).replace(/^[^)]{1,3}\)/,'').replace(/국산콩|멸균|\d+ml|\d{3,4}g\b|g$/gi,''))}
 function sim(a,b){a=nm2(a);b=nm2(b);if(!a||!b)return 0;if(a===b)return 1;if(a.length>2&&b.length>2&&(a.indexOf(b)>=0||b.indexOf(a)>=0))return 0.9;var bg=function(x){var o={};for(var i=0;i<x.length-1;i++){var k=x.substr(i,2);o[k]=(o[k]||0)+1}return o},A=bg(a),B=bg(b),n=0,t=0;Object.keys(A).forEach(function(k){t+=A[k];if(B[k])n+=Math.min(A[k],B[k])});Object.keys(B).forEach(function(k){t+=B[k]});return t?2*n/t:0}
 /* ---------- 생산계획: 그날 품목 · 호기 · 배치 · 품목코드 ---------- */
 var CAP={1:6000,2:10000,3:6000,4:8000,5:6000};  /* 제품생산일보 머리글: 혼합 유액 1-(6,000kg) 2-(10,000kg) 3-(6,000kg) 4-(8,000kg) 5-(6,000kg) */
-function planDay(D){var out=[],md=(+D.slice(5,7))+'/'+(+D.slice(8)),seen={};Object.keys(DB.data.planWeeks||{}).forEach(function(k){var w=DB.data.planWeeks[k];if(!w||w.deleted)return;(w.cells||[]).forEach(function(c){var rl=String(c.rowLabel||(w.rows||[])[c.row]||'').replace(/\s/g,'');if(rl!==md)return;var h=+(String(c.colLabel||'').match(/(\d)\s*호기/)||[])[1]||null,nm=String(c.name||'').trim();if(!nm)return;var key=h+'|'+nm;if(seen[key])return;seen[key]=1;out.push({p:nm,h:h,code:String(c.code||''),bat:nv(c.batch),time:c.time||''})})});return out}
+function planDay(D){var out=[],md=(+D.slice(5,7))+'/'+(+D.slice(8)),by={};Object.keys(DB.data.planWeeks||{}).forEach(function(k){var w=DB.data.planWeeks[k];if(!w||w.deleted)return;(w.cells||[]).forEach(function(c){var rl=String(c.rowLabel||(w.rows||[])[c.row]||'').replace(/\s/g,'');if(rl!==md)return;var h=+(String(c.colLabel||'').match(/(\d)\s*호기/)||[])[1]||null,nm=String(c.name||'').trim();if(!nm)return;
+  /* 같은 날 · 같은 호기 · 입수만 다른 제품은 한 줄로 */
+  var key=h+'|'+nm2(nm),bt=nv(c.batch),tm=String(c.time||''),o=by[key];
+  if(!o){o=by[key]={p:baseName(nm),h:h,code:String(c.code||''),codes:[],bat:bt,time:tm,times:{},names:[]};o.times[tm]=bt;out.push(o)}
+  else if(!(tm in o.times)){o.times[tm]=bt;if(bt!=null)o.bat=(o.bat||0)+bt}else if(bt!=null&&(o.times[tm]==null||bt>o.times[tm])){o.bat=(o.bat||0)-(o.times[tm]||0)+bt;o.times[tm]=bt}
+  if(o.names.indexOf(nm)<0)o.names.push(nm);if(c.code&&o.codes.indexOf(String(c.code))<0)o.codes.push(String(c.code))})});
+ out.forEach(function(o){if(o.names.length>1)o.merged=o.names});return out}
 /* ---------- 배합비: 품목코드 → 배치 무게(kg) ---------- */
 function rcpKg(code){if(!code)return null;var R=DB.data.recipes||{},L=R.list||[],ids=(DB.data.recipeLink||{})[code]||[],c=[];ids.forEach(function(id){var r=L.find(function(x){return x.id===id});if(r)c.push(r)});L.forEach(function(r){if(r.codes&&r.codes.indexOf(String(code))>=0&&c.indexOf(r)<0)c.push(r)});var m=c.filter(function(r){return r.kind==='배합'&&+r.base>0})[0]||c.filter(function(r){return +r.base>0})[0];return m?+m.base:null}
 /* ---------- 제품생산일보(FRM-012) → 품목별 배치 (B마다 탱크레벨 · Brix) ---------- */
@@ -23409,7 +23417,7 @@ function rowsOf(from,to){var S=store(),R=[],byD={};
  for(var D=from;D<=to;D=addD(D,1)){
   var PL=planDay(D),L=byD[D]=byD[D]||[];
   /* 1) 생산계획 품목 → 엑셀 줄과 대조 (없으면 새 줄) */
-  PL.forEach(function(c,ci){var m=best(L,c,false);if(!m){var hh=histOf(c.p);m={d:D,p:c.p,lo:hh.lo,hi:hh.hi,lv:[],T:null,U:null,X:hh.X,Y:null,src:'plan',key:'p'+D+'_'+(c.code||ci)};L.push(m)}m._am=1;m.h=c.h;m.code=c.code;m.bat=c.bat;m.planName=c.p});
+  PL.forEach(function(c,ci){var m=best(L,c,false);if(!m){var hh=histOf(c.p);m={d:D,p:c.p,lo:hh.lo,hi:hh.hi,lv:[],T:null,U:null,X:hh.X,Y:null,src:'plan',key:'p'+D+'_'+(c.code||ci)};L.push(m)}m._am=1;m.h=c.h;m.code=c.code;m.codes=c.codes;m.bat=c.bat;m.planName=c.p;m.merged=c.merged});
   L.forEach(function(r){delete r._am});
   /* 2) 제품생산일보 → B마다 탱크레벨 · Brix (호기가 같으면 우선) */
   if(D<=today())autoDay(D).forEach(function(a,ai){var m=best(L,a,true);
@@ -23417,7 +23425,7 @@ function rowsOf(from,to){var S=store(),R=[],byD={};
    m._am=1;if(!(m.lv||[]).filter(function(v){return v!=null}).length&&a.lv.length){m.lv=a.lv;m.auto=1;m.split=a.split;if(m.src==='xls')m.src='auto'}if(a.T!=null&&(m.T==null||m.auto))m.T=a.T;if(!m.h&&a.h)m.h=a.h});
   L.forEach(function(r){delete r._am;
    /* 3) 기준탱크 = 생산계획 호기 · 계획 무게 = 배합비 (엑셀에 값이 없는 줄만) */
-   if(r.src!=='xls'||r.auto){if(r.U==null&&r.h&&CAP[r.h]){r.U=CAP[r.h];r._uP=1}if(r.Y==null){var k=rcpKg(r.code);if(k){r.Y=k;r._yR=1}}}})}
+   if(r.src!=='xls'||r.auto){if(r.U==null&&r.h&&CAP[r.h]){r.U=CAP[r.h];r._uP=1}if(r.Y==null){var k=null;(r.codes&&r.codes.length?r.codes:[r.code]).some(function(cd){k=rcpKg(cd);return k});if(k){r.Y=k;r._yR=1}}}})}
  S.add.forEach(function(r,i){if(r.d>=from&&r.d<=to)(byD[r.d]=byD[r.d]||[]).push(Object.assign({lv:[]},r,{src:'add',key:'n'+(r.id||i)}))});
  Object.keys(byD).sort().forEach(function(D){byD[D].forEach(function(r){if(S.del[r.key])return;var o=S.ov[r.key];if(o){Object.keys(o).forEach(function(f){if(f[0]!=='_')r[f]=o[f]});r.edited=1}
   if(r.U==null||r.lo==null||r.Y==null){var h=histOf(r.p);['lo','hi','U','X','Y'].forEach(function(f){if(r[f]==null&&h[f]!=null){r[f]=h[f];r['_h'+f]=1}})}
@@ -23446,7 +23454,7 @@ function match(r){if(!S.q)return true;var q=norm(S.q),p=norm(r.p);if(!q)return t
 function rowsF(from,to){return rowsOf(from,to).filter(match)}
 /* 제품별 묶기 */
 function byProd(L){var P={};L.forEach(function(r){var k=nm2(r.p)||r.p;var o=P[k]=P[k]||{k:k,names:{},n:0,b:0,W:0,Y:0,nW:0,lv:0,nl:0,out:0,last:'',T:0,nT:0};o.names[r.p]=(o.names[r.p]||0)+1;o.n++;var lv=(r.lv||[]).filter(function(v){return v!=null});o.b+=lv.length;lv.forEach(function(v){o.lv+=v;o.nl++});if(r.W!=null&&r.Y){o.W+=r.W;o.Y+=r.Y;o.nW++}if(r.out)o.out++;if(r.T!=null){o.T+=r.T;o.nT++}if(r.d>o.last)o.last=r.d});
- return Object.keys(P).map(function(k){var o=P[k];o.p=Object.keys(o.names).sort(function(a,b){return o.names[b]-o.names[a]})[0];o.AA=o.Y?o.W/o.Y:null;o.V=o.nl?o.lv/o.nl:null;o.Tm=o.nT?o.T/o.nT:null;return o})}
+ return Object.keys(P).map(function(k){var o=P[k];o.p=baseName(Object.keys(o.names).sort(function(a,b){return o.names[b]-o.names[a]})[0]);o.AA=o.Y?o.W/o.Y:null;o.V=o.nl?o.lv/o.nl:null;o.Tm=o.nT?o.T/o.nT:null;return o})}
 function trend(){var mon=monday(today()),P=[];for(var i=25;i>=0;i--){var m=addD(mon,-7*i),a=agg(rowsOf(m,addD(m,6)).filter(match));P.push({m:m,a:a.AA})}
  var W=760,H=200,l=44,r=12,t=14,b=26,v=P.map(function(o){return o.a}).filter(function(x){return x!=null}),mn=Math.min.apply(null,v.concat([0.95]))-0.01,mx=Math.max.apply(null,v.concat([1.03]))+0.01,X=function(i){return l+i*(W-l-r)/(P.length-1)},Y=function(x){return t+(H-t-b)*(1-(x-mn)/(mx-mn))},gr='';
  for(var k=0;k<=4;k++){var y=mn+(mx-mn)*k/4;gr+='<line x1="'+l+'" x2="'+(W-r)+'" y1="'+Y(y)+'" y2="'+Y(y)+'" class="gl"/><text x="'+(l-6)+'" y="'+(Y(y)+4)+'" text-anchor="end" class="ax">'+fx(y*100,1)+'%</text>'}
@@ -23495,7 +23503,7 @@ function listTable(R,G){var LIM=600,cut=R.length>LIM,L=cut?R.slice(-LIM):R;
  if(!L.length)h+='<tr><td colspan="'+(13+mxB)+'" class="none">'+(S.q?'「'+E(S.q)+'」 기록이 이 기간에 없습니다 — 기간을 「전체」로 바꿔 보세요':'이 기간에는 기록이 없습니다')+'</td></tr>';
  var multiWk=S.per!=='week'&&S.per!=='day',cw=null,wkRows=[];
  L.forEach(function(r){var mw=monday(r.d);if(multiWk&&cw&&mw!==cw){h+=sumRow(wkLabel(cw)+' 계',wkRows);wkRows=[]}cw=mw;wkRows.push(r);
-  h+='<tr class="'+(r.auto||r.src==='auto'?'au':'')+(r.edited?' ed':'')+'"><td class="dt">'+(S.per==='all'||S.per==='range'?r.d.slice(2).replace(/-/g,'.'):(+r.d.slice(5,7))+'/'+(+r.d.slice(8)))+'('+'일월화수목금토'[dow(r.d)]+')</td>'+c(r,'p',E(r.p)+(r.h?' <small class="hg">'+r.h+'호기</small>':'')+(r.split?' <i title="한 일지에 품목이 여러 개라 배치 수 순서대로 나눔 — 확인 필요">⚠</i>':''),'pn')+c(r,'lo',fx(r.lo,4))+c(r,'hi',fx(r.hi,4));
+  h+='<tr class="'+(r.auto||r.src==='auto'?'au':'')+(r.edited?' ed':'')+'"><td class="dt">'+(S.per==='all'||S.per==='range'?r.d.slice(2).replace(/-/g,'.'):(+r.d.slice(5,7))+'/'+(+r.d.slice(8)))+'('+'일월화수목금토'[dow(r.d)]+')</td>'+c(r,'p',E(r.p)+(r.h?' <small class="hg">'+r.h+'호기</small>':'')+(r.merged?' <small class="hg" title="생산계획에서 합친 품목: '+E(r.merged.join(' / '))+'">'+r.merged.length+'개 합침</small>':'')+(r.split?' <i title="한 일지에 품목이 여러 개라 배치 수 순서대로 나눔 — 확인 필요">⚠</i>':''),'pn')+c(r,'lo',fx(r.lo,4))+c(r,'hi',fx(r.hi,4));
   for(var i=0;i<mxB;i++)h+=c(r,'lv'+i,r.lv&&r.lv[i]!=null?fx(r.lv[i],1):'','b');
   h+=c(r,'T',fx(r.T,4),r.out?'bad':'')+c(r,'U',fx(r.U))+'<td>'+fx(r.V,2)+'</td><td>'+fx(r.W)+'</td>'+c(r,'X',fx(r.X,1))+c(r,'Y',fx(r.Y))+'<td class="'+(r.Z!=null&&r.Z<0?'neg':'')+'">'+fx(r.Z)+'</td><td class="aa '+cls(r.AA)+'"><b>'+pc(r.AA)+'</b></td><td class="x"><button title="이 줄 숨기기" onclick="event.stopPropagation();yumMixY.del(\''+r.key+'\')">×</button></td></tr>'});
  if(multiWk&&wkRows.length)h+=sumRow(wkLabel(cw)+' 계',wkRows);
