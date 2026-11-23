@@ -17342,7 +17342,7 @@ function qs(k){var m=(location.hash||'').match(new RegExp('[?&]'+k+'=([^&]*)'));
 
 /* ---------- 팀 포털 ---------- */
 var TEAMS=[
- {k:'weigh',n:'계량팀',ic:'⚖',c:'#B45309',dash:'#/weigh',url:'https://weighing-two.vercel.app',d:'원료 · 부원료 계량 기록 (계량팀 자체 포털 · 계량팀 계정으로 입장)'},
+ {k:'weigh',n:'계량팀',ic:'⚖',c:'#B45309',dash:'#/weigh',url:'https://weighing-two.vercel.app',link:{sso:'gyeryang-sso'},d:'계량일보 (계량팀 자체 포털 · 부문포털 계정으로 자동 로그인)'},
  {k:'juice',n:'착즙팀',ic:'❖',c:'#D97706',dash:'#/juice',url:'https://soyline.pages.dev',link:{fn:'https://qehezkmwoyshqybnsvdz.supabase.co/functions/v1/portal-link',key:'sb_publishable_BCVOp1rKwrw5c4n424eyIg_m-hhqpB2',into:'https://soyline.pages.dev/#/link-in?token_hash='},d:'착즙 · 분리액 생산 현황 (착즙팀 자체 포털 · 연계 게스트로 보기 전용 입장)'},
  {k:'mix',n:'배합팀',ic:'⚗',c:'#2563EB',url:'mix.html',dash:'#/mix',d:'호기 · 탱크별 혼합 · 이송 · CIP 실시간 현황, 품질 이상 주의, 기록 누락 알림, 관리 분석, 생산계획표 변환'},
  {k:'ster',n:'멸균팀',ic:'♨',c:'#0F8F7C',dash:'#/ster',url:'https://myeolgyun-portal.vercel.app',link:{post:'https://myeolgyun-portal.vercel.app/api/auth/link'},d:'호기별 가동률 · 생산 달성률 · 멸균 · CIP · 알람 · 정비 이력 (멸균팀 자체 포털 · 연계 게스트로 보기 전용 입장)'},
@@ -17380,6 +17380,13 @@ function linkIn(t){
     if(!r0||!r0.ok)throw new Error(r0&&/invalid/i.test(r0.msg||'')?'비밀번호가 맞지 않습니다.':'서버 응답이 늦어 다시 연결하지 못했습니다. 잠시 뒤 다시 눌러 주세요.');
     msg('<b style="font-size:18px">'+t.n+' 업무포털로 이동하는 중…</b>');ses=await srvSession();
     if(!ses||!ses.access_token)throw new Error('서버 로그인 정보를 받지 못했습니다. 잠시 뒤 다시 눌러 주세요.')}
+   /* 계량팀: 우리 Supabase 함수(gyeryang-sso)가 60초 1회용 입장권을 만들어 계량일보 주소를 돌려줌 */
+   if(t.link.sso){var c2=new AbortController(),t2=setTimeout(function(){c2.abort()},20000);
+    var r2=await fetch(window.SUPA_URL+'/functions/v1/'+t.link.sso,{method:'POST',signal:c2.signal,headers:{'Content-Type':'application/json',apikey:window.SUPA_ANON,Authorization:'Bearer '+ses.access_token},body:'{}'});
+    clearTimeout(t2);var j2=await r2.json().catch(function(){return null});
+    if(r2.status===404&&!(j2&&j2.error))throw new Error('중계 함수(gyeryang-sso)가 아직 배포되지 않았습니다.');
+    if(!r2.ok||!j2||!j2.url)throw new Error((j2&&j2.error)||(t.n+' 입장권 발급 실패 ('+r2.status+')'));
+    if(w&&!w.closed){try{w.opener=null}catch(_){}w.location.href=j2.url}else location.href=j2.url;return}
    /* 멸균팀(Next.js · Vercel): 로그인 토큰을 그 팀 입구로 form POST (GET 아님) → 멸균팀 서버가 우리 Supabase에 직접 확인 */
    if(t.link.post){var f=document.createElement('form');f.method='POST';f.action=t.link.post;f.target=(w&&!w.closed)?'yum_'+t.k:'_blank';
     [['token',ses.access_token],['portal',window.SUPA_URL]].forEach(function(kv){var i=document.createElement('input');i.type='hidden';i.name=kv[0];i.value=kv[1];f.appendChild(i)});
@@ -17398,6 +17405,15 @@ function linkIn(t){
 }
 window.yumOpenTeam=function(k){var t=TEAMS.filter(function(x){return x.k===k})[0];if(!t||!t.url)return;if(k==='mix'){yumOpenMix();return}
  if(t.link){linkIn(t);return}var w=null;try{w=window.open(t.url,'yum_'+k)}catch(e){}if(!w)location.href=t.url};
+/* 계량일보 로그인 화면의 「메인 업무포털 계정으로 로그인」 → 부문포털 #/go/gyeryang (로그인 전이면 로그인 뒤 자동으로) */
+(function(){var GO='#/go/gyeryang',busy=0;function want(){return (location.hash||'').split('?')[0]===GO}
+ function run(){if(busy)return;var u=me();if(!u)return;busy=1;var t=TEAMS.filter(function(x){return x.k==='weigh'})[0];
+  (async function(){try{var ses=await srvSession();if(!ses||!ses.access_token){busy=0;return}
+   var r=await fetch(window.SUPA_URL+'/functions/v1/gyeryang-sso',{method:'POST',headers:{'Content-Type':'application/json',apikey:window.SUPA_ANON,Authorization:'Bearer '+ses.access_token},body:'{}'});var j=await r.json().catch(function(){return null});
+   if(r.ok&&j&&j.url){try{sessionStorage.removeItem('yum_go_gy')}catch(_){}location.replace(j.url);return}
+   try{sessionStorage.removeItem('yum_go_gy')}catch(_){}var m='계량일보로 이동하지 못했습니다: '+((j&&j.error)||('응답 '+r.status));try{toast(m,'bad')}catch(_){alert(m)}try{App.go('#/home')}catch(_){}}catch(e){busy=0}})()}
+ function chk(){if(want()){try{sessionStorage.setItem('yum_go_gy','1')}catch(_){}}var f=0;try{f=sessionStorage.getItem('yum_go_gy')==='1'}catch(_){}if(f)run()}
+ window.addEventListener('hashchange',chk);setInterval(function(){var f=0;try{f=sessionStorage.getItem('yum_go_gy')==='1'}catch(_){}if(f&&!busy)run()},1500);setTimeout(chk,800)})();
 window.yumTeamGo=function(k){var tt=TEAMS.filter(function(x){return x.k===k})[0];if(tt&&tt.url){yumOpenTeam(k);return}try{if(!me()){lnavGo('#/teams?t='+k);return}App.show('app');App.go('#/teams?t='+k)}catch(e){location.hash='#/teams?t='+k}};
 function teamsHTML(){var sel=qs('t');
  return '<div class="hrow"><div><h1 class="pgt">팀 포털</h1><div class="pgt-sub">팀마다 따로 운영하는 업무포털입니다. 일지 작성 · 결재는 부문포털에서 하고, 팀 포털은 그 데이터로 현장 현황을 보여 줍니다.</div></div></div>'+
