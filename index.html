@@ -19282,7 +19282,10 @@ function upload(files){var msg=$i('kp-msg');if(!files||!files.length)return;if(m
    else if(/근무인원편성/.test(sn)){var ro=pRole(rows);if(ro){b.role=ro;got.push('직무 편성')}}})});
   if(!got.length){if(msg)msg.textContent='알아볼 수 있는 시트가 없습니다. 시트 이름을 확인해 주세요.';return}
   b.at=new Date().toLocaleDateString('ko-KR')+' 업로드';save();rr();try{U.toast('엑셀 반영: '+got.join(' · '),'ok')}catch(e){}}).catch(function(e){if(msg)msg.textContent='실패: '+e.message})}
-function rr(){var M=$i('main');if(M&&/^#\/(kpi|mh)$/.test((location.hash||'').split('?')[0])){M.innerHTML=view();anim()}}
+function rr(){var M=$i('main');if(M&&/^#\/(kpi|mh)$/.test((location.hash||'').split('?')[0])){
+ /* 2026-11-24 새 인시 화면(#/mh)은 그 화면이 직접 그림 — 예전 화면으로 덮어쓰지 않음 (예전 상세 화면 ?old=1 만 여기서) */
+ if((location.hash||'').split('?')[0]==='#/mh'&&!/[?&]old=1/.test(location.hash||'')){try{if(window.yumMH3&&yumMH3.repaint)yumMH3.repaint()}catch(e){}return}
+ M.innerHTML=view();anim()}}
 window.yumKPI={team:function(k){ST.team=k;rr()},xlsGrid:xlsGrid,xlsHours:xlsHours,ym:function(v){ST.ym=v;rr()},upload:upload,cfg:function(){var c=cfg();c.wage=num(($i('kp-wage')||{}).value);c.ot=num(($i('kp-ot')||{}).value)||1.5;c.night=num(($i('kp-ng')||{}).value)||0.5;save();rr();try{U.toast('노무비 계산 기준을 저장했습니다.','ok')}catch(e){}},view:view};
 
 /* ───────── 화면 연결 · 메뉴 ───────── */
@@ -23162,8 +23165,9 @@ window.yumMH3={tab:function(t){ST.tab=t;keep();paint()},tm:function(t){ST.tm=t;k
  mo:function(k){var ym=ST.ym||addD(today(),-1).slice(0,7),d=new Date(+ym.slice(0,4),+ym.slice(5,7)-1+k,1);ST.ym=d.getFullYear()+'-'+pad(d.getMonth()+1);keep();paint()},
  copy:function(kind){var x=X(),mon=ST.wk||monday(today()),R=kind==='exp'?expRows(mon):actRows(x,mon),t=tsvOf('<'+wkLabel(mon)+' '+(kind==='exp'?'예상':'실')+' 인시생산성>',R);var done=function(){try{U.toast('표를 복사했습니다. 엑셀 · 보고방에 붙여 넣으세요.','ok')}catch(e){}};
   try{navigator.clipboard.writeText(t).then(done,fb)}catch(e){fb()}function fb(){var a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();try{document.execCommand('copy');done()}catch(e){}a.remove()}},
- day:function(k,ds){return day(X(),k,ds)},view:view};
+ day:function(k,ds){return day(X(),k,ds)},view:view,repaint:function(){if(document.activeElement&&document.activeElement.closest&&document.activeElement.closest('.mh3'))return;FC={};PC={};paint()}};
 try{var _r=App.render;App.render=function(){var r=_r.apply(this,arguments);try{if(on())paint()}catch(e){}return r}}catch(e){}
+(function(){var t=null;new MutationObserver(function(){if(!on())return;var M=document.getElementById('main');if(!M||M.querySelector('.mh3')||/팀장 전용 화면/.test(M.textContent))return;clearTimeout(t);t=setTimeout(function(){if(on()&&!M.querySelector('.mh3'))paint()},30)}).observe(document.documentElement,{childList:true,subtree:true})})();
 window.addEventListener('yum-docs-synced',function(){FC={};PC={};if(on()&&!(document.activeElement&&document.activeElement.closest&&document.activeElement.closest('.mh3')))paint()});
 var CSS='@keyframes mh3Up{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}@keyframes mh3Ln{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}@keyframes mh3Pop{0%{opacity:0;transform:scale(0)}70%{transform:scale(1.25)}100%{opacity:1;transform:scale(1)}}@keyframes mh3Bar{from{transform:scaleY(0)}to{transform:scaleY(1)}}@keyframes mh3W{from{width:0}to{width:var(--w)}}@keyframes mh3Row{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:none}}'+
  'html #main .mh3.anim .mh3-hd,html #main .mh3.anim .mh3-tabs,html #main .mh3.anim .mh3-c,html #main .mh3.anim .mh3-s{animation:mh3Up .55s cubic-bezier(.16,1,.3,1) both!important;animation-delay:calc(var(--i,0) * 70ms)!important}'+
