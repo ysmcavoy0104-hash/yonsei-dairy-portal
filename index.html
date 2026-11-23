@@ -23214,5 +23214,135 @@ var CSS='@keyframes mh3Up{from{opacity:0;transform:translateY(12px)}to{opacity:1
 })();
 </script>
 
+<script>
+/* 오전 · 오후 O/X 점검: 오후 칸은 13시 이후 · 확인자 이름(로그인과 무관) */
+(function(){if(window.__YUM_OXPM__)return;window.__YUM_OXPM__=1;
+var PMH=13;
+function nowH(){var d=new Date();return d.getHours()+d.getMinutes()/60}
+function pad(n){return ('0'+n).slice(-2)}
+function todayS(){var d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+function docDate(){var b=document.getElementById('docpaper');if(!b)return todayS();var g=function(k){var e=b.querySelector('[data-gk="'+k+'"]');return e?String(e.value||'').trim():''};var y=g('dY'),m=g('dM'),d=g('dD');if(!y||!m||!d)return todayS();return y+'-'+pad(+m)+'-'+pad(+d)}
+function pmLocked(){var dd=docDate(),t=todayS();if(dd<t)return false;if(dd>t)return true;return nowH()<PMH}
+/* 표 칸 → 시작 열 번호 (colspan · rowspan 반영) */
+function mapTable(tb){var occ=[],R=[].slice.call(tb.rows),pos=new Map();R.forEach(function(tr,ri){occ[ri]=occ[ri]||[];var c=0;[].forEach.call(tr.cells,function(td){while(occ[ri][c])c++;var cs=td.colSpan||1,rs=td.rowSpan||1;pos.set(td,{r:ri,c:c,cs:cs});for(var a=0;a<rs;a++){occ[ri+a]=occ[ri+a]||[];for(var b=0;b<cs;b++)occ[ri+a][c+b]=1}c+=cs})});return pos}
+function txt(td){return String(td.textContent||'').replace(/\s+/g,'')}
+function within(p,h){return p.c>=h.c&&p.c<h.c+h.cs}
+function scan(){var box=document.getElementById('docpaper');if(!box)return;
+ [].forEach.call(box.querySelectorAll('table.ftpl'),function(tb){if(tb.dataset.oxpm)return;if(!tb.querySelector('select.oxsel2'))return;
+  var pos=mapTable(tb),HD=[];
+  [].forEach.call(tb.rows,function(tr){var am=null,pm=null,it=null;[].forEach.call(tr.cells,function(td){var t=txt(td);if(t==='오전')am=td;else if(t==='오후')pm=td;else if(t==='점검항목')it=td});if(am&&pm){var pa=pos.get(am);HD.push({r:pa.r,am:pa,pm:pos.get(pm),it:it?pos.get(it):null,rows:{}})}});
+  if(!HD.length)return;tb.dataset.oxpm='1';
+  [].forEach.call(tb.querySelectorAll('select.oxsel2'),function(sel){var td=sel.closest('td'),p=pos.get(td);if(!p)return;var hd=null;HD.forEach(function(h){if(h.r<p.r)hd=h});if(!hd)return;var side=within(p,hd.pm)?'pm':within(p,hd.am)?'am':null;if(!side)return;sel.dataset.oxs=side;sel.dataset.oxg=HD.indexOf(hd);(hd.rows[p.r]=hd.rows[p.r]||{tr:td.parentNode,r:p.r})[side]=sel});
+  var who={};
+  HD.forEach(function(hd,gi){var rows=hd.rows,keys=Object.keys(rows).map(Number).sort(function(a,b){return a-b}),last=keys.length?rows[keys[keys.length-1]]:null;
+  if(last&&hd.it){var itd=null;[].forEach.call(last.tr.cells,function(td){var p=pos.get(td);if(p&&within(p,hd.it))itd=td});
+   var iin=itd&&itd.querySelector('input[data-gk]');
+   if(itd&&(iin?(!iin.value||iin.value==='확인자'):txt(itd)===''||txt(itd)==='확인자')){
+    if(iin){iin.value='확인자';iin.readOnly=true;iin.style.cssText+=';font-weight:800;background:transparent;text-align:center;pointer-events:none'}
+    ['am','pm'].forEach(function(sd){var sel=last[sd];if(!sel)return;var inp=document.createElement('input');inp.className='cell gcell oxwho';inp.setAttribute('data-gk',sel.getAttribute('data-gk'));inp.value=(sel.value==='O'||sel.value==='X')?'':sel.value;inp.readOnly=true;inp.dataset.oxs=sd;inp.placeholder=sd==='am'?'오전 확인자':'오후 확인자';inp.title='눌러서 확인자 이름 입력 · 변경';inp.style.cssText='width:100%;height:100%;min-height:18px;box-sizing:border-box;text-align:center;font-weight:800;border:1px dashed rgba(30,58,95,.45);background:#EEF4FF;color:#1E3A5F;cursor:pointer;font-size:10.5px;letter-spacing:-.6px;padding:0 1px';sel.parentNode.replaceChild(inp,sel);who[gi+sd]=inp;who[sd]=who[sd]||inp});
+    delete rows[last.r]}}});
+  tb.__oxWho=who;
+  paintLock(tb)})}
+function paintLock(tb){var L=pmLocked();[].forEach.call(tb.querySelectorAll('select.oxsel2[data-oxs="pm"]'),function(sel){sel.classList.toggle('oxpm-lock',L);sel.title=L?'오후 점검은 13시 이후에 활성화됩니다':'O / X 선택'})}
+function lockAll(){var box=document.getElementById('docpaper');if(!box)return;[].forEach.call(box.querySelectorAll('table.ftpl[data-oxpm]'),paintLock)}
+function msg(){var t='오후 점검은 오후 13시 이후에 활성화됩니다.';try{if(window.toast){toast(t);return}}catch(e){}alert(t)}
+function lastName(){try{return localStorage.getItem('yum_oxwho')||''}catch(e){return ''}}
+function askName(def){var v=prompt('확인자 이름을 적어 주세요 (로그인한 사람과 달라도 됩니다)',def||lastName()||'');if(v==null)return null;v=String(v).trim();if(v)try{localStorage.setItem('yum_oxwho',v)}catch(e){}return v}
+function fire(el){try{el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}))}catch(e){}}
+/* 오후 칸 13시 전에는 열리지 않게 */
+['mousedown','touchstart','keydown'].forEach(function(ev){document.addEventListener(ev,function(e){var sel=e.target&&e.target.closest&&e.target.closest('select.oxsel2[data-oxs="pm"]');if(!sel||!pmLocked())return;if(ev==='keydown'&&/^(Tab|Shift)$/.test(e.key))return;e.preventDefault();e.stopPropagation();try{sel.blur()}catch(_){}msg()},{capture:true,passive:false})});
+document.addEventListener('focusin',function(e){var sel=e.target;if(sel&&sel.matches&&sel.matches('select.oxsel2[data-oxs]'))sel.dataset.prev=sel.value},true);
+document.addEventListener('change',function(e){var sel=e.target;if(!sel||!sel.matches)return;
+ if(sel.matches('select.oxsel2[data-oxs="pm"]')&&pmLocked()){sel.value=sel.dataset.prev||'';msg();e.stopPropagation();return}
+ if(sel.matches('select.oxsel2[data-oxs]')&&sel.value){var tb=sel.closest('table.ftpl'),W=tb&&tb.__oxWho,w=W&&(W[sel.dataset.oxg+sel.dataset.oxs]||W[sel.dataset.oxs]);if(w&&!String(w.value||'').trim()){var n=askName();if(n){w.value=n;fire(w)}}}
+ sel.dataset.prev=sel.value},true);
+/* 확인자 칸 누르면 이름 입력 */
+document.addEventListener('click',function(e){var w=e.target&&e.target.closest&&e.target.closest('input.oxwho');if(!w)return;if(w.dataset.oxs==='pm'&&pmLocked()&&!w.value){msg();return}var n=askName(w.value);if(n!=null){w.value=n;fire(w)}},true);
+var st=document.createElement('style');st.textContent='select.oxsel2.oxpm-lock{background:repeating-linear-gradient(135deg,#F1F5F9 0 6px,#E2E8F0 6px 12px)!important;border-color:#CBD5E1!important;cursor:not-allowed!important}@media print{select.oxsel2.oxpm-lock{background:transparent!important}input.oxwho{border:0!important;background:transparent!important}}';document.head.appendChild(st);
+var tmr=null;new MutationObserver(function(){clearTimeout(tmr);tmr=setTimeout(scan,60)}).observe(document.documentElement,{childList:true,subtree:true});
+document.addEventListener('input',function(e){var g=e.target&&e.target.getAttribute&&e.target.getAttribute('data-gk');if(g==='dY'||g==='dM'||g==='dD')lockAll()},true);
+setInterval(lockAll,60000);
+window.yumOXPM={scan:scan,locked:pmLocked};
+})();
+</script>
+<script>
+/* ============ 계량 대시보드 (#/weigh) — 계량팀 포털 자료를 weigh-proxy로 받아 보기만 함 ============
+   · kind: weigh(계량 기록) · status(진행 상태) · delay(지연) · worklog(근무)
+   · 필드 이름이 조금 달라도 알아서 찾아 씀 (date/일자, product/제품, target/목표, actual/실측 …) */
+(function(){'use strict';if(window.__YUM_WEIGH__)return;window.__YUM_WEIGH__=1;
+var ROUTE='#/weigh',FN='weigh-proxy',KINDS=[['weigh','계량 기록'],['status','진행 상태'],['delay','지연 · 재계량'],['worklog','근무 · 투입시간']];
+function pad(n){return ('0'+n).slice(-2)}
+function today(){var n=new Date(Date.now()+9*3600e3);return n.toISOString().slice(0,10)}
+function addD(s,k){var d=new Date(s+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+k);return d.toISOString().slice(0,10)}
+function E(x){return String(x==null?'':x).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function f1(v){return v==null||!isFinite(v)?'—':(Math.round(v*10)/10).toLocaleString('ko-KR')}
+function f0(v){return v==null||!isFinite(v)?'—':Math.round(v).toLocaleString('ko-KR')}
+var S={from:null,to:null,raw:false,mask:true};try{var _s=JSON.parse(sessionStorage.getItem('yum_weigh')||'{}');S.from=_s.from||null;S.to=_s.to||null}catch(e){}
+function save(){try{sessionStorage.setItem('yum_weigh',JSON.stringify({from:S.from,to:S.to}))}catch(e){}}
+function rng(){var t=today();return [S.from||t,S.to||t]}
+var FD={},FB={};
+function sess(){return Promise.race([SupaSync.c().auth.getSession(),new Promise(function(r){setTimeout(function(){r(null)},8000)})]).then(function(g){return g&&g.data&&g.data.session})}
+function call(body){if(!(window.SupaSync&&SupaSync.on&&SupaSync.on()))return Promise.resolve({error:'서버 미연결'});
+ return sess().then(function(ses){if(!ses)return {error:'로그인 세션 없음'};return fetch(window.SUPA_URL+'/functions/v1/'+FN,{method:'POST',headers:{'Content-Type':'application/json',apikey:window.SUPA_ANON,Authorization:'Bearer '+ses.access_token},body:JSON.stringify(body)}).then(function(r){return r.json().catch(function(){return {error:'응답 '+r.status}}).then(function(j){if(r.status===404&&(!j||!j.kind))return {error:'중계 함수(weigh-proxy)를 찾지 못했습니다 — 이름 확인'};if(!r.ok&&j&&!j.error)j.error='응답 '+r.status;return j})})})}
+function feed(kind,ttl){var R=rng(),key=kind+'|'+R[0]+'|'+R[1],c=FD[key];if((!c||Date.now()-c.at>ttl)&&!FB[key]){FB[key]=1;call({kind:kind,from:R[0],to:R[1]}).then(function(j){FD[key]={at:Date.now(),ok:!!j&&!j.error,err:j&&j.error?String(j.error)+(j.detail?' ('+String(j.detail).slice(0,120)+')':''):'',raw:j}},function(e){FD[key]={at:Date.now(),ok:false,err:String(e&&e.message||e),raw:null}}).then(function(){FB[key]=0;soon()})}return c||null}
+window.yumWeighFeed=function(kind){return feed(kind,kind==='status'?30e3:180e3)};
+/* 응답에서 기록 배열 찾기 */
+function recs(j){if(!j)return [];if(Array.isArray(j))return j;var ks=['records','rows','data','items','list','units','result'];for(var i=0;i<ks.length;i++){var v=j[ks[i]];if(Array.isArray(v))return v;if(v&&typeof v==='object'){var r=recs(v);if(r.length)return r}}for(var k in j)if(Array.isArray(j[k])&&j[k].length&&typeof j[k][0]==='object')return j[k];return []}
+/* 필드 찾기 (이름이 달라도) */
+var AL={date:['date','day','work_date','wdate','일자','날짜','작업일','ymd'],time:['time','at','weighed_at','created_at','시각','시간','계량시각'],unit:['mix_unit','unit','line','mixer','tank','호기','배합호기','라인','설비'],batch:['batch','batch_no','batchNo','배치','배치번호','회차'],product:['product','item','recipe','product_name','제품','품목','배합비','제품명'],material:['material','ingredient','raw','material_name','원료','원료명','부원료','자재'],target:['target','plan','std','target_qty','spec','목표','목표량','기준','기준량','설정량'],actual:['actual','value','qty','weight','actual_qty','measured','실측','실제','계량값','계량량','중량'],uom:['uom','unit_name','단위'],status:['status','state','result','상태','결과','판정'],worker:['worker','operator','user','by','name','작업자','담당','계량자'],reason:['reason','category','cause','사유','분류','원인'],min:['min','minutes','duration','분','지연분','소요분'],start:['start','from','start_time','시작'],end:['end','to','end_time','종료'],hours:['hours','work_hours','h','근무시간','투입시간'],ot:['ot','overtime','연장'],night:['night','ng','심야']};
+function pick(o,k){if(!o||typeof o!=='object')return undefined;var a=AL[k]||[k];for(var i=0;i<a.length;i++){if(o[a[i]]!==undefined&&o[a[i]]!==null&&o[a[i]]!=='')return o[a[i]]}var lk=Object.keys(o);for(var i2=0;i2<a.length;i2++){var t=String(a[i2]).toLowerCase();for(var j=0;j<lk.length;j++)if(lk[j].toLowerCase()===t&&o[lk[j]]!=null&&o[lk[j]]!=='')return o[lk[j]]}return undefined}
+function num(v){if(v==null||v==='')return null;var n=parseFloat(String(v).replace(/,/g,''));return isFinite(n)?n:null}
+function dOf(o){var d=pick(o,'date');if(!d){var t=pick(o,'time');if(t&&/^\d{4}-\d{2}-\d{2}/.test(String(t)))d=String(t).slice(0,10)}return d?String(d).slice(0,10):''}
+function tOf(o){var t=pick(o,'time');if(!t)return '';t=String(t);var m=t.match(/(\d{1,2}):(\d{2})/);return m?pad(+m[1])+':'+m[2]:t}
+function maskName(v){v=String(v||'');if(!S.mask||!v)return v;return v.length<=1?v:v[0]+'＊'.repeat(Math.max(1,v.length-2))+(v.length>2?v[v.length-1]:'')}
+var NAMEK=/worker|operator|user|name|by|작업자|담당|계량자|확인자|이름/i;
+function maskObj(o){if(Array.isArray(o))return o.map(maskObj);if(o&&typeof o==='object'){var r={};Object.keys(o).forEach(function(k){r[k]=NAMEK.test(k)&&typeof o[k]==='string'?maskName(o[k]):maskObj(o[k])});return r}return o}
+/* ---------- 화면 ---------- */
+function stBox(kind,lb,c){var st=!c?'<span class="wg-p">불러오는 중…</span>':c.ok?'<span class="wg-ok">● 연결됨 · '+recs(c.raw).length+'건</span>':'<span class="wg-no">● '+E(c.err||'실패')+'</span>';return '<div class="wg-st"><b>'+lb+'</b><small>kind='+kind+'</small>'+st+'</div>'}
+function view(){var R=rng(),C={};KINDS.forEach(function(k){C[k[0]]=window.yumWeighFeed(k[0])});
+ var W=C.weigh&&C.weigh.ok?recs(C.weigh.raw):[],h='<div class="wg"><div class="wg-hd"><div><div class="wg-eb">WEIGHING · 계량팀 포털 연계 (읽기 전용)</div><h1>계량 대시보드</h1><p>계량팀 업무포털에서 작성한 자료를 그대로 받아 보여 줍니다. 여기서는 고치거나 쓰지 않습니다.</p></div>'+
+  '<div class="wg-rg"><input type="date" value="'+R[0]+'" onchange="yumWeigh.rng(this.value,null)"> ~ <input type="date" value="'+R[1]+'" onchange="yumWeigh.rng(null,this.value)"><button onclick="yumWeigh.day(0)">오늘</button><button onclick="yumWeigh.day(-1)">어제</button><button onclick="yumWeigh.day(-6)">최근 7일</button><button onclick="yumWeigh.reload()">↻</button></div></div>';
+ h+='<div class="wg-sts">'+KINDS.map(function(k){return stBox(k[0],k[1],C[k[0]])}).join('')+'</div>';
+ /* 요약 */
+ if(W.length){var tot=0,nt=0,err=[],re=0,prods={},mats={};W.forEach(function(o){var t=num(pick(o,'target')),a=num(pick(o,'actual'));if(t&&a!=null){err.push(Math.abs(a-t)/t*100)}if(a!=null){tot+=a;nt++}var st=String(pick(o,'status')||'');if(/재계량|재작업|재|re/i.test(st))re++;var p=pick(o,'product');if(p)prods[p]=(prods[p]||0)+1;var m=pick(o,'material');if(m&&a!=null)mats[m]=(mats[m]||0)+a});
+  var avgE=err.length?err.reduce(function(a,b){return a+b},0)/err.length:null,over=err.filter(function(x){return x>1}).length;
+  h+='<div class="wg-k"><div><small>계량 건수</small><b>'+f0(W.length)+'<em>건</em></b><span>'+R[0]+(R[1]!==R[0]?' ~ '+R[1]:'')+'</span></div><div><small>평균 오차</small><b>'+(avgE==null?'—':(Math.round(avgE*100)/100).toLocaleString('ko-KR'))+'<em>%</em></b><span>목표·실측 있는 '+err.length+'건 기준</span></div><div><small>오차 1% 넘음</small><b>'+f0(over)+'<em>건</em></b><span>'+(err.length?f1(over/err.length*100)+'%':'—')+'</span></div><div><small>재계량</small><b>'+f0(re)+'<em>건</em></b><span>상태에 「재계량」</span></div></div>';
+  var mt=Object.keys(mats).map(function(k){return [k,mats[k]]}).sort(function(a,b){return b[1]-a[1]}).slice(0,10),mx=mt.length?mt[0][1]:1;
+  if(mt.length)h+='<section class="wg-s"><h2>원료별 사용량 (상위 10)</h2><div class="wg-hb">'+mt.map(function(m){return '<div class="wg-hr"><span>'+E(m[0])+'</span><i><b style="width:'+(m[1]/mx*100).toFixed(1)+'%"></b></i><em>'+f1(m[1])+'</em></div>'}).join('')+'</div></section>'}
+ /* 진행 상태 */
+ var U=C.status&&C.status.ok?recs(C.status.raw):[];
+ if(U.length)h+='<section class="wg-s"><h2>지금 계량 진행</h2><div class="wg-us">'+U.map(function(o){var b=pick(o,'batch'),of=o.of||o.total||o.batches;return '<div class="wg-u"><b>'+E(pick(o,'unit')||'')+'</b><span>'+E(pick(o,'product')||'')+'</span><em>'+(b!=null?E(b)+(of?' / '+E(of):'')+' 배치':'')+' · '+E(pick(o,'status')||'')+'</em></div>'}).join('')+'</div></section>';
+ /* 기록 표 (응답 필드 그대로) */
+ function table(title,L){if(!L.length)return '';var cols=[];L.slice(0,50).forEach(function(o){Object.keys(o||{}).forEach(function(k){if(cols.indexOf(k)<0&&(o[k]==null||typeof o[k]!=='object'))cols.push(k)})});cols=cols.slice(0,14);
+  return '<section class="wg-s"><h2>'+title+' <small>'+L.length+'건'+(L.length>300?' · 최근 300건만 표시':'')+'</small></h2><div class="wg-tw"><table class="wg-t"><thead><tr>'+cols.map(function(c){return '<th>'+E(c)+'</th>'}).join('')+'</tr></thead><tbody>'+L.slice(-300).reverse().map(function(o){return '<tr>'+cols.map(function(c){var v=o[c];if(NAMEK.test(c)&&typeof v==='string')v=maskName(v);return '<td>'+E(v)+'</td>'}).join('')+'</tr>'}).join('')+'</tbody></table></div></section>'}
+ h+=table('계량 기록',W);
+ h+=table('지연 · 재계량',C.delay&&C.delay.ok?recs(C.delay.raw):[]);
+ h+=table('근무 · 투입시간',C.worklog&&C.worklog.ok?recs(C.worklog.raw):[]);
+ if(!W.length&&C.weigh&&C.weigh.ok)h+='<div class="wg-s"><b>이 기간 계량 기록이 없습니다.</b> 날짜를 바꿔 보세요.</div>';
+ /* 원본 (계량팀 응답 형식 확인용) */
+ h+='<section class="wg-s"><h2>받은 원본 자료 <small>필드 맞추기용 · 이름은 가려서 표시</small></h2><div class="wg-rg" style="justify-content:flex-start"><button onclick="yumWeigh.raw()">'+(S.raw?'접기':'펼치기')+'</button><button onclick="yumWeigh.copy()">원본 첫 2건 복사</button><label style="font-size:12px"><input type="checkbox" '+(S.mask?'checked':'')+' onchange="yumWeigh.mask(this.checked)"> 이름 가리기</label></div>'+
+  (S.raw?'<pre class="wg-raw">'+E(JSON.stringify(KINDS.reduce(function(o,k){var c=C[k[0]];o[k[0]]=c?(c.ok?maskObj(sample(c.raw)):{error:c.err}):'불러오는 중';return o},{}),null,2))+'</pre>':'')+'</section>';
+ return h+'</div>'}
+function sample(j){if(!j||typeof j!=='object')return j;var o=Array.isArray(j)?j.slice(0,2):{};if(!Array.isArray(j))Object.keys(j).forEach(function(k){o[k]=Array.isArray(j[k])?j[k].slice(0,2):j[k]});return o}
+function on(){return (location.hash||'').split('?')[0]===ROUTE}
+function paint(){if(!on())return;var M=document.getElementById('main');if(!M)return;var y=window.scrollY;try{M.innerHTML=view()}catch(e){M.innerHTML='<div class="panel"><b>계량 대시보드를 그리지 못했습니다</b><pre style="white-space:pre-wrap;font-size:12px">'+E(e.stack||e.message)+'</pre></div>'}window.scrollTo(0,y)}
+var PT=0;function soon(){clearTimeout(PT);PT=setTimeout(paint,300)}
+window.yumWeigh={rng:function(f,t){var R=rng();S.from=f||R[0];S.to=t||R[1];if(S.to<S.from){var x=S.from;S.from=S.to;S.to=x}save();paint()},day:function(k){var t=today();S.to=k===-1?addD(t,-1):t;S.from=addD(t,k);save();paint()},reload:function(){FD={};paint()},raw:function(){S.raw=!S.raw;paint()},mask:function(v){S.mask=!!v;paint()},
+ copy:function(){var o={};KINDS.forEach(function(k){var c=window.yumWeighFeed(k[0]);if(c&&c.ok)o[k[0]]=maskObj(sample(c.raw))});var t=JSON.stringify(o,null,2);try{navigator.clipboard.writeText(t).then(function(){alert('복사했습니다. 채팅에 붙여 넣으면 필드를 맞춰 드립니다 (이름은 가려짐).')})}catch(e){prompt('복사해 주세요',t)}},view:view};
+try{var _r=App.render;App.render=function(){var r=_r.apply(this,arguments);if(on()){var M=document.getElementById('main');if(M){try{M.innerHTML=view()}catch(e){M.innerHTML='<pre>'+E(e.stack||e.message)+'</pre>'}}}return r}}catch(e){}
+setInterval(function(){if(on()&&!document.hidden)paint()},60e3);
+try{var _nav=App.navItems;if(_nav)App.navItems=function(){var a=_nav.apply(this,arguments);try{if(!a.some(function(n){return n&&n.k===ROUTE})){var i=-1;a.forEach(function(n,k){if(n&&n.k==='#/juice')i=k});if(i>=0)a.splice(i+1,0,{k:ROUTE,t:'계량 대시보드',i:'⚖'})}}catch(e){}return a}}catch(e){}
+var CSS='.wg{display:flex;flex-direction:column;gap:14px}.wg-hd{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;align-items:flex-end}.wg-eb{font-size:11px;font-weight:800;letter-spacing:.12em;color:#64748B}.wg-hd h1{margin:2px 0 4px;font-size:24px;color:#0F172A}.wg-hd p{margin:0;font-size:13px;color:#475569}'+
+ '.wg-rg{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.wg-rg input[type=date]{height:32px;border:1px solid #CBD5E1;border-radius:8px;padding:0 8px;font:inherit;font-size:13px}.wg-rg button{border:1px solid #CBD5E1;background:#fff;border-radius:999px;padding:5px 12px;font-weight:700;font-size:12.5px;color:#334155;cursor:pointer}'+
+ '.wg-sts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.wg-st{background:#fff;border:1px solid #E2E8F0;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;font-size:12.5px}.wg-st small{color:#94A3B8}.wg-ok{color:#047857;font-weight:800}.wg-no{color:#B91C1C;font-weight:700;word-break:break-all}.wg-p{color:#64748B}'+
+ '.wg-k{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.wg-k>div{background:#fff;border:1px solid #E2E8F0;border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:3px}.wg-k small{font-size:12px;color:#64748B;font-weight:700}.wg-k b{font-size:24px;color:#0F172A}.wg-k em{font-style:normal;font-size:13px;color:#64748B;margin-left:3px}.wg-k span{font-size:11.5px;color:#94A3B8}'+
+ '.wg-s{background:#fff;border:1px solid #E2E8F0;border-radius:16px;padding:14px 16px}.wg-s h2{margin:0 0 10px;font-size:16px;color:#0F172A}.wg-s h2 small{font-size:12px;color:#64748B;font-weight:700;margin-left:6px}'+
+ '.wg-tw{overflow-x:auto;max-height:520px}.wg-t{border-collapse:collapse;font-size:12.5px;width:100%;font-variant-numeric:tabular-nums}.wg-t th{position:sticky;top:0;background:#F1F5F9;color:#334155;text-align:left;padding:6px 8px;border-bottom:1px solid #E2E8F0;white-space:nowrap}.wg-t td{padding:5px 8px;border-bottom:1px solid #F1F5F9;white-space:nowrap}'+
+ '.wg-hb{display:flex;flex-direction:column;gap:6px}.wg-hr{display:grid;grid-template-columns:140px 1fr 90px;gap:10px;align-items:center;font-size:12.5px}.wg-hr i{height:10px;background:#F1F5F9;border-radius:6px;overflow:hidden}.wg-hr i b{display:block;height:100%;background:#B7791F;border-radius:6px}.wg-hr em{font-style:normal;text-align:right;font-weight:800}'+
+ '.wg-us{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}.wg-u{border:1px solid #E2E8F0;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}.wg-u b{font-size:15px}.wg-u em{font-style:normal;font-size:12px;color:#64748B}'+
+ '.wg-raw{background:#0F172A;color:#E2E8F0;border-radius:10px;padding:12px;font-size:12px;max-height:420px;overflow:auto;white-space:pre-wrap}@media(max-width:900px){.wg-sts,.wg-k{grid-template-columns:repeat(2,minmax(0,1fr))}}';
+var st=document.createElement('style');st.textContent=CSS;document.head.appendChild(st);
+})();
+</script>
 </body>
 </html>
