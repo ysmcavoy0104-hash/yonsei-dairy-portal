@@ -7809,6 +7809,12 @@ function plan(){
  var OVW=[];try{var lastD=ds[ds.length-1];staff.forEach(function(p){if(p.st==='4층'||p.st==='지원')return;var a=asg[p.n]||[],used=0,fut=0,W=o.wishes[p.n]||{};for(var d4=1;d4<=lastD;d4++)if(a[d4-1]==='휴무'&&!(W[d4]==='하계'||W[d4]==='연차'||W[d4]==='병가'||W[d4]==='수련회'))used++;Object.keys(W).forEach(function(k){if(+k>lastD&&!(W[k]==='하계'||W[k]==='연차'||W[k]==='병가'||W[k]==='수련회')&&W[k]!=='교육')fut++});var tg=+o.target||0;if(fut&&used+fut>tg)OVW.push(p.n+'(편성 '+used+'일 + 뒤 희망 '+fut+'일 > 목표 '+tg+'일)')})}catch(e){}
  o.result.overWish=OVW;
  U.toast((wi+1)+'주차('+wk.lab+') 근무 편성 완료 — 주간근무계획표에 넣었습니다.'+(V.length?' 규칙 확인 '+V.length+'건이 있습니다.':'')+(OVW.length?' ⚠ 뒤쪽 희망휴무까지 합치면 목표 휴무를 넘는 사람: '+OVW.join(', ')+' — 이미 편성한 주에서 휴무를 줄이거나 희망휴무를 조정해 주세요.':''),OVW.length?'bad':'ok');
+ /* 2026-11-25 달이 걸친 주 (예: 11/30 ~ 12/6): 이 달 날짜만 편성되던 것 → 옆 달 같은 주도 이어서 자동 편성 */
+ try{if(!plan.__c&&wk.ds.length<7){var yy=+CUR_YM.slice(0,4),mm=+CUR_YM.slice(5,7)+(wk.s<1?-1:1);if(mm<1){mm=12;yy--}if(mm>12){mm=1;yy++}
+  var other=yy+'-'+String(mm).padStart(2,'0'),keepYM=CUR_YM;plan.__c=1;
+  try{CUR_YM=other;var W2=weekList(),j2=-1;W2.forEach(function(x,k){if(x.key===wk.key)j2=k});
+   if(j2>=0){var L2=lockOf();if(W2[j2].ds.some(function(d){return d>L2})){M(other).selWeek=j2;plan()}}}
+  finally{CUR_YM=keepYM;plan.__c=0;var bx=$('#ws-root');if(bx)bx.innerHTML=innerView()}}}catch(e){plan.__c=0;console.warn('[달 걸친 주 편성]',e)}
 }
 /* 주간근무계획표에서 직접 고친 근무 → 이 달 결과(휴무 개수 · 날짜별 현황 · 휴일체크표) 다시 계산 + 그 주 계획표 다시 만들기 */
 function srFix(ym){var keep=CUR_YM,ch={},n0=0;CUR_YM=ym;try{var o=M(ym),A=o.asg||{},W=o.wishes||{},P=o.planned||{},L=lockOf();
@@ -23650,7 +23656,16 @@ var st=document.createElement('style');st.textContent=CSS;document.head.appendCh
  function setHf(v){try{localStorage.setItem('yum_dsho',v||'')}catch(e){}}
  function fm(){var M={};(DB.data.forms||[]).forEach(function(f){M[f.id]=f});return M}
  /* 문서의 호기 하나: 고른 호기가 하나일 때만 */
- function hoOf(d,f){var v='';try{v=D.hogiOf?D.hogiOf(d,f):''}catch(e){}v=String(v||'').replace(/호기$/,'').trim();return /^[A-F]$/.test(v)?v:''}
+ /* 호기 정하기 (2026-11-25 고침): ① 일지 안에서 고른 호기 칸(…_ho · hogi) → ② 일지 표시 꼬리표 → ③ 양식 이름에 호기가 「하나만」 있을 때
+    예전에는 양식 이름을 먼저 봐서 「(SIG · A·E호기)」는 늘 E, 「(B·C·D·F호기)」 · 「(A~F호기)」는 늘 F로 들어갔음 */
+ function lettersIn(t){t=String(t||'');var L=[],m,re=/([A-F](?:\s*[·,~\-]\s*[A-F])*)\s*호기/g;while((m=re.exec(t))){var x=m[1];if(/~|-/.test(x)){var a=x.charCodeAt(0),b=x.charCodeAt(x.length-1);for(var c=a;c<=b;c++)L.push(String.fromCharCode(c))}else x.split(/\s*[·,]\s*/).forEach(function(y){if(y)L.push(y)})}
+  return L.filter(function(v,i,a2){return /^[A-F]$/.test(v)&&a2.indexOf(v)===i})}
+ function hoOf(d,f){try{var X=(d&&d.data)||{},g=X.grid||{},keys=Object.keys(g);
+   for(var i=0;i<keys.length;i++){var k=keys[i];if(!/(^|_)(ho|hogi)$/i.test(k))continue;var v=String(g[k]==null?'':g[k]).replace(/호기/g,'').trim().toUpperCase();if(/^[A-F]$/.test(v))return v}
+   if(/^[A-F]$/.test(String(X.hogi||'').replace(/호기/g,'').trim()))return String(X.hogi).replace(/호기/g,'').trim();
+   if(window.yumDocTag){var L1=lettersIn(yumDocTag(f||{},X)||'');if(L1.length===1)return L1[0]}
+   var L2=lettersIn((f&&f.name)||'');if(L2.length===1)return L2[0];
+  }catch(e){}return ''}
  window.yumDocHo=hoOf;
  function isPack(d){try{return d.__t==='포장팀'}catch(e){return false}}
  function openSet(){try{return JSON.parse(localStorage.getItem('yum_dshoopen')||'{}')||{}}catch(e){return {}}}
