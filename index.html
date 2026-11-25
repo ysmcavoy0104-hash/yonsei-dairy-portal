@@ -21371,6 +21371,13 @@ function pdfApply(D,out){['D','F'].forEach(function(h){var r=PDFREC[D+'|'+h];if(
  var st=(o.stops||[]).filter(function(x){return x.c!=='SIP·CIP'});o.stops=[{c:'SIP·CIP',m:sip,t:'SIP · 준비 · CIP'+(r._sipLog?' (출근 07:30 기준 · 시간표 SIP '+r._sipLog+')':'')}].concat(r.up?[{c:'상류(유액) 대기',m:r.up,t:'⑦ 상류(유액) 대기'}]:[]).concat(r.dn?[{c:'하류 대기',m:r.dn,t:'⑨ 하류 대기'}]:[]).concat(r.fM?[{c:'고장',m:r.fM,t:'② 고장 '+r.fN+'건',fail:true}]:[]).concat(perf-r.fM>0?[{c:'순간정지',m:perf-r.fM,t:'⑤ 순간정지 등'}]:[]);
  o.src='OEE 시범 운영 보고서 (2026-11-19 · 별첨 '+(h==='D'?1:2)+')';o.sub2=r.item;
  o.note=['보고서 별첨 수치 · 품목 '+r.item+' · '+r.ml+'ml','점유 '+fm(r.op)+'분 · 가동 '+fm(r.g)+'분 · 정지 '+fm(r.st)+'분 (상류 '+r.up+' · 하류 '+r.dn+')','생산 '+fm(r.q)+'개 · 생산 달성률 '+r.ach+'%']})}
+var SCN={'1':'계획정지','2':'고장','3':'준비교체','4':'자재 대기','5':'순간정지','6':'기타','7':'상류(유액) 대기','8':'중간 CIP','9':'하류 대기'};
+function sterOeeEq(d){var occ=+d.occupied_min||0,run=+d.run_min||0;if(!(occ>0))return null;var lm=d.loss_min||{},stops=[];
+ if(+lm.pre06_ster>0)stops.push({c:'SIP·CIP',m:+lm.pre06_ster,t:'06시 ~ 멸균 시작'});if(+lm.ster_cip>0)stops.push({c:'SIP·CIP',m:+lm.ster_cip,t:'멸균 · CIP'});
+ (d.stops||[]).forEach(function(x){var c0=String(x.code||'').split('-')[0];stops.push({c:SCN[c0]||'기타',m:+x.min||0,t:(x.name||'')+(x.text?' · '+x.text:''),a:x.start||'',fail:c0==='2'})});
+ var o=mk({id:'S'+d.unit,team:'ster',name:'멸균 '+d.unit+'호기',short:d.unit+'호기',sub:d.equip||'',T:{op:occ,mg:0,ld:occ,st:Math.max(0,occ-run),run:run},P:d.performance==null?null:+d.performance,Q:d.quality==null?1:+d.quality,qAssumed:false,q:d.qty_l||null,ach:d.achievement,order:d.order_l,stops:stops,src:'멸균팀 포털 산출 OEE',sub2:d.product||'',
+  note:['멸균팀 포털이 계산한 값 그대로 · '+(d.product||'')+(d.trial?' (시생산 · 양품률 제외)':''),'점유 '+fm(occ)+'분 · 가동 '+fm(run)+'분 · 정지 '+fm(d.stop_min)+'분','배치 '+(d.batch_actual==null?'—':d.batch_actual)+' / '+(d.batch_plan==null?'—':d.batch_plan)+' · 적산량 '+fm(d.qty_l)+'L'+(d.qty_estimated?' (대신 채운 값)':'')+' · 생산지시 '+fm(d.order_l)+'L']});
+ if(d.availability!=null)o.A=+d.availability;if(d.oee!=null)o.O=+d.oee;o.sterOEE=1;return o}
 function eqDay(D){if(ST.rng==='month'&&D===ST.d)return eqMonth(D);return eqDay0(D)}
 function eqDay0(D){var k=D+'|'+sig()+'|'+Object.keys(PXD).length;if(EQC[k])return EQC[k];var R=rangeW(D),PR=(R&&R.PR)||{},out=[],base=cfg().base||{};
  /* 착즙 · 배합 — 웹 일지 */
@@ -21415,6 +21422,8 @@ function eqDay0(D){var k=D+'|'+sig()+'|'+Object.keys(PXD).length;if(EQC[k])retur
  out.forEach(function(o){var f=o.stops.filter(function(s){return s.fail!=null?s.fail:s.c==='고장'});o.fails=f.length;o.failM=f.reduce(function(a,s){return a+s.m},0)});
  /* 2026-11-17 멸균 OEE는 따로 기록을 시작할 때까지 대기 (일지로 만든 값은 쓰지 않음) */
  out=out.filter(function(o){return o.team!=='ster'});
+ /* 2026-11-25 멸균 1~5호기 = 멸균팀 포털이 계산한 OEE 결과 그대로 (ster-proxy feed kind=oee) */
+ try{var SO=window.yumSterOEE&&yumSterOEE.day(D);(SO&&SO.rows||[]).forEach(function(d){var o=sterOeeEq(d);if(o)out.push(o)})}catch(e){console.warn('[OEE 멸균팀]',e)}
  try{pdfApply(D,out)}catch(e){console.warn('[OEE 보고서 자료]',e)}
  /* 2026-11-19 포장 OEE는 시범 운영 중인 D · F호기 + 2026-11-20 A · B · E호기도 11월부터 */ out=out.filter(function(o){return o.team!=='pack'||o.id==='PD'||o.id==='PF'||((o.id==='PA'||o.id==='PB'||o.id==='PE')&&D>='2026-11-01')});
  EQC[k]=out;return out}
@@ -21431,6 +21440,7 @@ var MOC={};function eqMonth(D){var F=D.slice(0,8)+'01',k=F+'|'+D+'|'+sig()+'|'+V
   var A=T.ld?cl(T.run/T.ld):null,P=T.run?cl(T.net/T.run):null,Q=T.net?cl(T.val/T.net):null,r={};Object.keys(f).forEach(function(k){r[k]=f[k]});
   r.T=T;r.A=A;r.P=P;r.Q=Q;r.O=A!=null&&P!=null&&Q!=null?A*P*Q:null;r.q=q||null;r.stops=stops;r.fails=fl;r.failM=fM;r.v2=f.v2?v2:f.v2;r.pk=pk;r.qAssumed=qa;r.days=L.length;r.ach=pk&&pk.od?pk.qty/pk.od:null;r.order=pk?pk.od:null;
   r.src=(+F.slice(5,7))+'/1 ~ '+D.slice(5).replace('-','/')+' · '+L.length+'일 합계';r.note=['월별 합계: '+L.map(function(x){return x.d.slice(5).replace('-','/')}).join(', ')+' ('+L.length+'일)','A = 가동 '+fm(T.run)+'분 ÷ 점유 '+fm(T.ld)+'분','P = 순가동 '+fm(T.net)+'분 ÷ 가동 '+fm(T.run)+'분','Q = 가치가동 '+fm(T.val)+'분 ÷ 순가동 '+fm(T.net)+'분'];r.est='';return r});
+ try{var SM=window.yumSterOEE&&yumSterOEE.sum(F,D);if(SM)out.forEach(function(r){if(r.team!=='ster')return;var s=SM.filter(function(x){return 'S'+x.unit===r.id})[0];if(!s)return;['A','P','Q','O'].forEach(function(k2,i){var v=[s.availability,s.performance,s.quality,s.oee][i];if(v!=null)r[k2]=+v});r.ach=s.achievement;r.src='멸균팀 포털 산출 · '+r.src})}catch(e){}
  MOC={};MOC[k]=out;return out}
 function tsum(L){var T={op:0,mg:0,ld:0,st:0,run:0,net:0,val:0},n=0,fb=[],q=0,f=0,fm2=0;L.forEach(function(o){if(o.q)q+=+o.q;f+=o.fails||0;fm2+=o.failM||0;if(o.O==null)return;n++;if(o.T&&o.T.ld>0&&o.T.net!=null){['op','mg','ld','st','run','net','val'].forEach(function(k){T[k]+=o.T[k]||0})}else fb.push(o)});
  var A=T.ld?cl(T.run/T.ld):null,P=T.run?cl(T.net/T.run):null,Q=T.net?cl(T.val/T.net):null;
@@ -21577,15 +21587,15 @@ function exOpen(k,kind,id,quiet){var P=document.querySelector('.o2 [data-xp="'+(
  requestAnimationFrame(function(){var e=P.querySelector('.o2-exp');if(e)e.classList.add('in');if(!quiet)P.scrollIntoView({behavior:'smooth',block:'nearest'})})}
 
 /* 2026-11-16 OEE: 부문 · 공정 통합 게이지 없이 설비별 큰 게이지만 — 멸균 1~5호기 · 포장 A~F호기 */
-function bigEqWait(t,D){return '<section class="o2-c o2-big" style="--c:'+t.c+'"><header><i style="background:'+t.c+'"></i><b>멸균 OEE · 1~5호기</b><small>'+md(D)+' ('+wd(D)+') · 멸균 OEE 기록 시작 전 · 대기</small></header><div class="o2-bgg n5">'+
+function bigEqWait(t,D){return '<section class="o2-c o2-big" style="--c:'+t.c+'"><header><i style="background:'+t.c+'"></i><b>멸균 OEE · 1~5호기</b><small>'+md(D)+' ('+wd(D)+') · '+(function(){var x=window.yumSterOEE&&yumSterOEE.state(D);return x&&x.err?'멸균팀 OEE 받지 못함 · '+E(x.err):x&&x.pend?'멸균팀 포털에서 OEE 받는 중… (20~30초)':'멸균팀 OEE 자료 없음'})()+'</small></header><div class="o2-bgg n5">'+
   ['1','2','3','4','5'].map(function(h,j){return '<div class="o2-bg o2-wt" style="--dl:'+(j*60)+'ms;--wd:'+(j*.35)+'s"><div class="o2-bgh"><b>멸균 '+h+'호기</b></div>'+
-   '<div class="o2-wr"><svg viewBox="0 0 156 156" width="156" height="156"><circle cx="78" cy="78" r="62" fill="none" stroke="#EEF2F7" stroke-width="14"/><circle class="o2-wa" cx="78" cy="78" r="62" fill="none" stroke="'+t.c+'" stroke-width="14" stroke-linecap="round" stroke-dasharray="90 300"/></svg><div class="o2-wx"><b>대기</b><small>기록 입력 전</small></div></div>'+
-   '<div class="o2-bgq"><span class="na"><i class="o2-dots"><u></u><u></u><u></u></i> 기록 시작 시 표시</span></div></div>'}).join('')+'</div></section>'}
-function bigEq(t,D){if(t.k==='ster')return bigEqWait(t,D);var L=eqDay(D).filter(function(o){return o.team===t.k}),ids=t.k==='ster'?['1','2','3','4','5']:'ABCDEF'.split(''),pre=t.k==='ster'?'S':'P';
+   '<div class="o2-wr"><svg viewBox="0 0 156 156" width="156" height="156"><circle cx="78" cy="78" r="62" fill="none" stroke="#EEF2F7" stroke-width="14"/><circle class="o2-wa" cx="78" cy="78" r="62" fill="none" stroke="'+t.c+'" stroke-width="14" stroke-linecap="round" stroke-dasharray="90 300"/></svg><div class="o2-wx"><b>대기</b><small>'+(window.yumSterOEE&&(yumSterOEE.state(D)||{}).pend?'받는 중':'자료 없음')+'</small></div></div>'+
+   '<div class="o2-bgq"><span class="na"><i class="o2-dots"><u></u><u></u><u></u></i> 멸균팀 포털 산출 값</span></div></div>'}).join('')+'</div></section>'}
+function bigEq(t,D){if(t.k==='ster'&&!eqDay(D).some(function(o){return o.team==='ster'}))return bigEqWait(t,D);var L=eqDay(D).filter(function(o){return o.team===t.k}),ids=t.k==='ster'?['1','2','3','4','5']:'ABCDEF'.split(''),pre=t.k==='ster'?'S':'P';
  var tone=function(v){return v==null?'#CBD5E1':v>=.85?'#10B981':v>=.65?'#F59E0B':'#EF4444'};
  return '<section class="o2-c o2-big" style="--c:'+t.c+'"><header><i style="background:'+t.c+'"></i><b>'+(t.k==='ster'?'멸균 OEE · 1~5호기':'포장 OEE · A~F호기')+'</b><small>'+md(D)+' ('+wd(D)+') · 게이지를 누르면 상세</small></header><div class="o2-bgg n'+ids.length+'">'+
   ids.map(function(h,j){var o=L.filter(function(x){return x.id===pre+h})[0],nm=t.k==='ster'?'멸균 '+h+'호기':'포장 '+h+'호기',on=o&&o.O!=null;
-   if(!on)return '<div class="o2-bg o2-wt" style="--dl:'+(j*60)+'ms;--wd:'+(j*.35)+'s"><div class="o2-bgh"><b>'+nm+'</b></div><div class="o2-wr"><svg viewBox="0 0 156 156" width="156" height="156"><circle cx="78" cy="78" r="62" fill="none" stroke="#EEF2F7" stroke-width="14"/><circle class="o2-wa" cx="78" cy="78" r="62" fill="none" stroke="'+t.c+'" stroke-width="14" stroke-linecap="round" stroke-dasharray="90 300"/></svg><div class="o2-wx"><b>대기</b><small>기록 입력 전</small></div></div><div class="o2-bgq"><span class="na">'+(/[ABDEF]/.test(h)?(ST.rng==='month'?'이 달 기록 없음':'이 날 기록 없음'):'OEE 기록 시작 전')+'</span></div></div>';
+   if(!on)return '<div class="o2-bg o2-wt" style="--dl:'+(j*60)+'ms;--wd:'+(j*.35)+'s"><div class="o2-bgh"><b>'+nm+'</b></div><div class="o2-wr"><svg viewBox="0 0 156 156" width="156" height="156"><circle cx="78" cy="78" r="62" fill="none" stroke="#EEF2F7" stroke-width="14"/><circle class="o2-wa" cx="78" cy="78" r="62" fill="none" stroke="'+t.c+'" stroke-width="14" stroke-linecap="round" stroke-dasharray="90 300"/></svg><div class="o2-wx">'+(t.k==='ster'?'<b>—</b><small>비가동</small>':'<b>대기</b><small>기록 입력 전</small>')+'</div></div><div class="o2-bgq"><span class="na">'+(/[ABDEF1-5]/.test(h)?(ST.rng==='month'?'이 달 기록 없음':(t.k==='ster'?'이 날 생산 없음':'이 날 기록 없음')):'OEE 기록 시작 전')+'</span></div></div>';
    return '<div class="o2-bg'+(on?'':' off')+'" style="--dl:'+(j*60)+'ms"'+(o?' data-ex="'+t.k+'|u|'+o.id+'" role="button" tabindex="0"'+TIP([nm+' · OEE '+(on?pc(o.O)+'%':'—'),on?'A '+pc(o.A)+' · P '+pc(o.P)+' · Q '+(o.qAssumed?'자료 대기':pc(o.Q)):'',o.src?'자료: '+o.src:'','누르면 상세']):'')+'>'+
     '<div class="o2-bgh"><b>'+nm+'</b>'+''+'</div>'+donut(on?o.O:null,tone(on?o.O:null),156)+
     '<div class="o2-bgq">'+(on?[['A',o.A],['P',o.P],['Q',o.qAssumed?null:o.Q]].map(function(x){return '<span><i>'+({A:'시간',P:'성능',Q:'양품'})[x[0]]+'</i>'+(x[1]==null?'—':pc(x[1]))+'</span>'}).join(''):'<span class="na">'+(o?'자료 부족':'비생산 · 자료 없음')+'</span>')+'</div></div>'}).join('')+'</div></section>'}
@@ -23747,7 +23757,7 @@ function get(F,T){var key=F+'|'+T,c=C[key];if((!c||Date.now()-c.at>(c.err?60e3:1
   var r=await fetch(window.SUPA_URL+'/functions/v1/ster-proxy',{method:'POST',signal:ac.signal,headers:{'Content-Type':'application/json',apikey:window.SUPA_ANON,Authorization:'Bearer '+ses.access_token},body:JSON.stringify({path:'feed',kind:'oee',from:F,to:T})});clearTimeout(tm);
   var t=await r.text(),j=null;try{j=JSON.parse(t)}catch(e){}var b=body(j);
   if(!r.ok||!b)throw new Error((j&&(j.error||j.message))||(r.status===404?'멸균팀 포털에 OEE 자료가 아직 열리지 않았습니다 (반영 전)':'응답 '+r.status+(b?'':' · OEE 자료 형식이 아님')));
-  C[key]={at:Date.now(),j:b}}catch(e){C[key]={at:Date.now(),err:e.name==='AbortError'?'응답이 너무 늦습니다 (2분 30초 초과) · ↻로 다시 받아 주세요':String(e&&e.message||e)}}finally{B[key]=0;draw()}})()}return c||null}
+  C[key]={at:Date.now(),j:b};try{window.dispatchEvent(new Event('yum-sterfeed'))}catch(_){}}catch(e){C[key]={at:Date.now(),err:e.name==='AbortError'?'응답이 너무 늦습니다 (2분 30초 초과) · ↻로 다시 받아 주세요':String(e&&e.message||e)}}finally{B[key]=0;draw()}})()}return c||null}
 /* 그리기 */
 function gauge(v,c,sz){sz=sz||92;var r=sz/2-8,L=2*Math.PI*r,p=v==null?0:Math.max(0,Math.min(1,v));return '<svg width="'+sz+'" height="'+sz+'" viewBox="0 0 '+sz+' '+sz+'"><circle cx="'+sz/2+'" cy="'+sz/2+'" r="'+r+'" fill="none" stroke="#EEF2F7" stroke-width="9"/><circle cx="'+sz/2+'" cy="'+sz/2+'" r="'+r+'" fill="none" stroke="'+c+'" stroke-width="9" stroke-linecap="round" stroke-dasharray="'+(L*p)+' '+L+'" transform="rotate(-90 '+sz/2+' '+sz/2+')"/><text x="50%" y="52%" text-anchor="middle" dominant-baseline="middle" font-size="'+(sz/5)+'" font-weight="800" fill="#0F172A">'+(v==null?'—':pc(v)+'%')+'</text></svg>'}
 function tone(v){return v==null?'#CBD5E1':v>=.85?'#10B981':v>=.65?'#F59E0B':'#EF4444'}
@@ -23830,7 +23840,11 @@ var st=document.createElement('style');st.textContent=
 '.stx-k{display:inline-block;background:#EEF2FF;color:#3730A3;border-radius:6px;padding:1px 6px;font-size:12px;font-weight:700}.stx-k.c7{background:#F3E8FF;color:#6B21A8}.stx-k.c9{background:#DBEAFE;color:#1E40AF}.stx-uf{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px}.stx-ft{font-size:12px;color:#64748B;margin-top:6px}sup{color:#D97706;font-weight:800}'+
 '.stx-dd summary{cursor:pointer;font-size:16px}.stx-dd summary small{font-size:12px;color:#64748B;margin-left:6px}.stx-dd[open] summary{margin-bottom:10px}'+'@media(max-width:640px){.stx-lr{grid-template-columns:1fr}.stx-rg{margin-left:0}}';
 document.head.appendChild(st);
-window.yumSterOEE={get:get,range:range,S:S};
+function monR(D){var y=+D.slice(0,4),m=+D.slice(5,7),l=new Date(Date.UTC(y,m,0)).toISOString().slice(0,10);return [D.slice(0,8)+'01',cap(l)]}
+window.yumSterOEE={get:get,range:range,S:S,
+ state:function(D){if(!D||D>kst(-1))return null;var r=monR(D),c=get(r[0],r[1]);return c?{err:c.err||'',ok:!!c.j}:{pend:1}},
+ day:function(D){if(!D||D>kst(-1))return null;var r=monR(D),c=get(r[0],r[1]);if(!c||!c.j)return null;return {rows:(c.j.days||[]).filter(function(x){return x&&x.date===D})}},
+ sum:function(F,T){var c=C[F+'|'+T];return c&&c.j?(c.j.summary||[]):null}};
 })();
 </script>
 </body>
