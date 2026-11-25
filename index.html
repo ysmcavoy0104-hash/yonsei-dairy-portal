@@ -7519,7 +7519,7 @@ var CSS='.wsx{--wp:#5B3FC4;--wpd:#2E1F73;--wpl:#EFEBFC;--wl:#E3E7EE;--wsat:#2F6F
  '.wsx-day.unp{background:#F7F8FA;border-style:dashed;min-height:60px}.wsx-day.unp .st{color:#A0A8B5}'+
  '.wsx-mt{display:flex;flex-direction:column;gap:4px}.wsx-mt b{font-size:13px;color:#2E1F73}.wsx-mt span{font-size:11.5px;color:#5A6474}.wsx-mt div{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}'+
  '.wsx-mt button{border:1px solid #D7DCE3;background:#fff;border-radius:999px;padding:4px 11px;font-size:12px;font-weight:700;cursor:pointer;color:#4A5568}.wsx-mt button.on{background:#FFF1DC;border-color:#E9B872;color:#9A5B00}'+
- '.wsx-mtm{margin-top:14px;padding:12px 14px;border:1px solid #F1D9B5;border-radius:12px;background:#FFFBF4}.wsx-mtm .g{display:grid;grid-template-columns:repeat(7,minmax(0,52px));gap:5px;margin-top:6px}'+
+ '.wsx-sr{margin-top:12px;padding:12px 14px;border:1px solid #D6CCF5;border-radius:12px;background:#FAF8FF}.wsx-sr>b{display:block;margin-bottom:4px}.wsx-sr>span{font-size:12px;color:#5B6478}.wsx-srt{margin-top:8px;border-collapse:collapse;font-size:13px}.wsx-srt th,.wsx-srt td{padding:5px 10px;border-bottom:1px solid #ECE7FA;text-align:left}.wsx-srt i{font-style:normal;display:inline-block;background:#EDE7FF;color:#4C2FB0;border-radius:6px;padding:1px 7px;margin:1px;font-size:12px}.wsx-srt button,.wsx-sra button{border:1px solid #CFC4F3;background:#fff;border-radius:8px;padding:3px 10px;cursor:pointer;font:inherit;font-size:12px}.wsx-sra{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin-top:10px;font-size:12.5px}.wsx-sra label{display:inline-flex;align-items:center;gap:3px;white-space:nowrap}.wsx-sra input[type=checkbox]{width:auto!important;margin:0}.wsx-sra select,.wsx-sra input[type=date]{width:auto!important;flex:0 0 auto;padding:4px 6px;border:1px solid #CFC4F3;border-radius:7px;font:inherit}.wsx-sre{font-size:12px;color:#94A3B8;margin-top:6px}'+'.wsx-mtm{margin-top:14px;padding:12px 14px;border:1px solid #F1D9B5;border-radius:12px;background:#FFFBF4}.wsx-mtm .g{display:grid;grid-template-columns:repeat(7,minmax(0,52px));gap:5px;margin-top:6px}'+
  '.wsx-mtm .g .h{display:block;font-size:11px;font-weight:800;color:#6B7685;text-align:center}.wsx-mtm .g .h.sat{color:#2F6FD6}.wsx-mtm .g .h.sun{color:#D64545}'+
  '.wsx-mtm .g button{position:relative;border-radius:9px;padding:6px 0;text-align:center;font-weight:800}.wsx-mtm .g button i{font-style:normal;font-size:10px;margin-left:2px}'+
  '.wsx-empty{text-align:center;padding:28px 12px;color:#6B7685;font-size:13px}.wsx-empty .ic{font-size:30px;margin-bottom:6px;opacity:.7}'+
@@ -7559,7 +7559,7 @@ function reqInputsHtml(){
    '<div class="sub">휴무 가능 '+Math.max(0,ROSTER.length-r)+'명</div></label>';
  }).join('')+'</div>';
  var toggle='<button class="wsx-more" onclick="WorkSched.toggleDetail()">'+(SHOW_DETAIL?'▲ 팀별 인원 숨기기':'▼ 팀별 인원(배합 · 배합 오후 · 착즙 · 지원) 보기')+'</button>';
- return basic+toggle+(SHOW_DETAIL?teamReqInputsHtml():'')+maintMonthHtml();
+ return basic+toggle+(SHOW_DETAIL?teamReqInputsHtml():'')+maintMonthHtml()+srHtml();
 }
 var TROWS=[['배합','배합','오전 2 + 중간 + 이인철',11,'#2F6FD6'],['배합오후','배합 오후','오후 근무',10,'#6A3FA0'],['착즙오전','착즙 오전','황용식 차장 포함',6,'#1B9A5C'],['착즙오후','착즙 오후','',6,'#0E7C4A'],['지원','지원','4층 2 + 임성주',3,'#D98A1C']];
 function teamReqInputsHtml(){
@@ -7699,6 +7699,45 @@ function maintWd(ym){ym=ym||CUR_YM;var MS=(DB.data.workSched&&DB.data.workSched.
 function isMaint(d,ym){ym=ym||CUR_YM;return !!maintWd(ym)[dowOf(ym,d)]}
 function toggleMaint(wd){var o=M(CUR_YM),m=Object.assign({},maintWd(CUR_YM));if(m[wd])delete m[wd];else m[wd]=1;o.maintWd=m;
  try{DB.data.workSched.maintWdDef=m}catch(e){}DB.save();var y=window.scrollY,box=$('#ws-root');if(box)box.innerHTML=innerView();window.scrollTo(0,y)}
+/* 2026-11-25 개인 근무 제한 조건: 기간 안에서 그 사람은 고른 근무로만 편성 (예: 장영빈 = 착즙 조출 · 배합지원만, 11/30 ~ 12/6)
+   자동 편성 결과에서 다른 근무가 나오면, 같은 날 그 근무를 맡을 수 있는 다른 사람과 서로 바꿈 (오후 다음날 오전 금지 · 고정근무자 제외) */
+var SR_K=[['오전','오전 (착즙 조출 05:30 · 배합 오전)'],['정상','중간 (정상)'],['오후','오후'],['배합지원','배합지원 (착즙 → 배합 중간)'],['착즙지원','착즙지원']],SR_WORK={'오전':1,'정상':1,'오후':1,'배합지원':1,'착즙지원':1},SR_MORN={'오전':1,'정상':1,'배합지원':1,'착즙지원':1};
+function srRules(){var W=D();W.shiftRules=W.shiftRules||[];if(!W.srSeed1){W.srSeed1=1;W.shiftRules.push({id:'sr1',n:'장영빈',allow:['오전','배합지원'],from:'2026-11-30',to:'2026-12-06'})}return W.shiftRules}
+function srSup(){try{var u=Auth.user();return !!u&&u.role==='superadmin'}catch(e){return false}}
+function srApply(asg,staff,days){var R=srRules(),yy=+CUR_YM.slice(0,4),mm=+CUR_YM.slice(5,7),K=function(n){return String(n||'').replace(/\s+/g,'')},bad=[];if(!R.length)return bad;
+ var byN={};staff.forEach(function(p){byN[K(p.n)]=p});
+ function ruleOf(n,ds){return R.filter(function(r){return K(r.n)===K(n)&&(!r.from||ds>=r.from)&&(!r.to||ds<=r.to)})[0]}
+ function okFor(n,v,ds){var r=ruleOf(n,ds);return !r||!SR_WORK[v]||(r.allow||[]).indexOf(v)>=0}
+ days.slice().sort(function(a,b){return a-b}).forEach(function(d){var ds=ymd(yy,mm,d);
+  Object.keys(asg).forEach(function(n){var r=ruleOf(n,ds);if(!r)return;var a=asg[n],v=a[d-1];if(!SR_WORK[v]||(r.allow||[]).indexOf(v)>=0)return;
+   var me=byN[K(n)],best=null;
+   Object.keys(asg).forEach(function(m){if(best||K(m)===K(n))return;var q=byN[K(m)];if(!q||q.fx||q.st==='4층'||q.st==='지원')return;var b=asg[m],w=b[d-1];
+    if((r.allow||[]).indexOf(w)<0)return;if(!okFor(m,v,ds))return;
+    if(me&&q.st!==me.st&&!(w==='배합지원'||v==='배합지원'))return;                                   /* 같은 팀끼리 (배합지원은 착즙 인원 몫) */
+    if(v==='오후'&&SR_MORN[b[d]])return;if(SR_MORN[v]&&d>1&&b[d-2]==='오후')return;               /* 바뀐 사람: 오후 다음날 오전 · 정상 금지 */
+    if(SR_MORN[w]&&d>1&&a[d-2]==='오후')return;if(w==='오후'&&SR_MORN[a[d]])return;
+    best=m});
+   if(best){var t=asg[best][d-1];asg[best][d-1]=v;a[d-1]=t;return}
+   /* 하루만 바꿀 사람이 없으면: 그날부터 이번 주 끝까지 근무를 통째로 맞바꿈 (예: 오후 2명이 꼭 필요한 날 → 같은 팀 사람과 그 뒤 근무를 함께 바꿈) */
+   var tail=days.filter(function(x){return x>=d}).sort(function(x,y){return x-y}),pick=null,pickDiff=99;
+   Object.keys(asg).forEach(function(m){if(K(m)===K(n))return;var q=byN[K(m)];if(!q||q.fx||q.st==='4층'||q.st==='지원'||(me&&q.st!==me.st))return;var b=asg[m],ok=true,diff=0;
+    tail.forEach(function(x){var ds2=ymd(yy,mm,x);if(!okFor(n,b[x-1],ds2)||!okFor(m,a[x-1],ds2))ok=false;if(a[x-1]!==b[x-1])diff++});
+    if(!ok)return;if(d>1&&((a[d-2]==='오후'&&SR_MORN[b[d-1]])||(b[d-2]==='오후'&&SR_MORN[a[d-1]])))return;
+    var runOK=function(arr,mine,mc){var t=arr.slice();tail.forEach(function(x){t[x-1]=mine[x-1]});var r=0,mx=0;for(var i=0;i<t.length;i++){var v2=t[i];r=(v2&&v2!=='휴무'&&!/^(하계|연차|병가|수련회)$/.test(v2))?r+1:0;if(i+1>=Math.max(1,d-7)&&r>mx)mx=r}return mx<=mc};
+    if(!runOK(a,b,+(me&&me.maxConsec)||6)||!runOK(b,a,+q.maxConsec||6))return;   /* 연속근무 최대 일수 지킴 */
+    if(diff<pickDiff){pick=m;pickDiff=diff}});
+   if(pick){var b2=asg[pick];tail.forEach(function(x){var t2=a[x-1];a[x-1]=b2[x-1];b2[x-1]=t2});return}
+   bad.push({d:d,rule:'개인 근무 제한',n:n+' '+v+' (바꿀 사람 없음)'})})});
+ return bad}
+function srHtml(){var R=srRules(),st=(window.YSched&&YSched._staff?YSched._staff():[]).filter(function(p){return p.active!==false&&p.st!=='4층'&&p.st!=='지원'}),ed=srSup();
+ return '<div class="wsx-mt wsx-sr"><b>👤 개인 근무 제한 조건</b><span>기간 안에서 그 사람은 고른 근무로만 편성합니다. 자동 편성 결과에 다른 근무가 나오면 같은 날 그 근무를 맡을 수 있는 사람과 서로 바꿉니다. 휴무 · 교육은 그대로입니다.</span>'+
+  (R.length?'<table class="wsx-srt"><tr><th>이름</th><th>들어갈 수 있는 근무</th><th>기간</th><th></th></tr>'+R.map(function(r){return '<tr><td><b>'+esc(r.n)+'</b></td><td>'+(r.allow||[]).map(function(k){var x=SR_K.filter(function(z){return z[0]===k})[0];return '<i>'+esc(x?x[1]:k)+'</i>'}).join(' ')+'</td><td>'+esc((r.from||'처음')+' ~ '+(r.to||'계속'))+'</td><td>'+(ed?'<button onclick="WorkSched.srDel(\''+r.id+'\')">삭제</button>':'')+'</td></tr>'}).join('')+'</table>':'<div class="wsx-sre">조건 없음</div>')+
+  (ed?'<div class="wsx-sra" style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center"><select id="sr-n" style="width:auto;max-width:140px">'+st.map(function(p){return '<option>'+esc(p.n)+'</option>'}).join('')+'</select>'+SR_K.map(function(k){return '<label style="display:inline-flex;align-items:center;gap:3px;white-space:nowrap"><input type="checkbox" class="sr-k" style="width:auto;margin:0" value="'+k[0]+'"> '+esc(k[1])+'</label>'}).join('')+
+   '<input type="date" id="sr-f" style="width:auto;max-width:150px"> ~ <input type="date" id="sr-t" style="width:auto;max-width:150px"><button onclick="WorkSched.srAdd()">+ 조건 추가</button></div>':'')+'</div>'}
+function srAdd(){if(!srSup())return U.toast('최고관리자만 넣을 수 있습니다.','bad');var n=($('#sr-n')||{}).value,al=[].slice.call(document.querySelectorAll('.sr-k:checked')).map(function(x){return x.value}),f=($('#sr-f')||{}).value||'',t=($('#sr-t')||{}).value||'';
+ if(!n||!al.length)return U.toast('이름과 들어갈 수 있는 근무를 하나 이상 골라 주세요.','bad');if(f&&t&&f>t)return U.toast('기간을 확인해 주세요.','bad');
+ srRules().push({id:'sr'+Date.now().toString(36),n:n,allow:al,from:f,to:t});D()._u=new Date().toISOString();DB.save();var y=window.scrollY,box=$('#ws-root');if(box)box.innerHTML=innerView();window.scrollTo(0,y);U.toast(n+' 근무 제한 조건을 넣었습니다. 「근무표 만들기」를 누르면 반영됩니다.','ok')}
+function srDel(id){if(!srSup())return;var W=D();W.shiftRules=srRules().filter(function(r){return r.id!==id});DB.save();var y=window.scrollY,box=$('#ws-root');if(box)box.innerHTML=innerView();window.scrollTo(0,y)}
 function maintMonthHtml(){var m=maintWd(CUR_YM),sel=WD.filter(function(l,wd){return m[wd]});
  return '<div class="wsx-mt wsx-mtm"><b>🔧 정비 요일 선택 <span style="font-weight:700;color:#9A5B00">('+(sel.length?sel.join(' · ')+'요일':'없음')+')</span></b><span>정비하는 요일을 눌러 고르세요 (여러 요일 가능). 정비 요일은 근무시간 07:00~16:00 · 배합 중간과 착즙 오전(정비)만 편성 · 1팀 지원 없음. 나머지 요일은 위 인원 그대로 편성합니다.</span><div class="g">'+
   WD.map(function(l,wd){var on=!!m[wd];return '<button class="'+(on?'on':'')+(wd===5?' sat':wd===6?' sun':'')+'" onclick="WorkSched.toggleMaint('+wd+')">'+l+(on?'<i>🔧</i>':'')+'</button>'}).join('')+'</div></div>'}
@@ -7789,6 +7828,7 @@ function plan(){
  var asg={};staff.forEach(function(p){var a=(prev[p.n]||[]).slice();while(a.length<N)a.push('');
   for(var d=1;d<=L0;d++)a[d-1]=(res.assign[p.n]||[])[d-1]||a[d-1];ds.forEach(function(d){a[d-1]=(res.assign[p.n]||[])[d-1]||''});asg[p.n]=a});
  o.asg=asg;o.planned=o.planned||{};ds.forEach(function(d){o.planned[d]=1});try{if(window.yumEduPlan)yumEduPlan(CUR_YM,ds)}catch(e){console.warn('[교육 편성]',e)}try{var _wsh=o.wishes||{};Object.keys(_wsh).forEach(function(n){var a=asg[n];if(!a)return;ds.forEach(function(d){if((_wsh[n]||{})[d]==='수련회')a[d-1]='수련회'})})}catch(e){console.warn('[간부 수련회]',e)}
+ var SRB=[];try{SRB=srApply(asg,staff,ds)}catch(e){console.warn('[개인 근무 제한]',e)}
  /* 이번 주 규칙 확인 */
  var on={};ds.forEach(function(d){on[d]=1});
  var V=(res.viol||[]).filter(function(v){return on[v.d]&&v.rule!=='오후 다음날 오전/정상'&&!(v.rule==='필요인원 부족'&&isMaint(v.d))})   /* 일요일은 정비 — 인원 부족은 1팀 지원 대상 아님 */,UM=(res.unmet||[]).filter(function(x){return on[x.d]&&x.r>0})   /* 희망휴무만 (교대 인원 부족은 1팀 지원 · 편성 점검에서) */;
@@ -7796,6 +7836,7 @@ function plan(){
   ds.forEach(function(d){var v=a[d-1];if(d>1&&a[d-2]==='오후'&&(v==='오전'||v==='정상'))V.push({d:d,rule:'오후 다음날 오전/정상',n:p.n});
    if(!flag&&v&&v!=='휴무'){var r=0;for(var k=d;k>=1;k--){var x=a[k-1];if(!x||x==='휴무')break;r++}if(r>mc){V.push({d:d,rule:'연속근무 초과',n:p.n+' '+r+'일(기준 '+mc+'일)'});flag=1}}});
   if(ds.length>=5&&!ds.some(function(d){return a[d-1]==='휴무'}))V.push({d:0,rule:'주간 휴무 없음',n:p.n})});
+ V=V.concat(SRB);
  /* YSched(근무편성 화면)에도 같은 결과 */
  S0.res=Object.assign({},res,{assign:asg,viol:V,unmet:UM,lock:L0});(S0.hist=S0.hist||[]).push({at:new Date().toISOString(),act:'주간 자동편성 '+wk.lab});
  /* 결과 → 이 화면(달력 · 휴일체크표) */
@@ -7859,7 +7900,7 @@ function view(){
  return '<div class="wsx"><div id="ws-root">'+innerView()+'</div></div>';
 }
 
-window.WorkSched={wcFix:wcFix,wcDiff:wcDiff,view:view,paint:paint,goResult:goResult,plan:plan,openWeek:openWeek,selWeek:selWeek,syncTotal:syncTotal,resetTeam:resetTeam,recalc:recalc,toggleMaint:toggleMaint,cur:function(){return CUR_YM},pickWish:pickWish,setTarget:setTarget,setReq:setReq,setTeamReq:setTeamReq,toggleDetail:toggleDetail,gotoMonth:gotoMonth,solve:solve,openAddHoliday:openAddHoliday,addHoliday:addHoliday,removeHoliday:removeHoliday};
+window.WorkSched={wcFix:wcFix,wcDiff:wcDiff,view:view,paint:paint,goResult:goResult,plan:plan,openWeek:openWeek,selWeek:selWeek,syncTotal:syncTotal,resetTeam:resetTeam,recalc:recalc,toggleMaint:toggleMaint,srAdd:srAdd,srDel:srDel,srApply:function(a,b,c){return srApply(a,b,c)},cur:function(){return CUR_YM},pickWish:pickWish,setTarget:setTarget,setReq:setReq,setTeamReq:setTeamReq,toggleDetail:toggleDetail,gotoMonth:gotoMonth,solve:solve,openAddHoliday:openAddHoliday,addHoliday:addHoliday,removeHoliday:removeHoliday};
 })();
 </script>
 <script id="weekplanjs">
