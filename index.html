@@ -7965,7 +7965,8 @@ function weekDates(key){
   out.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));}
  return out;
 }
-function checkedOffSet(dateStr){
+function wpTag(dateStr,k){try{var d=new Date(dateStr+'T00:00:00'),i=(d.getDay()+6)%7;d.setDate(d.getDate()-i);var key=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'),W=(DB.data.weeklyPlans||{})[key];return W&&W[k]&&W[k][i]?W[k][i]:null}catch(e){return null}}   /* 2026-11-26 PDF로 옮긴 확정 근무표: 이름 색을 PDF 그대로 */
+function checkedOffSet(dateStr){var _t=wpTag(dateStr,'offTags');if(_t)return _t;
  /* 그날 휴무자별 구분: 'wish' = 희망휴무로 쉰 사람 · 'six' = 주 6일(연속 6일) 근무해서 쉬게 된 사람 */
  try{
   var p=dateStr.split('-');var ym=p[0]+'-'+p[1];var day=+p[2];
@@ -7991,7 +7992,7 @@ function nameHtml(n,hiSet){
  if(hit==='six')return '<span style="color:#E07B00;font-weight:800" title="주 6일 근무로 지정된 휴무">'+esc(n)+'</span>';
  return esc(n);
 }
-function supSet(dateStr){try{var p=dateStr.split('-'),o=DB.data.workSched.months[p[0]+'-'+p[1]],day=+p[2],out={};if(!o||!o.asg)return null;Object.keys(o.asg).forEach(function(n){if((o.asg[n]||[])[day-1]==='배합지원')out[String(n).replace(/\s+/g,'')]='sup'});return out}catch(e){return null}}
+function supSet(dateStr){var _t=wpTag(dateStr,'supTags');if(_t)return _t;try{var p=dateStr.split('-'),o=DB.data.workSched.months[p[0]+'-'+p[1]],day=+p[2],out={};if(!o||!o.asg)return null;Object.keys(o.asg).forEach(function(n){if((o.asg[n]||[])[day-1]==='배합지원')out[String(n).replace(/\s+/g,'')]='sup'});return out}catch(e){return null}}
 function chunk3(v,hiSet){
  if(!v)return '<span style="color:var(--faint)">-</span>';
  var all=v.split(',').map(function(x){return x.trim()}).filter(Boolean);
@@ -23924,6 +23925,40 @@ window.yumSterOEE={get:get,range:range,S:S,
  state:function(D){if(!D||D>kst(-1))return null;var r=monR(D),c=get(r[0],r[1]);return c?{err:c.err||'',ok:!!c.j}:{pend:1}},
  day:function(D){if(!D||D>kst(-1))return null;var r=monR(D),c=get(r[0],r[1]);if(!c||!c.j)return null;return {rows:(c.j.days||[]).filter(function(x){return x&&x.date===D})}},
  sum:function(F,T){var c=C[F+'|'+T];return c&&c.j?(c.j.summary||[]):null}};
+})();
+</script>
+<script>
+/* 2026-11-26 11/16~22(3주차) · 11/23~29(4주차) 확정 근무표를 결재본 PDF(ver8 · ver5) 그대로 옮김 — 이름 · 시간 · 휴무자 · 1팀 지원 · 이름 색
+   근무스케쥴(달 근무 기록)도 같은 내용으로 맞춰 휴일체크표 · 다음 주 편성이 이어지게 함 · 최고관리자 계정으로 한 번만 */
+(function(){if(window.__YUM_WPPDF__)return;window.__YUM_WPPDF__=1;
+var SRC=[{"key": "2026-11-16", "days": [16, 17, 18, 19, 20, 21, 22], "g": {"오전|배합": [["06:00~15:00", "06:00~15:00", "06:00~15:00", "06:00~15:00", "06:00~15:00", "06:00~15:00", "-"], ["조성빈,김용찬", "조의석,김민성", "조성빈,조의석", "조의석,김민성", "조의석,김민성", "조의석,이상민", ""]], "오전|착즙": [["05:30~14:30", "05:30~14:30", "05:30~14:30", "05:30~14:30", "05:30~14:30", "05:30~14:30", "-"], ["목진웅,장영빈", "목진웅,장영빈", "이인철,채승엽", "이인철,채승엽", "이인철,채승엽", "채승엽,이연우", ""]], "중간|배합": [["07:00~16:00", "07:00~16:00", "07:00~16:00", "07:00~16:00", "07:00~16:00", "07:00~16:00", "07:00~16:00"], ["윤인기,표상욱,김민성,이범직", "윤인기,표상욱,이범직", "윤인기,표상욱,김민성,김용찬", "조성빈,이연우,이범직", "이연우,표상욱,이범직", "윤인기,표상욱,김용찬,이범직", "윤인기,정웅"]], "오후|배합": [["16:00~", "16:00~", "16:00~", "16:00~", "16:00~", "16:00~", "-"], ["정웅,이상민,김승기", "정웅,김승기", "정웅,이상민", "윤인기,김용찬", "조성빈,김승기", "조성빈,김승기", ""]], "오후|착즙": [["14:30~23:00", "14:30~23:00", "14:30~23:00", "14:30~23:00", "14:30~23:00", "14:30~23:00", "-"], ["채승엽,이연우", "이원석,이연우", "이원석,목진웅", "이원석,목진웅", "이원석,목진웅", "이원석,목진웅", ""]], "4층|": [["07:30~16:00", "07:30~16:00", "07:30~16:00", "07:30~16:00", "07:30~16:00", "-", "-"], ["우정균,김진명", "우정균,김진명", "우정균,장영빈(대체)", "우정균,장영빈(대체)", "우정균,장영빈(대체)", "-", "-"]], "정상|": [["07:00~16:00", "07:00~16:00", "07:00~16:00", "07:00~16:00", "07:00~16:00", "-", "-"], ["이인철,임성주", "임성주", "임성주", "임성주", "임성주", "-", "-"]]}, "off": ["황용식,조의석,이원석", "황용식,이인철,조성빈,채승엽,이상민,김용찬", "황용식,이연우,김진명,이범직,김승기", "황용식,김진명,정웅,표상욱,이상민,김승기", "황용식,윤인기,김진명,정웅,이상민,김용찬", "황용식,우정균,이인철,임성주,김진명,정웅,김민성,장영빈", "황용식,우정균,이인철,임성주,조성빈,조의석,채승엽,이원석,이연우,김진명,표상욱,이상민,김민성,목진웅,김용찬,이범직,장영빈,김승기"], "offTags": [{"조의석": "six", "이원석": "six"}, {}, {"이연우": "six", "김진명": "wish"}, {"김진명": "vac", "정웅": "six", "표상욱": "six"}, {"윤인기": "wish", "김진명": "vac"}, {"이인철": "wish", "김진명": "wish", "정웅": "wish", "김민성": "wish", "장영빈": "wish"}, {"이인철": "wish", "조의석": "wish", "김민성": "wish", "목진웅": "six"}], "supTags": [{}, {}, {}, {"이연우": "sup"}, {"이연우": "sup"}, {}, {}], "sup": ["1명", "2명", "1명", "2명", "1명", "1명", "12명"]}, {"key": "2026-11-23", "days": [23, 24, 25, 26, 27, 28, 29], "g": {"오전|배합": [["06:00~15:00", "06:00~15:00", "06:00~15:00", "06:00~15:00", "06:00~15:00", "06:00~15:00", "06:00~15:00"], ["조성빈,김민성", "조의석,김용찬", "윤인기,김용찬", "조성빈,김용찬", "조성빈,김용찬", "조성빈,김민성", "윤인기,김승기"]], "오전|착즙": [["05:30~14:30", "05:30~14:30", "05:30~14:30", "05:30~14:30", "05:30~14:30", "05:30~14:30", "05:30~14:30"], ["채승엽,장영빈", "이원석,장영빈", "이원석,장영빈", "이원석,목진웅", "이원석,장영빈", "이원석,장영빈", "이원석,장영빈"]], "중간|배합": [["07:00~16:00", "07:00~16:00", "07:00~16:00", "07:00~16:00", "07:00~16:00", "07:00~16:00", "07:00~16:00"], ["정웅,김용찬,김승기", "조성빈,정웅,김승기", "조성빈,조의석,정웅", "윤인기,조의석,정웅", "조의석,정웅,김승기", "윤인기,정웅,김용찬,김승기", "조성빈,정웅,김용찬,이범직"]], "오후|배합": [["16:00~", "16:00~", "16:00~", "16:00~", "16:00~", "16:00~", "16:00~"], ["윤인기,표상욱,이범직", "표상욱,김민성,이범직", "표상욱,김민성,이범직", "표상욱,김민성,이범직", "표상욱,이범직", "조의석,표상욱", "조의석,김민성"]], "오후|착즙": [["14:30~23:00", "14:30~23:00", "14:30~23:00", "14:30~23:00", "14:30~23:00", "14:30~23:00", "14:30~23:00"], ["이연우,목진웅", "이연우,목진웅", "채승엽,이연우", "채승엽,이연우", "채승엽,목진웅", "채승엽,목진웅", "채승엽,목진웅"]], "4층|": [["07:30~16:00", "07:30~16:00", "07:30~16:00", "07:30~16:00", "07:30~16:00", "-", "-"], ["우정균,김진명", "우정균,김진명", "우정균,김진명", "김진명,장영빈(대체)", "김진명", "-", "-"]], "정상|": [["07:00~16:00", "07:00~16:00", "07:00~16:00", "07:00~16:00", "07:00~16:00", "-", "-"], ["이인철,임성주", "이인철,임성주", "이인철,임성주", "우정균,이인철,임성주(간부 수련회)", "우정균,이인철,임성주(간부 수련회)", "-", "-"]]}, "off": ["황용식,조의석,이원석,이상민", "황용식,윤인기,채승엽,이상민", "황용식,이상민,목진웅,김승기", "황용식,이상민,김승기", "황용식,윤인기,이연우,이상민,김민성", "황용식,우정균,이인철,임성주,이연우,김진명,이상민,이범직", "황용식,우정균,이인철,임성주,이연우,김진명,표상욱,이상민"], "offTags": [{"황용식": "vac", "조의석": "wish", "이원석": "six"}, {"황용식": "vac", "채승엽": "six"}, {"황용식": "vac", "목진웅": "six", "김승기": "wish"}, {"황용식": "vac", "김승기": "wish"}, {"황용식": "vac", "이연우": "vac", "김민성": "wish"}, {"황용식": "vac", "이연우": "vac", "이범직": "vac"}, {"황용식": "vac", "이연우": "vac", "표상욱": "wish", "이상민": "wish"}], "supTags": [{}, {}, {}, {}, {}, {}, {}], "sup": ["1명", "-", "-", "-", "-", "-", "2명"]}],GL=[['오전','배합'],['오전','착즙'],['중간','배합'],['오후','배합'],['오후','착즙'],['4층',''],['정상','']];
+function sup(){try{var u=Auth.user();return !!u&&u.role==='superadmin'}catch(e){return false}}
+function K(n){return String(n||'').replace(/\(.*?\)/g,'').replace(/\s+/g,'')}
+function run(){if(!sup()||typeof DB==='undefined'||!DB.data||!window.WorkSched||!window.YSched)return false;if(DB.data.wpPdfFix1)return true;
+ var WP=DB.data.weeklyPlans=DB.data.weeklyPlans||{},ST={};try{(YSched._staff()||[]).forEach(function(p){ST[K(p.n)]=p.st})}catch(e){}
+ SRC.forEach(function(w){var old=WP[w.key]||{},y=+w.key.slice(0,4),mo=+w.key.slice(5,7),WD='월화수목금토일';
+  var groups=[['오전',['배합','착즙']],['중간',['배합']],['오후',['배합','착즙']],['4층',['']],['정상',['']]].map(function(g){return {label:g[0],rows:g[1].map(function(sub){var x=w.g[g[0]+'|'+sub];return {sub:sub,time:x[0].slice(),names:x[1].slice()}})}});
+  var single=[{label:'휴무자',values:w.off.slice()},{label:'배합 근무',values:w.days.map(function(){return '주간 교대 2'})},{label:'착즙 근무',values:w.days.map(function(){return '주간 교대 2'})},{label:'1팀 지원',values:w.sup.slice()}];
+  var supMan={};w.sup.forEach(function(v,i){supMan[i]=v});
+  WP[w.key]={range:mo+'월 '+w.days[0]+'일 ~ '+mo+'월 '+w.days[6]+'일',dayLabels:w.days.map(function(d,i){return d+'('+WD[i]+')'}),groups:groups,single:single,offTags:w.offTags,supTags:w.supTags,supMan:supMan,
+   confirmed:old.confirmed||{at:new Date().toISOString(),by:'결재본 PDF'},edited:{at:new Date().toISOString(),by:'결재본 PDF 반영'},auto:old.auto,pdf:'2026-11-26 결재본 PDF 반영',_u:new Date().toISOString()};
+  /* 달 근무 기록 */
+  var ym=w.key.slice(0,7),o=DB.data.workSched&&DB.data.workSched.months&&DB.data.workSched.months[ym];if(!o)return;o.asg=o.asg||{};var N=new Date(y,mo,0).getDate();
+  Object.keys(ST).forEach(function(n){});
+  w.days.forEach(function(d,i){var put=function(n,v){var full=Object.keys(o.asg).filter(function(x){return K(x)===K(n)})[0]||n;var a=o.asg[full]=o.asg[full]||[];while(a.length<N)a.push('');a[d-1]=v};
+   GL.forEach(function(g){var nm=w.g[g[0]+'|'+g[1]][1][i]||'';String(nm).split(/[,\/]/).forEach(function(raw){var n=raw.trim();if(!n||n==='-')return;var st=ST[K(n)]||'',v;
+     if(/간부 수련회/.test(n))v='수련회';else if(/\(대체\)/.test(n))v='4층대체';
+     else if(g[0]==='오전')v=(g[1]==='착즙'&&st!=='착즙')?'착즙지원':'오전';
+     else if(g[0]==='중간')v=(st==='착즙')?'배합지원':'정상';
+     else if(g[0]==='오후')v='오후';else v='정상';
+     put(n,v)})});
+   String(w.off[i]||'').split(',').forEach(function(n){n=n.trim();if(n)put(n,'휴무')});
+   o.planned=o.planned||{};o.planned[d]=1});
+  try{WorkSched.recalc(ym,null,null,null)}catch(e){console.warn('[근무표 PDF 반영]',e)}});
+ DB.data.wpPdfFix1=new Date().toISOString();try{DB.save()}catch(e){}try{if(window.SupaSync&&SupaSync.on()){clearTimeout(SupaSync.pushT);SupaSync.pushNow(DB.data)}}catch(e){}
+ try{U.toast('11/16~22 · 11/23~29 확정 근무표를 결재본 PDF 내용으로 바꿨습니다.','ok')}catch(e){}try{if(/^#\/(weekplan|worksched)/.test(location.hash))App.render()}catch(e){}return true}
+window.yumWpPdfRun=run;
+var t=setInterval(function(){try{if(run())clearInterval(t)}catch(e){console.warn('[근무표 PDF 반영]',e);clearInterval(t)}},4000);
 })();
 </script>
 </body>
