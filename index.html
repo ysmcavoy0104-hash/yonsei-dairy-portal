@@ -7700,7 +7700,7 @@ function innerView(){
    이 화면의 필요인원(요일 · 팀별) · 희망휴무 · 목표 휴무일수 · 지정휴일을 그대로 넘겨 편성하고,
    결과를 주간근무계획표 양식(오전/중간/오후/4층/정상 · 휴무자 …)으로 만들어 주간근무계획표에 넣습니다. */
 /* 정비일: 직접 고른 날 (처음엔 일요일) — 배합은 중간만, 착즙은 오전(정비)만, 1팀 지원 대상 아님 */
-/* 정비 요일: 월~일 중 고른 요일 (처음엔 일요일) — 그 요일은 근무시간 07:30~16:30 · 배합 중간과 착즙 오전(정비)만 · 1팀 지원 없음 */
+/* 정비 요일: 월~일 중 고른 요일 (처음엔 일요일) — 그 요일은 근무시간 07:00~16:00 · 배합 중간과 착즙 오전(정비)만 · 1팀 지원 없음 */
 /* 2026-11-25 정비 요일을 달마다 따로 두지 않고 이어서 씀: 그 달에 고른 값 → 없으면 앞 달에 고른 값 → 마지막으로 고른 값 → 일요일
    (예전에는 11월에 「월」을 골라도 12월은 일요일 그대로라 11/30~12/6 주의 12월 날짜가 일요일 정비로 편성됨) */
 function maintWd(ym){ym=ym||CUR_YM;var MS=(DB.data.workSched&&DB.data.workSched.months)||{},own=MS[ym]&&MS[ym].maintWd;if(own)return own;
@@ -7749,7 +7749,7 @@ function srAdd(){if(!srSup())return U.toast('최고관리자만 넣을 수 있�
  srRules().push({id:'sr'+Date.now().toString(36),n:n,allow:al,from:f,to:t});D()._u=new Date().toISOString();DB.save();var y=window.scrollY,box=$('#ws-root');if(box)box.innerHTML=innerView();window.scrollTo(0,y);U.toast(n+' 근무 제한 조건을 넣었습니다. 「근무표 만들기」를 누르면 반영됩니다.','ok')}
 function srDel(id){if(!srSup())return;var W=D();W.shiftRules=srRules().filter(function(r){return r.id!==id});DB.save();var y=window.scrollY,box=$('#ws-root');if(box)box.innerHTML=innerView();window.scrollTo(0,y)}
 function maintMonthHtml(){var m=maintWd(CUR_YM),sel=WD.filter(function(l,wd){return m[wd]});
- return '<div class="wsx-mt wsx-mtm"><b>🔧 정비 요일 선택 <span style="font-weight:700;color:#9A5B00">('+(sel.length?sel.join(' · ')+'요일':'없음')+')</span></b><span>정비하는 요일을 눌러 고르세요 (여러 요일 가능). 정비 요일은 근무시간 07:30~16:30 · 배합 중간과 착즙 오전(정비)만 편성 · 1팀 지원 없음. 나머지 요일은 위 인원 그대로 편성합니다.</span><div class="g">'+
+ return '<div class="wsx-mt wsx-mtm"><b>🔧 정비 요일 선택 <span style="font-weight:700;color:#9A5B00">('+(sel.length?sel.join(' · ')+'요일':'없음')+')</span></b><span>정비하는 요일을 눌러 고르세요 (여러 요일 가능). 정비 요일은 근무시간 07:00~16:00 · 배합 중간과 착즙 오전(정비)만 편성 · 1팀 지원 없음. 나머지 요일은 위 인원 그대로 편성합니다.</span><div class="g">'+
   WD.map(function(l,wd){var on=!!m[wd];return '<button class="'+(on?'on':'')+(wd===5?' sat':wd===6?' sun':'')+'" onclick="WorkSched.toggleMaint('+wd+')">'+l+(on?'<i>🔧</i>':'')+'</button>'}).join('')+'</div></div>'}
 function maintPickHtml(){var W=weekList(),w=W[selWeekIdx()];if(!w)return '';
  return '<div class="wsx-mt"><b>🔧 정비일</b><span>이 주에서 정비하는 날을 눌러 고르세요 (정비일: 배합 중간 · 착즙 오전 정비만 편성, 1팀 지원 없음 / 나머지 날은 입력한 인원 그대로)</span><div>'+
@@ -7788,7 +7788,7 @@ function buildWeeks(asg,staff,w){
  var oldG=function(lab,sub,i,k){var g=W&&(W.groups||[]).filter(function(x){return x.label===lab})[0],r=g&&(g.rows||[]).filter(function(x){return (x.sub||'')===sub})[0];return r&&r[k]?(r[k][i]||''):''};
  var oldS=function(lab,i){var x=W&&(W.single||[]).filter(function(q){return q.label===lab})[0];return x&&x.values?(x.values[i]||''):''};
  var groups=WG.map(function(g){return {label:g[0],rows:g[1].map(function(r){var fixed=g[0]==='4층'||g[0]==='정상';
-  return {sub:r[0],time:ds.map(function(d,i){if(!mine(d))return oldG(g[0],r[0],i,'time');var n=who(d,r[2],r[3]);return !n?'-':(isMaint(d)&&!fixed?'07:30~16:30':r[1])}),   /* 정비일 근무시간 07:30~16:30 (2026-11-27 변경 · 예전 07:00~16:00) */
+  return {sub:r[0],time:ds.map(function(d,i){if(!mine(d))return oldG(g[0],r[0],i,'time');var n=who(d,r[2],r[3]);return !n?'-':(isMaint(d)&&!fixed?'07:00~16:00':r[1])}),   /* 정비일 근무시간 07:00~16:00 (11/30만 07:30~16:30 · 그 주 표에서 따로 고침) */
    names:ds.map(function(d,i){if(!mine(d))return oldG(g[0],r[0],i,'names');var n=who(d,r[2],r[3]);return fixed&&!n?'-':n})}})}});
  var single=[{label:'휴무자',values:ds.map(function(d,i){return mine(d)?staff.filter(function(p){return (asg[p.n]||[])[d-1]==='휴무'}).map(function(p){return p.n}).join(','):oldS('휴무자',i)})},
   {label:'배합 근무',values:ds.map(function(d,i){return oldS('배합 근무',i)||(mine(d)?'주간 교대 2':'')})},
@@ -17015,7 +17015,7 @@ function hook(){var f=window.yumEduHtml;if(!f||f.__nh)return !!(f&&f.__nh);
   return h};
  g.__nh=1;window.yumEduHtml=g;return true}
 /* 2026-11-09(다음 주)부터 배합팀 신입 근무시간 07:30~16:00 — 날짜별 근무시간(times)으로 보관해 지난 주 기록은 그대로 */
-function tTime(x,ds){var t=x.time||'08:00~17:00';(x.times||[]).forEach(function(r){if(r&&r.from&&(!ds||ds>=r.from)&&r.time)t=r.time});return t}
+function tTime(x,ds){var t=x.time||'08:00~17:00';(x.times||[]).forEach(function(r){if(r&&r.from&&(!ds||ds>=r.from)&&r.time)t=r.time});(x.times||[]).forEach(function(r){if(r&&r.on&&ds===r.on&&r.time)t=r.time});return t}   /* on: 그날 하루만 (2026-11-30 07:30~16:30) */
 window.yumTraineeTime=tTime;
 function ensure2(){try{if(typeof DB==='undefined'||!DB.data)return;var d=DB.data;if(d.traineeSeed&&d.traineeSeed['20261109'])return;
  (d.trainees||[]).forEach(function(x){if(!x||!x.n||!/배합/.test(String(x.team||'배합')))return;var T=x.times=Array.isArray(x.times)?x.times:[];if(!T.some(function(r){return r&&r.from==='2026-11-09'})){T.push({from:'2026-11-09',time:'07:30~16:00'});x.u=new Date().toISOString()}});
@@ -24002,6 +24002,15 @@ function run(){var u=null;try{u=Auth.user()}catch(e){}if(!u||u.role!=='superadmi
  W.edited={at:new Date().toISOString(),by:'11/30 정비일 07:30~16:30 · 12/6 교대 시간'};W._u=W.edited.at;DB.data.wpFix1130=W.edited.at;
  try{DB.save()}catch(e){}try{if(window.SupaSync&&SupaSync.on()){clearTimeout(SupaSync.pushT);SupaSync.pushNow(DB.data)}}catch(e){}
  try{U.toast('6주차 근무 시간 고침 · 11/30 '+a+'칸 07:30~16:30 · 12/6 '+b+'칸 토요일과 같은 시간','ok')}catch(e){}try{if(/^#\/weekplan/.test(location.hash))App.render()}catch(e){}return true}
+/* 둘째 (11/27 추가): 11/30은 4층 · 정상 · 신입도 07:30~16:30 — 이번 한 번만 (다음 편성은 예전처럼) */
+function run2(){var u=null;try{u=Auth.user()}catch(e){}if(!u||u.role!=='superadmin'||typeof DB==='undefined'||!DB.data)return false;if(DB.data.wpFix1130b)return true;if(!DB.data.wpFix1130)return false;
+ var W=(DB.data.weeklyPlans||{})[KEY];if(!W)return false;var n=0;
+ (W.groups||[]).forEach(function(g){if(g.label!=='4층'&&g.label!=='정상')return;(g.rows||[]).forEach(function(r){var v=String((r.names||[])[0]||'').trim();if(!v||v==='-'||!r.time)return;if(r.time[0]!=='07:30~16:30'){r.time[0]='07:30~16:30';n++}})});
+ var tn=0;(DB.data.trainees||[]).forEach(function(x){if(!x||!x.n||x.off===true)return;if(x.from&&x.from>'2026-11-30')return;if(x.to&&x.to<'2026-11-30')return;var T=x.times=Array.isArray(x.times)?x.times:[];if(!T.some(function(r){return r&&r.on==='2026-11-30'})){T.push({on:'2026-11-30',time:'07:30~16:30'});x.u=new Date().toISOString();tn++}});
+ W.edited={at:new Date().toISOString(),by:'11/30 4층 · 정상 · 신입 07:30~16:30'};W._u=W.edited.at;DB.data.wpFix1130b=W.edited.at;
+ try{DB.save()}catch(e){}try{if(window.SupaSync&&SupaSync.on()){clearTimeout(SupaSync.pushT);SupaSync.pushNow(DB.data)}}catch(e){}
+ try{U.toast('11/30(월) 4층 · 정상 '+n+'칸 · 신입 '+tn+'명 근무시간 07:30~16:30','ok')}catch(e){}try{if(/^#\/weekplan/.test(location.hash))App.render()}catch(e){}return true}
+window.yumWp1130b=run2;var t2=setInterval(function(){try{if(run2())clearInterval(t2)}catch(e){console.warn('[11/30 4층 · 정상]',e);clearInterval(t2)}},6000);
 window.yumWp1130=run;var t=setInterval(function(){try{if(run())clearInterval(t)}catch(e){console.warn('[6주차 시간]',e);clearInterval(t)}},5000);
 })();
 </script>
