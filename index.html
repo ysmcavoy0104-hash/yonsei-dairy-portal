@@ -7997,8 +7997,9 @@ function chunk3(v,hiSet){
  if(!v)return '<span style="color:var(--faint)">-</span>';
  var all=v.split(',').map(function(x){return x.trim()}).filter(Boolean);
  var normal=all.filter(function(x){return x.indexOf('(')<0});
- var noted=all.filter(function(x){return x.indexOf('(')>=0});
- var lines=[];
+ var timed=all.filter(function(x){return /\(\d{1,2}:\d{2}\s*~\s*\d{1,2}:\d{2}\)/.test(x)});   /* 2026-11-27 근무 시각을 붙인 이름(예: 윤인기(06:00~18:00))은 맨 위 줄에 */
+ var noted=all.filter(function(x){return x.indexOf('(')>=0&&timed.indexOf(x)<0});
+ var lines=[];timed.forEach(function(n){lines.push([n])});
  if(normal.length){
   if(normal.length<=3){lines.push(normal);}
   else{
@@ -23959,6 +23960,23 @@ function run(){if(!sup()||typeof DB==='undefined'||!DB.data||!window.WorkSched||
  try{U.toast('11/16~22 · 11/23~29 확정 근무표를 결재본 PDF 내용으로 바꿨습니다.','ok')}catch(e){}try{if(/^#\/(weekplan|worksched)/.test(location.hash))App.render()}catch(e){}return true}
 window.yumWpPdfRun=run;
 var t=setInterval(function(){try{if(run())clearInterval(t)}catch(e){console.warn('[근무표 PDF 반영]',e);clearInterval(t)}},4000);
+})();
+</script>
+<script>
+/* 2026-11-27 11/29(일) 12시간 근무 시각을 이름 옆에 표시 — 지금 저장된 표의 29일 칸에서 이름만 바꿈 (다른 칸 · 다른 날은 그대로) · 최고관리자 계정으로 한 번 */
+(function(){if(window.__YUM_WP1129__)return;window.__YUM_WP1129__=1;
+var KEY='2026-11-23',DI=6,ADD={'윤인기':'06:00~18:00','이원석':'05:30~17:30','조의석':'18:00~06:00','채승엽':'17:30~05:30'};
+function run(){var u=null;try{u=Auth.user()}catch(e){}if(!u||u.role!=='superadmin'||typeof DB==='undefined'||!DB.data)return false;if(DB.data.wpFix1129)return true;
+ if(!DB.data.wpPdfFix1)return false;   /* PDF 반영이 먼저 */
+ var W=(DB.data.weeklyPlans||{})[KEY];if(!W)return false;var hit={};
+ (W.groups||[]).forEach(function(g){(g.rows||[]).forEach(function(r){if(!r.names)return;var v=String(r.names[DI]||'');if(!v||v==='-')return;
+  r.names[DI]=v.split(',').map(function(x){var t=x.trim(),b=t.replace(/\s+/g,'');if(ADD[b]){hit[b]=1;return t+'('+ADD[b]+')'}return x}).join(',')})});
+ W.edited={at:new Date().toISOString(),by:'11/29 12시간 근무 시각 표시'};W._u=W.edited.at;
+ DB.data.wpFix1129={at:W.edited.at,done:Object.keys(hit)};try{DB.save()}catch(e){}try{if(window.SupaSync&&SupaSync.on()){clearTimeout(SupaSync.pushT);SupaSync.pushNow(DB.data)}}catch(e){}
+ var miss=Object.keys(ADD).filter(function(n){return !hit[n]});
+ try{U.toast('11/29(일) 근무 시각을 이름 옆에 넣었습니다'+(miss.length?' · 표에 없어 못 넣은 사람: '+miss.join(', '):'')+'.',miss.length?'warn':'ok')}catch(e){}
+ try{if(/^#\/weekplan/.test(location.hash))App.render()}catch(e){}return true}
+window.yumWp1129=run;var t=setInterval(function(){try{if(run())clearInterval(t)}catch(e){console.warn('[11/29 근무 시각]',e);clearInterval(t)}},5000);
 })();
 </script>
 </body>
