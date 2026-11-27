@@ -23976,6 +23976,14 @@ function run(){var u=null;try{u=Auth.user()}catch(e){}if(!u||u.role!=='superadmi
  var miss=Object.keys(ADD).filter(function(n){return !hit[n]});
  try{U.toast('11/29(일) 근무 시각을 이름 옆에 넣었습니다'+(miss.length?' · 표에 없어 못 넣은 사람: '+miss.join(', '):'')+'.',miss.length?'warn':'ok')}catch(e){}
  try{if(/^#\/weekplan/.test(location.hash))App.render()}catch(e){}return true}
+/* 2026-11-27 둘째: 29일 시간 칸이 정비일처럼 모두 07:00~16:00으로 바뀐 것 → 평소 시간으로 (사람이 있는 칸만) */
+var TM={'오전|배합':'06:00~15:00','오전|착즙':'05:30~14:30','중간|배합':'07:00~16:00','오후|배합':'16:00~','오후|착즙':'14:30~23:00'};
+function run2(){var u=null;try{u=Auth.user()}catch(e){}if(!u||u.role!=='superadmin'||typeof DB==='undefined'||!DB.data)return false;if(DB.data.wpFix1129b)return true;if(!DB.data.wpFix1129)return false;
+ var W=(DB.data.weeklyPlans||{})[KEY];if(!W)return false;var n=0;
+ (W.groups||[]).forEach(function(g){(g.rows||[]).forEach(function(r){var t=TM[g.label+'|'+(r.sub||'')];if(!t||!r.time)return;var nm=String((r.names||[])[DI]||'').trim();if(!nm||nm==='-')return;if(r.time[DI]!==t){r.time[DI]=t;n++}})});
+ W.edited={at:new Date().toISOString(),by:'11/29 근무 시간 평소대로'};W._u=W.edited.at;DB.data.wpFix1129b=W.edited.at;try{DB.save()}catch(e){}try{if(window.SupaSync&&SupaSync.on()){clearTimeout(SupaSync.pushT);SupaSync.pushNow(DB.data)}}catch(e){}
+ try{U.toast('11/29(일) 근무 시간을 평소대로 되돌렸습니다 ('+n+'칸).','ok')}catch(e){}try{if(/^#\/weekplan/.test(location.hash))App.render()}catch(e){}return true}
+window.yumWp1129b=run2;var t2=setInterval(function(){try{if(run2())clearInterval(t2)}catch(e){console.warn('[11/29 시간]',e);clearInterval(t2)}},6000);
 window.yumWp1129=run;var t=setInterval(function(){try{if(run())clearInterval(t)}catch(e){console.warn('[11/29 근무 시각]',e);clearInterval(t)}},5000);
 })();
 </script>
